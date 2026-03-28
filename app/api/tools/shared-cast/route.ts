@@ -1,0 +1,119 @@
+import { NextRequest, NextResponse } from "next/server";
+
+const API_KEY = process.env.TMDB_API_KEY;
+const BASE = "https://api.themoviedb.org/3";
+
+async function tmdb<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}?api_key=${API_KEY}`);
+  return res.json();
+}
+
+interface CreditsResponse {
+  cast: { id: number; name: string; profile_path: string | null; character?: string }[];
+  crew: { id: number; name: string; profile_path: string | null; job: string }[];
+}
+interface MovieCreditsResponse {
+  cast: { id: number; title: string; poster_path: string | null; release_date: string; character?: string }[];
+  crew: { id: number; title: string; poster_path: string | null; release_date: string; job: string }[];
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { mode, ids, minOverlap = 2 } = await req.json();
+
+    if (mode === "movies-to-people") {
+      const creditsArr = await Promise.all(
+        ids.map((id: number) => tmdb<CreditsResponse>(`/movie/${id}/credits`))
+      );
+
+      // personId -> { name, profile_path, appearances: {movieId: role} }
+      const personMap = new Map<number, { name: string; profile_path: string | null; appearances: Map<number, string> }>();
+
+      ids.forEach((movieId: number, idx: number) => {
+        const credits = creditsArr[idx];
+        const seenForThisMovie = new Set<number>();
+
+        for (const c of credits.cast) {
+          if (!seenForThisMovie.has(c.id)) {
+            seenForThisMovie.add(c.id);
+            const existing = personMap.get(c.id) ?? { name: c.name, profile_path: c.profile_path, appearances: new Map<number, string>() };
+            existing.appearances.set(movieId, c.character || "Actor");
+            personMap.set(c.id, existing);
+          }
+        }
+        for (const c of credits.crew) {
+          if (["Director", "Producer", "Writer", "Screenplay", "Composer", "Cinematographer"].includes(c.job)) {
+            if (!seenForThisMovie.has(c.id)) {
+              seenForThisMovie.add(c.id);
+              const existing = personMap.get(c.id) ?? { name: c.name, profile_path: c.profile_path, appearances: new Map<number, string>() };
+              existing.appearances.set(movieId, `(${c.job})`);
+              personMap.set(c.id, existing);
+            }
+          }
+        }
+      });
+
+      const results = Array.from(personMap.entries())
+        .filter(([, v]) => v.appearances.size >= minOverlap)
+        .sort((a, b) => b[1].appearances.size - a[1].appearances.size)
+        .map(([id, v]) => ({
+          id,
+          name: v.name,
+          profile_path: v.profile_path,
+          count: v.appearances.size,
+          // appearances as plain object for JSON serialization
+          appearances: Object.fromEntries(v.appearances),
+        }));
+
+      return NextResponse.json({ results });
+
+    } else {
+      // People → find movies
+      const creditsArr = await Promise.all(
+        ids.map((id: number) => tmdb<MovieCreditsResponse>(`/person/${id}/movie_credits`))
+      );
+
+      // movieId -> { title, poster_path, release_date, appearances: {personId: role} }
+      const movieMap = new Map<number, { title: string; poster_path: string | null; release_date: string; appearances: Map<number, string> }>();
+
+      ids.forEach((personId: number, idx: number) => {
+        const credits = creditsArr[idx];
+        const seenForThisPerson = new Set<number>();
+
+        for (const m of credits.cast) {
+          if (!seenForThisPerson.has(m.id)) {
+            seenForThisPerson.add(m.id);
+            const existing = movieMap.get(m.id) ?? { title: m.title, poster_path: m.poster_path, release_date: m.release_date, appearances: new Map<number, string>() };
+            existing.appearances.set(personId, m.character || "Actor");
+            movieMap.set(m.id, existing);
+          }
+        }
+        for (const m of credits.crew) {
+          if (!seenForThisPerson.has(m.id)) {
+            seenForThisPerson.add(m.id);
+            const existing = movieMap.get(m.id) ?? { title: m.title, poster_path: m.poster_path, release_date: m.release_date, appearances: new Map<number, string>() };
+            existing.appearances.set(personId, `(${m.job})`);
+            movieMap.set(m.id, existing);
+          }
+        }
+      });
+
+      const results = Array.from(movieMap.entries())
+        .filter(([, v]) => v.appearances.size >= minOverlap)
+        .sort((a, b) => b[1].appearances.size - a[1].appearances.size || (b[1].release_date ?? "").localeCompare(a[1].release_date ?? ""))
+        .map(([id, v]) => ({
+          id,
+          title: v.title,
+          poster_path: v.poster_path,
+          release_date: v.release_date,
+          count: v.appearances.size,
+          appearances: Object.fromEntries(v.appearances),
+        }));
+
+      return NextResponse.json({ results });
+    }
+  } catch (err) {
+    console.error("Shared cast error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

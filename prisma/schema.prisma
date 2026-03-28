@@ -1,0 +1,400 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PostType {
+  BLOG
+  PUNCH_AND_JUDY
+  MOVIE_MAP
+}
+
+model User {
+  id          String   @id @default(cuid())
+  firebaseUid String   @unique @map("firebase_uid")
+  name        String
+  email       String   @unique
+  avatarUrl   String?  @map("avatar_url")
+  bio         String?
+  isPrivate   Boolean  @default(false) @map("is_private")
+  isAdmin     Boolean  @default(false) @map("is_admin")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  ratings        MovieRating[]
+  profile        UserProfile?
+  favoriteMovies UserFavoriteMovie[]
+  watchlist      UserWatchlistMovie[]
+  blogPosts      BlogPost[]
+  blogComments   BlogComment[]
+  pjArguments    PunchAndJudyArgument[]
+  pjHelpfuls     PunchAndJudyHelpful[]
+  pjVotes        PunchAndJudyOverallVote[]
+  forumThreads   ForumThread[]
+  forumPosts     ForumPost[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id     String @id @default(cuid())
+  userId String @unique @map("user_id")
+
+  // Component preferences (0-10)
+  plotFocused        Float @default(0) @map("plot_focused")
+  visualFocused      Float @default(0) @map("visual_focused")
+  scriptFocused      Float @default(0) @map("script_focused")
+  actingFocused      Float @default(0) @map("acting_focused")
+  originalityFocused Float @default(0) @map("originality_focused")
+  characterFocused   Float @default(0) @map("character_focused")
+  messageFocused     Float @default(0) @map("message_focused")
+
+  // Genre preferences (0-10)
+  genreAction        Float @default(0) @map("genre_action")
+  genreHorror        Float @default(0) @map("genre_horror")
+  genreDrama         Float @default(0) @map("genre_drama")
+  genreHistorical    Float @default(0) @map("genre_historical")
+  genreScifi         Float @default(0) @map("genre_scifi")
+  genreThriller      Float @default(0) @map("genre_thriller")
+  genreComedy        Float @default(0) @map("genre_comedy")
+  genreBookAdapt     Float @default(0) @map("genre_book_adaptation")
+  genreFantasy       Float @default(0) @map("genre_fantasy")
+  genreRomance       Float @default(0) @map("genre_romance")
+  genreDocumentary   Float @default(0) @map("genre_documentary")
+  genreFamily        Float @default(0) @map("genre_family")
+  genreFilmNoir      Float @default(0) @map("genre_film_noir")
+  genreMusical       Float @default(0) @map("genre_musical")
+  genreBiopic        Float @default(0) @map("genre_biopic")
+  genreCrime         Float @default(0) @map("genre_crime")
+  genreWestern       Float @default(0) @map("genre_western")
+  genreMystery       Float @default(0) @map("genre_mystery")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Movie {
+  id           String   @id @default(cuid())
+  tmdbId       Int      @unique @map("tmdb_id")
+  title        String
+  overview     String?
+  posterPath   String?  @map("poster_path")
+  backdropPath String?  @map("backdrop_path")
+  releaseDate  String?  @map("release_date")
+  runtime      Int?
+  mpaaRating   String?  @map("mpaa_rating")
+  tagline      String?
+  budget       BigInt?
+  revenue      BigInt?
+  popularity   Float?
+  voteAverage  Float?   @map("vote_average")
+  voteCount    Int?     @map("vote_count")
+  trailerKey   String?  @map("trailer_key")
+  status       String?
+  cachedAt     DateTime? @map("cached_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  genres      MovieGenre[]
+  cast        MovieCast[]
+  ratings     MovieRating[]
+  favoritedBy UserFavoriteMovie[]
+  watchlistedBy UserWatchlistMovie[]
+
+  @@map("movies")
+}
+
+model Genre {
+  id     Int    @id
+  name   String @unique
+  movies MovieGenre[]
+
+  @@map("genres")
+}
+
+model MovieGenre {
+  movieId String @map("movie_id")
+  genreId Int    @map("genre_id")
+
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+  @@map("movie_genres")
+}
+
+model Celebrity {
+  id                 String    @id @default(cuid())
+  tmdbId             Int       @unique @map("tmdb_id")
+  name               String
+  profilePath        String?   @map("profile_path")
+  knownForDepartment String?   @map("known_for_department")
+  knownFor           String?   @map("known_for")
+  birthday           String?
+  deathday           String?
+  placeOfBirth       String?   @map("place_of_birth")
+  biography          String?   @db.Text
+  popularity         Float?
+  cachedAt           DateTime? @map("cached_at")
+
+  movieRoles MovieCast[]
+
+  @@map("celebrities")
+}
+
+model MovieCast {
+  id          String  @id @default(cuid())
+  movieId     String  @map("movie_id")
+  celebrityId String  @map("celebrity_id")
+  creditType  String  @default("cast") @map("credit_type") // "cast" | "crew"
+  character   String?
+  job         String  @default("") // crew: "Director", "Writer", etc. Empty string for cast.
+  department  String? // crew: "Directing", "Writing", etc.
+  castOrder   Int     @default(0) @map("cast_order")
+
+  movie     Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  celebrity Celebrity @relation(fields: [celebrityId], references: [id], onDelete: Cascade)
+
+  @@unique([movieId, celebrityId, creditType, job])
+  @@map("movie_cast")
+}
+
+model MovieRating {
+  id      String @id @default(cuid())
+  userId  String @map("user_id")
+  movieId String @map("movie_id")
+
+  // Story (weight 5) — required: plot, storytelling, pacingClimax
+  plot               Float?
+  premiseOriginality Float? @map("premise_originality")
+  storytelling       Float?
+  characterDev       Float? @map("character_dev")
+  pacingClimax       Float? @map("pacing_climax")
+
+  // Production & Style (weight 3) — required: cinematography, artisticEffect
+  cinematography   Float?
+  locationCost     Float? @map("location_costuming")
+  realism          Float? @map("realism_believability")
+  artisticEffect   Float? @map("artistic_effect")
+  visualEffects    Float? @map("visual_effects")
+  musicSound       Float? @map("music_sound")
+
+  // Emotive Effect (weight 3) — required: overallEmotion, relatability
+  overallEmotion Float? @map("overall_emotion")
+  relatability   Float?
+  meaning        Float?
+  movingness     Float?
+
+  // Acting & Casting (weight 3) — required: casting, actingQuality
+  casting            Float?
+  actingQuality      Float? @map("acting_quality")
+  dialogueScripting  Float? @map("dialogue_scripting")
+  blockingChoreo     Float? @map("blocking_choreography")
+
+  // Pure Entertainment (weight 2) — required: appeal
+  appeal            Float?
+  superficialAllure Float? @map("superficial_allure") // excluded from score
+  choreography      Float?
+
+  // Optional overall
+  overallRating Float? @map("overall_rating")
+
+  // Genre accuracy (optional)
+  genreAction      Float? @map("genre_action")
+  genreHorror      Float? @map("genre_horror")
+  genreDrama       Float? @map("genre_drama")
+  genreHistorical  Float? @map("genre_historical")
+  genreScifi       Float? @map("genre_scifi")
+  genreThriller    Float? @map("genre_thriller")
+  genreComedy      Float? @map("genre_comedy")
+  genreBookAdapt   Float? @map("genre_book_adaptation")
+  genreFantasy     Float? @map("genre_fantasy")
+  genreRomance     Float? @map("genre_romance")
+  genreDocumentary Float? @map("genre_documentary")
+  genreFamily      Float? @map("genre_family")
+  genreFilmNoir    Float? @map("genre_film_noir")
+  genreMusical     Float? @map("genre_musical")
+  genreBiopic      Float? @map("genre_biopic")
+  genreCrime       Float? @map("genre_crime")
+  genreWestern     Float? @map("genre_western")
+  genreMystery     Float? @map("genre_mystery")
+
+  // Cached computed scores
+  storyScore        Float? @map("story_score")
+  styleScore        Float? @map("style_score")
+  emotiveScore      Float? @map("emotive_score")
+  actingScore       Float? @map("acting_score")
+  entertainScore    Float? @map("entertainment_score")
+  ratistRating      Float? @map("ratist_rating")
+
+  reviewText String?  @map("review_text")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, movieId])
+  @@map("movie_ratings")
+}
+
+model UserFavoriteMovie {
+  userId      String    @map("user_id")
+  movieId     String    @map("movie_id")
+  watchedDate DateTime? @map("watched_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([userId, movieId])
+  @@map("user_favorite_movies")
+}
+
+model UserWatchlistMovie {
+  userId    String   @map("user_id")
+  movieId   String   @map("movie_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([userId, movieId])
+  @@map("user_watchlist_movies")
+}
+
+model BlogPost {
+  id         String   @id @default(cuid())
+  authorId   String   @map("author_id")
+  type       PostType @default(BLOG)
+  title      String
+  slug       String   @unique
+  content    String   @db.Text
+  excerpt    String?
+  coverImage String?  @map("cover_image")
+  published  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments BlogComment[]
+
+  @@map("blog_posts")
+}
+
+model BlogComment {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  authorId  String   @map("author_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("blog_comments")
+}
+
+// Punch & Judy — structured debate per movie
+model PunchAndJudyDebate {
+  id        String   @id @default(cuid())
+  movieId   Int      @unique @map("movie_id") // TMDB id (no FK, avoids requiring movie in DB)
+  movieTitle String  @map("movie_title")
+  posterPath String? @map("poster_path")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  arguments PunchAndJudyArgument[]
+  votes     PunchAndJudyOverallVote[]
+
+  @@map("punch_and_judy_debates")
+}
+
+model PunchAndJudyArgument {
+  id        String   @id @default(cuid())
+  debateId  String   @map("debate_id")
+  authorId  String   @map("author_id")
+  side      String   // "for" | "against"
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  debate    PunchAndJudyDebate  @relation(fields: [debateId], references: [id], onDelete: Cascade)
+  author    User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  helpfuls  PunchAndJudyHelpful[]
+
+  @@map("punch_and_judy_arguments")
+}
+
+model PunchAndJudyHelpful {
+  userId     String @map("user_id")
+  argumentId String @map("argument_id")
+
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  argument PunchAndJudyArgument @relation(fields: [argumentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, argumentId])
+  @@map("punch_and_judy_helpfuls")
+}
+
+model PunchAndJudyOverallVote {
+  userId   String @map("user_id")
+  debateId String @map("debate_id")
+  verdict  String // "for" | "against"
+
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debate PunchAndJudyDebate @relation(fields: [debateId], references: [id], onDelete: Cascade)
+
+  @@id([userId, debateId])
+  @@map("punch_and_judy_overall_votes")
+}
+
+// Forums
+model ForumCategory {
+  id          String @id @default(cuid())
+  name        String @unique
+  slug        String @unique
+  description String?
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  threads ForumThread[]
+
+  @@map("forum_categories")
+}
+
+model ForumThread {
+  id         String   @id @default(cuid())
+  categoryId String   @map("category_id")
+  authorId   String   @map("author_id")
+  title      String
+  slug       String   @unique
+  isPinned   Boolean  @default(false) @map("is_pinned")
+  isLocked   Boolean  @default(false) @map("is_locked")
+  viewCount  Int      @default(0) @map("view_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category ForumCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  posts    ForumPost[]
+
+  @@map("forum_threads")
+}
+
+model ForumPost {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  authorId  String   @map("author_id")
+  content   String
+  isEdited  Boolean  @default(false) @map("is_edited")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("forum_posts")
+}

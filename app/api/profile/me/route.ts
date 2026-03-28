@@ -1,0 +1,52 @@
+import { NextRequest, NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebase-admin";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(req: NextRequest) {
+  try {
+    const authorization = req.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
+    const user = await prisma.user.findUnique({
+      where: { firebaseUid: decoded.uid },
+      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true },
+    });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json({ user });
+  } catch (err) {
+    console.error("Profile me GET error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const authorization = req.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
+    const dbUser = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const { name, avatarUrl, bio, isPrivate } = await req.json();
+    const update: Record<string, string | boolean | null> = {};
+    if (typeof name === "string" && name.trim()) update.name = name.trim();
+    if (typeof avatarUrl === "string") update.avatarUrl = avatarUrl.trim() || null;
+    if (typeof bio === "string") update.bio = bio.trim() || null;
+    if (typeof isPrivate === "boolean") update.isPrivate = isPrivate;
+
+    const updated = await prisma.user.update({
+      where: { id: dbUser.id },
+      data: update,
+      select: { id: true, name: true, avatarUrl: true, bio: true, isPrivate: true },
+    });
+
+    return NextResponse.json({ user: updated });
+  } catch (err) {
+    console.error("Profile me PATCH error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

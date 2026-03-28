@@ -1,0 +1,63 @@
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+import Image from "next/image";
+import Link from "next/link";
+import { BookOpen, Calendar } from "lucide-react";
+
+export default async function BlogPage() {
+  const posts = await prisma.blogPost.findMany({
+    where: { type: "BLOG", published: true },
+    include: { author: { select: { name: true, avatarUrl: true } }, _count: { select: { comments: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center gap-3 mb-8">
+        <BookOpen className="w-6 h-6 text-[var(--ratist-red)]" />
+        <h1 className="text-2xl font-bold text-white">Blog</h1>
+      </div>
+
+      {posts.length === 0 ? (
+        <div className="text-center py-20 text-[var(--foreground-muted)]">
+          <p>No posts yet. Check back soon.</p>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-6">
+          {posts.map((post) => (
+            <Link
+              key={post.id}
+              href={`/blog/${post.slug}`}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)] transition-colors group"
+            >
+              {post.coverImage && (
+                <div className="relative h-48 bg-[var(--surface-2)]">
+                  <Image src={post.coverImage} alt={post.title} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" />
+                </div>
+              )}
+              <div className="p-5">
+                <h2 className="text-base font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors mb-2 line-clamp-2">
+                  {post.title}
+                </h2>
+                {post.excerpt && <p className="text-sm text-[var(--foreground-muted)] line-clamp-3 mb-3">{post.excerpt}</p>}
+                <div className="flex items-center justify-between text-xs text-[var(--foreground-muted)]">
+                  <span className="flex items-center gap-1.5">
+                    {post.author.avatarUrl && (
+                      <Image src={post.author.avatarUrl} alt="" width={16} height={16} className="rounded-full w-4 h-4 object-cover" />
+                    )}
+                    {post.author.name}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {post.createdAt.toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

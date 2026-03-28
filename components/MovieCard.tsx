@@ -1,0 +1,101 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { Eye, Bookmark, BookmarkCheck, Check } from "lucide-react";
+import { posterUrl, type TMDBMovie } from "@/lib/tmdb";
+import RatingBadge from "./RatingBadge";
+import { useAuth } from "@/context/AuthContext";
+import { useMovieUserState } from "@/hooks/useMovieUserState";
+
+interface Props {
+  movie: TMDBMovie;
+  ratistRating?: number | null;
+}
+
+export default function MovieCard({ movie, ratistRating }: Props) {
+  const { user } = useAuth();
+  const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
+  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
+  const [markingS, setMarkingS] = useState(false);
+  const [markingW, setMarkingW] = useState(false);
+
+  async function markSeen(e: React.MouseEvent) {
+    e.preventDefault(); e.stopPropagation();
+    if (!user || markingS || seen) return;
+    setMarkingS(true);
+    const token = await user.getIdToken();
+    await fetch(`/api/movies/${movie.id}/seen`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
+    }).catch(() => null);
+    persistSeen();
+    setMarkingS(false);
+  }
+
+  async function toggleWatchlist(e: React.MouseEvent) {
+    e.preventDefault(); e.stopPropagation();
+    if (!user || markingW) return;
+    setMarkingW(true);
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/movies/${movie.id}/watchlist`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setWatchlistState(data.watchlisted ?? !watchlisted);
+    }
+    setMarkingW(false);
+  }
+
+  return (
+    <Link
+      href={`/movies/${movie.id}`}
+      className="group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
+    >
+      <div className="relative aspect-[2/3] overflow-hidden bg-[var(--surface-2)]">
+        <Image
+          src={posterUrl(movie.poster_path)}
+          alt={movie.title}
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+          className="object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+        {user && (
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-end gap-2 pb-3">
+            <button
+              onClick={markSeen}
+              disabled={markingS || seen}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                seen ? "bg-green-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+              }`}
+            >
+              {seen ? <><Check className="w-3.5 h-3.5" /> Seen!</> : <><Eye className="w-3.5 h-3.5" /> {markingS ? "..." : "Mark Seen"}</>}
+            </button>
+            <button
+              onClick={toggleWatchlist}
+              disabled={markingW}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                watchlisted ? "bg-blue-600/80 text-white" : "bg-white/90 text-black hover:bg-white"
+              }`}
+            >
+              {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {markingW ? "..." : "Watchlist"}</>}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="p-2.5 flex flex-col gap-1">
+        <p className="text-sm font-medium text-white line-clamp-1 leading-tight">{movie.title}</p>
+        <p className="text-xs text-[var(--foreground-muted)]">{movie.release_date?.slice(0, 4) ?? "—"}</p>
+        <div className="flex items-center gap-3 mt-0.5">
+          <RatingBadge type="community" score={communityScore} size="sm" />
+          <RatingBadge type="ratist" score={ratistRating ?? null} size="sm" />
+        </div>
+      </div>
+    </Link>
+  );
+}

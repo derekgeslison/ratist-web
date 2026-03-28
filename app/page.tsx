@@ -1,65 +1,144 @@
+import Link from "next/link";
 import Image from "next/image";
+import { Users, Trophy, Swords, Map } from "lucide-react";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies } from "@/lib/tmdb";
+import HeroBanner from "@/components/HeroBanner";
+import MovieRow from "@/components/MovieRow";
+import PersonalizedSection from "@/components/PersonalizedSection";
+import BrandCTAButtons from "@/components/BrandCTAButtons";
 
-export default function Home() {
+const TOOLS = [
+  {
+    icon: Users,
+    title: "Shared Cast & Crew",
+    description: "Discover who worked across your favorite films. Search any two movies to reveal shared cast and crew.",
+    href: "/tools/shared-cast",
+  },
+  {
+    icon: Trophy,
+    title: "Personal Rankings",
+    description: "Build your definitive ranked list of everything you've seen. Drag, sort, and filter by year.",
+    href: "/tools/rankings",
+  },
+  {
+    icon: Swords,
+    title: "Punch & Judy",
+    description: "Head-to-head debates and contrarian takes from our editors. Who's right? You decide.",
+    href: "/punch-and-judy",
+  },
+  {
+    icon: Map,
+    title: "Movie Maps",
+    description: "Follow curated cinematic journeys through genres, directors, and eras.",
+    href: "/movie-maps",
+  },
+];
+
+export default async function HomePage() {
+  const [popular, topRated, nowPlaying] = await Promise.all([
+    getPopularMovies(),
+    getTopRatedMovies(),
+    getNowPlayingMovies(),
+  ]);
+
+  // Hero carousel: popular movies filtered to rating >= 7.0 with a backdrop, up to 6
+  const heroMovies = popular.results
+    .filter((m) => m.backdrop_path && m.vote_average >= 7.0)
+    .slice(0, 6);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div>
+      {/* Brand lockup — above the hero so the logo is the first thing visitors see */}
+      <div className="bg-[var(--surface)] py-8 sm:py-10 border-b border-[var(--border)]/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-3 text-center">
+          <Image
+            src="/logo-full.png"
+            alt="The Ratist"
+            width={320}
+            height={160}
+            className="h-20 sm:h-28 w-auto"
+            priority
+          />
+          <p className="text-[var(--foreground-muted)] text-sm sm:text-base max-w-lg">
+            Deep, criteria-based movie ratings. Personalized recommendations. A community that takes cinema seriously.
           </p>
+          <BrandCTAButtons />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
+
+      <HeroBanner movies={heroMovies} />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
+        {/* Personalized section */}
+        <PersonalizedSection />
+
+        {/* Now Playing */}
+        <MovieRow
+          title="Now Playing in Theaters"
+          movies={nowPlaying.results.slice(0, 12)}
+          viewAllHref="/movies"
+        />
+
+        {/* Tools Spotlight */}
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4">Tools &amp; Features</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {TOOLS.map(({ icon: Icon, title, description, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 hover:border-[var(--ratist-red)] transition-colors group flex flex-col gap-3"
+              >
+                <Icon className="w-6 h-6 text-[var(--ratist-red)]" />
+                <div className="flex-1">
+                  <p className="text-white font-bold text-sm mb-1">{title}</p>
+                  <p className="text-[var(--foreground-muted)] text-sm leading-relaxed">
+                    {description}
+                  </p>
+                </div>
+                <span className="text-[var(--ratist-red)] text-sm font-semibold group-hover:underline">
+                  Explore &rarr;
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* Popular */}
+        <MovieRow
+          title="Popular"
+          movies={popular.results.slice(1, 13)}
+          viewAllHref="/movies"
+        />
+
+        {/* Top Rated */}
+        <MovieRow
+          title="Top Rated"
+          movies={topRated.results.slice(0, 12)}
+          viewAllHref="/movies?sort=top_rated"
+        />
+
+        {/* The Ratist Method */}
+        <section>
+          <div className="bg-[var(--surface)] border-l-4 border-l-[var(--ratist-red)] border border-[var(--border)] rounded-xl p-6">
+            <p className="text-xs uppercase tracking-widest text-[var(--ratist-red)] font-semibold mb-2">
+              The Ratist Method
+            </p>
+            <p className="text-white text-base font-medium mb-2 max-w-3xl">
+              Unlike star ratings, The Ratist scores movies across Story, Style, Emotion, Acting, and Entertainment — weighted by your personal preferences.
+            </p>
+            <p className="text-[var(--foreground-muted)] text-sm max-w-2xl mb-4">
+              Your 7.2 isn&apos;t the same as someone else&apos;s. Our algorithm tailors scores to the criteria you care about most, so every rating means something.
+            </p>
+            <Link
+              href="/movies"
+              className="text-[var(--ratist-red)] text-sm font-semibold hover:underline"
+            >
+              Learn how ratings work &rarr;
+            </Link>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
