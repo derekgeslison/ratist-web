@@ -7,10 +7,11 @@ export const dynamic = "force-dynamic";
 
 export default async function PunchAndJudyPage() {
   const posts = await prisma.blogPost.findMany({
-    where: { type: "PUNCH_AND_JUDY", published: true },
+    where: { type: "PUNCH_AND_JUDY" as const, published: true },
     include: { author: { select: { name: true, avatarUrl: true } } },
     orderBy: { createdAt: "desc" },
   });
+  console.log("[P&J] found", posts.length, "posts");
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
