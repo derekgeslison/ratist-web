@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X } from "lucide-react";
+import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X, Clock, TrendingUp } from "lucide-react";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w185";
 
@@ -17,6 +17,7 @@ interface LooksLikeItem {
   name2: string;
   profilePath2: string | null;
   score: number;
+  createdAt: string;
   voterIds: { userId: string; value: number }[];
   creator: { name: string };
 }
@@ -28,13 +29,14 @@ interface PersonResult {
   department: string;
 }
 
-function PersonSearch({ label, onSelect }: { label: string; onSelect: (p: PersonResult) => void }) {
+function PersonSearch({ label, onSelect, onClear }: { label: string; onSelect: (p: PersonResult) => void; onClear: () => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonResult[]>([]);
+  const [selected, setSelected] = useState<PersonResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (query.length < 2) { setResults([]); return; }
+    if (selected || query.length < 2) { setResults([]); return; }
     const t = setTimeout(async () => {
       setLoading(true);
       const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(query)}`);
@@ -43,34 +45,53 @@ function PersonSearch({ label, onSelect }: { label: string; onSelect: (p: Person
       setLoading(false);
     }, 300);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, selected]);
+
+  function clear() {
+    setQuery("");
+    setSelected(null);
+    setResults([]);
+    onClear();
+  }
 
   return (
     <div className="relative">
       <label className="text-xs text-[var(--foreground-muted)] mb-1 block">{label}</label>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search celebrity…"
-          className="w-full pl-9 pr-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-        />
-        {loading && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--foreground-muted)]">…</span>}
-      </div>
-      {results.length > 0 && (
+      {selected ? (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-2)] border border-purple-400/50 rounded-lg">
+          {selected.profilePath ? (
+            <Image src={`${TMDB_IMG}${selected.profilePath}`} alt={selected.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover shrink-0" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-[var(--surface)] shrink-0" />
+          )}
+          <span className="text-sm text-white flex-1">{selected.name}</span>
+          <button onClick={clear} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search celebrity…"
+            className="w-full pl-9 pr-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-purple-400"
+          />
+          {loading && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--foreground-muted)]">…</span>}
+        </div>
+      )}
+      {!selected && results.length > 0 && (
         <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg">
           {results.map((p) => (
             <button
               key={p.id}
-              onClick={() => { onSelect(p); setQuery(p.name); setResults([]); }}
+              onClick={() => { setSelected(p); setResults([]); onSelect(p); }}
               className="flex items-center gap-3 w-full px-3 py-2 hover:bg-[var(--surface-2)] transition-colors text-left"
             >
               {p.profilePath ? (
-                <Image src={`${TMDB_IMG}${p.profilePath}`} alt={p.name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
+                <Image src={`${TMDB_IMG}${p.profilePath}`} alt={p.name} width={28} height={28} className="w-7 h-7 rounded-full object-cover" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)]">{p.name[0]}</div>
+                <div className="w-7 h-7 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)]">{p.name[0]}</div>
               )}
               <div>
                 <p className="text-sm font-medium text-white">{p.name}</p>
@@ -84,10 +105,13 @@ function PersonSearch({ label, onSelect }: { label: string; onSelect: (p: Person
   );
 }
 
+type SortMode = "newest" | "score";
+
 export default function LooksLikePage() {
   const { user } = useAuth();
   const [items, setItems] = useState<LooksLikeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState<SortMode>("newest");
   const [showForm, setShowForm] = useState(false);
   const [person1, setPerson1] = useState<PersonResult | null>(null);
   const [person2, setPerson2] = useState<PersonResult | null>(null);
@@ -102,6 +126,11 @@ export default function LooksLikePage() {
   }, []);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const sorted = [...items].sort((a, b) => {
+    if (sort === "score") return b.score - a.score;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   async function vote(itemId: string, value: 1 | -1) {
     if (!user) return;
@@ -148,7 +177,7 @@ export default function LooksLikePage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/community" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Community Hub
       </Link>
@@ -167,52 +196,54 @@ export default function LooksLikePage() {
           </button>
         )}
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Celebrity lookalike pairs — vote on who really could be twins.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Celebrity lookalike pairs — vote on who really could be twins.</p>
 
       {/* Submit Form */}
       {showForm && (
-        <div className="bg-[var(--surface)] border border-purple-400/30 rounded-xl p-6 mb-8">
+        <div className="bg-[var(--surface)] border border-purple-400/30 rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-white">Submit a Lookalike Pair</h2>
-            <button onClick={() => setShowForm(false)}><X className="w-5 h-5 text-[var(--foreground-muted)]" /></button>
+            <h2 className="text-sm font-semibold text-white">Submit a Lookalike Pair</h2>
+            <button onClick={() => { setShowForm(false); setPerson1(null); setPerson2(null); }}><X className="w-5 h-5 text-[var(--foreground-muted)]" /></button>
           </div>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
-            <PersonSearch label="Person 1" onSelect={setPerson1} />
-            <PersonSearch label="Person 2" onSelect={setPerson2} />
+            <PersonSearch label="Person 1" onSelect={setPerson1} onClear={() => setPerson1(null)} />
+            <PersonSearch label="Person 2" onSelect={setPerson2} onClear={() => setPerson2(null)} />
           </div>
-          {person1 && person2 && (
-            <div className="flex items-center justify-center gap-4 mb-4">
-              <div className="text-center">
-                {person1.profilePath ? (
-                  <Image src={`${TMDB_IMG}${person1.profilePath}`} alt={person1.name} width={64} height={64} className="w-16 h-16 rounded-full object-cover mx-auto" />
-                ) : <div className="w-16 h-16 rounded-full bg-[var(--surface-2)] mx-auto" />}
-                <p className="text-sm text-white mt-1">{person1.name}</p>
-              </div>
-              <span className="text-2xl text-purple-400">≈</span>
-              <div className="text-center">
-                {person2.profilePath ? (
-                  <Image src={`${TMDB_IMG}${person2.profilePath}`} alt={person2.name} width={64} height={64} className="w-16 h-16 rounded-full object-cover mx-auto" />
-                ) : <div className="w-16 h-16 rounded-full bg-[var(--surface-2)] mx-auto" />}
-                <p className="text-sm text-white mt-1">{person2.name}</p>
-              </div>
-            </div>
-          )}
           {formError && <p className="text-red-400 text-sm mb-3">{formError}</p>}
           <button
             onClick={submitPair}
             disabled={!person1 || !person2 || submitting}
-            className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+            className="w-full py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-semibold transition-colors"
           >
-            {submitting ? "Submitting…" : "Submit"}
+            {submitting ? "Submitting…" : "Submit Pair"}
           </button>
         </div>
       )}
 
-      {!user && (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-8 text-center">
+      {!user && !showForm && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
           <p className="text-sm text-[var(--foreground-muted)]">
             <Link href="/auth/signin" className="text-purple-400 hover:underline">Sign in</Link> to submit pairs and vote.
           </p>
+        </div>
+      )}
+
+      {/* Sort controls */}
+      {!loading && items.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-[var(--foreground-muted)]">Sort:</span>
+          <button
+            onClick={() => setSort("newest")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "newest" ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+          >
+            <Clock className="w-3 h-3" /> Newest
+          </button>
+          <button
+            onClick={() => setSort("score")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "score" ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+          >
+            <TrendingUp className="w-3 h-3" /> Top Rated
+          </button>
         </div>
       )}
 
@@ -221,55 +252,63 @@ export default function LooksLikePage() {
       ) : items.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No pairs yet. Be the first to submit one!</p>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => {
+        <div className="space-y-3">
+          {sorted.map((item) => {
             const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
             return (
-              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-center gap-3">
-                  <div className="text-center flex-1">
-                    <div className="relative w-20 h-20 mx-auto rounded-full overflow-hidden bg-[var(--surface-2)]">
-                      {item.profilePath1 ? (
-                        <Image src={`${TMDB_IMG}${item.profilePath1}`} alt={item.name1} fill sizes="80px" className="object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-[var(--foreground-muted)]">{item.name1[0]}</div>
-                      )}
-                    </div>
-                    <p className="text-sm font-medium text-white mt-2 line-clamp-1">{item.name1}</p>
+              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4">
+                {/* Person 1 */}
+                <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                  <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                    {item.profilePath1 ? (
+                      <Image src={`${TMDB_IMG}${item.profilePath1}`} alt={item.name1} fill sizes="48px" className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name1[0]}</div>
+                    )}
                   </div>
-                  <span className="text-2xl text-purple-400 shrink-0">≈</span>
-                  <div className="text-center flex-1">
-                    <div className="relative w-20 h-20 mx-auto rounded-full overflow-hidden bg-[var(--surface-2)]">
-                      {item.profilePath2 ? (
-                        <Image src={`${TMDB_IMG}${item.profilePath2}`} alt={item.name2} fill sizes="80px" className="object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-[var(--foreground-muted)]">{item.name2[0]}</div>
-                      )}
-                    </div>
-                    <p className="text-sm font-medium text-white mt-2 line-clamp-1">{item.name2}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{item.name1}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-[var(--border)]">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => vote(item.id, 1)}
-                      disabled={!user}
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}
-                    >
-                      <ThumbsUp className="w-3.5 h-3.5" /> Twins
-                    </button>
-                    <button
-                      onClick={() => vote(item.id, -1)}
-                      disabled={!user}
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400"}`}
-                    >
-                      <ThumbsDown className="w-3.5 h-3.5" /> Nah
-                    </button>
+                {/* VS badge */}
+                <span className="text-lg text-purple-400 font-bold shrink-0">≈</span>
+
+                {/* Person 2 */}
+                <div className="flex items-center gap-2.5 flex-1 min-w-0 justify-end">
+                  <div className="min-w-0 text-right">
+                    <p className="text-sm font-medium text-white truncate">{item.name2}</p>
                   </div>
-                  <span className={`text-sm font-semibold ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+                  <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                    {item.profilePath2 ? (
+                      <Image src={`${TMDB_IMG}${item.profilePath2}`} alt={item.name2} fill sizes="48px" className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name2[0]}</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vote controls */}
+                <div className="flex items-center gap-1 shrink-0 border-l border-[var(--border)] pl-4 ml-2">
+                  <button
+                    onClick={() => vote(item.id, 1)}
+                    disabled={!user}
+                    title="Twins!"
+                    className={`p-1.5 rounded transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}
+                  >
+                    <ThumbsUp className="w-4 h-4" />
+                  </button>
+                  <span className={`text-sm font-semibold w-8 text-center ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
                     {item.score > 0 ? "+" : ""}{item.score}
                   </span>
+                  <button
+                    onClick={() => vote(item.id, -1)}
+                    disabled={!user}
+                    title="Nah"
+                    className={`p-1.5 rounded transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}
+                  >
+                    <ThumbsDown className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );

@@ -3,27 +3,45 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Map } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+
+const READ_LINKS = [
+  { href: "/blog", label: "Blog", icon: BookOpen },
+  { href: "/punch-and-judy", label: "Punch & Judy", icon: Swords },
+  { href: "/movie-maps", label: "Movie Maps", icon: Map },
+];
 
 export default function Navbar() {
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [readMenuOpen, setReadMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
+  const pathname = usePathname();
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const readMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (readMenuRef.current && !readMenuRef.current.contains(e.target as Node)) {
+        setReadMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  useEffect(() => {
+    setReadMenuOpen(false);
+    setUserMenuOpen(false);
+    setMenuOpen(false);
+  }, [pathname]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -37,11 +55,12 @@ export default function Navbar() {
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies" },
     { href: "/celebrities", label: "Celebrities" },
-    { href: "/blog", label: "Blog" },
     { href: "/forum", label: "Forum" },
     { href: "/community", label: "Community" },
     { href: "/tools", label: "Tools" },
   ];
+
+  const isReadActive = READ_LINKS.some((l) => pathname?.startsWith(l.href));
 
   return (
     <header className="sticky top-0 z-50 bg-[var(--surface)] border-b border-[var(--border)]">
@@ -63,6 +82,28 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+            {/* Read dropdown */}
+            <div className="relative" ref={readMenuRef}>
+              <button
+                onClick={() => setReadMenuOpen(!readMenuOpen)}
+                className={`flex items-center gap-1 text-sm transition-colors ${isReadActive ? "text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+              >
+                Read <ChevronDown className={`w-3 h-3 transition-transform ${readMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+              {readMenuOpen && (
+                <div className="absolute left-0 top-full mt-2 w-44 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden">
+                  {READ_LINKS.map(({ href, label, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors"
+                    >
+                      <Icon className="w-4 h-4 text-[var(--ratist-red)]" /> {label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Search + Auth */}
@@ -159,6 +200,14 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <div className="border-t border-[var(--border)] my-1" />
+            <p className="py-1 text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium">Read</p>
+            {READ_LINKS.map(({ href, label }) => (
+              <Link key={href} href={href} onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors pl-2">
+                {label}
+              </Link>
+            ))}
+            <div className="border-t border-[var(--border)] my-1" />
             {user ? (
               <>
                 <Link href={`/profile/${user.uid}`} onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Profile</Link>
