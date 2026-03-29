@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Star, Search, Calendar } from "lucide-react";
+import { Eye, Star, Search, Calendar, ArrowUpDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
@@ -24,6 +24,7 @@ export default function SeenPage() {
   const [movies, setMovies] = useState<SeenMovie[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"date" | "title" | "year" | "rating">("date");
   const [editingDate, setEditingDate] = useState<string | null>(null);
 
   async function updateWatchedDate(tmdbId: number, date: string) {
@@ -50,9 +51,16 @@ export default function SeenPage() {
     });
   }, [user]);
 
-  const filtered = query
+  const filtered = [...(query
     ? movies.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()))
-    : movies;
+    : movies
+  )].sort((a, b) => {
+    if (sort === "title") return a.title.localeCompare(b.title);
+    if (sort === "year") return (b.year || "0").localeCompare(a.year || "0");
+    if (sort === "rating") return (b.ratistRating ?? -1) - (a.ratistRating ?? -1);
+    // date: sort by watchedDate descending
+    return new Date(b.watchedDate ?? b.seenAt).getTime() - new Date(a.watchedDate ?? a.seenAt).getTime();
+  });
 
   const rated = movies.filter((m) => m.ratistRating !== null).length;
 
@@ -91,14 +99,28 @@ export default function SeenPage() {
           )}
 
           {movies.length > 5 && (
-            <div className="relative mb-6">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search your seen list..."
-                className="w-full max-w-sm bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-              />
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search your seen list..."
+                  className="w-full max-w-sm bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs">
+                <ArrowUpDown className="w-3 h-3 text-[var(--foreground-muted)]" />
+                {(["date", "title", "year", "rating"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSort(s)}
+                    className={`px-2.5 py-1.5 rounded-lg font-medium transition-colors capitalize ${sort === s ? "bg-[var(--ratist-red)]/20 text-white border border-[var(--ratist-red)]/50" : "text-[var(--foreground-muted)] hover:text-white border border-transparent"}`}
+                  >
+                    {s === "date" ? "Date Watched" : s === "rating" ? "My Rating" : s === "year" ? "Release Year" : "Title"}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

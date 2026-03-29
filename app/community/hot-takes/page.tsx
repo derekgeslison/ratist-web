@@ -158,6 +158,9 @@ export default function HotTakesPage() {
                     >
                       <ThumbsDown className="w-3.5 h-3.5" /> Not
                     </button>
+                    {item.voterIds.length > 0 && (
+                      <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
+                    )}
                   </div>
                 </div>
               </div>
