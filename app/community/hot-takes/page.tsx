@@ -1,0 +1,170 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { useAuth } from "@/context/AuthContext";
+import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeft, Flame, ThumbsUp, ThumbsDown } from "lucide-react";
+
+interface HotTakeItem {
+  id: string;
+  content: string;
+  createdAt: string;
+  score: number;
+  voterIds: { userId: string; value: number }[];
+  author: { id: string; name: string; avatarUrl: string | null };
+}
+
+export default function HotTakesPage() {
+  const { user } = useAuth();
+  const [items, setItems] = useState<HotTakeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newTake, setNewTake] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchItems = useCallback(async () => {
+    const res = await fetch("/api/community/hot-takes");
+    const data = await res.json();
+    setItems(data.items ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  async function vote(itemId: string, value: 1 | -1) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/community/hot-takes/${itemId}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ value }),
+    });
+    if (res.ok) {
+      const { score, userVote } = await res.json();
+      setItems((prev) => prev.map((it) =>
+        it.id === itemId
+          ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
+          : it
+      ));
+    }
+  }
+
+  async function submitTake() {
+    if (!newTake.trim() || !user) return;
+    setSubmitting(true);
+    setError("");
+    const token = await user.getIdToken();
+    const res = await fetch("/api/community/hot-takes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content: newTake }),
+    });
+    const data = await res.json();
+    if (!res.ok) { setError(data.error ?? "Failed"); setSubmitting(false); return; }
+    setItems((prev) => [data.item, ...prev]);
+    setNewTake("");
+    setSubmitting(false);
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      <Link href="/community" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
+        <ArrowLeft className="w-4 h-4" /> Community Hub
+      </Link>
+
+      <div className="flex items-center gap-3 mb-2">
+        <Flame className="w-6 h-6 text-orange-400" />
+        <h1 className="text-2xl font-bold text-white">Hot Takes</h1>
+      </div>
+      <p className="text-[var(--foreground-muted)] mb-8">Share your spiciest movie opinions. The community decides: hot or not.</p>
+
+      {/* Submit Form */}
+      {user ? (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-8">
+          <textarea
+            value={newTake}
+            onChange={(e) => setNewTake(e.target.value.slice(0, 280))}
+            placeholder="Drop a hot take… (max 280 chars)"
+            rows={3}
+            className="w-full bg-transparent text-sm text-white placeholder-[var(--foreground-muted)] resize-none focus:outline-none"
+          />
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
+            <span className={`text-xs ${newTake.length > 240 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
+              {newTake.length}/280
+            </span>
+            <div className="flex items-center gap-2">
+              {error && <p className="text-red-400 text-xs">{error}</p>}
+              <button
+                onClick={submitTake}
+                disabled={!newTake.trim() || submitting}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                <Flame className="w-3.5 h-3.5" /> {submitting ? "Posting…" : "Drop It"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-8 text-center">
+          <p className="text-sm text-[var(--foreground-muted)]">
+            <Link href="/auth/signin" className="text-orange-400 hover:underline">Sign in</Link> to drop your hot takes and vote.
+          </p>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-[var(--foreground-muted)] text-center py-20">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="text-[var(--foreground-muted)] text-center py-20">No hot takes yet. Be the first to start the fire!</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => {
+            const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
+            const isHot = item.score > 0;
+            return (
+              <div key={item.id} className={`bg-[var(--surface)] border rounded-xl p-4 flex gap-3 ${isHot ? "border-orange-400/30" : "border-[var(--border)]"}`}>
+                <div className="shrink-0 mt-0.5">
+                  {item.author.avatarUrl ? (
+                    <Image src={item.author.avatarUrl} alt={item.author.name} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-sm font-bold text-white">
+                      {item.author.name[0].toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Link href={`/profile/${item.author.id}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{item.author.name}</Link>
+                    <span className="text-xs text-[var(--foreground-muted)]">{new Date(item.createdAt).toLocaleDateString()}</span>
+                    {isHot && item.score >= 5 && <Flame className="w-3.5 h-3.5 text-orange-400" />}
+                  </div>
+                  <p className="text-sm text-white/90 leading-relaxed">{item.content}</p>
+                  <div className="flex items-center gap-3 mt-3">
+                    <button
+                      onClick={() => vote(item.id, 1)}
+                      disabled={!user}
+                      className={`flex items-center gap-1 text-xs transition-colors ${userVote === 1 ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5" /> Hot
+                    </button>
+                    <span className={`text-sm font-bold ${item.score > 0 ? "text-orange-400" : item.score < 0 ? "text-[var(--foreground-muted)]" : "text-[var(--foreground-muted)]"}`}>
+                      {item.score > 0 ? "+" : ""}{item.score}
+                    </span>
+                    <button
+                      onClick={() => vote(item.id, -1)}
+                      disabled={!user}
+                      className={`flex items-center gap-1 text-xs transition-colors ${userVote === -1 ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
+                    >
+                      <ThumbsDown className="w-3.5 h-3.5" /> Not
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { FileText, Swords, Map, LayoutDashboard, Users } from "lucide-react";
+import { FileText, Swords, Map, LayoutDashboard, Users, Trophy } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -56,6 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             { href: "/admin/posts?type=PUNCH_AND_JUDY", label: "Punch & Judy", icon: Swords },
             { href: "/admin/posts?type=MOVIE_MAP", label: "Movie Maps", icon: Map },
             { href: "/admin/users", label: "Users", icon: Users },
+            { href: "/admin/oscar-picks", label: "Oscar Picks", icon: Trophy },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

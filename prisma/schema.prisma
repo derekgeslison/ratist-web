@@ -35,6 +35,13 @@ model User {
   pjVotes        PunchAndJudyOverallVote[]
   forumThreads   ForumThread[]
   forumPosts     ForumPost[]
+  looksLikes     LooksLike[]
+  looksLikeVotes LooksLikeVote[]
+  oscarVotes     OscarVote[]
+  recasts        Recast[]
+  recastVotes    RecastVote[]
+  hotTakes       HotTake[]
+  hotTakeVotes   HotTakeVote[]
 
   @@map("users")
 }
@@ -397,4 +404,151 @@ model ForumPost {
   author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@map("forum_posts")
+}
+
+// ─── Community Hub ────────────────────────────────────────────────────────────
+
+// Looks Like
+model LooksLike {
+  id               String   @id @default(cuid())
+  creatorId        String   @map("creator_id")
+  tmdbPersonId1    Int      @map("tmdb_person_id_1")
+  name1            String
+  profilePath1     String?  @map("profile_path_1")
+  tmdbPersonId2    Int      @map("tmdb_person_id_2")
+  name2            String
+  profilePath2     String?  @map("profile_path_2")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  creator User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  votes   LooksLikeVote[]
+
+  @@unique([tmdbPersonId1, tmdbPersonId2])
+  @@map("looks_likes")
+}
+
+model LooksLikeVote {
+  userId      String @map("user_id")
+  looksLikeId String @map("looks_like_id")
+  value       Int    // 1 = upvote, -1 = downvote
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  looksLike LooksLike @relation(fields: [looksLikeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, looksLikeId])
+  @@map("looks_like_votes")
+}
+
+// Oscar Picks
+model OscarYear {
+  id            String    @id @default(cuid())
+  year          Int       @unique
+  ceremonyDate  DateTime? @map("ceremony_date")
+  isComplete    Boolean   @default(false) @map("is_complete") // real ceremony already happened
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  categories OscarCategory[]
+
+  @@map("oscar_years")
+}
+
+model OscarCategory {
+  id          String @id @default(cuid())
+  oscarYearId String @map("oscar_year_id")
+  name        String // e.g. "Best Picture"
+  slug        String // e.g. "best-picture"
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  oscarYear  OscarYear      @relation(fields: [oscarYearId], references: [id], onDelete: Cascade)
+  nominees   OscarNominee[]
+  votes      OscarVote[]
+
+  @@unique([oscarYearId, slug])
+  @@map("oscar_categories")
+}
+
+model OscarNominee {
+  id             String  @id @default(cuid())
+  categoryId     String  @map("category_id")
+  tmdbMovieId    Int?    @map("tmdb_movie_id")
+  movieTitle     String  @map("movie_title")
+  posterPath     String? @map("poster_path")
+  nomineeDetail  String? @map("nominee_detail") // e.g. actor name for acting categories
+  isWinner       Boolean @default(false) @map("is_winner") // real Oscar winner
+
+  category OscarCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  votes    OscarVote[]
+
+  @@map("oscar_nominees")
+}
+
+model OscarVote {
+  userId     String @map("user_id")
+  categoryId String @map("category_id")
+  nomineeId  String @map("nominee_id")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category OscarCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  nominee  OscarNominee  @relation(fields: [nomineeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, categoryId])
+  @@map("oscar_votes")
+}
+
+// Recast
+model Recast {
+  id                      String   @id @default(cuid())
+  creatorId               String   @map("creator_id")
+  tmdbMovieId             Int      @map("tmdb_movie_id")
+  movieTitle              String   @map("movie_title")
+  posterPath              String?  @map("poster_path")
+  characterName           String   @map("character_name")
+  originalActorName       String   @map("original_actor_name")
+  originalActorTmdbId     Int?     @map("original_actor_tmdb_id")
+  suggestedActorName      String   @map("suggested_actor_name")
+  suggestedActorTmdbId    Int?     @map("suggested_actor_tmdb_id")
+  suggestedActorProfile   String?  @map("suggested_actor_profile")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  creator User         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  votes   RecastVote[]
+
+  @@map("recasts")
+}
+
+model RecastVote {
+  userId   String @map("user_id")
+  recastId String @map("recast_id")
+  value    Int    // 1 = agree, -1 = disagree
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recast Recast @relation(fields: [recastId], references: [id], onDelete: Cascade)
+
+  @@id([userId, recastId])
+  @@map("recast_votes")
+}
+
+// Hot Takes
+model HotTake {
+  id        String   @id @default(cuid())
+  authorId  String   @map("author_id")
+  content   String   // max 280 chars
+  createdAt DateTime @default(now()) @map("created_at")
+
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes  HotTakeVote[]
+
+  @@map("hot_takes")
+}
+
+model HotTakeVote {
+  userId    String @map("user_id")
+  hotTakeId String @map("hot_take_id")
+  value     Int    // 1 = "hot", -1 = "not"
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hotTake HotTake @relation(fields: [hotTakeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, hotTakeId])
+  @@map("hot_take_votes")
 }
