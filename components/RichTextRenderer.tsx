@@ -18,6 +18,7 @@ interface Props {
 
 export default function RichTextRenderer({ content }: Props) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Underline,

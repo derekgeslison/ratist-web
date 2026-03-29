@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
+import CommentForm from "@/components/CommentForm";
 import { ArrowLeft, Calendar, Swords } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,10 @@ export default async function PunchAndJudyPostPage({ params }: Props) {
         </div>
       </div>
       <RichTextRenderer content={post.content} />
+      <div className="mt-12 pt-8 border-t border-[var(--border)]">
+        <h2 className="text-base font-semibold text-white mb-4">Comments</h2>
+        <CommentForm slug={slug} />
+      </div>
     </div>
   );
 }

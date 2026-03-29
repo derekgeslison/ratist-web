@@ -30,6 +30,7 @@ function AdminPostsInner() {
   const type = searchParams.get("type") ?? "BLOG";
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -38,9 +39,12 @@ function AdminPostsInner() {
       fetch(`/api/admin/posts?type=${type}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-    ).then((r) => r.json())
-    .then((d) => { setPosts(d.posts ?? []); setLoading(false); })
-    .catch(() => setLoading(false));
+    ).then(async (r) => {
+      const d = await r.json();
+      if (!r.ok) { setFetchError(d.error ?? `Error ${r.status}`); setLoading(false); return; }
+      setPosts(d.posts ?? []);
+      setLoading(false);
+    }).catch((e) => { setFetchError(String(e)); setLoading(false); });
   }, [user, type]);
 
   return (
@@ -57,6 +61,8 @@ function AdminPostsInner() {
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-sm py-8 text-center">Loading…</p>
+      ) : fetchError ? (
+        <p className="text-red-400 text-sm py-8 text-center">Error loading posts: {fetchError}</p>
       ) : posts.length === 0 ? (
         <div className="text-center py-16 bg-[var(--surface)] border border-[var(--border)] rounded-xl">
           <p className="text-white font-medium mb-1">No posts yet</p>

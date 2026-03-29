@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
+import CommentForm from "@/components/CommentForm";
 
 export const dynamic = "force-dynamic";
 import { Calendar, ArrowLeft, MessageCircle } from "lucide-react";
@@ -73,8 +74,10 @@ export default async function BlogPostPage({ params }: Props) {
           {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
         </h2>
 
+        <CommentForm slug={slug} />
+
         {post.comments.length === 0 ? (
-          <p className="text-sm text-[var(--foreground-muted)]">No comments yet. Be the first to comment.</p>
+          <p className="text-sm text-[var(--foreground-muted)] mt-6">No comments yet. Be the first.</p>
         ) : (
           <div className="space-y-6">
             {post.comments.map((comment) => (
