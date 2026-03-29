@@ -112,18 +112,19 @@ function MoviePicker({ label, onSelect, onClear, selected }: {
   );
 }
 
-function ScoreBar({ score, max, isWinner }: { score: number | null; max: number; isWinner: boolean }) {
+type BarState = "win" | "tie" | "lose";
+
+function ScoreBar({ score, state }: { score: number | null; state: BarState }) {
   if (score === null) return <span className="text-xs text-[var(--foreground-muted)]">—</span>;
   const pct = Math.round((score / 10) * 100);
+  const barColor = state === "win" ? "bg-green-500" : state === "tie" ? "bg-yellow-500" : "bg-[var(--border)]";
+  const textColor = state === "win" ? "text-green-400" : state === "tie" ? "text-yellow-400" : "text-[var(--foreground-muted)]";
   return (
     <div className="flex items-center gap-2 w-full">
       <div className="flex-1 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${isWinner ? "bg-[var(--ratist-red)]" : "bg-[var(--border)]"}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className={`text-xs font-semibold w-8 text-right ${isWinner ? "text-white" : "text-[var(--foreground-muted)]"}`}>
+      <span className={`text-xs font-semibold w-8 text-right ${textColor}`}>
         {score.toFixed(1)}
       </span>
     </div>
@@ -177,28 +178,40 @@ export default function MatchupPage() {
       {hasData && !loading && (
         <div>
           {/* Overall scores */}
-          <div className="grid grid-cols-3 gap-3 mb-8 text-center">
-            <div className={`p-4 rounded-xl border ${(data1.ratistScore ?? 0) >= (data2.ratistScore ?? 0) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/40" : "bg-[var(--surface)] border-[var(--border)]"}`}>
-              <p className="text-xs text-[var(--foreground-muted)] mb-1">Ratist Score</p>
-              <p className="text-3xl font-bold text-white">{data1.ratistScore?.toFixed(1) ?? "—"}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">{data1.totalRatings} rating{data1.totalRatings !== 1 ? "s" : ""}</p>
-            </div>
-            <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] flex flex-col items-center justify-center">
-              <p className="text-xs text-[var(--foreground-muted)] font-semibold uppercase tracking-wider">Overall</p>
-            </div>
-            <div className={`p-4 rounded-xl border ${(data2.ratistScore ?? 0) > (data1.ratistScore ?? 0) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/40" : "bg-[var(--surface)] border-[var(--border)]"}`}>
-              <p className="text-xs text-[var(--foreground-muted)] mb-1">Ratist Score</p>
-              <p className="text-3xl font-bold text-white">{data2.ratistScore?.toFixed(1) ?? "—"}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">{data2.totalRatings} rating{data2.totalRatings !== 1 ? "s" : ""}</p>
-            </div>
-          </div>
+          {(() => {
+            const sc1 = data1.ratistScore ?? 0;
+            const sc2 = data2.ratistScore ?? 0;
+            const bothRated = data1.totalRatings > 0 && data2.totalRatings > 0;
+            const overallTie = bothRated && sc1 === sc2;
+            const o1wins = bothRated && sc1 > sc2;
+            const o2wins = bothRated && sc2 > sc1;
+            const box1 = o1wins ? "bg-green-500/10 border-green-500/40" : overallTie ? "bg-yellow-500/10 border-yellow-500/40" : "bg-[var(--surface)] border-[var(--border)]";
+            const box2 = o2wins ? "bg-green-500/10 border-green-500/40" : overallTie ? "bg-yellow-500/10 border-yellow-500/40" : "bg-[var(--surface)] border-[var(--border)]";
+            return (
+              <div className="grid grid-cols-3 gap-3 mb-8 text-center">
+                <div className={`p-4 rounded-xl border ${box1}`}>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-1">Ratist Score</p>
+                  <p className="text-3xl font-bold text-white">{data1.ratistScore?.toFixed(1) ?? "—"}</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">{data1.totalRatings} rating{data1.totalRatings !== 1 ? "s" : ""}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] flex flex-col items-center justify-center">
+                  <p className="text-xs text-[var(--foreground-muted)] font-semibold uppercase tracking-wider">Overall</p>
+                </div>
+                <div className={`p-4 rounded-xl border ${box2}`}>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-1">Ratist Score</p>
+                  <p className="text-3xl font-bold text-white">{data2.ratistScore?.toFixed(1) ?? "—"}</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">{data2.totalRatings} rating{data2.totalRatings !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* No ratings notice */}
           {(data1.totalRatings === 0 || data2.totalRatings === 0) && (
             <p className="text-sm text-[var(--foreground-muted)] text-center mb-6">
               {data1.totalRatings === 0 && data2.totalRatings === 0
-                ? "Neither movie has been rated on The Ratist yet."
-                : `${data1.totalRatings === 0 ? data1.title : data2.title} hasn't been rated on The Ratist yet.`}
+                ? "Neither movie has enough Ratist ratings for Matchup yet."
+                : `${data1.totalRatings === 0 ? data1.title : data2.title} doesn't have enough Ratist ratings for Matchup yet.`}
             </p>
           )}
 
@@ -215,14 +228,16 @@ export default function MatchupPage() {
               {CRITERIA.map(({ label, field }) => {
                 const s1 = data1.breakdown.find((b) => b.category === field)?.score ?? null;
                 const s2 = data2.breakdown.find((b) => b.category === field)?.score ?? null;
-                const w1 = s1 !== null && s2 !== null && s1 >= s2;
-                const w2 = s1 !== null && s2 !== null && s2 > s1;
+                const bothPresent = s1 !== null && s2 !== null;
+                const isTie = bothPresent && s1 === s2;
+                const state1: BarState = !bothPresent ? "lose" : s1! > s2! ? "win" : isTie ? "tie" : "lose";
+                const state2: BarState = !bothPresent ? "lose" : s2! > s1! ? "win" : isTie ? "tie" : "lose";
                 return (
                   <div key={field} className="col-span-3 grid grid-cols-[1fr_120px_1fr] items-center px-4 py-2.5 gap-3">
-                    <ScoreBar score={s1} max={10} isWinner={w1} />
+                    <ScoreBar score={s1} state={state1} />
                     <p className="text-xs text-[var(--foreground-muted)] text-center shrink-0">{label}</p>
                     <div className="flex items-center gap-2 flex-row-reverse">
-                      <ScoreBar score={s2} max={10} isWinner={w2} />
+                      <ScoreBar score={s2} state={state2} />
                     </div>
                   </div>
                 );

@@ -5,12 +5,12 @@ export const metadata: Metadata = { title: "Blog" };
 export const dynamic = "force-dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, Calendar } from "lucide-react";
+import { BookOpen, Calendar, Eye } from "lucide-react";
 
 export default async function BlogPage() {
   const posts = await prisma.blogPost.findMany({
     where: { type: "BLOG", published: true },
-    include: { author: { select: { name: true, avatarUrl: true } }, _count: { select: { comments: true } } },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } }, _count: { select: { comments: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -50,10 +50,18 @@ export default async function BlogPage() {
                     )}
                     {post.author.name}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {post.createdAt.toLocaleDateString()}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {post.createdAt.toLocaleDateString()}
+                    </span>
+                    {post.viewCount > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        {post.viewCount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </Link>

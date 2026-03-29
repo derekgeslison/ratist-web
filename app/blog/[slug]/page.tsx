@@ -22,6 +22,9 @@ export async function generateMetadata({ params }: Props) {
 export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
 
+  // Fire-and-forget view count increment
+  prisma.blogPost.update({ where: { slug }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+
   const post = await prisma.blogPost.findUnique({
     where: { slug, published: true },
     include: {

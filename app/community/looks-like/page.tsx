@@ -289,26 +289,29 @@ export default function LooksLikePage() {
                 </div>
 
                 {/* Vote controls */}
-                <div className="flex items-center gap-1 shrink-0 border-l border-[var(--border)] pl-4 ml-2">
-                  <button
-                    onClick={() => vote(item.id, 1)}
-                    disabled={!user}
-                    title="Twins!"
-                    className={`p-1.5 rounded transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}
-                  >
-                    <ThumbsUp className="w-4 h-4" />
-                  </button>
-                  <span className={`text-sm font-semibold w-8 text-center ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
-                    {item.score > 0 ? "+" : ""}{item.score}
-                  </span>
-                  <button
-                    onClick={() => vote(item.id, -1)}
-                    disabled={!user}
-                    title="Nah"
-                    className={`p-1.5 rounded transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}
-                  >
-                    <ThumbsDown className="w-4 h-4" />
-                  </button>
+                <div className="flex flex-col items-center gap-0.5 shrink-0 border-l border-[var(--border)] pl-4 ml-2">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => vote(item.id, 1)}
+                      disabled={!user}
+                      title="Twins!"
+                      className={`p-1.5 rounded transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}
+                    >
+                      <ThumbsUp className="w-4 h-4" />
+                    </button>
+                    <span className={`text-sm font-semibold w-8 text-center ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+                      {item.score > 0 ? "+" : ""}{item.score}
+                    </span>
+                    <button
+                      onClick={() => vote(item.id, -1)}
+                      disabled={!user}
+                      title="Nah"
+                      className={`p-1.5 rounded transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}
+                    >
+                      <ThumbsDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             );

@@ -365,6 +365,7 @@ export default function RecastPage() {
                     className={`p-1.5 rounded transition-colors ${userVote === -1 ? "text-red-400 bg-red-500/20" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}>
                     <ThumbsDown className="w-4 h-4" />
                   </button>
+                  <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             );

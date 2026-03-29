@@ -3,14 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Map } from "lucide-react";
+import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 const READ_LINKS = [
   { href: "/blog", label: "Blog", icon: BookOpen },
   { href: "/punch-and-judy", label: "Punch & Judy", icon: Swords },
-  { href: "/movie-maps", label: "Movie Maps", icon: Map },
 ];
 
 export default function Navbar() {
