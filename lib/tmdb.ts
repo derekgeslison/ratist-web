@@ -176,6 +176,7 @@ const SORT_MAP: Record<string, string> = {
 export const MPAA_ORDER = ["G", "PG", "PG-13", "R", "NC-17"];
 
 export async function discoverMovies(options: {
+  query?: string;
   genres?: string[];
   genreMode?: "any" | "all";
   castIds?: string[];
@@ -197,6 +198,7 @@ export async function discoverMovies(options: {
     sort_by: sortBy,
     "vote_count.gte": options.sort === "top_rated" ? "200" : "10",
   };
+  if (options.query) params.with_text_query = options.query;
 
   const genreIds = options.genres?.length ? options.genres : (options.genre ? [options.genre] : []);
   if (genreIds.length > 0) {

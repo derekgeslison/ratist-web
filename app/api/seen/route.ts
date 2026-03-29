@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       year: f.movie.releaseDate?.slice(0, 4) ?? "",
       ratistRating: f.movie.ratings[0]?.ratistRating ?? null,
       seenAt: f.createdAt,
+      watchedDate: f.watchedDate ?? f.createdAt,
     }));
 
     return NextResponse.json({ movies });

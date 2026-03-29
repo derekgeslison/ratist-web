@@ -54,7 +54,6 @@ export default function Navbar() {
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies" },
     { href: "/celebrities", label: "Celebrities" },
-    { href: "/forum", label: "Forum" },
     { href: "/community", label: "Community" },
     { href: "/tools", label: "Tools" },
   ];

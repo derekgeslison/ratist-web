@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       return NextResponse.json({ seen: false });
     } else {
       await prisma.userFavoriteMovie.create({
-        data: { userId: user.id, movieId: movie.id },
+        data: { userId: user.id, movieId: movie.id, watchedDate: new Date() },
       });
       return NextResponse.json({ seen: true });
     }

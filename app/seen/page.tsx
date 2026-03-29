@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Star, Search } from "lucide-react";
+import { Eye, Star, Search, Calendar } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
@@ -16,6 +16,7 @@ interface SeenMovie {
   year: string;
   ratistRating: number | null;
   seenAt: string;
+  watchedDate: string;
 }
 
 export default function SeenPage() {
@@ -23,6 +24,21 @@ export default function SeenPage() {
   const [movies, setMovies] = useState<SeenMovie[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+
+  async function updateWatchedDate(tmdbId: number, date: string) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch(`/api/movies/${tmdbId}/seen`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ watchedDate: date }),
+    });
+    setMovies((prev) =>
+      prev.map((m) => (m.tmdbId === tmdbId ? { ...m, watchedDate: date } : m))
+    );
+    setEditingDate(null);
+  }
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -103,31 +119,60 @@ export default function SeenPage() {
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-              {filtered.map((movie) => (
-                <Link key={movie.id} href={`/movies/${movie.tmdbId}`} className="group flex flex-col">
-                  <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                    {movie.posterPath ? (
-                      <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="120px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
-                    )}
-                    {movie.ratistRating === null && (
-                      <div className="absolute bottom-1 right-1">
-                        <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                          <Star className="w-2.5 h-2.5" /> Rate
-                        </span>
+              {filtered.map((movie) => {
+                const dateStr = movie.watchedDate
+                  ? new Date(movie.watchedDate).toISOString().slice(0, 10)
+                  : new Date(movie.seenAt).toISOString().slice(0, 10);
+                const isEditing = editingDate === movie.id;
+                return (
+                  <div key={movie.id} className="group flex flex-col">
+                    <Link href={`/movies/${movie.tmdbId}`} className="block">
+                      <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
+                        {movie.posterPath ? (
+                          <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="120px" className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                        )}
+                        {movie.ratistRating === null && (
+                          <div className="absolute bottom-1 right-1">
+                            <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <Star className="w-2.5 h-2.5" /> Rate
+                            </span>
+                          </div>
+                        )}
                       </div>
+                    </Link>
+                    <Link href={`/movies/${movie.tmdbId}`} className="text-xs font-medium text-white line-clamp-1 group-hover:text-[var(--ratist-red)] transition-colors">{movie.title}</Link>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+                      {movie.ratistRating && (
+                        <p className="text-xs font-semibold" style={{ color: scoreColor(movie.ratistRating) }}>{movie.ratistRating.toFixed(1)}</p>
+                      )}
+                    </div>
+                    {/* Watched date */}
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        defaultValue={dateStr}
+                        max={new Date().toISOString().slice(0, 10)}
+                        autoFocus
+                        onBlur={(e) => updateWatchedDate(movie.tmdbId, e.target.value)}
+                        onChange={(e) => { if (e.target.value) updateWatchedDate(movie.tmdbId, e.target.value); }}
+                        className="mt-0.5 w-full bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-[10px] rounded px-1 py-0.5 focus:outline-none"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditingDate(movie.id)}
+                        className="flex items-center gap-0.5 mt-0.5 text-[10px] text-[var(--foreground-muted)] hover:text-white transition-colors"
+                        title="Change watched date"
+                      >
+                        <Calendar className="w-2.5 h-2.5 shrink-0" />
+                        {new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </button>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-white line-clamp-1 group-hover:text-[var(--ratist-red)] transition-colors">{movie.title}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
-                    {movie.ratistRating && (
-                      <p className="text-xs font-semibold" style={{ color: scoreColor(movie.ratistRating) }}>{movie.ratistRating.toFixed(1)}</p>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

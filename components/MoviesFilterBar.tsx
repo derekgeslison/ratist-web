@@ -14,8 +14,6 @@ const PER_PAGE_OPTIONS = [
   { value: "100", label: "100 / page" },
 ];
 
-// These params conflict with text search (TMDB has separate search and discover APIs)
-const FILTER_KEYS = new Set(["genres", "genreMode", "cast", "castLabels", "yearFrom", "yearTo", "mpaa", "ratingOp", "ratingVal"]);
 
 const SORT_OPTIONS = [
   { value: "popular", label: "Most Popular" },
@@ -90,11 +88,6 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
 
   function update(updates: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
-    // If any filter key is being set, clear text search (they use different TMDB APIs)
-    const isFilterUpdate = Object.entries(updates).some(
-      ([k, v]) => FILTER_KEYS.has(k) && v !== null && v !== ""
-    );
-    if (isFilterUpdate) params.delete("search");
     for (const [key, value] of Object.entries(updates)) {
       if (value === null || value === "") params.delete(key);
       else params.set(key, value);
@@ -309,13 +302,6 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
       {/* Expandable filter panel */}
       {filtersOpen && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 space-y-5">
-
-          {/* Search/filter conflict notice */}
-          {currentSearch && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 text-xs text-amber-400">
-              Text search is active — applying a filter will clear it. TMDB&apos;s search and discover APIs are separate.
-            </div>
-          )}
 
           {/* Genres */}
           <div>

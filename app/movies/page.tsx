@@ -66,32 +66,34 @@ export default async function MoviesPage({ searchParams }: Props) {
     };
   }
 
+  const discoverOptions = {
+    genres,
+    genreMode: params.genreMode as "any" | "all" | undefined,
+    castIds,
+    sort,
+    yearFrom: params.yearFrom ?? legacyDecade?.from,
+    yearTo: params.yearTo ?? legacyDecade?.to,
+    certMin,
+    certMax,
+    ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
+    ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
+    genre: params.genre,
+    minRating: params.rating,
+  };
+
   let result: MovieResult;
   let pageTitle = "Movies";
 
-  if (params.search) {
-    // Text search — filters are not compatible with TMDB search API, so they're ignored
+  if (params.search && !hasFilters) {
+    // Pure text search — use TMDB search API for better relevance ranking
     result = await fetchPages((p) => searchMovies(params.search!, p));
     pageTitle = `Search: "${params.search}"`;
-  } else if (hasFilters) {
+  } else if (params.search || hasFilters) {
+    // Text search + filters combined, or filters only — use discover with optional text query
     result = await fetchPages((p) =>
-      discoverMovies({
-        genres,
-        genreMode: params.genreMode as "any" | "all" | undefined,
-        castIds,
-        sort,
-        yearFrom: params.yearFrom ?? legacyDecade?.from,
-        yearTo: params.yearTo ?? legacyDecade?.to,
-        certMin,
-        certMax,
-        ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
-        ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
-        page: p,
-        // legacy
-        genre: params.genre,
-        minRating: params.rating,
-      })
+      discoverMovies({ ...discoverOptions, query: params.search, page: p })
     );
+    if (params.search) pageTitle = `Search: "${params.search}"`;
   } else if (sort === "top_rated") {
     result = await fetchPages((p) => getTopRatedMovies(p));
     pageTitle = "Top Rated Movies";
