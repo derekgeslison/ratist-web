@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Wrench, Users, Film, Map, Trophy, Swords, Star } from "lucide-react";
+
+export const metadata: Metadata = { title: "Cinephile Tools" };
 
 const TOOLS = [
   {
@@ -15,7 +18,7 @@ const TOOLS = [
     desc: "Search an actor or director and see only the movies and shows you've personally seen or rated.",
   },
   {
-    href: "/tools/movie-maps",
+    href: "/movie-maps",
     icon: Map,
     title: "Movie Maps",
     desc: "Visual plot maps for complex, hard-to-follow films. Perfect for Nolan, Lynch, Kaufman, and other mind-bending directors.",
@@ -27,10 +30,10 @@ const TOOLS = [
     desc: "Updated throughout the year. Uses Ratist metrics + historical winner data to score each contender's likelihood of winning Best Picture.",
   },
   {
-    href: "/tools/punch-and-judy",
+    href: "/tools/matchup",
     icon: Swords,
-    title: "Punch & Judy",
-    desc: "The structured debate format for controversial movies. See the best arguments for and against, then cast your vote.",
+    title: "The Matchup",
+    desc: "Pick two movies and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
   },
   {
     href: "/tools/rankings",

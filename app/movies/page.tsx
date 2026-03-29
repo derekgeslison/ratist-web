@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+export const metadata: Metadata = { title: "Movies" };
 import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
 import MovieListItem from "@/components/MovieListItem";

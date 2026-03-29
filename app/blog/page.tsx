@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+export const metadata: Metadata = { title: "Blog" };
 
 export const dynamic = "force-dynamic";
 import Image from "next/image";

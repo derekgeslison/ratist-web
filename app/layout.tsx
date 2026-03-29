@@ -10,7 +10,10 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "The Ratist — Movie Reviews & Ratings",
+  title: {
+    template: "%s — The Ratist",
+    default: "The Ratist — Movie Reviews & Ratings",
+  },
   description:
     "Discover movies through deep, criteria-based ratings. Get personalized recommendations based on your unique taste profile.",
 };

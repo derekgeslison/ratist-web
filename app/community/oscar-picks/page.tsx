@@ -158,10 +158,15 @@ export default function OscarPicksPage() {
 
           {activeYearData && (
             <div>
-              {activeYearData.isComplete && (
+              {activeYearData.isComplete ? (
                 <div className="flex items-center gap-2 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl mb-6">
                   <Lock className="w-4 h-4 text-yellow-400" />
-                  <p className="text-sm text-yellow-300">The {activeYearData.year} ceremony has taken place. Voting is closed. Real winners are highlighted.</p>
+                  <p className="text-sm text-yellow-300">The {activeYearData.year} ceremony has taken place. Voting is closed. <Trophy className="w-3.5 h-3.5 inline" /> marks the real winners.</p>
+                </div>
+              ) : activeYearData.categories.some((c) => c.nominees.some((n) => n.isWinner)) && (
+                <div className="flex items-center gap-2 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl mb-6">
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  <p className="text-sm text-yellow-300">Real winners are being revealed for {activeYearData.year}. <Trophy className="w-3.5 h-3.5 inline" /> marks each real winner.</p>
                 </div>
               )}
 
@@ -197,7 +202,7 @@ export default function OscarPicksPage() {
                               onClick={() => castVote(cat.id, nominee.id, activeYearData.isComplete)}
                               disabled={activeYearData.isComplete || !user}
                               className={`relative w-full text-left rounded-lg overflow-hidden border transition-all ${
-                                isWinner && activeYearData.isComplete
+                                isWinner
                                   ? "border-yellow-400 bg-yellow-500/10"
                                   : isMyPick
                                   ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/5"
@@ -223,7 +228,7 @@ export default function OscarPicksPage() {
                                   />
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-medium ${isWinner && activeYearData.isComplete ? "text-yellow-300" : "text-white"}`}>
+                                  <p className={`text-sm font-medium ${isWinner ? "text-yellow-300" : "text-white"}`}>
                                     {nominee.movieTitle}
                                   </p>
                                   {nominee.nomineeDetail && (
@@ -237,7 +242,7 @@ export default function OscarPicksPage() {
                                   {isMyPick && !activeYearData.isComplete && (
                                     <CheckCircle2 className="w-4 h-4 text-[var(--ratist-red)]" />
                                   )}
-                                  {isWinner && activeYearData.isComplete && (
+                                  {isWinner && (
                                     <Trophy className="w-4 h-4 text-yellow-400" />
                                   )}
                                 </div>

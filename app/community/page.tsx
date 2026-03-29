@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+export const metadata: Metadata = { title: "Community Hub" };
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Trophy, RefreshCw, Flame } from "lucide-react";

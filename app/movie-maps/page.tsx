@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+export const metadata: Metadata = { title: "Movie Maps" };
 import Link from "next/link";
 import Image from "next/image";
 import { Map } from "lucide-react";
