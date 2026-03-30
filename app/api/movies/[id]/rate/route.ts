@@ -102,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Also mark as seen
     await prisma.userFavoriteMovie.upsert({
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-      create: { userId: user.id, movieId: movie.id },
+      create: { userId: user.id, movieId: movie.id, watchedDate: new Date() },
       update: {},
     }).catch(() => {}); // Ignore if already exists with different logic
 
