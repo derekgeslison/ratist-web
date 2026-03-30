@@ -13,13 +13,12 @@ import { scoreColor } from "@/lib/ratings";
 interface Props { params: Promise<{ userId: string }> }
 
 const COMPONENT_LABELS: Record<string, string> = {
-  plotFocused: "Plot-focused",
-  visualFocused: "Visual-focused",
-  scriptFocused: "Script-focused",
-  actingFocused: "Acting-focused",
-  originalityFocused: "Originality-focused",
+  narrativeFocused: "Narrative-focused",
   characterFocused: "Character-focused",
   messageFocused: "Message-focused",
+  cinematicFocused: "Cinematic-focused",
+  performanceFocused: "Performance-focused",
+  entertainmentFocused: "Entertainment-focused",
 };
 
 const GENRE_LABELS: Record<string, string> = {

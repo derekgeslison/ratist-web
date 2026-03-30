@@ -33,7 +33,7 @@ const CRITERIA = {
     fields: [
       { key: "overallEmotion", label: "Overall Emotion", required: true, desc: "Did the movie create excitement, intrigue, or any strong emotion? How intense?" },
       { key: "relatability", label: "Relatability", required: true, desc: "Were you able to relate to characters or plot points?" },
-      { key: "meaning", label: "Meaning / Message", required: false, desc: "Did the plot have a reason behind it? Was there a moral to the story?" },
+      { key: "meaning", label: "Meaning / Message", required: true, desc: "Did the plot have a reason behind it? Was there a moral to the story?" },
       { key: "movingness", label: "Movingness", required: false, desc: "Were you moved by the story? Did it generate new thoughts or perspectives?" },
     ],
   },
@@ -130,6 +130,7 @@ export default function RateMoviePage() {
   }
 
   function allRequiredFilled() {
+    if (overallRating == null) return false;
     for (const cat of Object.values(CRITERIA)) {
       for (const field of cat.fields) {
         if (field.required && !values[field.key]) return false;
@@ -202,6 +203,32 @@ export default function RateMoviePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Overall Rating — required, top of form */}
+        <div className={`bg-[var(--surface)] border-2 rounded-xl p-6 ${overallRating != null ? "border-[var(--ratist-red)]" : "border-[var(--ratist-red)]/40"}`}>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-base font-bold text-white">
+              Overall Rating <span className="text-[var(--ratist-red)]">*</span>
+            </label>
+            <span className={`text-3xl font-black ${overallRating != null ? "text-[var(--ratist-red)]" : "text-[var(--foreground-muted)]"}`}>
+              {overallRating ?? "—"}
+            </span>
+          </div>
+          <p className="text-xs text-[var(--foreground-muted)] mb-4">Your gut feeling about this movie overall — how much did you enjoy it?</p>
+          <input
+            type="range"
+            min={1}
+            max={10}
+            step={0.5}
+            value={overallRating ?? 5}
+            onChange={(e) => setOverallRating(parseFloat(e.target.value))}
+            onClick={(e) => setOverallRating(parseFloat((e.target as HTMLInputElement).value))}
+            className={`w-full ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
+          />
+          <div className="flex justify-between text-xs text-[var(--foreground-muted)] mt-1">
+            <span>1 — Poor</span><span>10 — Excellent</span>
+          </div>
+        </div>
+
         {Object.entries(CRITERIA).map(([catName, cat]) => (
           <div key={catName} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
             <button
@@ -290,24 +317,6 @@ export default function RateMoviePage() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* Overall rating */}
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-          <label className="block text-sm font-semibold text-white mb-1">Overall Rating <span className="text-[var(--foreground-muted)] font-normal text-xs">(optional — your gut feeling, 1–10)</span></label>
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min={1}
-              max={10}
-              step={0.5}
-              value={overallRating ?? 5}
-              onChange={(e) => setOverallRating(parseFloat(e.target.value))}
-              onClick={(e) => setOverallRating(parseFloat((e.target as HTMLInputElement).value))}
-              className={`flex-1 ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
-            />
-            <span className={`text-sm font-bold w-8 text-right ${overallRating != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>{overallRating ?? "—"}</span>
-          </div>
         </div>
 
         {/* Review text */}

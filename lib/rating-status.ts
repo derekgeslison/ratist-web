@@ -3,9 +3,10 @@
  * Matches the `required: true` fields in app/movies/[id]/rate/page.tsx
  */
 export const REQUIRED_RATING_FIELDS = [
+  "overallRating",                             // Overall (required)
   "plot", "storytelling", "pacingClimax",     // Story
   "cinematography", "artisticEffect",          // Production & Style
-  "overallEmotion", "relatability",            // Emotive Effect
+  "overallEmotion", "relatability", "meaning", // Emotive Effect
   "casting", "actingQuality",                  // Acting & Casting
   "appeal",                                    // Pure Entertainment
 ] as const;

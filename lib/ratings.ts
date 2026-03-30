@@ -135,63 +135,6 @@ export function scoreColor(score: number): string {
   return "#ef4444";                    // red-500
 }
 
-/**
- * Build user persona from their ratings.
- * Component is activated when movie avg or user score ≥ 8.5
- * AND user overall ≥ 8.5.
- * Upscales if fewer than 2 components reach 8.5.
- */
-export interface PersonaInput {
-  userRatistRating: number;
-  overallRating?: number | null;
-  // User's category scores
-  storyScore: number | null;
-  styleScore: number | null;
-  emotiveScore: number | null;
-  actingScore: number | null;
-  entertainScore: number | null;
-  // Community category averages for this movie
-  communityStory: number | null;
-  communityStyle: number | null;
-  communityEmotive: number | null;
-  communityActing: number | null;
-  communityEntertain: number | null;
-}
-
-export interface PersonaContribution {
-  plotFocused: number;
-  visualFocused: number;
-  scriptFocused: number;
-  actingFocused: number;
-  originalityFocused: number;
-  characterFocused: number;
-  messageFocused: number;
-}
-
-// Maps Story → plot/originality/character, Style → visual, Acting → script/acting, Emotive → message
-export function computePersonaContribution(input: PersonaInput): PersonaContribution {
-  const overall = input.overallRating ?? input.userRatistRating;
-  const threshold = 8.5;
-  const isHighRating = overall >= threshold;
-
-  function componentScore(userScore: number | null, communityScore: number | null): number {
-    if (!isHighRating) return 0;
-    if (userScore == null) return 0;
-    const activated = (communityScore != null && communityScore >= threshold) || userScore >= threshold;
-    return activated ? overall : 0;
-  }
-
-  return {
-    plotFocused: componentScore(input.storyScore, input.communityStory),
-    visualFocused: componentScore(input.styleScore, input.communityStyle),
-    scriptFocused: componentScore(input.actingScore, input.communityActing),
-    actingFocused: componentScore(input.actingScore, input.communityActing),
-    originalityFocused: componentScore(input.storyScore, input.communityStory),
-    characterFocused: componentScore(input.storyScore, input.communityStory),
-    messageFocused: componentScore(input.emotiveScore, input.communityEmotive),
-  };
-}
-
 /** Upscale profile scores so max = 10 when no strong signals exist */
 export function upscaleProfile<T extends Record<string, number>>(profile: T): T {
   const values = Object.values(profile) as number[];

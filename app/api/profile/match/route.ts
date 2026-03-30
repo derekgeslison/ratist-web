@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { dimensionSimilarity } from "@/lib/ratings";
 
 const COMPONENT_KEYS = [
-  "plotFocused", "visualFocused", "scriptFocused", "actingFocused",
-  "originalityFocused", "characterFocused", "messageFocused",
+  "narrativeFocused", "characterFocused", "messageFocused",
+  "cinematicFocused", "performanceFocused", "entertainmentFocused",
 ] as const;
 
 const GENRE_KEYS = [

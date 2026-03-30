@@ -26,13 +26,12 @@ const GENRES = [
 ];
 
 const COMPONENTS = [
-  { key: "plotFocused", label: "Story & Plot", desc: "Narrative, pacing, twists" },
-  { key: "visualFocused", label: "Visuals & Style", desc: "Cinematography, production design" },
-  { key: "actingFocused", label: "Acting & Casting", desc: "Performances, chemistry" },
-  { key: "originalityFocused", label: "Originality", desc: "Fresh ideas, unique approach" },
-  { key: "messageFocused", label: "Message & Meaning", desc: "Themes, depth, impact" },
+  { key: "narrativeFocused", label: "Narrative", desc: "Story, pacing, originality" },
   { key: "characterFocused", label: "Characters", desc: "Development, relatability" },
-  { key: "scriptFocused", label: "Script & Dialogue", desc: "Writing quality, wit" },
+  { key: "messageFocused", label: "Message & Meaning", desc: "Themes, depth, emotional impact" },
+  { key: "cinematicFocused", label: "Cinematic", desc: "Cinematography, visuals, music" },
+  { key: "performanceFocused", label: "Performance", desc: "Acting, casting, choreography" },
+  { key: "entertainmentFocused", label: "Entertainment", desc: "Appeal, pacing, engagement" },
 ];
 
 export default function SettingsPage() {

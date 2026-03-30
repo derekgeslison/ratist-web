@@ -1,137 +1,138 @@
 import { prisma } from "./prisma";
 import { upscaleProfile, dimensionSimilarity, matchScore } from "./ratings";
 
+const FOCUSED_CATEGORIES = {
+  narrativeFocused:     ["plot", "storytelling", "pacingClimax", "premiseOriginality"],
+  characterFocused:     ["relatability", "characterDev", "dialogueScripting"],
+  messageFocused:       ["overallEmotion", "meaning", "movingness"],
+  cinematicFocused:     ["cinematography", "artisticEffect", "visualEffects", "locationCost", "musicSound"],
+  performanceFocused:   ["casting", "actingQuality", "blockingChoreo"],
+  entertainmentFocused: ["appeal", "pacingClimax"],
+} as const;
+
+type FocusedKey = keyof typeof FOCUSED_CATEGORIES;
+
+const GENRE_KEYS = [
+  "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
+  "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
+  "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
+  "genreCrime", "genreWestern", "genreMystery",
+] as const;
+
+function subFieldAvg(obj: Record<string, number | null | undefined>, fields: readonly string[]): number | null {
+  const vals = fields
+    .map((f) => obj[f])
+    .filter((v): v is number => typeof v === "number" && !isNaN(v));
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function avgArr(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
 /**
  * Rebuilds a user's persona profile from all their ratings.
  * Called after every new/edited rating.
+ *
+ * Algorithm:
+ *   For each focused category (e.g. narrativeFocused with fields [plot, storytelling, ...]):
+ *     For each movie rating where overallRating is set:
+ *       communityAvg = avg of non-null community sub-field scores
+ *       userAvg = avg of non-null user sub-field scores
+ *       if MAX(communityAvg, userAvg) >= 8 AND overallRating >= 8:
+ *         contribution = overallRating
+ *       else:
+ *         contribution = 0
+ *     raw_score = avg(all contributions, including 0s)
+ *   Then upscale so max category score = 10.
+ *
+ *   Genre: if genreScore >= 8 AND overallRating >= 8 → contribution = overallRating, else 0.
  */
 export async function rebuildUserProfile(userId: string) {
   const ratings = await prisma.movieRating.findMany({
     where: { userId },
-    include: { movie: true },
   });
 
-  if (ratings.length === 0) return;
+  // Only use ratings where overallRating is explicitly set
+  const validRatings = ratings.filter((r) => r.overallRating != null);
 
-  // Get community averages for each movie
-  const movieIds = ratings.map((r) => r.movieId);
+  if (validRatings.length === 0) {
+    await prisma.userProfile.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+    });
+    return;
+  }
+
+  const movieIds = validRatings.map((r) => r.movieId);
+
+  // Community sub-field averages for each movie
   const communityAvgs = await prisma.movieRating.groupBy({
     by: ["movieId"],
     where: { movieId: { in: movieIds } },
     _avg: {
-      storyScore: true,
-      styleScore: true,
-      emotiveScore: true,
-      actingScore: true,
-      entertainScore: true,
-      ratistRating: true,
+      plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+      relatability: true, characterDev: true, dialogueScripting: true,
+      overallEmotion: true, meaning: true, movingness: true,
+      cinematography: true, artisticEffect: true, visualEffects: true,
+      locationCost: true, musicSound: true,
+      casting: true, actingQuality: true, blockingChoreo: true,
+      appeal: true,
     },
   });
-  const communityMap = new Map(communityAvgs.map((c) => [c.movieId, c._avg]));
+  const communityMap = new Map(
+    communityAvgs.map((c) => [c.movieId, c._avg as Record<string, number | null>])
+  );
 
-  // Component preference accumulators
-  const components = {
-    plotFocused: [] as number[],
-    visualFocused: [] as number[],
-    scriptFocused: [] as number[],
-    actingFocused: [] as number[],
-    originalityFocused: [] as number[],
-    characterFocused: [] as number[],
-    messageFocused: [] as number[],
+  const THRESHOLD = 8;
+
+  const categoryContributions: Record<FocusedKey, number[]> = {
+    narrativeFocused: [],
+    characterFocused: [],
+    messageFocused: [],
+    cinematicFocused: [],
+    performanceFocused: [],
+    entertainmentFocused: [],
   };
 
-  // Genre preference accumulators (from highly-rated movies)
-  const genres = {
-    genreAction: [] as number[],
-    genreHorror: [] as number[],
-    genreDrama: [] as number[],
-    genreHistorical: [] as number[],
-    genreScifi: [] as number[],
-    genreThriller: [] as number[],
-    genreComedy: [] as number[],
-    genreBookAdapt: [] as number[],
-    genreFantasy: [] as number[],
-    genreRomance: [] as number[],
-    genreDocumentary: [] as number[],
-    genreFamily: [] as number[],
-    genreFilmNoir: [] as number[],
-    genreMusical: [] as number[],
-    genreBiopic: [] as number[],
-    genreCrime: [] as number[],
-    genreWestern: [] as number[],
-    genreMystery: [] as number[],
-  };
+  const genreContributions: Record<string, number[]> = Object.fromEntries(
+    GENRE_KEYS.map((k) => [k, [] as number[]])
+  );
 
-  const THRESHOLD = 8.5;
+  for (const rating of validRatings) {
+    const overallRating = rating.overallRating!;
+    const community = communityMap.get(rating.movieId) ?? {};
+    const ratingObj = rating as unknown as Record<string, number | null>;
 
-  for (const rating of ratings) {
-    const overall = rating.overallRating ?? rating.ratistRating ?? 0;
-    if (overall < THRESHOLD) continue; // Only use highly-rated movies for persona
-
-    const community = communityMap.get(rating.movieId);
-
-    function componentScore(
-      userScore: number | null,
-      communityScore: number | null | undefined
-    ): number {
-      if (userScore == null) return 0;
-      const activated =
-        (communityScore != null && communityScore >= THRESHOLD) || userScore >= THRESHOLD;
-      return activated ? overall : 0;
+    for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
+      const userAvg = subFieldAvg(ratingObj, fields);
+      const communityAvg = subFieldAvg(community, fields);
+      const maxVal = Math.max(userAvg ?? 0, communityAvg ?? 0);
+      const contribution = maxVal >= THRESHOLD && overallRating >= THRESHOLD ? overallRating : 0;
+      categoryContributions[cat].push(contribution);
     }
 
-    components.plotFocused.push(componentScore(rating.storyScore, community?.storyScore));
-    components.visualFocused.push(componentScore(rating.styleScore, community?.styleScore));
-    components.scriptFocused.push(componentScore(rating.actingScore, community?.actingScore));
-    components.actingFocused.push(componentScore(rating.actingScore, community?.actingScore));
-    components.originalityFocused.push(componentScore(rating.storyScore, community?.storyScore));
-    components.characterFocused.push(componentScore(rating.storyScore, community?.storyScore));
-    components.messageFocused.push(componentScore(rating.emotiveScore, community?.emotiveScore));
-
-    // Genre scores from this highly-rated movie
-    for (const key of Object.keys(genres) as (keyof typeof genres)[]) {
-      const val = rating[key as keyof typeof rating] as number | null;
-      if (val != null) genres[key].push(val);
+    for (const key of GENRE_KEYS) {
+      const genreScore = ratingObj[key];
+      if (genreScore != null) {
+        const contribution = genreScore >= THRESHOLD && overallRating >= THRESHOLD ? overallRating : 0;
+        genreContributions[key].push(contribution);
+      }
     }
   }
 
-  function avgArr(arr: number[]): number {
-    if (arr.length === 0) return 0;
-    return arr.reduce((a, b) => a + b, 0) / arr.length;
-  }
+  const rawComponents = Object.fromEntries(
+    (Object.keys(categoryContributions) as FocusedKey[]).map((k) => [k, avgArr(categoryContributions[k])])
+  ) as Record<string, number>;
 
-  const rawProfile = {
-    plotFocused: avgArr(components.plotFocused),
-    visualFocused: avgArr(components.visualFocused),
-    scriptFocused: avgArr(components.scriptFocused),
-    actingFocused: avgArr(components.actingFocused),
-    originalityFocused: avgArr(components.originalityFocused),
-    characterFocused: avgArr(components.characterFocused),
-    messageFocused: avgArr(components.messageFocused),
-  };
+  const rawGenres = Object.fromEntries(
+    GENRE_KEYS.map((k) => [k, avgArr(genreContributions[k])])
+  ) as Record<string, number>;
 
-  const rawGenres = {
-    genreAction: avgArr(genres.genreAction),
-    genreHorror: avgArr(genres.genreHorror),
-    genreDrama: avgArr(genres.genreDrama),
-    genreHistorical: avgArr(genres.genreHistorical),
-    genreScifi: avgArr(genres.genreScifi),
-    genreThriller: avgArr(genres.genreThriller),
-    genreComedy: avgArr(genres.genreComedy),
-    genreBookAdapt: avgArr(genres.genreBookAdapt),
-    genreFantasy: avgArr(genres.genreFantasy),
-    genreRomance: avgArr(genres.genreRomance),
-    genreDocumentary: avgArr(genres.genreDocumentary),
-    genreFamily: avgArr(genres.genreFamily),
-    genreFilmNoir: avgArr(genres.genreFilmNoir),
-    genreMusical: avgArr(genres.genreMusical),
-    genreBiopic: avgArr(genres.genreBiopic),
-    genreCrime: avgArr(genres.genreCrime),
-    genreWestern: avgArr(genres.genreWestern),
-    genreMystery: avgArr(genres.genreMystery),
-  };
-
-  const scaledComponents = upscaleProfile(rawProfile);
+  const scaledComponents = upscaleProfile(rawComponents);
   const scaledGenres = upscaleProfile(rawGenres);
 
   await prisma.userProfile.upsert({
@@ -142,7 +143,7 @@ export async function rebuildUserProfile(userId: string) {
 }
 
 /**
- * Find users similar to a given user (≥80% match on component preferences).
+ * Find users similar to a given user (≥60% match on component preferences).
  * Returns top N matches with their match percentage.
  */
 export async function findSimilarUsers(userId: string, limit = 10) {
@@ -155,8 +156,8 @@ export async function findSimilarUsers(userId: string, limit = 10) {
   });
 
   const componentKeys = [
-    "plotFocused", "visualFocused", "scriptFocused", "actingFocused",
-    "originalityFocused", "characterFocused", "messageFocused",
+    "narrativeFocused", "characterFocused", "messageFocused",
+    "cinematicFocused", "performanceFocused", "entertainmentFocused",
   ] as const;
 
   const genreKeys = [
