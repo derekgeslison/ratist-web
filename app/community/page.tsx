@@ -45,8 +45,10 @@ const HUB_FEATURES = [
 export default async function CommunityPage() {
   const users = await prisma.user.findMany({
     where: { isPrivate: false },
-    include: {
-      profile: true,
+    select: {
+      id: true,
+      name: true,
+      avatarUrl: true,
       _count: { select: { ratings: true } },
     },
     orderBy: { createdAt: "desc" },

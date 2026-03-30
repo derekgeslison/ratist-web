@@ -65,8 +65,13 @@ export default async function MovieDetailPage({ params }: Props) {
     getMovieRecommendations(movie.id).catch(() => ({ results: [] })),
   ]);
 
-  // Cache to local DB — fire and forget
-  upsertMovie(movie).catch(() => {});
+  // Cache to local DB — only if not recently synced (fire and forget)
+  prisma.movie.findUnique({ where: { tmdbId: movie.id }, select: { cachedAt: true } })
+    .then((existing) => {
+      const age = existing?.cachedAt ? Date.now() - new Date(existing.cachedAt as Date | string).getTime() : Infinity;
+      if (age > 7 * 24 * 60 * 60 * 1000) upsertMovie(movie).catch(() => {});
+    })
+    .catch(() => {});
 
   // Fetch text reviews from DB
   let reviews: {

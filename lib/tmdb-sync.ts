@@ -291,59 +291,63 @@ async function upsertCreditsForMovie(
   });
   const celebMap = new Map(celebs.map((c) => [c.tmdbId, c.id]));
 
-  // Upsert cast credits
-  for (const [i, member] of cast.entries()) {
-    const celebId = celebMap.get(member.id);
-    if (!celebId) continue;
-    await prisma.movieCast.upsert({
-      where: {
-        movieId_celebrityId_creditType_job: {
+  // Upsert cast credits (parallel)
+  await Promise.all(
+    cast.map((member, i) => {
+      const celebId = celebMap.get(member.id);
+      if (!celebId) return Promise.resolve();
+      return prisma.movieCast.upsert({
+        where: {
+          movieId_celebrityId_creditType_job: {
+            movieId,
+            celebrityId: celebId,
+            creditType: "cast",
+            job: "",
+          },
+        },
+        create: {
           movieId,
           celebrityId: celebId,
           creditType: "cast",
           job: "",
+          character: member.character ?? null,
+          castOrder: member.order ?? i,
         },
-      },
-      create: {
-        movieId,
-        celebrityId: celebId,
-        creditType: "cast",
-        job: "",
-        character: member.character ?? null,
-        castOrder: member.order ?? i,
-      },
-      update: {
-        character: member.character ?? null,
-        castOrder: member.order ?? i,
-      },
-    });
-  }
+        update: {
+          character: member.character ?? null,
+          castOrder: member.order ?? i,
+        },
+      });
+    })
+  );
 
-  // Upsert crew credits
-  for (const member of crew) {
-    const celebId = celebMap.get(member.id);
-    if (!celebId) continue;
-    await prisma.movieCast.upsert({
-      where: {
-        movieId_celebrityId_creditType_job: {
+  // Upsert crew credits (parallel)
+  await Promise.all(
+    crew.map((member) => {
+      const celebId = celebMap.get(member.id);
+      if (!celebId) return Promise.resolve();
+      return prisma.movieCast.upsert({
+        where: {
+          movieId_celebrityId_creditType_job: {
+            movieId,
+            celebrityId: celebId,
+            creditType: "crew",
+            job: member.job ?? "",
+          },
+        },
+        create: {
           movieId,
           celebrityId: celebId,
           creditType: "crew",
           job: member.job ?? "",
+          department: member.department ?? null,
         },
-      },
-      create: {
-        movieId,
-        celebrityId: celebId,
-        creditType: "crew",
-        job: member.job ?? "",
-        department: member.department ?? null,
-      },
-      update: {
-        department: member.department ?? null,
-      },
-    });
-  }
+        update: {
+          department: member.department ?? null,
+        },
+      });
+    })
+  );
 }
 
 /**
@@ -384,56 +388,60 @@ async function upsertCreditsForPerson(
   });
   const movieMap = new Map(movies.map((m) => [m.tmdbId, m.id]));
 
-  // Upsert cast credits
-  for (const [i, entry] of cast.entries()) {
-    const movieId = movieMap.get(entry.id);
-    if (!movieId) continue;
-    await prisma.movieCast.upsert({
-      where: {
-        movieId_celebrityId_creditType_job: {
+  // Upsert cast credits (parallel)
+  await Promise.all(
+    cast.map((entry, i) => {
+      const movieId = movieMap.get(entry.id);
+      if (!movieId) return Promise.resolve();
+      return prisma.movieCast.upsert({
+        where: {
+          movieId_celebrityId_creditType_job: {
+            movieId,
+            celebrityId,
+            creditType: "cast",
+            job: "",
+          },
+        },
+        create: {
           movieId,
           celebrityId,
           creditType: "cast",
           job: "",
+          character: entry.character ?? null,
+          castOrder: entry.order ?? i,
         },
-      },
-      create: {
-        movieId,
-        celebrityId,
-        creditType: "cast",
-        job: "",
-        character: entry.character ?? null,
-        castOrder: entry.order ?? i,
-      },
-      update: {
-        character: entry.character ?? null,
-      },
-    });
-  }
+        update: {
+          character: entry.character ?? null,
+        },
+      });
+    })
+  );
 
-  // Upsert crew credits
-  for (const entry of crew) {
-    const movieId = movieMap.get(entry.id);
-    if (!movieId) continue;
-    await prisma.movieCast.upsert({
-      where: {
-        movieId_celebrityId_creditType_job: {
+  // Upsert crew credits (parallel)
+  await Promise.all(
+    crew.map((entry) => {
+      const movieId = movieMap.get(entry.id);
+      if (!movieId) return Promise.resolve();
+      return prisma.movieCast.upsert({
+        where: {
+          movieId_celebrityId_creditType_job: {
+            movieId,
+            celebrityId,
+            creditType: "crew",
+            job: entry.job ?? "",
+          },
+        },
+        create: {
           movieId,
           celebrityId,
           creditType: "crew",
           job: entry.job ?? "",
+          department: entry.department ?? null,
         },
-      },
-      create: {
-        movieId,
-        celebrityId,
-        creditType: "crew",
-        job: entry.job ?? "",
-        department: entry.department ?? null,
-      },
-      update: {
-        department: entry.department ?? null,
-      },
-    });
-  }
+        update: {
+          department: entry.department ?? null,
+        },
+      });
+    })
+  );
 }
