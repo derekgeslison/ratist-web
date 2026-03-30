@@ -150,7 +150,7 @@ export default async function ComparePage({ params }: Props) {
             text={shareText}
             url={shareUrl}
           />
-          <Link href="/auth/signup" className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+          <Link href="/auth/signin" className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
             Get your own match score →
           </Link>
         </div>
@@ -245,7 +245,7 @@ export default async function ComparePage({ params }: Props) {
       {/* Non-member CTA */}
       <div className="text-center py-6 border-t border-[var(--border)]">
         <p className="text-sm text-[var(--foreground-muted)] mb-3">Find your own taste match on The Ratist</p>
-        <Link href="/auth/signup" className="inline-block bg-[var(--ratist-red)] text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-[var(--ratist-red)]/90 transition-colors">
+        <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-[var(--ratist-red)]/90 transition-colors">
           Join for free
         </Link>
       </div>

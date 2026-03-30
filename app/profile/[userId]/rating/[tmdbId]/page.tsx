@@ -180,8 +180,8 @@ export default async function PublicRatingPage({ params }: Props) {
             See {user.name}&apos;s full profile →
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/auth/signup" className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
-              Rate movies yourself →
+            <Link href={`/movies/${tmdbId}/rate`} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+              Rate this movie yourself →
             </Link>
             <ShareButton text={shareText} url={shareUrl} />
           </div>

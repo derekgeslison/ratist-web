@@ -12,7 +12,7 @@ export default function CompareTasteButton({ profileFirebaseUid, profileUserId }
   if (!user) {
     return (
       <Link
-        href="/auth/signup"
+        href="/auth/signin"
         className="inline-flex items-center gap-1.5 text-xs bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-[var(--foreground-muted)] hover:text-white px-3 py-1.5 rounded-full transition-colors"
       >
         Sign in to compare taste

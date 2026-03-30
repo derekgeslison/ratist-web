@@ -213,7 +213,7 @@ export default async function YearInReviewPage({ params }: Props) {
       {/* Footer CTA for non-members */}
       <div className="text-center py-6 border-t border-[var(--border)]">
         <p className="text-sm text-[var(--foreground-muted)] mb-3">Track and rate your own movies on The Ratist</p>
-        <Link href="/auth/signup" className="inline-block bg-[var(--ratist-red)] text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-[var(--ratist-red)]/90 transition-colors">
+        <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-[var(--ratist-red)]/90 transition-colors">
           Join for free
         </Link>
       </div>

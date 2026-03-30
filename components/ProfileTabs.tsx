@@ -289,12 +289,12 @@ export default function ProfileTabs({
               </section>
             )}
 
-            {/* Recently rated */}
-            {ratings.length > 0 && (
+            {/* Recently rated — only complete ratings */}
+            {ratings.filter((r) => r.ratingStatus === "complete").length > 0 && (
               <section>
                 <h2 className="text-base font-semibold text-white mb-4">Recently Rated</h2>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {ratings.slice(0, 12).map((r) => (
+                  {ratings.filter((r) => r.ratingStatus === "complete").slice(0, 12).map((r) => (
                     <Link key={r.id} href={`/movies/${r.tmdbId}`} className="group">
                       <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                         {r.posterPath ? (
@@ -378,7 +378,7 @@ export default function ProfileTabs({
                   Create a free account to get your taste match score with {profileUserName}.
                 </p>
                 <Link
-                  href="/auth/signup"
+                  href="/auth/signin"
                   className="inline-block w-full bg-[var(--ratist-red)] text-white text-sm font-semibold py-2 rounded-lg hover:bg-[var(--ratist-red)]/90 transition-colors"
                 >
                   Join The Ratist
