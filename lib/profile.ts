@@ -294,7 +294,7 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
   let estimate = componentEstimate;
   if (genreScores.length > 0) {
     const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
-    estimate = componentEstimate * 0.75 + genreScore * 0.25;
+    estimate = componentEstimate * 0.90 + genreScore * 0.10;
   }
 
   return Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10;

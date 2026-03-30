@@ -11,13 +11,12 @@ import { useMovieUserState } from "@/hooks/useMovieUserState";
 
 interface Props {
   movie: TMDBMovie;
-  ratistRating?: number | null;
 }
 
-export default function MovieCard({ movie, ratistRating }: Props) {
+export default function MovieCard({ movie }: Props) {
   const { user } = useAuth();
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
-  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
+  const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
 
@@ -93,7 +92,12 @@ export default function MovieCard({ movie, ratistRating }: Props) {
         <p className="text-xs text-[var(--foreground-muted)]">{movie.release_date?.slice(0, 4) ?? "—"}</p>
         <div className="flex items-center gap-3 mt-0.5">
           <RatingBadge type="community" score={communityScore} size="sm" />
-          <RatingBadge type="ratist" score={ratistRating ?? null} size="sm" />
+          <RatingBadge
+            type="ratist"
+            score={ratistRating ?? estimatedRating}
+            isEstimate={ratistRating == null && estimatedRating != null}
+            size="sm"
+          />
         </div>
       </div>
     </Link>
