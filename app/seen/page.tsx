@@ -24,6 +24,7 @@ export default function SeenPage() {
   const [movies, setMovies] = useState<SeenMovie[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
   const [sort, setSort] = useState<"date" | "title" | "year" | "rating">("date");
   const [editingDate, setEditingDate] = useState<string | null>(null);
 
@@ -51,10 +52,10 @@ export default function SeenPage() {
     });
   }, [user]);
 
-  const filtered = [...(query
-    ? movies.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()))
-    : movies
-  )].sort((a, b) => {
+  const filtered = [...movies
+    .filter((m) => !query || m.title.toLowerCase().includes(query.toLowerCase()))
+    .filter((m) => !yearFilter || new Date(m.watchedDate ?? m.seenAt).getFullYear().toString() === yearFilter)
+  ].sort((a, b) => {
     if (sort === "title") return a.title.localeCompare(b.title);
     if (sort === "year") return (b.year || "0").localeCompare(a.year || "0");
     if (sort === "rating") return (b.ratistRating ?? -1) - (a.ratistRating ?? -1);
@@ -106,7 +107,24 @@ export default function SeenPage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search your seen list..."
-                  className="w-full max-w-sm bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[var(--foreground-muted)]" />
+                <button
+                  onClick={() => setYearFilter("")}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${!yearFilter ? "bg-[var(--ratist-red)]/20 text-white border border-[var(--ratist-red)]/50" : "text-[var(--foreground-muted)] hover:text-white border border-transparent"}`}
+                >
+                  All time
+                </button>
+                <input
+                  type="number"
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value)}
+                  placeholder="Year…"
+                  min={1900} max={2099}
+                  className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
                 />
               </div>
               <div className="flex items-center gap-1.5 text-xs">

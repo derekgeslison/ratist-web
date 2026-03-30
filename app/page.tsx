@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Trophy, Swords, Map } from "lucide-react";
+import { Users, Star, Swords, Film } from "lucide-react";
 import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies } from "@/lib/tmdb";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
@@ -9,28 +9,28 @@ import BrandCTAButtons from "@/components/BrandCTAButtons";
 
 const TOOLS = [
   {
+    icon: Swords,
+    title: "The Matchup",
+    description: "Pick two movies and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
+    href: "/tools/matchup",
+  },
+  {
     icon: Users,
     title: "Shared Cast & Crew",
     description: "Discover who worked across your favorite films. Search any two movies to reveal shared cast and crew.",
     href: "/tools/shared-cast",
   },
   {
-    icon: Trophy,
+    icon: Film,
+    title: "What Else Do I Know Them From?",
+    description: "Search an actor or director and see only the movies you've personally seen or rated.",
+    href: "/tools/actor-lookup",
+  },
+  {
+    icon: Star,
     title: "Personal Rankings",
     description: "Build your definitive ranked list of everything you've seen. Drag, sort, and filter by year.",
     href: "/tools/rankings",
-  },
-  {
-    icon: Swords,
-    title: "Punch & Judy",
-    description: "Head-to-head debates and contrarian takes from our editors. Who's right? You decide.",
-    href: "/punch-and-judy",
-  },
-  {
-    icon: Map,
-    title: "Movie Maps",
-    description: "Follow curated cinematic journeys through genres, directors, and eras.",
-    href: "/movie-maps",
   },
 ];
 

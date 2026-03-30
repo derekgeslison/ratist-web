@@ -54,8 +54,8 @@ export default function AdminOscarPicksPage() {
   const [customCat, setCustomCat] = useState(false);
   const [newNomCatId, setNewNomCatId] = useState("");
   const [movieSearchQuery, setMovieSearchQuery] = useState("");
-  const [movieSearchResults, setMovieSearchResults] = useState<{ id: number; title: string; posterPath: string | null }[]>([]);
-  const [selectedMovie, setSelectedMovie] = useState<{ id: number; title: string; posterPath: string | null } | null>(null);
+  const [movieSearchResults, setMovieSearchResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string }[]>([]);
+  const [selectedMovie, setSelectedMovie] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string } | null>(null);
   const [nomineeDetail, setNomineeDetail] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -245,7 +245,8 @@ export default function AdminOscarPicksPage() {
                                       onClick={() => { setSelectedMovie(m); setMovieSearchQuery(m.title); setMovieSearchResults([]); }}
                                       className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
                                       {m.posterPath && <Image src={`${TMDB_POSTER}${m.posterPath}`} alt={m.title} width={16} height={24} className="rounded object-cover shrink-0" style={{ width: 16, height: 24 }} />}
-                                      <span className="text-sm text-white truncate">{m.title}</span>
+                                      <span className="text-sm text-white truncate flex-1">{m.title}</span>
+                                      {m.releaseDate && <span className="text-xs text-[var(--foreground-muted)] shrink-0">{m.releaseDate.slice(0, 4)}</span>}
                                     </button>
                                   ))}
                                 </div>

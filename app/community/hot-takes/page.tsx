@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Flame, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp } from "lucide-react";
 
 interface HotTakeItem {
   id: string;
@@ -15,10 +15,14 @@ interface HotTakeItem {
   author: { id: string; name: string; avatarUrl: string | null };
 }
 
+type SortMode = "newest" | "score";
+
 export default function HotTakesPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<HotTakeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState<SortMode>("newest");
+  const [showForm, setShowForm] = useState(false);
   const [newTake, setNewTake] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -31,6 +35,11 @@ export default function HotTakesPage() {
   }, []);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const sorted = [...items].sort((a, b) => {
+    if (sort === "score") return b.score - a.score;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   async function vote(itemId: string, value: 1 | -1) {
     if (!user) return;
@@ -64,6 +73,7 @@ export default function HotTakesPage() {
     if (!res.ok) { setError(data.error ?? "Failed"); setSubmitting(false); return; }
     setItems((prev) => [data.item, ...prev]);
     setNewTake("");
+    setShowForm(false);
     setSubmitting(false);
   }
 
@@ -73,23 +83,39 @@ export default function HotTakesPage() {
         <ArrowLeft className="w-4 h-4" /> Community Hub
       </Link>
 
-      <div className="flex items-center gap-3 mb-2">
-        <Flame className="w-6 h-6 text-orange-400" />
-        <h1 className="text-2xl font-bold text-white">Hot Takes</h1>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <Flame className="w-6 h-6 text-orange-400" />
+          <h1 className="text-2xl font-bold text-white">Hot Takes</h1>
+        </div>
+        {user && !showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-lg text-sm font-semibold transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Drop a Take
+          </button>
+        )}
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Share your spiciest movie opinions. The community decides: hot or not.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Share your spiciest movie opinions. The community decides: hot or not.</p>
 
       {/* Submit Form */}
-      {user ? (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-8">
+      {showForm && (
+        <div className="bg-[var(--surface)] border border-orange-400/30 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-white">Drop a Hot Take</h2>
+            <button onClick={() => { setShowForm(false); setNewTake(""); setError(""); }}>
+              <X className="w-5 h-5 text-[var(--foreground-muted)]" />
+            </button>
+          </div>
           <textarea
             value={newTake}
             onChange={(e) => setNewTake(e.target.value.slice(0, 280))}
-            placeholder="Drop a hot take… (max 280 chars)"
+            placeholder="Your spiciest movie opinion… (max 280 chars)"
             rows={3}
-            className="w-full bg-transparent text-sm text-white placeholder-[var(--foreground-muted)] resize-none focus:outline-none"
+            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--foreground-muted)] resize-none focus:outline-none focus:border-orange-400"
           />
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between mt-3">
             <span className={`text-xs ${newTake.length > 240 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
               {newTake.length}/280
             </span>
@@ -98,18 +124,39 @@ export default function HotTakesPage() {
               <button
                 onClick={submitTake}
                 disabled={!newTake.trim() || submitting}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
               >
                 <Flame className="w-3.5 h-3.5" /> {submitting ? "Posting…" : "Drop It"}
               </button>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-8 text-center">
+      )}
+
+      {!user && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
           <p className="text-sm text-[var(--foreground-muted)]">
             <Link href="/auth/signin" className="text-orange-400 hover:underline">Sign in</Link> to drop your hot takes and vote.
           </p>
+        </div>
+      )}
+
+      {/* Sort controls */}
+      {!loading && items.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-[var(--foreground-muted)]">Sort:</span>
+          <button
+            onClick={() => setSort("newest")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "newest" ? "bg-orange-500 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+          >
+            <Clock className="w-3 h-3" /> Newest
+          </button>
+          <button
+            onClick={() => setSort("score")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "score" ? "bg-orange-500 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+          >
+            <TrendingUp className="w-3 h-3" /> Hottest
+          </button>
         </div>
       )}
 
@@ -119,7 +166,7 @@ export default function HotTakesPage() {
         <p className="text-[var(--foreground-muted)] text-center py-20">No hot takes yet. Be the first to start the fire!</p>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => {
+          {sorted.map((item) => {
             const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
             const isHot = item.score > 0;
             return (
@@ -148,7 +195,7 @@ export default function HotTakesPage() {
                     >
                       <ThumbsUp className="w-3.5 h-3.5" /> Hot
                     </button>
-                    <span className={`text-sm font-bold ${item.score > 0 ? "text-orange-400" : item.score < 0 ? "text-[var(--foreground-muted)]" : "text-[var(--foreground-muted)]"}`}>
+                    <span className={`text-sm font-bold ${item.score > 0 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
                       {item.score > 0 ? "+" : ""}{item.score}
                     </span>
                     <button

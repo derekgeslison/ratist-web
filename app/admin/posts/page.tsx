@@ -14,6 +14,7 @@ interface Post {
   published: boolean;
   createdAt: string;
   updatedAt: string;
+  viewCount: number;
   author: { name: string };
 }
 
@@ -83,6 +84,7 @@ function AdminPostsInner() {
                 <th className="text-left px-4 py-3 text-[var(--foreground-muted)] font-medium hidden sm:table-cell">Author</th>
                 <th className="text-center px-4 py-3 text-[var(--foreground-muted)] font-medium">Status</th>
                 <th className="text-left px-4 py-3 text-[var(--foreground-muted)] font-medium hidden md:table-cell">Updated</th>
+                <th className="text-right px-4 py-3 text-[var(--foreground-muted)] font-medium hidden lg:table-cell">Views</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -110,6 +112,13 @@ function AdminPostsInner() {
                       <Clock className="w-3 h-3" />
                       {new Date(post.updatedAt).toLocaleDateString()}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs text-[var(--foreground-muted)] hidden lg:table-cell">
+                    {post.viewCount > 0 ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Eye className="w-3 h-3" />{post.viewCount.toLocaleString()}
+                      </span>
+                    ) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

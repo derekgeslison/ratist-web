@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     orderBy: { updatedAt: "desc" },
     select: {
       id: true, type: true, title: true, slug: true,
-      published: true, createdAt: true, updatedAt: true,
+      published: true, createdAt: true, updatedAt: true, viewCount: true,
       author: { select: { name: true } },
     },
   });
