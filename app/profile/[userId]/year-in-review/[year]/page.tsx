@@ -69,6 +69,7 @@ export default async function YearInReviewPage({ params }: Props) {
       movie: {
         select: {
           tmdbId: true, title: true, posterPath: true, releaseDate: true,
+          genres: { include: { genre: true } },
           ratings: { where: { userId: user.id }, select: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true }, take: 1 },
         },
       },
@@ -83,6 +84,34 @@ export default async function YearInReviewPage({ params }: Props) {
   const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
   const topMovies = [...rated].sort((a, b) => (b.movie.ratings[0]?.ratistRating ?? 0) - (a.movie.ratings[0]?.ratistRating ?? 0)).slice(0, 10);
   const worstMovie = [...rated].sort((a, b) => (a.movie.ratings[0]?.ratistRating ?? 0) - (b.movie.ratings[0]?.ratistRating ?? 0))[0];
+
+  // Genre breakdown
+  const genreCount = new Map<string, number>();
+  for (const s of seenThisYear) {
+    for (const mg of s.movie.genres) {
+      genreCount.set(mg.genre.name, (genreCount.get(mg.genre.name) ?? 0) + 1);
+    }
+  }
+  const topGenres = [...genreCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+  // Category averages for rated movies this year
+  const categoryLabels = [
+    { key: "storyScore", label: "Story & Writing" },
+    { key: "styleScore", label: "Style & Craft" },
+    { key: "emotiveScore", label: "Emotion & Meaning" },
+    { key: "actingScore", label: "Performance" },
+    { key: "entertainScore", label: "Entertainment" },
+  ];
+  const categoryAvgs = categoryLabels.map(({ key, label }) => {
+    const vals = rated
+      .map((m) => (m.movie.ratings[0] as Record<string, number | null>)?.[key])
+      .filter((v): v is number => v != null);
+    const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    return { label, avg };
+  }).filter((c) => c.avg != null) as { label: string; avg: number }[];
+
+  // Highest single category score
+  const bestCategory = categoryAvgs.length > 0 ? categoryAvgs.reduce((a, b) => (a.avg > b.avg ? a : b)) : null;
 
   const shareUrl = `${SITE_URL}/profile/${userId}/year-in-review/${year}`;
   const shareText = `My ${year} in Film: ${seenThisYear.length} movies watched${avgRating ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check out my year on The Ratist!`;
@@ -168,6 +197,50 @@ export default async function YearInReviewPage({ params }: Props) {
                 </Link>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {/* Category averages */}
+      {categoryAvgs.length > 0 && (
+        <section className="mb-8 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <h2 className="text-base font-semibold text-white mb-1">How You Rated in {year}</h2>
+          <p className="text-xs text-[var(--foreground-muted)] mb-4">
+            Your average scores across {rated.length} rated movies
+            {bestCategory && <> — strongest in <span className="text-white font-medium">{bestCategory.label}</span></>}
+          </p>
+          <div className="space-y-2.5">
+            {categoryAvgs.map(({ label, avg }) => (
+              <div key={label} className="flex items-center gap-3">
+                <span className="text-xs text-[var(--foreground-muted)] w-32 shrink-0">{label}</span>
+                <div className="flex-1 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${(avg / 10) * 100}%`, backgroundColor: avg >= 8 ? "#22c55e" : avg >= 6 ? "#eab308" : avg >= 4 ? "#f97316" : "#ef4444" }}
+                  />
+                </div>
+                <span className="text-xs font-bold w-8 text-right" style={{ color: avg >= 8 ? "#22c55e" : avg >= 6 ? "#eab308" : avg >= 4 ? "#f97316" : "#ef4444" }}>
+                  {avg.toFixed(1)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Genre breakdown */}
+      {topGenres.length > 0 && (
+        <section className="mb-8 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+          <h2 className="text-base font-semibold text-white mb-4">Top Genres of {year}</h2>
+          <div className="flex flex-wrap gap-2">
+            {topGenres.map(([name, count]) => (
+              <span
+                key={name}
+                className="text-xs px-3 py-1.5 rounded-full bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)]"
+              >
+                {name} <span className="text-white font-semibold">{count}</span>
+              </span>
+            ))}
           </div>
         </section>
       )}

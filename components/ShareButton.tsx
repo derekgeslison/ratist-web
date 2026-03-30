@@ -13,7 +13,8 @@ interface Props {
 
 export default function ShareButton({ text, url, label = "Share", cardImageUrl }: Props) {
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -21,10 +22,17 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
   const encodedText = encodeURIComponent(text);
   const encodedUrl = encodeURIComponent(url);
 
-  function handleCopy() {
+  function handleCopyLink() {
     navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+  }
+
+  function handleCopyText() {
+    navigator.clipboard.writeText(fullText).then(() => {
+      setCopiedText(true);
+      setTimeout(() => setCopiedText(false), 2000);
     });
   }
 
@@ -47,7 +55,6 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error("Download failed:", err);
-      // fallback: open in new tab so user can see what went wrong
       window.open(cardImageUrl, "_blank");
     }
     setDownloading(false);
@@ -101,9 +108,20 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
               </div>
             )}
 
-            {/* Text preview */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-5 text-sm text-[var(--foreground-muted)] whitespace-pre-line">
-              {fullText}
+            {/* Text preview with copy button */}
+            <div className="relative bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 pr-12 mb-5">
+              <p className="text-sm text-[var(--foreground-muted)] whitespace-pre-line">{fullText}</p>
+              <button
+                onClick={handleCopyText}
+                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
+                title="Copy text & link"
+              >
+                {copiedText ? (
+                  <Check className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4 text-[var(--foreground-muted)] hover:text-white" />
+                )}
+              </button>
             </div>
 
             {/* Share targets */}
@@ -123,7 +141,7 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
 
               {/* Facebook */}
               <a
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`}
+                href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-2 p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors group"
@@ -150,16 +168,16 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
 
               {/* Copy link */}
               <button
-                onClick={handleCopy}
+                onClick={handleCopyLink}
                 className="flex flex-col items-center gap-2 p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors group"
               >
-                {copied ? (
+                {copiedLink ? (
                   <Check className="w-5 h-5 text-green-400" />
                 ) : (
                   <Copy className="w-5 h-5 text-[var(--foreground-muted)] group-hover:text-white transition-colors" />
                 )}
                 <span className="text-[10px] text-[var(--foreground-muted)] group-hover:text-white transition-colors">
-                  {copied ? "Copied!" : "Copy link"}
+                  {copiedLink ? "Copied!" : "Copy link"}
                 </span>
               </button>
             </div>
@@ -167,7 +185,7 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
             {/* Tip */}
             {cardImageUrl && (
               <p className="text-xs text-[var(--foreground-muted)] text-center mt-4">
-                Save the image to share on Instagram, iMessage, or anywhere.
+                Save the image and copy the text above to share on Instagram or anywhere.
               </p>
             )}
           </div>

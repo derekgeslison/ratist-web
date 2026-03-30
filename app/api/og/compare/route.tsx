@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/prisma";
 import { dimensionSimilarity } from "@/lib/ratings";
+import { getLogoBase64 } from "@/lib/og-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +50,7 @@ export async function GET(request: Request) {
       (
         <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 48, alignItems: "center", justifyContent: "center" }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 48 }}>
-            <div style={{ display: "flex", width: 32, height: 32, borderRadius: 6, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "white", fontWeight: 900, fontSize: 20 }}>R</span>
-            </div>
-            <span style={{ color: "#ef3b36", fontWeight: 800, fontSize: 18 }}>THE RATIST</span>
-          </div>
+          <img src={getLogoBase64()} width={40} height={40} style={{ borderRadius: 8, marginBottom: 32 }} />
 
           <span style={{ color: "#555", fontSize: 14, letterSpacing: 3, textTransform: "uppercase" as const, marginBottom: 32 }}>Taste Match</span>
 

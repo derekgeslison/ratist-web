@@ -763,6 +763,7 @@ export default function ProfileTabs({
                       label="Share top 10"
                       text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} top 10 movies on The Ratist!\n\nTop picks: ${rankedMovies.slice(0, 3).map((r) => r.title).join(", ")}${rankedMovies.length > 3 ? "..." : ""}`}
                       url={profileUrl}
+                      cardImageUrl={`/api/og/rankings?userId=${encodeURIComponent(profileUserId)}`}
                     />
                   )}
                 </div>
