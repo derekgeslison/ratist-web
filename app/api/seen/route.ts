@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
             title: true,
             posterPath: true,
             releaseDate: true,
+            voteAverage: true,
             ratings: {
               where: { userId: user.id },
               select: { ratistRating: true },
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
       title: f.movie.title,
       posterPath: f.movie.posterPath,
       year: f.movie.releaseDate?.slice(0, 4) ?? "",
+      voteAverage: f.movie.voteAverage ?? null,
       ratistRating: f.movie.ratings[0]?.ratistRating ?? null,
       seenAt: f.createdAt,
       watchedDate: f.watchedDate ?? f.createdAt,

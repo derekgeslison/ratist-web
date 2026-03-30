@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, Star, Search } from "lucide-react";
+import { Bookmark, Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
+import RatingBadge from "@/components/RatingBadge";
 
 interface WatchlistMovie {
   id: string;
@@ -14,6 +14,7 @@ interface WatchlistMovie {
   title: string;
   posterPath: string | null;
   year: string;
+  voteAverage: number | null;
   ratistRating: number | null;
   addedAt: string;
 }
@@ -101,19 +102,15 @@ export default function WatchlistPage() {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
                     )}
-                    {movie.ratistRating === null && (
-                      <div className="absolute bottom-1 right-1">
-                        <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                          <Star className="w-2.5 h-2.5" /> Rate
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                    </div>
                   <p className="text-xs font-medium text-white line-clamp-1 group-hover:text-[var(--ratist-red)] transition-colors">{movie.title}</p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
-                    {movie.ratistRating && (
-                      <p className="text-xs font-semibold" style={{ color: scoreColor(movie.ratistRating) }}>{movie.ratistRating.toFixed(1)}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    {movie.voteAverage != null && movie.voteAverage > 0 && (
+                      <RatingBadge type="community" score={movie.voteAverage} size="sm" />
+                    )}
+                    {movie.ratistRating != null && (
+                      <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
                     )}
                   </div>
                 </Link>
