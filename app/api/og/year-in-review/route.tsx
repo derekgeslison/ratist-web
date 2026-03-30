@@ -62,7 +62,10 @@ export async function GET(request: Request) {
         <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 44 }}>
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <img src={logoSrc} width={36} height={36} style={{ borderRadius: 6 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <img src={logoSrc} width={32} height={32} style={{ borderRadius: 6 }} />
+              <span style={{ color: "white", fontWeight: 800, fontSize: 16, letterSpacing: 1 }}>THE RATIST</span>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {avatarSrc ? (
                 <img src={avatarSrc} width={24} height={24} style={{ borderRadius: 12 }} />
@@ -98,8 +101,8 @@ export async function GET(request: Request) {
               </div>
             )}
             {topGenres.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px" }}>
-                <span style={{ color: "#eab308", fontSize: 20, fontWeight: 800 }}>{topGenres[0][0]}</span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px", minWidth: 100 }}>
+                <span style={{ color: "#eab308", fontSize: topGenres[0][0].length > 8 ? 16 : 20, fontWeight: 800, lineHeight: 1.6 }}>{topGenres[0][0]}</span>
                 <span style={{ color: "#666", fontSize: 12 }}>Top Genre</span>
               </div>
             )}

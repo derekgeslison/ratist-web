@@ -49,7 +49,10 @@ export async function GET(request: Request) {
         <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 48 }}>
           {/* Header: logo + user */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-            <img src={logoSrc} width={40} height={40} style={{ borderRadius: 8 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <img src={logoSrc} width={36} height={36} style={{ borderRadius: 6 }} />
+              <span style={{ color: "white", fontWeight: 800, fontSize: 18, letterSpacing: 1 }}>THE RATIST</span>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {avatarSrc ? (
                 <img src={avatarSrc} width={28} height={28} style={{ borderRadius: 14 }} />

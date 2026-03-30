@@ -68,9 +68,14 @@ export default async function YearInReviewPage({ params }: Props) {
     include: {
       movie: {
         select: {
-          tmdbId: true, title: true, posterPath: true, releaseDate: true,
+          tmdbId: true, title: true, posterPath: true, releaseDate: true, runtime: true,
           genres: { include: { genre: true } },
-          ratings: { where: { userId: user.id }, select: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true }, take: 1 },
+          cast: { where: { job: "Director" }, include: { celebrity: { select: { name: true, tmdbId: true } } }, take: 3 },
+          ratings: {
+            where: { userId: user.id },
+            select: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true },
+            take: 1,
+          },
         },
       },
     },
@@ -113,6 +118,54 @@ export default async function YearInReviewPage({ params }: Props) {
   // Highest single category score
   const bestCategory = categoryAvgs.length > 0 ? categoryAvgs.reduce((a, b) => (a.avg > b.avg ? a : b)) : null;
 
+  // Total watch time
+  const totalMinutes = seenThisYear.reduce((sum, m) => sum + (m.movie.runtime ?? 0), 0);
+  const totalHours = Math.round(totalMinutes / 60);
+
+  // Most-watched director
+  const directorCount = new Map<string, { name: string; tmdbId: number; count: number }>();
+  for (const s of seenThisYear) {
+    for (const c of s.movie.cast) {
+      const existing = directorCount.get(c.celebrity.name) ?? { name: c.celebrity.name, tmdbId: c.celebrity.tmdbId, count: 0 };
+      existing.count++;
+      directorCount.set(c.celebrity.name, existing);
+    }
+  }
+  const topDirector = [...directorCount.values()].sort((a, b) => b.count - a.count)[0] ?? null;
+
+  // Busiest month
+  const monthCounts = new Array(12).fill(0);
+  for (const s of seenThisYear) {
+    const d = s.watchedDate ?? s.createdAt;
+    if (d) monthCounts[new Date(d).getMonth()]++;
+  }
+  const busiestMonthIdx = monthCounts.indexOf(Math.max(...monthCounts));
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const busiestMonth = monthCounts[busiestMonthIdx] > 0 ? { name: monthNames[busiestMonthIdx], count: monthCounts[busiestMonthIdx] } : null;
+
+  // Most controversial rating (biggest diff from community avg)
+  let mostControversial: { title: string; tmdbId: number; userRating: number; diff: number } | null = null;
+  if (rated.length > 0) {
+    const movieIds = rated.map((m) => m.movieId);
+    const communityAvgs = await prisma.movieRating.groupBy({
+      by: ["movieId"],
+      where: { movieId: { in: movieIds }, ratistRating: { not: null } },
+      _avg: { ratistRating: true },
+      _count: { ratistRating: true },
+    });
+    const avgMap = new Map(communityAvgs.filter((c) => (c._count.ratistRating ?? 0) >= 2).map((c) => [c.movieId, c._avg.ratistRating!]));
+    for (const m of rated) {
+      const userR = m.movie.ratings[0]?.ratistRating;
+      const commAvg = avgMap.get(m.movieId);
+      if (userR != null && commAvg != null) {
+        const diff = Math.abs(userR - commAvg);
+        if (!mostControversial || diff > mostControversial.diff) {
+          mostControversial = { title: m.movie.title, tmdbId: m.movie.tmdbId, userRating: userR, diff };
+        }
+      }
+    }
+  }
+
   const shareUrl = `${SITE_URL}/profile/${userId}/year-in-review/${year}`;
   const shareText = `My ${year} in Film: ${seenThisYear.length} movies watched${avgRating ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check out my year on The Ratist!`;
 
@@ -134,29 +187,49 @@ export default async function YearInReviewPage({ params }: Props) {
           <p className="text-[var(--foreground-muted)] text-sm mb-6">A year of movies, by the numbers</p>
 
           {/* Big stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <div className="bg-black/20 rounded-xl p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="bg-black/20 rounded-xl p-4 text-center">
               <p className="text-3xl font-black text-white">{seenThisYear.length}</p>
               <p className="text-xs text-[var(--foreground-muted)] mt-1">Movies Watched</p>
             </div>
-            <div className="bg-black/20 rounded-xl p-4">
+            <div className="bg-black/20 rounded-xl p-4 text-center">
               <p className="text-3xl font-black text-white">{rated.length}</p>
               <p className="text-xs text-[var(--foreground-muted)] mt-1">Rated</p>
             </div>
             {avgRating != null && (
-              <div className="bg-black/20 rounded-xl p-4">
+              <div className="bg-black/20 rounded-xl p-4 text-center">
                 <p className="text-3xl font-black" style={{ color: scoreColor(avgRating) }}>
                   {avgRating.toFixed(1)}
                 </p>
                 <p className="text-xs text-[var(--foreground-muted)] mt-1">Avg Rating</p>
               </div>
             )}
-            {topMovies[0] && (
-              <div className="bg-black/20 rounded-xl p-4">
-                <p className="text-3xl font-black" style={{ color: scoreColor(topMovies[0].movie.ratings[0]?.ratistRating ?? 0) }}>
-                  {(topMovies[0].movie.ratings[0]?.ratistRating ?? 0).toFixed(1)}
-                </p>
-                <p className="text-xs text-[var(--foreground-muted)] mt-1">Best Rating</p>
+            {totalHours > 0 && (
+              <div className="bg-black/20 rounded-xl p-4 text-center">
+                <p className="text-3xl font-black text-white">{totalHours}</p>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">Hours Watched</p>
+              </div>
+            )}
+          </div>
+
+          {/* Secondary stats */}
+          <div className="flex flex-wrap justify-center gap-3 mb-6 text-center">
+            {busiestMonth && (
+              <div className="bg-black/20 rounded-lg px-4 py-2">
+                <p className="text-sm font-bold text-white">{busiestMonth.name}</p>
+                <p className="text-[10px] text-[var(--foreground-muted)]">Busiest month ({busiestMonth.count} movies)</p>
+              </div>
+            )}
+            {topDirector && topDirector.count >= 2 && (
+              <div className="bg-black/20 rounded-lg px-4 py-2">
+                <p className="text-sm font-bold text-white">{topDirector.name}</p>
+                <p className="text-[10px] text-[var(--foreground-muted)]">Most-watched director ({topDirector.count}x)</p>
+              </div>
+            )}
+            {topGenres.length > 0 && (
+              <div className="bg-black/20 rounded-lg px-4 py-2">
+                <p className="text-sm font-bold text-[#eab308]">{topGenres[0][0]}</p>
+                <p className="text-[10px] text-[var(--foreground-muted)]">Top genre ({topGenres[0][1]} movies)</p>
               </div>
             )}
           </div>
@@ -280,6 +353,19 @@ export default async function YearInReviewPage({ params }: Props) {
             <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(worstMovie.movie.ratings[0]?.ratistRating ?? 0) }}>
               {(worstMovie.movie.ratings[0]?.ratistRating ?? 0).toFixed(1)}
             </span>
+          </Link>
+        </section>
+      )}
+
+      {/* Most controversial rating */}
+      {mostControversial && mostControversial.diff >= 2 && (
+        <section className="mb-8 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-white mb-1">Your Most Controversial Take</h3>
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">
+            Your rating differed from the community average by {mostControversial.diff.toFixed(1)} points
+          </p>
+          <Link href={`/movies/${mostControversial.tmdbId}`} className="text-sm text-[var(--ratist-red)] hover:underline">
+            {mostControversial.title} — you gave it {mostControversial.userRating.toFixed(1)}
           </Link>
         </section>
       )}
