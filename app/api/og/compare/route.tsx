@@ -22,6 +22,8 @@ export async function GET(request: Request) {
   const userId2 = searchParams.get("userId2") ?? "";
 
   try {
+    const logoSrc = getLogoBase64();
+
     const [user1, user2] = await Promise.all([
       prisma.user.findFirst({
         where: { OR: [{ id: userId1 }, { firebaseUid: userId1 }] },
@@ -46,21 +48,31 @@ export async function GET(request: Request) {
     const matchColor = overallMatch >= 80 ? "#22c55e" : overallMatch >= 60 ? "#eab308" : "#888888";
     const matchLabel = overallMatch >= 80 ? "Very similar taste" : overallMatch >= 60 ? "Good overlap" : "Different tastes";
 
+    const avatar1 = user1.avatarUrl;
+    const avatar2 = user2.avatarUrl;
+
     return new ImageResponse(
       (
-        <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 48, alignItems: "center", justifyContent: "center" }}>
-          {/* Header */}
-          <img src={getLogoBase64()} width={40} height={40} style={{ borderRadius: 8, marginBottom: 32 }} />
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 48, alignItems: "center" }}>
+          {/* Branding */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 20, marginTop: 8 }}>
+            <img src={logoSrc} width={36} height={36} style={{ borderRadius: 6 }} />
+            <span style={{ color: "white", fontWeight: 800, fontSize: 16, letterSpacing: 2 }}>THE RATIST</span>
+          </div>
 
-          <span style={{ color: "#555", fontSize: 14, letterSpacing: 3, textTransform: "uppercase" as const, marginBottom: 32 }}>Taste Match</span>
+          <span style={{ color: "#555", fontSize: 13, letterSpacing: 3, textTransform: "uppercase" as const, marginBottom: 32 }}>Taste Match</span>
 
           {/* Users + score */}
           <div style={{ display: "flex", alignItems: "center", gap: 40, marginBottom: 40 }}>
             {/* User 1 */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", width: 80, height: 80, borderRadius: 40, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "white", fontSize: 32, fontWeight: 900 }}>{user1.name[0]?.toUpperCase()}</span>
-              </div>
+              {avatar1 ? (
+                <img src={avatar1} width={80} height={80} style={{ borderRadius: 40, objectFit: "cover" }} />
+              ) : (
+                <div style={{ display: "flex", width: 80, height: 80, borderRadius: 40, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "white", fontSize: 32, fontWeight: 900 }}>{user1.name[0]?.toUpperCase()}</span>
+                </div>
+              )}
               <span style={{ color: "white", fontSize: 18, fontWeight: 700 }}>{user1.name}</span>
             </div>
 
@@ -72,9 +84,13 @@ export async function GET(request: Request) {
 
             {/* User 2 */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", width: 80, height: 80, borderRadius: 40, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "white", fontSize: 32, fontWeight: 900 }}>{user2.name[0]?.toUpperCase()}</span>
-              </div>
+              {avatar2 ? (
+                <img src={avatar2} width={80} height={80} style={{ borderRadius: 40, objectFit: "cover" }} />
+              ) : (
+                <div style={{ display: "flex", width: 80, height: 80, borderRadius: 40, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "white", fontSize: 32, fontWeight: 900 }}>{user2.name[0]?.toUpperCase()}</span>
+                </div>
+              )}
               <span style={{ color: "white", fontSize: 18, fontWeight: 700 }}>{user2.name}</span>
             </div>
           </div>
