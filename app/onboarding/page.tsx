@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Check, ChevronRight, Film, Eye, Star } from "lucide-react";
+import { Check, ChevronRight, Film, Eye, Star, Upload } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 
@@ -37,6 +37,45 @@ const COMPONENTS = [
   { key: "messageFocused", label: "Message & Meaning", desc: "Themes, depth, impact" },
   { key: "characterFocused", label: "Characters", desc: "Development, relatability" },
   { key: "scriptFocused", label: "Script & Dialogue", desc: "Writing quality, wit" },
+];
+
+// 35 well-known classics — fetched from TMDB when step 3 loads
+const CLASSIC_IDS = [
+  278,    // The Shawshank Redemption
+  238,    // The Godfather
+  155,    // The Dark Knight
+  680,    // Pulp Fiction
+  122,    // The Lord of the Rings: The Return of the King
+  120,    // The Lord of the Rings: The Fellowship of the Ring
+  13,     // Forrest Gump
+  603,    // The Matrix
+  27205,  // Inception
+  157336, // Interstellar
+  24428,  // The Avengers
+  299536, // Avengers: Infinity War
+  299534, // Avengers: Endgame
+  329,    // Jurassic Park
+  597,    // Titanic
+  671,    // Harry Potter and the Sorcerer's Stone
+  12444,  // Harry Potter and the Deathly Hallows – Part 2
+  8587,   // The Lion King (1994)
+  11,     // Star Wars: Episode IV – A New Hope
+  1891,   // Star Wars: Episode V – The Empire Strikes Back
+  105,    // Back to the Future
+  424,    // Schindler's List
+  550,    // Fight Club
+  769,    // GoodFellas
+  274,    // The Silence of the Lambs
+  49026,  // The Dark Knight Rises
+  862,    // Toy Story
+  12,     // Finding Nemo
+  14160,  // Up
+  10681,  // WALL-E
+  129,    // Spirited Away
+  313369, // La La Land
+  120467, // The Grand Budapest Hotel
+  68718,  // Django Unchained
+  98,     // Gladiator
 ];
 
 interface TMDBMovie {
@@ -78,26 +117,40 @@ export default function OnboardingPage() {
     Object.fromEntries(COMPONENTS.map((c) => [c.key, 5]))
   );
   // Step 3: mark seen
-  const [popularMovies, setPopularMovies] = useState<TMDBMovie[]>([]);
+  const [recentMovies, setRecentMovies] = useState<TMDBMovie[]>([]);
+  const [classicMovies, setClassicMovies] = useState<TMDBMovie[]>([]);
   const [seenMovieIds, setSeenMovieIds] = useState<Set<number>>(new Set());
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [moviesLoading, setMoviesLoading] = useState(false);
   // Step 4: rate one
   const [selectedForRating, setSelectedForRating] = useState<TMDBMovie | null>(null);
   const [quickRating, setQuickRating] = useState<number>(7);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Fetch popular movies for step 3
+  const allMovies = [...recentMovies, ...classicMovies];
+
+  // Fetch movies for step 3
   useEffect(() => {
-    if (step === 3) {
+    if (step !== 3) return;
+    setMoviesLoading(true);
+
+    Promise.all([
+      // 15 recent popular
       fetch("/api/tmdb/movie/popular")
-        .catch(() => null)
-        .then((r) => r?.json())
-        .then((data) => {
-          if (data?.results) setPopularMovies(data.results.slice(0, 20));
-        })
-        .catch(() => {});
-    }
+        .then((r) => r.json())
+        .then((d) => (d?.results as TMDBMovie[] ?? []).slice(0, 15))
+        .catch(() => [] as TMDBMovie[]),
+      // 35 classics
+      fetch(`/api/tmdb/movies?ids=${CLASSIC_IDS.join(",")}`)
+        .then((r) => r.json())
+        .then((d) => (d?.results as TMDBMovie[] ?? []))
+        .catch(() => [] as TMDBMovie[]),
+    ]).then(([recent, classics]) => {
+      setRecentMovies(recent);
+      setClassicMovies(classics);
+      setMoviesLoading(false);
+    });
   }, [step]);
 
   function toggleGenre(key: string) {
@@ -137,13 +190,7 @@ export default function OnboardingPage() {
           poster_path: selectedForRating.poster_path,
           release_date: selectedForRating.release_date,
           overallRating: quickRating,
-          // Map overall to pillar scores so ratistRating gets computed
-          plot: quickRating, premiseOriginality: quickRating, storytelling: quickRating,
-          characterDev: quickRating, pacingClimax: quickRating,
-          cinematography: quickRating, artisticEffect: quickRating,
-          overallEmotion: quickRating, relatability: quickRating,
-          casting: quickRating, actingQuality: quickRating,
-          appeal: quickRating,
+          // No pillar scores — creates an incomplete rating the user can fill in later
         }),
       });
       setRatingSubmitted(true);
@@ -171,7 +218,7 @@ export default function OnboardingPage() {
     router.push("/movies");
   }
 
-  const seenList = popularMovies.filter((m) => seenMovieIds.has(m.id));
+  const seenList = allMovies.filter((m) => seenMovieIds.has(m.id));
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
@@ -270,48 +317,27 @@ export default function OnboardingPage() {
               {seenMovieIds.size > 0 && (
                 <p className="text-sm text-green-400 mb-3">{seenMovieIds.size} marked ✓</p>
               )}
-              {popularMovies.length === 0 ? (
+              {moviesLoading ? (
                 <p className="text-[var(--foreground-muted)] text-sm py-4 text-center">Loading movies…</p>
               ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-6 max-h-80 overflow-y-auto pr-1">
-                  {popularMovies.map((movie) => {
-                    const isSeen = seenMovieIds.has(movie.id);
-                    const isMarking = markingId === movie.id;
-                    return (
-                      <button
-                        key={movie.id}
-                        onClick={() => markSeen(movie)}
-                        disabled={isSeen || isMarking}
-                        className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
-                          isSeen ? "border-green-500" : "border-transparent hover:border-[var(--ratist-red)]"
-                        }`}
-                      >
-                        <div className="aspect-[2/3] bg-[var(--surface-2)]">
-                          {movie.poster_path ? (
-                            <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="80px" className="object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-xs">{movie.title}</div>
-                          )}
-                        </div>
-                        {isSeen && (
-                          <div className="absolute inset-0 bg-green-500/30 flex items-center justify-center">
-                            <Check className="w-6 h-6 text-white drop-shadow" />
-                          </div>
-                        )}
-                        {isMarking && (
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        )}
-                        {!isSeen && !isMarking && (
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                            <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                <>
+                  {recentMovies.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Recent &amp; Popular</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
+                      </div>
+                    </div>
+                  )}
+                  {classicMovies.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2">All-Time Classics</p>
+                      <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pr-1">
+                        {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
@@ -326,13 +352,44 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 4: Rate one movie ── */}
+          {/* ── STEP 4: Import or rate one movie ── */}
           {step === 4 && (
             <div>
-              <h2 className="text-xl font-bold text-white mb-1">Rate your first movie</h2>
-              <p className="text-sm text-[var(--foreground-muted)] mb-4">
-                Pick one movie you&apos;ve seen and give it a quick score. You can do the full criteria-based rating later — this just gets things started.
+              <h2 className="text-xl font-bold text-white mb-1">Add your ratings</h2>
+              <p className="text-sm text-[var(--foreground-muted)] mb-5">
+                Jumpstart your profile by importing existing ratings or giving a movie a quick score.
               </p>
+
+              {/* Import card — prominent */}
+              <div className="mb-5 p-4 bg-gradient-to-br from-[var(--surface-2)] to-[var(--surface)] border-2 border-[var(--ratist-red)]/40 hover:border-[var(--ratist-red)] rounded-xl transition-colors group">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[var(--ratist-red)]/10 flex items-center justify-center shrink-0">
+                    <Upload className="w-5 h-5 text-[var(--ratist-red)]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-white mb-0.5">Already use Letterboxd or IMDb?</h3>
+                    <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                      Import your full watch history in seconds — all your ratings, instantly on Ratist. No need to start from scratch.
+                    </p>
+                    <Link
+                      href="/profile/import"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-full transition-colors"
+                    >
+                      Import Ratings <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="relative mb-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[var(--border)]" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-3 bg-[var(--surface)] text-[var(--foreground-muted)]">or rate your first movie</span>
+                </div>
+              </div>
 
               {/* Pick from seen movies or any popular */}
               {!selectedForRating && (
@@ -361,7 +418,7 @@ export default function OnboardingPage() {
                   <div>
                     <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Or pick from popular</p>
                     <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                      {popularMovies.slice(0, 12).map((m) => (
+                      {allMovies.slice(0, 15).map((m) => (
                         <button
                           key={m.id}
                           onClick={() => setSelectedForRating(m)}
@@ -414,6 +471,9 @@ export default function OnboardingPage() {
                   >
                     <Star className="w-4 h-4 fill-white" /> {saving ? "Saving…" : "Submit Rating"}
                   </button>
+                  <p className="text-xs text-center text-[var(--foreground-muted)]">
+                    This saves as an incomplete rating — you can fill in the full criteria on the movie page anytime.
+                  </p>
                 </div>
               )}
 
@@ -422,7 +482,7 @@ export default function OnboardingPage() {
                   <Check className="w-5 h-5 text-green-400 shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-white">Rating saved!</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">You can do the full criteria-based rating on the movie page anytime.</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">Complete the full criteria-based rating on the movie page whenever you&apos;re ready.</p>
                   </div>
                 </div>
               )}
@@ -437,11 +497,56 @@ export default function OnboardingPage() {
                   <Film className="w-4 h-4" /> {saving ? "Saving…" : "Start Exploring"}
                 </button>
               </div>
-              <button onClick={savePrefsAndFinish} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip rating for now</button>
+              <button onClick={savePrefsAndFinish} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip for now</button>
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function MovieTile({
+  movie,
+  isSeen,
+  isMarking,
+  onMark,
+}: {
+  movie: TMDBMovie;
+  isSeen: boolean;
+  isMarking: boolean;
+  onMark: (m: TMDBMovie) => void;
+}) {
+  return (
+    <button
+      onClick={() => onMark(movie)}
+      disabled={isSeen || isMarking}
+      className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
+        isSeen ? "border-green-500" : "border-transparent hover:border-[var(--ratist-red)]"
+      }`}
+    >
+      <div className="aspect-[2/3] bg-[var(--surface-2)]">
+        {movie.poster_path ? (
+          <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="80px" className="object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-xs p-1 text-center leading-tight">{movie.title}</div>
+        )}
+      </div>
+      {isSeen && (
+        <div className="absolute inset-0 bg-green-500/30 flex items-center justify-center">
+          <Check className="w-6 h-6 text-white drop-shadow" />
+        </div>
+      )}
+      {isMarking && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+      {!isSeen && !isMarking && (
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+          <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      )}
+    </button>
   );
 }
