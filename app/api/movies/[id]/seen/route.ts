@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getRatingStatus } from "@/lib/rating-status";
+import { getScoreEstimate } from "@/lib/profile";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -130,11 +131,17 @@ export async function GET(req: NextRequest, { params }: Props) {
       entertainScore: userRating.entertainScore,
     } : null;
 
+    // Compute score estimate only when user hasn't rated this movie yet
+    const estimatedRating = !userRating
+      ? await getScoreEstimate(user.id, movie.id)
+      : null;
+
     return NextResponse.json({
       seen: !!isSeen,
       watchlisted: !!isWatchlisted,
       rating: ratingForClient,
       ratingStatus,
+      estimatedRating,
       communityAvg: {
         ratistRating: aggregates._avg.ratistRating,
         ratistSum: aggregates._sum.ratistRating,

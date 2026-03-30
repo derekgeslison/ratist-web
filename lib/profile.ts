@@ -1,6 +1,27 @@
 import { prisma } from "./prisma";
 import { upscaleProfile, dimensionSimilarity, matchScore } from "./ratings";
 
+/** Maps TMDB genre IDs to UserProfile genre preference keys */
+const TMDB_GENRE_TO_PROFILE: Record<number, string> = {
+  28:    "genreAction",      // Action
+  12:    "genreAction",      // Adventure
+  35:    "genreComedy",      // Comedy
+  80:    "genreCrime",       // Crime
+  99:    "genreDocumentary", // Documentary
+  18:    "genreDrama",       // Drama
+  10751: "genreFamily",      // Family
+  14:    "genreFantasy",     // Fantasy
+  36:    "genreHistorical",  // History
+  27:    "genreHorror",      // Horror
+  10402: "genreMusical",     // Music
+  9648:  "genreMystery",     // Mystery
+  10749: "genreRomance",     // Romance
+  878:   "genreScifi",       // Science Fiction
+  53:    "genreThriller",    // Thriller
+  10752: "genreHistorical",  // War
+  37:    "genreWestern",     // Western
+};
+
 const FOCUSED_CATEGORIES = {
   narrativeFocused:     ["plot", "storytelling", "pacingClimax", "premiseOriginality"],
   characterFocused:     ["relatability", "characterDev", "dialogueScripting"],
@@ -196,6 +217,87 @@ export async function findSimilarUsers(userId: string, limit = 10) {
     .filter((r) => r.overallMatch >= 60)
     .sort((a, b) => b.overallMatch - a.overallMatch || b.strongMatches - a.strongMatches)
     .slice(0, limit);
+}
+
+/**
+ * Estimate how much a user would enjoy a movie, based on:
+ *   1. Community sub-field averages → movie's score per focused category
+ *   2. User's focused category preferences as weights
+ *   3. Genre adjustment (25% blend)
+ *
+ * Formula:
+ *   componentEstimate = Σ(movieCategoryScore × userPref) / Σ(userPref)
+ *   genreScore        = avg(userGenrePref for each of the movie's genres)
+ *   estimate          = componentEstimate × 0.75 + genreScore × 0.25
+ */
+export async function getScoreEstimate(userId: string, movieId: string): Promise<number | null> {
+  const [profile, communityAvg, movie] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.movieRating.aggregate({
+      where: { movieId },
+      _avg: {
+        plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+        relatability: true, characterDev: true, dialogueScripting: true,
+        overallEmotion: true, meaning: true, movingness: true,
+        cinematography: true, artisticEffect: true, visualEffects: true,
+        locationCost: true, musicSound: true,
+        casting: true, actingQuality: true, blockingChoreo: true,
+        appeal: true,
+      },
+      _count: { ratistRating: true },
+    }),
+    prisma.movie.findUnique({
+      where: { id: movieId },
+      include: { genres: true },
+    }),
+  ]);
+
+  if (!profile) return null;
+  // Need community ratings to compute an estimate
+  if (communityAvg._count.ratistRating === 0) return null;
+
+  // Check profile has been built (at least one non-zero category)
+  const hasProfile = (Object.keys(FOCUSED_CATEGORIES) as FocusedKey[]).some(
+    (k) => (profile[k] as number) > 0
+  );
+  if (!hasProfile) return null;
+
+  const avg = communityAvg._avg as Record<string, number | null>;
+
+  // Component estimate: preference-weighted average of movie's category scores
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
+    const movieCategoryScore = subFieldAvg(avg, fields);
+    const userPref = profile[cat] as number;
+    if (movieCategoryScore != null && userPref > 0) {
+      weightedSum += movieCategoryScore * userPref;
+      totalWeight += userPref;
+    }
+  }
+
+  if (totalWeight === 0) return null;
+  const componentEstimate = weightedSum / totalWeight;
+
+  // Genre adjustment: blend in user's affinity for the movie's genres
+  const genreScores: number[] = [];
+  if (movie) {
+    for (const mg of movie.genres) {
+      const profileKey = TMDB_GENRE_TO_PROFILE[mg.genreId];
+      if (profileKey) {
+        genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+      }
+    }
+  }
+
+  let estimate = componentEstimate;
+  if (genreScores.length > 0) {
+    const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
+    estimate = componentEstimate * 0.75 + genreScore * 0.25;
+  }
+
+  return Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10;
 }
 
 /**

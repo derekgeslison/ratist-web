@@ -236,10 +236,7 @@ export default function RateMoviePage() {
               onClick={() => setOpenSections((s) => ({ ...s, [catName]: !s[catName] }))}
               className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--surface-2)] transition-colors"
             >
-              <div>
-                <span className="font-semibold text-white">{catName}</span>
-                <span className="ml-2 text-xs text-[var(--foreground-muted)]">Weight: {cat.weight}x</span>
-              </div>
+              <span className="font-semibold text-white">{catName}</span>
               <span className="text-[var(--foreground-muted)] text-sm">{openSections[catName] ? "▲" : "▼"}</span>
             </button>
 

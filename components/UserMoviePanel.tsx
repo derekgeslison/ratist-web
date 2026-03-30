@@ -52,6 +52,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [ratingStatus, setRatingStatus] = useState<RatingStatus | null>(null);
   const [communityAvg, setCommunityAvg] = useState<CategoryAvg | null>(null);
   const [watchlisted, setWatchlisted] = useState(false);
+  const [estimatedRating, setEstimatedRating] = useState<number | null>(null);
   const [togglingSeeen, setTogglingSeeen] = useState(false);
   const [togglingWatchlist, setTogglingWatchlist] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -69,6 +70,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
           setUserRating(data.rating ?? null);
           setRatingStatus(data.ratingStatus ?? null);
           setCommunityAvg(data.communityAvg ?? null);
+          setEstimatedRating(data.estimatedRating ?? null);
           setLoaded(true);
         })
         .catch(() => setLoaded(true));
@@ -125,22 +127,29 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
         </div>
       )}
 
-      {/* Personal rating */}
-      <div className="flex flex-col gap-1">
-        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
-          {ratistScore != null ? "Your Rating" : "Your Ratist Score Estimate"}
-        </span>
-        <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="R" width={16} height={16} className="w-4 h-4 opacity-80" style={{ color: ratistScore != null ? scoreColor(ratistScore) : undefined }} />
-          {ratistScore != null ? (
-            <span className="text-lg font-bold" style={{ color: scoreColor(ratistScore) }}>
-              {ratistScore.toFixed(1)}
-            </span>
-          ) : (
-            <span className="text-lg font-bold text-[var(--foreground-muted)]">—</span>
+      {/* Personal rating or estimate */}
+      {(ratistScore != null || estimatedRating != null) && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
+            {ratistScore != null ? "Your Rating" : "Your Score Estimate"}
+          </span>
+          <div className="flex items-center gap-2">
+            <Image src="/logo.png" alt="R" width={16} height={16} className="w-4 h-4 opacity-80" />
+            {ratistScore != null ? (
+              <span className="text-lg font-bold" style={{ color: scoreColor(ratistScore) }}>
+                {ratistScore.toFixed(1)}
+              </span>
+            ) : (
+              <span className="text-lg font-bold italic" style={{ color: scoreColor(estimatedRating!) }}>
+                ~{estimatedRating!.toFixed(1)}
+              </span>
+            )}
+          </div>
+          {ratistScore == null && estimatedRating != null && (
+            <span className="text-xs text-[var(--foreground-muted)]">Rate this movie to get your real score</span>
           )}
         </div>
-      </div>
+      )}
 
       {/* Action buttons */}
       {loaded && (
