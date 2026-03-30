@@ -33,6 +33,9 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
     setDownloading(true);
     try {
       const res = await fetch(cardImageUrl);
+      if (!res.ok) throw new Error(`Image generation failed (${res.status})`);
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("image")) throw new Error("Response is not an image");
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -42,8 +45,9 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
-    } catch {
-      // fallback: open in new tab
+    } catch (err) {
+      console.error("Download failed:", err);
+      // fallback: open in new tab so user can see what went wrong
       window.open(cardImageUrl, "_blank");
     }
     setDownloading(false);
