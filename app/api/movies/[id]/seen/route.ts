@@ -101,7 +101,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       prisma.movieRating.findUnique({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },
         select: {
-          ratistRating: true, storyScore: true, styleScore: true,
+          ratistRating: true, overallRating: true, storyScore: true, styleScore: true,
           emotiveScore: true, actingScore: true, entertainScore: true,
           // required fields for completeness check
           plot: true, storytelling: true, pacingClimax: true,
@@ -125,6 +125,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     // Strip required-check fields before sending to client
     const ratingForClient = userRating ? {
       ratistRating: userRating.ratistRating,
+      overallRating: userRating.overallRating,
       storyScore: userRating.storyScore,
       styleScore: userRating.styleScore,
       emotiveScore: userRating.emotiveScore,

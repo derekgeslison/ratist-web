@@ -505,15 +505,19 @@ export default function ProfileTabs({
                       Incomplete
                     </span>
                   ) : r.ratingStatus === "imported" ? (
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 group/tip relative">
                       {r.ratistRating != null && (
                         <span className="text-sm font-bold" style={{ color: scoreColor(r.ratistRating) }}>
                           {r.ratistRating.toFixed(1)}
                         </span>
                       )}
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-400/50 text-blue-400">
-                        Imported
-                      </span>
+                      <svg className="w-3.5 h-3.5 text-blue-400/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 8v4m0 4h.01" />
+                      </svg>
+                      <div className="absolute bottom-full right-0 mb-2 w-52 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5 text-xs text-[var(--foreground-muted)] shadow-xl opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-10">
+                        Complete the full Ratist review to improve your taste profile accuracy.
+                      </div>
                     </div>
                   ) : r.ratistRating !== null ? (
                     <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(r.ratistRating) }}>
@@ -591,15 +595,19 @@ export default function ProfileTabs({
                         Incomplete
                       </span>
                     ) : m.ratingStatus === "imported" ? (
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0 group/tip relative">
                         {m.ratistRating != null && (
                           <span className="text-sm font-bold" style={{ color: scoreColor(m.ratistRating) }}>
                             {m.ratistRating.toFixed(1)}
                           </span>
                         )}
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-400/50 text-blue-400">
-                          Imported
-                        </span>
+                        <svg className="w-3.5 h-3.5 text-blue-400/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 8v4m0 4h.01" />
+                        </svg>
+                        <div className="absolute bottom-full right-0 mb-2 w-52 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5 text-xs text-[var(--foreground-muted)] shadow-xl opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-10">
+                          Complete the full Ratist review to improve your taste profile accuracy.
+                        </div>
                       </div>
                     ) : m.ratistRating !== null ? (
                       <span

@@ -22,6 +22,7 @@ interface CategoryAvg {
 
 interface UserRating {
   ratistRating: number | null;
+  overallRating: number | null;
   storyScore: number | null;
   styleScore: number | null;
   emotiveScore: number | null;
@@ -107,6 +108,9 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   }
 
   const ratistScore = userRating?.ratistRating ?? null;
+  const overallScore = userRating?.overallRating ?? null;
+  const displayScore = ratistScore ?? overallScore; // Show ratist score, or overall if imported
+  const isImported = ratingStatus === "imported";
   const count = communityAvg?.count ?? 0;
   const communityHybrid = hybridCommunityRating(tmdbScore, count, communityAvg?.ratistSum ?? null);
 
@@ -129,24 +133,32 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
       )}
 
       {/* Personal rating or estimate */}
-      {(ratistScore != null || estimatedRating != null) && (
+      {(displayScore != null || estimatedRating != null) && (
         <div className="flex flex-col gap-1">
           <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
-            {ratistScore != null ? "Your Rating" : "Your Score Estimate"}
+            {ratistScore != null ? "Your Rating" : isImported ? "Your Rating" : "Your Score Estimate"}
           </span>
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="R" width={16} height={16} className="w-4 h-4 opacity-80" />
-            {ratistScore != null ? (
-              <span className="text-lg font-bold" style={{ color: scoreColor(ratistScore) }}>
-                {ratistScore.toFixed(1)}
+            {displayScore != null ? (
+              <span className="text-lg font-bold" style={{ color: scoreColor(displayScore) }}>
+                {displayScore.toFixed(1)}
               </span>
             ) : (
               <span className="text-lg font-bold italic" style={{ color: scoreColor(estimatedRating!) }}>
                 ~{estimatedRating!.toFixed(1)}
               </span>
             )}
+            {isImported && (
+              <span className="text-xs text-blue-400/70" title="Complete the full Ratist review for better taste matching">
+                <svg className="w-3.5 h-3.5 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4m0 4h.01" />
+                </svg>
+              </span>
+            )}
           </div>
-          {ratistScore == null && estimatedRating != null && (
+          {displayScore == null && estimatedRating != null && (
             <span className="text-xs text-[var(--foreground-muted)]">Rate this movie to get your real score</span>
           )}
         </div>
@@ -158,14 +170,14 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
           <Link
             href={`/movies/${tmdbId}/rate`}
             className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
-              ratingStatus === "incomplete"
+              ratingStatus === "incomplete" || ratingStatus === "imported"
                 ? "border border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
                 : "border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white"
             }`}
           >
             {ratingStatus === "complete" ? (
               <><Check className="w-4 h-4" /> Edit Rating</>
-            ) : ratingStatus === "incomplete" ? (
+            ) : ratingStatus === "incomplete" || ratingStatus === "imported" ? (
               <><AlertCircle className="w-4 h-4" /> Complete Rating</>
             ) : (
               <><Star className="w-4 h-4" /> Rate Movie</>
@@ -210,11 +222,11 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
       )}
 
       {/* Share rating — links to public rating page with OG image */}
-      {ratingStatus === "complete" && ratistScore != null && user && (
+      {(ratingStatus === "complete" || ratingStatus === "imported") && displayScore != null && user && (
         <div>
           <ShareButton
             label="Share my rating"
-            text={`I rated ${movieTitle} ${ratistScore.toFixed(1)}/10 on The Ratist.`}
+            text={`I rated ${movieTitle} ${displayScore!.toFixed(1)}/10 on The Ratist.`}
             url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/profile/${user.uid}/rating/${tmdbId}`}
             cardImageUrl={`/api/og/rating?userId=${encodeURIComponent(user.uid)}&tmdbId=${tmdbId}`}
           />

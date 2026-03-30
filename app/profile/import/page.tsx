@@ -23,16 +23,70 @@ interface ImportResult {
   errors: string[];
 }
 
+/**
+ * Proper CSV parser that handles quoted fields containing commas, newlines, and escaped quotes.
+ * Returns an array of rows, where each row is an array of field values.
+ */
+function parseCsvFull(csv: string): string[][] {
+  const rows: string[][] = [];
+  let current = "";
+  let inQuotes = false;
+  let row: string[] = [];
+
+  for (let i = 0; i < csv.length; i++) {
+    const ch = csv[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        // Check for escaped quote ("")
+        if (i + 1 < csv.length && csv[i + 1] === '"') {
+          current += '"';
+          i++; // skip next quote
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(current.trim());
+        current = "";
+      } else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && i + 1 < csv.length && csv[i + 1] === "\n") i++; // skip \r\n
+        row.push(current.trim());
+        if (row.some((c) => c.length > 0)) rows.push(row);
+        row = [];
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+  // Last field/row
+  row.push(current.trim());
+  if (row.some((c) => c.length > 0)) rows.push(row);
+
+  return rows;
+}
+
 function parseLetterboxd(csv: string): ParsedRow[] {
-  const lines = csv.split("\n").map((l) => l.trim()).filter(Boolean);
-  // Find header row — works with both ratings.csv and reviews.csv
-  const headerIdx = lines.findIndex((l) => l.toLowerCase().startsWith("date,name") || l.toLowerCase().startsWith("date,"));
+  const allRows = parseCsvFull(csv);
+  if (allRows.length < 2) return [];
+
+  // Find header row
+  const headerIdx = allRows.findIndex((r) => r[0]?.toLowerCase() === "date" && r[1]?.toLowerCase() === "name");
   if (headerIdx === -1) return [];
-  const headers = lines[headerIdx].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+  const headers = allRows[headerIdx].map((h) => h.toLowerCase());
+
   const rows: ParsedRow[] = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    const cols = splitCsvLine(lines[i]);
-    const get = (key: string) => cols[headers.indexOf(key)]?.replace(/^"|"$/g, "").trim() ?? "";
+  for (let i = headerIdx + 1; i < allRows.length; i++) {
+    const cols = allRows[i];
+    const get = (key: string) => {
+      const idx = headers.indexOf(key);
+      return idx >= 0 ? (cols[idx] ?? "").trim() : "";
+    };
     const title = get("name");
     if (!title) continue;
     const yearStr = get("year");
@@ -51,15 +105,20 @@ function parseLetterboxd(csv: string): ParsedRow[] {
 }
 
 function parseIMDb(csv: string): ParsedRow[] {
-  const lines = csv.split("\n").map((l) => l.trim()).filter(Boolean);
-  const headerIdx = lines.findIndex((l) => /const|your rating|title/i.test(l));
+  const allRows = parseCsvFull(csv);
+  if (allRows.length < 2) return [];
+
+  const headerIdx = allRows.findIndex((r) => r.some((c) => /your rating/i.test(c)));
   if (headerIdx === -1) return [];
-  const headers = lines[headerIdx].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+  const headers = allRows[headerIdx].map((h) => h.toLowerCase());
+
   const rows: ParsedRow[] = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    const cols = splitCsvLine(lines[i]);
-    const get = (key: string) => cols[headers.indexOf(key)]?.replace(/^"|"$/g, "").trim() ?? "";
-    // IMDb has "title" and "year" columns
+  for (let i = headerIdx + 1; i < allRows.length; i++) {
+    const cols = allRows[i];
+    const get = (key: string) => {
+      const idx = headers.indexOf(key);
+      return idx >= 0 ? (cols[idx] ?? "").trim() : "";
+    };
     const title = get("title");
     if (!title) continue;
     const yearStr = get("year");
@@ -73,25 +132,6 @@ function parseIMDb(csv: string): ParsedRow[] {
     });
   }
   return rows;
-}
-
-function splitCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      result.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current);
-  return result;
 }
 
 function detectPlatform(csv: string): Platform | null {
@@ -229,7 +269,7 @@ export default function ImportPage() {
                 <li>Go to <strong className="text-white">letterboxd.com</strong> → Settings</li>
                 <li>Click <strong className="text-white">Data</strong> in the left sidebar</li>
                 <li>Click <strong className="text-white">Export your data</strong></li>
-                <li>Upload the <code className="bg-[var(--surface-2)] px-1 rounded">reviews.csv</code> file below (or <code className="bg-[var(--surface-2)] px-1 rounded">ratings.csv</code>)</li>
+                <li>Upload the <code className="bg-[var(--surface-2)] px-1 rounded">reviews.csv</code> file below</li>
               </ol>
             </>
           ) : (
