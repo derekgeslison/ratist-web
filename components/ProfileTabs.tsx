@@ -16,6 +16,7 @@ interface RatedMovie {
   ratistRating: number | null;
   reviewText: string | null;
   createdAt: string;
+  ratingStatus: "complete" | "incomplete";
 }
 
 interface SeenMovie {
@@ -26,6 +27,7 @@ interface SeenMovie {
   seenAt: string;
   watchedDate: string | null;
   ratistRating: number | null;
+  ratingStatus: "complete" | "incomplete" | null;
 }
 
 interface WatchlistMovie {
@@ -277,9 +279,14 @@ export default function ProfileTabs({
                   {isOwnProfile ? "You haven't rated any movies yet." : "No ratings yet."}
                 </p>
                 {isOwnProfile && (
-                  <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">
-                    Browse movies and start rating →
-                  </Link>
+                  <div className="flex flex-col items-center gap-2">
+                    <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">
+                      Browse movies and start rating →
+                    </Link>
+                    <Link href="/profile/import" className="text-sm text-[var(--foreground-muted)] hover:text-white hover:underline">
+                      Import from Letterboxd or IMDb →
+                    </Link>
+                  </div>
                 )}
               </div>
             )}
@@ -362,6 +369,13 @@ export default function ProfileTabs({
       {/* ── RATINGS TAB ── */}
       {activeTab === "Ratings" && (
         <div>
+          {isOwnProfile && ratings.length > 0 && (
+            <div className="flex justify-end mb-3">
+              <Link href="/profile/import" className="text-xs text-[var(--foreground-muted)] hover:text-white hover:underline">
+                Import from Letterboxd / IMDb →
+              </Link>
+            </div>
+          )}
           {ratings.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-[var(--foreground-muted)] mb-3">No ratings yet.</p>
@@ -391,11 +405,15 @@ export default function ProfileTabs({
                       {new Date(r.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                  {r.ratistRating !== null && (
+                  {r.ratingStatus === "incomplete" ? (
+                    <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">
+                      Incomplete
+                    </span>
+                  ) : r.ratistRating !== null ? (
                     <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(r.ratistRating) }}>
                       {r.ratistRating.toFixed(1)}
                     </span>
-                  )}
+                  ) : null}
                 </Link>
               ))}
             </div>
@@ -444,14 +462,18 @@ export default function ProfileTabs({
                       <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
                     </div>
                     {/* Rating badge */}
-                    {m.ratistRating !== null && (
+                    {m.ratingStatus === "incomplete" ? (
+                      <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">
+                        Incomplete
+                      </span>
+                    ) : m.ratistRating !== null ? (
                       <span
                         className="text-sm font-bold shrink-0 w-10 text-right"
                         style={{ color: scoreColor(m.ratistRating) }}
                       >
                         {m.ratistRating.toFixed(1)}
                       </span>
-                    )}
+                    ) : null}
                     {/* Date — editable for own profile */}
                     {isOwnProfile ? (
                       <div className="shrink-0">

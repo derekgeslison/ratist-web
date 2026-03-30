@@ -4,6 +4,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 import Image from "next/image";
 import CompareTasteButton from "@/components/CompareTasteButton";
+import { getRatingStatus } from "@/lib/rating-status";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
@@ -172,6 +173,11 @@ export default async function ProfilePage({ params }: Props) {
 
   const avgRatingValue = avgRating._avg.ratistRating;
 
+  // Build a tmdbId → ratingStatus map so diary rows can show incomplete status
+  const ratingStatusByTmdbId = new Map(
+    allRatings.map((r) => [r.movie.tmdbId, getRatingStatus(r)])
+  );
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Profile header */}
@@ -217,6 +223,7 @@ export default async function ProfilePage({ params }: Props) {
           ratistRating: r.ratistRating,
           reviewText: r.reviewText,
           createdAt: r.createdAt.toISOString(),
+          ratingStatus: getRatingStatus(r),
         }))}
         seenMovies={seenMovies.map((s) => ({
           tmdbId: s.movie.tmdbId,
@@ -226,6 +233,7 @@ export default async function ProfilePage({ params }: Props) {
           seenAt: s.createdAt.toISOString(),
           watchedDate: s.watchedDate?.toISOString() ?? null,
           ratistRating: s.movie.ratings[0]?.ratistRating ?? null,
+          ratingStatus: ratingStatusByTmdbId.get(s.movie.tmdbId) ?? null,
         }))}
         watchlistMovies={watchlistMovies.map((w) => ({
           tmdbId: w.movie.tmdbId,

@@ -126,11 +126,30 @@ export async function getTopRatedMovies(page = 1) {
 }
 
 export async function getNowPlayingMovies(page = 1) {
-  return tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", { page: String(page) });
+  const today = new Date().toISOString().split("T")[0];
+  const daysAgo = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", {
+    page: String(page),
+    sort_by: "popularity.desc",
+    "primary_release_date.gte": daysAgo,
+    "primary_release_date.lte": today,
+    "vote_count.gte": "5",
+    with_release_type: "2|3",
+    region: "US",
+  });
 }
 
 export async function getUpcomingMovies(page = 1) {
-  return tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/upcoming", { page: String(page) });
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const sixMonths = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", {
+    page: String(page),
+    sort_by: "primary_release_date.asc",
+    "primary_release_date.gte": tomorrow,
+    "primary_release_date.lte": sixMonths,
+    with_release_type: "2|3",
+    region: "US",
+  });
 }
 
 export async function getMovieDetails(tmdbId: number): Promise<TMDBMovie> {

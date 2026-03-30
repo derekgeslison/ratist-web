@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { getRatingStatus } from "@/lib/rating-status";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -98,7 +99,15 @@ export async function GET(req: NextRequest, { params }: Props) {
       }),
       prisma.movieRating.findUnique({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-        select: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true },
+        select: {
+          ratistRating: true, storyScore: true, styleScore: true,
+          emotiveScore: true, actingScore: true, entertainScore: true,
+          // required fields for completeness check
+          plot: true, storytelling: true, pacingClimax: true,
+          cinematography: true, artisticEffect: true,
+          overallEmotion: true, relatability: true,
+          casting: true, actingQuality: true, appeal: true,
+        },
       }),
     ]);
 
@@ -110,10 +119,22 @@ export async function GET(req: NextRequest, { params }: Props) {
       _count: { ratistRating: true },
     });
 
+    const ratingStatus = userRating ? getRatingStatus(userRating) : null;
+    // Strip required-check fields before sending to client
+    const ratingForClient = userRating ? {
+      ratistRating: userRating.ratistRating,
+      storyScore: userRating.storyScore,
+      styleScore: userRating.styleScore,
+      emotiveScore: userRating.emotiveScore,
+      actingScore: userRating.actingScore,
+      entertainScore: userRating.entertainScore,
+    } : null;
+
     return NextResponse.json({
       seen: !!isSeen,
       watchlisted: !!isWatchlisted,
-      rating: userRating ?? null,
+      rating: ratingForClient,
+      ratingStatus,
       communityAvg: {
         ratistRating: aggregates._avg.ratistRating,
         ratistSum: aggregates._sum.ratistRating,

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck } from "lucide-react";
+import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle } from "lucide-react";
+import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 
@@ -48,6 +49,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const { user, loading: authLoading } = useAuth();
   const [seen, setSeen] = useState(false);
   const [userRating, setUserRating] = useState<UserRating | null>(null);
+  const [ratingStatus, setRatingStatus] = useState<RatingStatus | null>(null);
   const [communityAvg, setCommunityAvg] = useState<CategoryAvg | null>(null);
   const [watchlisted, setWatchlisted] = useState(false);
   const [togglingSeeen, setTogglingSeeen] = useState(false);
@@ -65,6 +67,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
           setSeen(data.seen ?? false);
           setWatchlisted(data.watchlisted ?? false);
           setUserRating(data.rating ?? null);
+          setRatingStatus(data.ratingStatus ?? null);
           setCommunityAvg(data.communityAvg ?? null);
           setLoaded(true);
         })
@@ -143,16 +146,18 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/movies/${tmdbId}/rate`}
-            className="flex items-center gap-2 border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors"
+            className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
+              ratingStatus === "incomplete"
+                ? "border border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
+                : "border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white"
+            }`}
           >
-            {userRating ? (
-              <>
-                <Check className="w-4 h-4" /> Edit Rating
-              </>
+            {ratingStatus === "complete" ? (
+              <><Check className="w-4 h-4" /> Edit Rating</>
+            ) : ratingStatus === "incomplete" ? (
+              <><AlertCircle className="w-4 h-4" /> Complete Rating</>
             ) : (
-              <>
-                <Star className="w-4 h-4" /> Rate Movie
-              </>
+              <><Star className="w-4 h-4" /> Rate Movie</>
             )}
           </Link>
 
