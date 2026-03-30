@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -15,7 +15,7 @@ interface SeenMovie { tmdbId: number; title: string; posterPath: string | null; 
 
 type SearchMode = "person" | "movie";
 
-export default function ActorLookupPage() {
+function ActorLookupContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<SearchMode>("person");
@@ -268,5 +268,13 @@ export default function ActorLookupPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ActorLookupPage() {
+  return (
+    <Suspense>
+      <ActorLookupContent />
+    </Suspense>
   );
 }
