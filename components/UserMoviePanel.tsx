@@ -127,17 +127,17 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
       {/* Personal rating */}
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider flex items-center gap-1">
-          <Image src="/logo.png" alt="R" width={12} height={12} className="w-3 h-3 opacity-70" />
+        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
           {ratistScore != null ? "Your Rating" : "Your Ratist Score Estimate"}
         </span>
         <div className="flex items-center gap-2">
+          <Image src="/logo.png" alt="R" width={16} height={16} className="w-4 h-4 opacity-80" style={{ color: ratistScore != null ? scoreColor(ratistScore) : undefined }} />
           {ratistScore != null ? (
-            <span className="text-base font-bold" style={{ color: scoreColor(ratistScore) }}>
+            <span className="text-lg font-bold" style={{ color: scoreColor(ratistScore) }}>
               {ratistScore.toFixed(1)}
             </span>
           ) : (
-            <span className="text-base font-bold text-[var(--foreground-muted)]">—</span>
+            <span className="text-lg font-bold text-[var(--foreground-muted)]">—</span>
           )}
         </div>
       </div>
