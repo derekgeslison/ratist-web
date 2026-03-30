@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle } from "lucide-react";
+import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2 } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
+import ShareButton from "./ShareButton";
 
 interface CategoryAvg {
   ratistRating: number | null;
@@ -205,6 +206,17 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Share rating */}
+      {ratingStatus === "complete" && ratistScore != null && (
+        <div>
+          <ShareButton
+            label="Share my rating"
+            text={`I rated ${movieTitle} ${ratistScore.toFixed(1)}/10 on The Ratist.`}
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/movies/${tmdbId}`}
+          />
         </div>
       )}
 

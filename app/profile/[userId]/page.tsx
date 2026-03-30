@@ -257,7 +257,9 @@ export default async function ProfilePage({ params }: Props) {
         genreLabels={GENRE_LABELS}
         profileFirebaseUid={user.firebaseUid}
         profileUserId={user.id}
+        profileUserName={user.name}
         isPrivate={user.isPrivate}
+        siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}
       />
     </div>
   );

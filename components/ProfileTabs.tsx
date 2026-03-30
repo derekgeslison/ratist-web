@@ -8,6 +8,7 @@ import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
 import CategoryScoreBar from "./CategoryScoreBar";
 import RatingBadge from "./RatingBadge";
+import ShareButton from "./ShareButton";
 
 interface RatedMovie {
   id: string;
@@ -77,7 +78,9 @@ interface Props {
   genreLabels: Record<string, string>;
   profileFirebaseUid: string;
   profileUserId: string;
+  profileUserName: string;
   isPrivate: boolean;
+  siteUrl?: string;
 }
 
 const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Stats", "Rankings"] as const;
@@ -95,11 +98,15 @@ export default function ProfileTabs({
   genreLabels,
   profileFirebaseUid,
   profileUserId,
+  profileUserName,
   isPrivate,
+  siteUrl = "https://theratist.com",
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
+  const profileUrl = `${siteUrl}/profile/${profileUserId}`;
+  const thisYear = new Date().getFullYear().toString();
   // Track locally-edited watched dates so the UI updates immediately
   const [watchedDates, setWatchedDates] = useState<Record<number, string | null>>({});
   const [matchScore, setMatchScore] = useState<number | null>(null);
@@ -150,6 +157,21 @@ export default function ProfileTabs({
   const rankedMovies = [...ratings]
     .filter((r) => r.ratistRating !== null)
     .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0));
+
+  // Top rated movies seen this year (by watchedDate)
+  const topRatedThisYear = seenMovies
+    .filter((m) => {
+      const date = m.watchedDate ?? m.seenAt;
+      return date && new Date(date).getFullYear().toString() === thisYear && m.ratistRating != null;
+    })
+    .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
+    .slice(0, 10);
+
+  // Movies seen this year count
+  const seenThisYear = seenMovies.filter((m) => {
+    const date = m.watchedDate ?? m.seenAt;
+    return date && new Date(date).getFullYear().toString() === thisYear;
+  }).length;
 
   return (
     <div>
@@ -281,6 +303,37 @@ export default function ProfileTabs({
               </section>
             )}
 
+            {/* Top rated this year */}
+            {topRatedThisYear.length > 0 && (
+              <section>
+                <h2 className="text-base font-semibold text-white mb-1">Top Rated in {thisYear}</h2>
+                <p className="text-xs text-[var(--foreground-muted)] mb-4">
+                  {isOwnProfile ? "Your" : `${profileUserName}'s`} highest-rated watches of {thisYear}
+                </p>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {topRatedThisYear.map((m, i) => (
+                    <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group relative">
+                      <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                        {m.posterPath ? (
+                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
+                        )}
+                        <div className="absolute top-1 left-1 w-5 h-5 rounded bg-black/70 flex items-center justify-center text-[10px] font-bold text-white">
+                          {i + 1}
+                        </div>
+                      </div>
+                      {m.ratistRating != null && (
+                        <div className="flex justify-center mt-1">
+                          <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Empty state */}
             {ratings.length === 0 && (
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-8 text-center">
@@ -303,6 +356,25 @@ export default function ProfileTabs({
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Non-member CTA */}
+            {!user && (
+              <div className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-5 text-center">
+                <p className="text-sm font-semibold text-white mb-1">See how your taste compares</p>
+                <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                  Create a free account to get your taste match score with {profileUserName}.
+                </p>
+                <Link
+                  href="/auth/signup"
+                  className="inline-block w-full bg-[var(--ratist-red)] text-white text-sm font-semibold py-2 rounded-lg hover:bg-[var(--ratist-red)]/90 transition-colors"
+                >
+                  Join The Ratist
+                </Link>
+                <Link href="/auth/signin" className="block mt-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+                  Already a member? Sign in
+                </Link>
+              </div>
+            )}
+
             {/* Match score (shown to logged-in viewers of other profiles) */}
             {!isOwnProfile && matchScore !== null && (
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
@@ -433,11 +505,22 @@ export default function ProfileTabs({
       {/* ── DIARY TAB ── */}
       {activeTab === "Diary" && (
         <div>
-          {isOwnProfile && (
-            <p className="text-xs text-[var(--foreground-muted)] mb-4">
-              Click the date on any entry to update when you watched it.
-            </p>
-          )}
+          <div className="flex items-center justify-between mb-4">
+            {isOwnProfile && (
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Click the date on any entry to update when you watched it.
+              </p>
+            )}
+            {seenThisYear > 0 && (
+              <div className="ml-auto">
+                <ShareButton
+                  label={`Share ${thisYear} diary`}
+                  text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${thisYear}! Check out my film diary on The Ratist.`}
+                  url={profileUrl}
+                />
+              </div>
+            )}
+          </div>
           {seenMovies.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-[var(--foreground-muted)] mb-3">
@@ -643,14 +726,26 @@ export default function ProfileTabs({
             </div>
           ) : (
             <div className="space-y-1">
-              {isOwnProfile && (
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs text-[var(--foreground-muted)]">Sorted by your rating. Use the Rankings tool to drag-and-drop reorder.</p>
-                  <Link href="/tools/rankings" className="text-xs text-[var(--ratist-red)] hover:underline shrink-0 ml-4">
-                    Reorder →
-                  </Link>
+              <div className="flex items-center justify-between mb-4 gap-4">
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  {isOwnProfile ? "Sorted by your rating." : `${profileUserName}'s all-time rankings.`}
+                  {isOwnProfile && " Use the Rankings tool to drag-and-drop reorder."}
+                </p>
+                <div className="flex items-center gap-3 shrink-0">
+                  {isOwnProfile && (
+                    <Link href="/tools/rankings" className="text-xs text-[var(--ratist-red)] hover:underline">
+                      Reorder →
+                    </Link>
+                  )}
+                  {rankedMovies.length >= 3 && (
+                    <ShareButton
+                      label="Share top 10"
+                      text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} top 10 movies on The Ratist!\n\nTop picks: ${rankedMovies.slice(0, 3).map((r) => r.title).join(", ")}${rankedMovies.length > 3 ? "..." : ""}`}
+                      url={profileUrl}
+                    />
+                  )}
                 </div>
-              )}
+              </div>
               {rankedMovies.map((r, index) => (
                 <Link
                   key={r.id}

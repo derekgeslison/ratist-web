@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Film, Clapperboard } from "lucide-react";
+import { ArrowLeft, Film, Clapperboard, Search } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import CelebrityCreditsSection from "./CelebrityCreditsSection";
@@ -260,6 +260,15 @@ export default async function CelebrityPage({ params }: Props) {
               </div>
             )}
           </div>
+
+          {/* Where do I know them from? */}
+          <Link
+            href={`/tools/actor-lookup?personId=${person.id}&name=${encodeURIComponent(person.name)}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors mb-4"
+          >
+            <Search className="w-3.5 h-3.5" />
+            Where do I know them from?
+          </Link>
 
           {person.biography && <CelebrityBio biography={person.biography} />}
         </div>

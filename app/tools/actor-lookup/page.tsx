@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Film, Users } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Search, Film, Users, ExternalLink } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 
@@ -16,6 +17,7 @@ type SearchMode = "person" | "movie";
 
 export default function ActorLookupPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<SearchMode>("person");
 
   // Person-first search
@@ -87,6 +89,23 @@ export default function ActorLookupPage() {
     setMovieQuery(""); setMovieResults([]); setSelectedMovie(null); setCastList(null);
   }
 
+  // Auto-select person from URL params (e.g. when coming from a celebrity page)
+  useEffect(() => {
+    const personId = searchParams.get("personId");
+    const personName = searchParams.get("name");
+    if (personId && personName) {
+      const person: PersonResult = {
+        id: Number(personId),
+        name: personName,
+        profile_path: null,
+        known_for_department: "Acting",
+      };
+      setMode("person");
+      selectPerson(person);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
@@ -119,7 +138,7 @@ export default function ActorLookupPage() {
 
       {mode === "person" ? (
         <>
-          <div className="relative mb-8">
+          <div className="relative mb-6">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
             <input
               value={personQuery}
@@ -146,6 +165,17 @@ export default function ActorLookupPage() {
 
           {selectedPerson && (
             <div>
+              {/* Link to celebrity page — always visible when a person is selected */}
+              <div className="mb-4">
+                <Link
+                  href={`/celebrities/${selectedPerson.id}`}
+                  className="inline-flex items-center gap-1.5 text-sm text-[var(--ratist-red)] hover:underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View {selectedPerson.name}&apos;s full filmography →
+                </Link>
+              </div>
+
               {loadingMovies ? (
                 <p className="text-[var(--foreground-muted)] text-center py-10">Searching your watched movies...</p>
               ) : seenMovies === null ? null : seenMovies.length === 0 ? (
