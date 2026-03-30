@@ -13,8 +13,8 @@ interface Props { params: Promise<{ slug: string }> }
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const post = await prisma.blogPost.findUnique({ where: { slug, published: true, type: "MOVIE_MAP" } });
-  if (!post) return { title: "Not Found — The Ratist" };
-  return { title: `${post.title} — The Ratist`, description: post.excerpt ?? undefined };
+  if (!post) return { title: "Not Found" };
+  return { title: post.title, description: post.excerpt ?? undefined };
 }
 
 export default async function MovieMapPostPage({ params }: Props) {

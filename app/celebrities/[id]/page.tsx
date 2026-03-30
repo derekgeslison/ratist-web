@@ -72,7 +72,7 @@ export async function generateMetadata({ params }: Props) {
       ? `https://image.tmdb.org/t/p/w500${person.profile_path}`
       : undefined;
     return {
-      title: `${person.name} — The Ratist`,
+      title: person.name,
       description,
       openGraph: {
         title: `${person.name} — The Ratist`,
@@ -87,7 +87,7 @@ export async function generateMetadata({ params }: Props) {
       },
     };
   } catch {
-    return { title: "Person — The Ratist" };
+    return { title: "Person" };
   }
 }
 

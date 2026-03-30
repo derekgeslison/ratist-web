@@ -37,9 +37,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     where: { OR: [{ id: userId }, { firebaseUid: userId }] },
     select: { name: true },
   });
-  if (!user) return { title: "Profile — The Ratist" };
+  if (!user) return { title: "Profile" };
   return {
-    title: `${user.name} — The Ratist`,
+    title: user.name,
     openGraph: { title: `${user.name}'s profile on The Ratist` },
   };
 }

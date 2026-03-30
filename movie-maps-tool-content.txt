@@ -1,0 +1,92 @@
+MOVIE MAPS TOOL — ORIGINAL CONTENT
+Saved before removal of /tools/movie-maps page.
+These can be published as individual posts via Admin > Movie Maps.
+
+================================================================================
+MEMENTO (2000) — Christopher Nolan
+================================================================================
+Description: Two interweaving timelines told in reverse (color) and forward (black & white). The color sequences run backwards; the B&W sequences run forwards and fill in the gaps.
+
+B&W Timeline (Chronological):
+Leonard wakes up in a motel → calls an unknown person → recounts Sammy Jankis story → discovers he IS Sammy Jankis → Jimmy Grantz is killed → Teddy reveals the truth → Leonard burns evidence and drives off.
+
+Color Timeline (Reverse):
+Opens with Leonard killing Teddy → each scene ends where the previous scene began → builds backward to the morning Leonard woke up at the motel.
+
+Key Twist:
+Leonard's wife survived the attack. He gave her insulin injections repeatedly (as 'Sammy Jankis' did in his memory). He has been manipulated by Teddy into killing drug dealers, then erasing the memory. The license plate 'facts' he's tattooed are lies he's told himself.
+
+================================================================================
+MULHOLLAND DRIVE (2001) — David Lynch
+================================================================================
+Description: The film splits into two realities. The first 2/3 is Diane Selwyn's wish-fulfillment dream; the final act is the grim reality she's escaped from.
+
+Dream World (Acts 1–2):
+Betty (idealized Diane) arrives in Hollywood full of hope → meets amnesiac Rita → they investigate Rita's identity → find Diane Selwyn's dead body → discover 'Camilla Rhodes' → blue box opens.
+
+Real World (Act 3):
+Diane hired a hitman to kill Camilla out of jealous obsession → Camilla is alive and flaunting her success → Diane descends into guilt, paranoia, and eventually suicide.
+
+Symbol Key:
+Blue key = hit has been completed / Blue box = Pandora's box of repressed truth / Silencio = nothing is real, it's all a performance / The Cowboy = Diane's guilt/subconscious directing the dream.
+
+================================================================================
+INCEPTION (2010) — Christopher Nolan
+================================================================================
+Description: Five nested dream levels, each with a different time dilation. The deeper you go, the slower time moves relative to reality.
+
+Dream Level Map:
+Reality: Fischer's flight (10 hrs) → Level 1: Van chase / rainy city (≈1 week) → Level 2: Hotel zero-gravity (≈6 months) → Level 3: Snow fortress (≈10 years) → Limbo: years/decades.
+
+The Mission:
+Cobb must plant the idea in Fischer's mind that he should dissolve his father's empire. The idea must feel like Fischer's own. Each level plants a layer of the emotional logic: the safe combination, the will, the love.
+
+The Top:
+Before the cut — the top is wobbling (it would fall = reality). After Mal's death, Cobb's totem was actually her spinning top. His real totem was his wedding ring (worn in dreams, absent in reality). In the final scene: no ring.
+
+================================================================================
+ETERNAL SUNSHINE OF THE SPOTLESS MIND (2004) — Michel Gondry
+================================================================================
+Description: The film moves through Joel's memories in reverse order as Lacuna Inc. erases them, with Joel fighting to preserve the last ones.
+
+Erasure Order:
+Erasure begins with most recent (painful) memories → works backward to first meeting → as Joel reaches happy early memories he decides he wants to keep them → too late, the process nears completion.
+
+Parallel Present:
+While Joel's memories are erased, Lacuna tech Patrick steals Joel's memories to court Clementine. Mary (receptionist) discovers she herself had her memory erased after an affair with Dr. Mierzwiak.
+
+The Ending:
+Joel and Clementine receive their own erasure records in the mail. They listen to themselves describing each other's flaws. They decide to try again anyway — knowing it will likely end the same way. 'Okay.' / 'Okay.'
+
+================================================================================
+SYNECDOCHE, NEW YORK (2008) — Charlie Kaufman
+================================================================================
+Description: Time becomes increasingly elastic as Caden Cotard builds an endlessly recursive life-simulation inside a warehouse. The film spans decades while feeling like a day.
+
+The Simulation:
+Caden builds a replica of New York inside a warehouse → hires actors to play himself and everyone he knows → the replica expands to contain replicas of itself → time compression accelerates → the simulation becomes larger than the real city.
+
+Death Motif:
+Caden is obsessed with his own mortality from the opening scene. Every character is dying. The number of funerals increases as the film progresses. Eventually Caden begins following Millicent, who is playing his own role.
+
+The Synecdoche:
+A synecdoche uses a part to represent a whole (or vice versa). The warehouse is a part of New York representing all of New York. Caden is a part of humanity representing all of humanity. The play is a part of life representing all of life.
+
+================================================================================
+THE PRESTIGE (2006) — Christopher Nolan
+================================================================================
+Description: Structured as a magic trick: The Pledge, The Turn, The Prestige. Three interlocking timelines told through nested diary-reading.
+
+Three-Act Trick Structure:
+The Pledge: two rival magicians, a tragic accident, obsession begins. The Turn: each sabotages the other, Angier travels to Tesla, Borden builds his secret. The Prestige: both perform the transported man — the reveals collide.
+
+The Twin Secret:
+Borden (and his twin Fallon) have always shared one identity. They alternate as 'Borden' and his assistant. Each sacrificed half a life. One loved Sarah; one loved Olivia. This is why he said 'I don't know' about loving her.
+
+Angier's Secret:
+Tesla built Angier a real teleportation/duplication machine. Every night Angier performs the trick, a clone is created. The original falls into a water tank under the stage and drowns. Angier drowned himself every night — each performance a suicide.
+
+================================================================================
+PLANNED ADDITIONS (from original page footer):
+2001: A Space Odyssey, Lost Highway, Primer, Interstellar, The Tree of Life, Annihilation
+================================================================================

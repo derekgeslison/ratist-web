@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description = movie.overview?.slice(0, 160) ?? undefined;
     const imageUrl = movie.poster_path ? posterUrl(movie.poster_path, "w500") : undefined;
     return {
-      title: `${movie.title} — The Ratist`,
+      title: movie.title,
       description,
       openGraph: {
         title: `${movie.title} — The Ratist`,
@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   } catch {
-    return { title: "Movie — The Ratist" };
+    return { title: "Movie" };
   }
 }
 
