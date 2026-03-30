@@ -15,7 +15,7 @@ export type RequiredRatingField = (typeof REQUIRED_RATING_FIELDS)[number];
 export type RatingStatus = "complete" | "incomplete";
 
 /** Returns "complete" if all required fields are non-null, "incomplete" otherwise. */
-export function getRatingStatus(rating: Partial<Record<string, number | null>> | null): RatingStatus {
+export function getRatingStatus(rating: Record<string, unknown> | null): RatingStatus {
   if (!rating) return "incomplete";
   return REQUIRED_RATING_FIELDS.every((f) => rating[f] != null) ? "complete" : "incomplete";
 }
