@@ -535,7 +535,7 @@ export default function ProfileTabs({
                 </Link>
                 <ShareButton
                   label={`Share ${activeYear}`}
-                  text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${activeYear}! Check out my film diary on The Ratist.`}
+                  text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${activeYear}! Check out my year in film on The Ratist.`}
                   url={`${siteUrl}/profile/${profileUserId}/year-in-review/${activeYear}`}
                   cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(profileUserId)}&year=${activeYear}`}
                 />
