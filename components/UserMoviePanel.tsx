@@ -209,13 +209,13 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
         </div>
       )}
 
-      {/* Share rating */}
-      {ratingStatus === "complete" && ratistScore != null && (
+      {/* Share rating — links to public rating page with OG image */}
+      {ratingStatus === "complete" && ratistScore != null && user && (
         <div>
           <ShareButton
             label="Share my rating"
             text={`I rated ${movieTitle} ${ratistScore.toFixed(1)}/10 on The Ratist.`}
-            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/movies/${tmdbId}`}
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/profile/${user.uid}/rating/${tmdbId}`}
           />
         </div>
       )}

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { GripVertical, Star } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
+import ShareButton from "@/components/ShareButton";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -121,9 +122,18 @@ export default function RankingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex items-center gap-3 mb-2">
-        <Star className="w-6 h-6 text-[var(--ratist-red)]" />
-        <h1 className="text-2xl font-bold text-white">Personal Rankings</h1>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <Star className="w-6 h-6 text-[var(--ratist-red)]" />
+          <h1 className="text-2xl font-bold text-white">Personal Rankings</h1>
+        </div>
+        {movies.length >= 1 && user && (
+          <ShareButton
+            label="Share rankings"
+            text={`Check out my top 10 movies on The Ratist!\n\nTop picks: ${movies.slice(0, 3).map((m) => m.title).join(", ")}${movies.length > 3 ? "..." : ""}`}
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/profile/${user.uid}`}
+          />
+        )}
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Drag to reorder, or type a number to move a movie to a specific rank.</p>
 

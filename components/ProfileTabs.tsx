@@ -106,7 +106,21 @@ export default function ProfileTabs({
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const profileUrl = `${siteUrl}/profile/${profileUserId}`;
-  const thisYear = new Date().getFullYear().toString();
+  const currentYear = new Date().getFullYear().toString();
+  const prevYear = (new Date().getFullYear() - 1).toString();
+  // Show the most recently active year — keep previous year visible until the user has
+  // watched at least 5 movies in the new year (so Jan 1 doesn't wipe their stats).
+  const seenCurrentYearCount = seenMovies.filter((m) => {
+    const d = m.watchedDate ?? m.seenAt;
+    return d && new Date(d).getFullYear().toString() === currentYear;
+  }).length;
+  const displayYear = seenCurrentYearCount >= 5 ? currentYear : prevYear;
+  // Fall back to current year if there's no previous-year data at all
+  const hasPrevYearData = seenMovies.some((m) => {
+    const d = m.watchedDate ?? m.seenAt;
+    return d && new Date(d).getFullYear().toString() === prevYear;
+  });
+  const activeYear = (seenCurrentYearCount < 5 && hasPrevYearData) ? prevYear : currentYear;
   // Track locally-edited watched dates so the UI updates immediately
   const [watchedDates, setWatchedDates] = useState<Record<number, string | null>>({});
   const [matchScore, setMatchScore] = useState<number | null>(null);
@@ -158,19 +172,19 @@ export default function ProfileTabs({
     .filter((r) => r.ratistRating !== null)
     .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0));
 
-  // Top rated movies seen this year (by watchedDate)
+  // Top rated movies seen in the active display year
   const topRatedThisYear = seenMovies
     .filter((m) => {
       const date = m.watchedDate ?? m.seenAt;
-      return date && new Date(date).getFullYear().toString() === thisYear && m.ratistRating != null;
+      return date && new Date(date).getFullYear().toString() === activeYear && m.ratistRating != null;
     })
     .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
     .slice(0, 10);
 
-  // Movies seen this year count
+  // Movies seen in the active display year
   const seenThisYear = seenMovies.filter((m) => {
     const date = m.watchedDate ?? m.seenAt;
-    return date && new Date(date).getFullYear().toString() === thisYear;
+    return date && new Date(date).getFullYear().toString() === activeYear;
   }).length;
 
   return (
@@ -306,9 +320,9 @@ export default function ProfileTabs({
             {/* Top rated this year */}
             {topRatedThisYear.length > 0 && (
               <section>
-                <h2 className="text-base font-semibold text-white mb-1">Top Rated in {thisYear}</h2>
+                <h2 className="text-base font-semibold text-white mb-1">Top Rated in {activeYear}</h2>
                 <p className="text-xs text-[var(--foreground-muted)] mb-4">
-                  {isOwnProfile ? "Your" : `${profileUserName}'s`} highest-rated watches of {thisYear}
+                  {isOwnProfile ? "Your" : `${profileUserName}'s`} highest-rated watches of {activeYear}
                 </p>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {topRatedThisYear.map((m, i) => (
@@ -512,11 +526,17 @@ export default function ProfileTabs({
               </p>
             )}
             {seenThisYear > 0 && (
-              <div className="ml-auto">
+              <div className="flex items-center gap-3 ml-auto">
+                <Link
+                  href={`/profile/${profileUserId}/year-in-review/${activeYear}`}
+                  className="text-xs text-[var(--ratist-red)] hover:underline shrink-0"
+                >
+                  {activeYear} Year in Review →
+                </Link>
                 <ShareButton
-                  label={`Share ${thisYear} diary`}
-                  text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${thisYear}! Check out my film diary on The Ratist.`}
-                  url={profileUrl}
+                  label={`Share ${activeYear}`}
+                  text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${activeYear}! Check out my film diary on The Ratist.`}
+                  url={`${siteUrl}/profile/${profileUserId}/year-in-review/${activeYear}`}
                 />
               </div>
             )}
@@ -737,7 +757,7 @@ export default function ProfileTabs({
                       Reorder →
                     </Link>
                   )}
-                  {rankedMovies.length >= 3 && (
+                  {rankedMovies.length >= 1 && (
                     <ShareButton
                       label="Share top 10"
                       text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} top 10 movies on The Ratist!\n\nTop picks: ${rankedMovies.slice(0, 3).map((r) => r.title).join(", ")}${rankedMovies.length > 3 ? "..." : ""}`}
