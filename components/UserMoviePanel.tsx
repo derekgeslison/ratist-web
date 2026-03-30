@@ -216,6 +216,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
             label="Share my rating"
             text={`I rated ${movieTitle} ${ratistScore.toFixed(1)}/10 on The Ratist.`}
             url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/profile/${user.uid}/rating/${tmdbId}`}
+            cardImageUrl={`/api/og/rating?userId=${encodeURIComponent(user.uid)}&tmdbId=${tmdbId}`}
           />
         </div>
       )}

@@ -149,6 +149,7 @@ export default async function ComparePage({ params }: Props) {
             label="Share this comparison"
             text={shareText}
             url={shareUrl}
+            cardImageUrl={`/api/og/compare?userId1=${encodeURIComponent(userId1)}&userId2=${encodeURIComponent(userId2)}`}
           />
           <Link href="/auth/signin" className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
             Get your own match score →

@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     openGraph: {
       title,
-      images: [{ url: ogImageUrl, width: 1200, height: 630 }],
+      images: [{ url: ogImageUrl, width: 1080, height: 1350 }],
     },
     twitter: {
       card: "summary_large_image",
@@ -136,6 +136,7 @@ export default async function YearInReviewPage({ params }: Props) {
             label={`Share my ${year} in Film`}
             text={shareText}
             url={shareUrl}
+            cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(userId)}&year=${year}`}
           />
         </div>
       </div>

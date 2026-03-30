@@ -129,8 +129,8 @@ export default function RankingsPage() {
         </div>
         {movies.length >= 1 && user && (
           <ShareButton
-            label="Share rankings"
-            text={`Check out my top 10 movies on The Ratist!\n\nTop picks: ${movies.slice(0, 3).map((m) => m.title).join(", ")}${movies.length > 3 ? "..." : ""}`}
+            label={filter === "all" ? "Share rankings" : `Share ${filter} rankings`}
+            text={`Check out my ${filter === "all" ? "all-time" : filter} top movies on The Ratist!\n\nTop picks: ${movies.slice(0, 3).map((m) => m.title).join(", ")}${movies.length > 3 ? "..." : ""}`}
             url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/profile/${user.uid}`}
           />
         )}

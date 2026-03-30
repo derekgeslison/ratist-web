@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     openGraph: {
       title,
-      images: [{ url: ogImageUrl, width: 1200, height: 630 }],
+      images: [{ url: ogImageUrl, width: 1080, height: 1350 }],
     },
     twitter: {
       card: "summary_large_image",
@@ -183,7 +183,11 @@ export default async function PublicRatingPage({ params }: Props) {
             <Link href={`/movies/${tmdbId}/rate`} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
               Rate this movie yourself →
             </Link>
-            <ShareButton text={shareText} url={shareUrl} />
+            <ShareButton
+              text={shareText}
+              url={shareUrl}
+              cardImageUrl={`/api/og/rating?userId=${encodeURIComponent(userId)}&tmdbId=${tmdbId}`}
+            />
           </div>
         </div>
       </div>
