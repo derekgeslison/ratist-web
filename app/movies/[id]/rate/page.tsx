@@ -138,10 +138,12 @@ export default function RateMoviePage() {
     return true;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitRating(isDraft: boolean) {
     if (!user) return;
-    if (!allRequiredFilled()) { setError("Please fill in all required fields."); return; }
+    if (!isDraft && !allRequiredFilled()) {
+      setError("Please fill in all required fields, or save as a draft to come back later.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     const token = await user.getIdToken();
@@ -151,11 +153,16 @@ export default function RateMoviePage() {
       body: JSON.stringify({ ...values, overallRating, reviewText, movieTitle: movie?.title, releaseDate: movie?.release_date ?? null }),
     });
     if (res.ok) {
-      router.push(`/movies/${id}?rated=1`);
+      router.push(isDraft ? `/movies/${id}` : `/movies/${id}?rated=1`);
     } else {
-      setError("Failed to save rating. Please try again.");
+      setError("Failed to save. Please try again.");
       setSubmitting(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitRating(false);
   }
 
   if (authLoading) return null;
@@ -174,7 +181,7 @@ export default function RateMoviePage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center justify-between mb-6">
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <div
             onClick={() => setRequiredOnly((v) => !v)}
@@ -184,6 +191,14 @@ export default function RateMoviePage() {
           </div>
           <span className="text-sm text-[var(--foreground-muted)]">Required fields only</span>
         </label>
+        <button
+          type="button"
+          onClick={() => submitRating(true)}
+          disabled={submitting}
+          className="text-xs text-[var(--foreground-muted)] hover:text-orange-400 transition-colors disabled:opacity-50"
+        >
+          Save draft
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -309,20 +324,31 @@ export default function RateMoviePage() {
 
         {error && <p className="text-sm text-red-400">{error}</p>}
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
-          >
-            {submitting ? "Saving..." : "Save Rating"}
-          </button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {submitting ? "Saving..." : "Save Rating"}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              disabled={submitting}
+              className="px-6 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-xl transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => router.back()}
-            className="px-6 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-xl transition-colors"
+            onClick={() => submitRating(true)}
+            disabled={submitting}
+            className="w-full border border-[var(--border)] text-[var(--foreground-muted)] hover:border-orange-400 hover:text-orange-400 text-sm font-medium py-2.5 rounded-xl transition-colors disabled:opacity-50"
           >
-            Cancel
+            Save as Draft — come back to finish later
           </button>
         </div>
       </form>

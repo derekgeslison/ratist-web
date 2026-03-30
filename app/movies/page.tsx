@@ -4,6 +4,7 @@ import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMo
 import MovieCard from "@/components/MovieCard";
 import MovieListItem from "@/components/MovieListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
+import AdUnit from "@/components/AdUnit";
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -122,6 +123,8 @@ export default async function MoviesPage({ searchParams }: Props) {
         genres={genreList.genres}
         totalResults={result.total_results}
       />
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-4" />
 
       {result.results.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No movies found.</p>

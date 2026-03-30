@@ -6,6 +6,7 @@ import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
 import PersonalizedSection from "@/components/PersonalizedSection";
 import BrandCTAButtons from "@/components/BrandCTAButtons";
+import AdUnit from "@/components/AdUnit";
 
 const TOOLS = [
   {
@@ -78,6 +79,9 @@ export default async function HomePage() {
           movies={nowPlaying.results.slice(0, 12)}
           viewAllHref="/movies?theaterStatus=now_playing"
         />
+
+        {/* Ad — between Now Playing and Tools */}
+        <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME ?? ""} format="auto" className="py-2" />
 
         {/* Tools Spotlight */}
         <section>

@@ -17,6 +17,7 @@ import UserMoviePanel from "@/components/UserMoviePanel";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
 import { upsertMovie } from "@/lib/tmdb-sync";
 import { prisma } from "@/lib/prisma";
+import AdUnit from "@/components/AdUnit";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -197,6 +198,9 @@ export default async function MovieDetailPage({ params }: Props) {
             />
           </div>
         </div>
+
+        {/* Ad — between movie panel and tabs */}
+        <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIE ?? ""} format="auto" className="mb-4" />
 
         {/* Functional tabs */}
         <MovieDetailTabs
