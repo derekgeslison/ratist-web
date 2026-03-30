@@ -24,6 +24,12 @@ const SORT_OPTIONS = [
   { value: "title_za", label: "Title Z–A" },
 ];
 
+const THEATER_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "now_playing", label: "Now Playing" },
+  { value: "upcoming", label: "Coming Soon" },
+];
+
 interface ActorOption {
   id: number;
   name: string;
@@ -54,6 +60,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentRatingOp = (searchParams.get("ratingOp") ?? "gte") as "gte" | "lte";
   const currentRatingVal = searchParams.get("ratingVal") ?? "";
   const currentPerPage = searchParams.get("perPage") ?? "20";
+  const currentTheaterStatus = searchParams.get("theaterStatus") ?? "";
 
   // Local debounced state for text inputs
   const currentSearch = searchParams.get("search") ?? "";
@@ -84,6 +91,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentYearFrom || currentYearTo,
     currentMpaa.length > 0,
     currentRatingVal,
+    currentTheaterStatus,
   ].filter(Boolean).length;
 
   function update(updates: Record<string, string | null>) {
@@ -293,6 +301,12 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               <button onClick={() => update({ ratingVal: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
+          {currentTheaterStatus && (
+            <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
+              {THEATER_OPTIONS.find((o) => o.value === currentTheaterStatus)?.label}
+              <button onClick={() => update({ theaterStatus: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+            </span>
+          )}
           <button onClick={clearAllFilters} className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
             Clear all
           </button>
@@ -302,6 +316,22 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
       {/* Expandable filter panel */}
       {filtersOpen && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 space-y-5">
+
+          {/* Theater Status */}
+          <div>
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Theater Status</p>
+            <div className="flex flex-wrap gap-2">
+              {THEATER_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => update({ theaterStatus: o.value || null })}
+                  className={`${chipBase} ${currentTheaterStatus === o.value ? chipOn : chipOff}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Genres */}
           <div>

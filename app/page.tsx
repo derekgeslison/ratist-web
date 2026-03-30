@@ -76,12 +76,17 @@ export default async function HomePage() {
         <MovieRow
           title="Now Playing in Theaters"
           movies={nowPlaying.results.slice(0, 12)}
-          viewAllHref="/movies"
+          viewAllHref="/movies?theaterStatus=now_playing"
         />
 
         {/* Tools Spotlight */}
         <section>
-          <h2 className="text-lg font-semibold text-white mb-4">Tools &amp; Features</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Tools &amp; Features</h2>
+            <Link href="/tools" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
+              View all tools &rarr;
+            </Link>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {TOOLS.map(({ icon: Icon, title, description, href }) => (
               <Link

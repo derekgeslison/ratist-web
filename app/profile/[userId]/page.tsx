@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 export const dynamic = "force-dynamic";
 import Image from "next/image";
+import CompareTasteButton from "@/components/CompareTasteButton";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
@@ -201,12 +202,7 @@ export default async function ProfilePage({ params }: Props) {
             <span>Member since {user.createdAt.getFullYear()}</span>
           </div>
           <div className="mt-3">
-            <Link
-              href={`/profile/${userId}/compare`}
-              className="inline-flex items-center gap-1.5 text-xs bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-[var(--foreground-muted)] hover:text-white px-3 py-1.5 rounded-full transition-colors"
-            >
-              Compare taste
-            </Link>
+            <CompareTasteButton profileFirebaseUid={user.firebaseUid} profileUserId={user.id} />
           </div>
         </div>
       </div>

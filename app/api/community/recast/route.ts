@@ -13,22 +13,27 @@ async function getUser(req: NextRequest) {
 }
 
 export async function GET() {
-  const items = await prisma.recast.findMany({
-    include: {
-      creator: { select: { name: true } },
-      votes: { select: { value: true, userId: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  try {
+    const items = await prisma.recast.findMany({
+      include: {
+        creator: { select: { name: true } },
+        votes: { select: { value: true, userId: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
 
-  const result = items.map((item) => {
-    const score = item.votes.reduce((sum, v) => sum + v.value, 0);
-    const { votes, ...rest } = item;
-    return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.userId, value: v.value })) };
-  }).sort((a, b) => b.score - a.score);
+    const result = items.map((item) => {
+      const score = item.votes.reduce((sum, v) => sum + v.value, 0);
+      const { votes, ...rest } = item;
+      return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.userId, value: v.value })) };
+    }).sort((a, b) => b.score - a.score);
 
-  return NextResponse.json({ items: result });
+    return NextResponse.json({ items: result });
+  } catch (err) {
+    console.error("GET recast error:", err);
+    return NextResponse.json({ error: "Server error", items: [] }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

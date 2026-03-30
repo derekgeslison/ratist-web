@@ -28,9 +28,13 @@ export default function HotTakesPage() {
   const [error, setError] = useState("");
 
   const fetchItems = useCallback(async () => {
-    const res = await fetch("/api/community/hot-takes");
-    const data = await res.json();
-    setItems(data.items ?? []);
+    try {
+      const res = await fetch("/api/community/hot-takes");
+      const data = await res.json();
+      setItems(data.items ?? []);
+    } catch {
+      // ignore
+    }
     setLoading(false);
   }, []);
 

@@ -159,9 +159,13 @@ export default function RecastPage() {
   const [formError, setFormError] = useState("");
 
   const fetchItems = useCallback(async () => {
-    const res = await fetch("/api/community/recast");
-    const data = await res.json();
-    setItems(data.items ?? []);
+    try {
+      const res = await fetch("/api/community/recast");
+      const data = await res.json();
+      setItems(data.items ?? []);
+    } catch {
+      // ignore
+    }
     setLoading(false);
   }, []);
 

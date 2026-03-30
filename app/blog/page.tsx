@@ -6,12 +6,22 @@ export const dynamic = "force-dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, Calendar, Eye } from "lucide-react";
+import { Suspense } from "react";
+import PostSortBar from "@/components/PostSortBar";
 
-export default async function BlogPage() {
+type Sort = "newest" | "oldest" | "popular";
+
+export default async function BlogPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
+  const { sort = "newest" } = await searchParams;
+  const orderBy =
+    sort === "popular" ? { viewCount: "desc" as const } :
+    sort === "oldest" ? { createdAt: "asc" as const } :
+    { createdAt: "desc" as const };
+
   const posts = await prisma.blogPost.findMany({
     where: { type: "BLOG", published: true },
     select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } }, _count: { select: { comments: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy,
   });
 
   return (
@@ -20,6 +30,12 @@ export default async function BlogPage() {
         <BookOpen className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Blog</h1>
       </div>
+
+      {posts.length > 0 && (
+        <Suspense>
+          <PostSortBar />
+        </Suspense>
+      )}
 
       {posts.length === 0 ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">
@@ -53,7 +69,7 @@ export default async function BlogPage() {
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {post.createdAt.toLocaleDateString()}
+                      {new Date(post.createdAt).toLocaleDateString()}
                     </span>
                     {post.viewCount > 0 && (
                       <span className="flex items-center gap-1">

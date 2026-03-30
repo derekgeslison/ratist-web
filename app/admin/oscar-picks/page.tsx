@@ -57,6 +57,7 @@ export default function AdminOscarPicksPage() {
   const [movieSearchResults, setMovieSearchResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string }[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string } | null>(null);
   const [nomineeDetail, setNomineeDetail] = useState("");
+  const [actorSearchResults, setActorSearchResults] = useState<{ id: number; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -81,6 +82,16 @@ export default function AdminOscarPicksPage() {
     }, 300);
     return () => clearTimeout(t);
   }, [movieSearchQuery]);
+
+  useEffect(() => {
+    if (nomineeDetail.length < 2) { setActorSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(nomineeDetail)}`);
+      const data = await res.json();
+      setActorSearchResults((data.results ?? []).slice(0, 6).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [nomineeDetail]);
 
   async function doAction(payload: Record<string, unknown>) {
     if (!user) return;
@@ -252,14 +263,27 @@ export default function AdminOscarPicksPage() {
                                 </div>
                               )}
                             </div>
-                            <input
-                              type="text"
-                              value={newNomCatId === cat.id ? nomineeDetail : ""}
-                              placeholder="Actor name (optional)"
-                              onFocus={() => setNewNomCatId(cat.id)}
-                              onChange={(e) => { setNewNomCatId(cat.id); setNomineeDetail(e.target.value); }}
-                              className="flex-1 min-w-32 px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-yellow-400"
-                            />
+                            <div className="relative flex-1 min-w-32">
+                              <input
+                                type="text"
+                                value={newNomCatId === cat.id ? nomineeDetail : ""}
+                                placeholder="Actor / director name (optional)"
+                                onFocus={() => setNewNomCatId(cat.id)}
+                                onChange={(e) => { setNewNomCatId(cat.id); setNomineeDetail(e.target.value); }}
+                                className="w-full px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-yellow-400"
+                              />
+                              {newNomCatId === cat.id && actorSearchResults.length > 0 && (
+                                <div className="absolute z-20 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-xl">
+                                  {actorSearchResults.map((p) => (
+                                    <button key={p.id}
+                                      onClick={() => { setNomineeDetail(p.name); setActorSearchResults([]); }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
+                                      <span className="text-sm text-white">{p.name}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                             <button
                               disabled={newNomCatId !== cat.id || !selectedMovie || saving}
                               onClick={() => {

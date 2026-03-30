@@ -4,14 +4,22 @@ export const metadata: Metadata = { title: "Movie Maps" };
 import Link from "next/link";
 import Image from "next/image";
 import { Map } from "lucide-react";
+import { Suspense } from "react";
+import PostSortBar from "@/components/PostSortBar";
 
 export const dynamic = "force-dynamic";
 
-export default async function MovieMapsPage() {
+export default async function MovieMapsPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
+  const { sort = "newest" } = await searchParams;
+  const orderBy =
+    sort === "popular" ? { viewCount: "desc" as const } :
+    sort === "oldest" ? { createdAt: "asc" as const } :
+    { createdAt: "desc" as const };
+
   const posts = await prisma.blogPost.findMany({
     where: { type: "MOVIE_MAP", published: true },
-    include: { author: { select: { name: true, avatarUrl: true } } },
-    orderBy: { createdAt: "desc" },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
+    orderBy,
   });
 
   return (
@@ -20,7 +28,13 @@ export default async function MovieMapsPage() {
         <Map className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Movie Maps</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Curated journeys through cinema — themed lists, chronological watches, and essential viewing guides.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Curated journeys through cinema — themed lists, chronological watches, and essential viewing guides.</p>
+
+      {posts.length > 0 && (
+        <Suspense>
+          <PostSortBar />
+        </Suspense>
+      )}
 
       {posts.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No maps yet.</p>

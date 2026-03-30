@@ -4,24 +4,37 @@ export const metadata: Metadata = { title: "Punch & Judy" };
 import Link from "next/link";
 import Image from "next/image";
 import { Swords, Eye } from "lucide-react";
+import { Suspense } from "react";
+import PostSortBar from "@/components/PostSortBar";
 
 export const dynamic = "force-dynamic";
 
-export default async function PunchAndJudyPage() {
+export default async function PunchAndJudyPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
+  const { sort = "newest" } = await searchParams;
+  const orderBy =
+    sort === "popular" ? { viewCount: "desc" as const } :
+    sort === "oldest" ? { createdAt: "asc" as const } :
+    { createdAt: "desc" as const };
+
   const posts = await prisma.blogPost.findMany({
     where: { type: "PUNCH_AND_JUDY" as const, published: true },
     select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy,
   });
-  console.log("[P&J] found", posts.length, "posts");
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <Swords className="w-6 h-6 text-[var(--ratist-red)]" />
-        <h1 className="text-2xl font-bold text-white">Punch & Judy</h1>
+        <h1 className="text-2xl font-bold text-white">Punch &amp; Judy</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Head-to-head debates, comparisons, and contrarian takes.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Head-to-head debates, comparisons, and contrarian takes.</p>
+
+      {posts.length > 0 && (
+        <Suspense>
+          <PostSortBar />
+        </Suspense>
+      )}
 
       {posts.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No posts yet.</p>

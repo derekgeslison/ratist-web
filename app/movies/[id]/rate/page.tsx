@@ -91,6 +91,7 @@ export default function RateMoviePage() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     Object.fromEntries(Object.keys(CRITERIA).map((k) => [k, true]))
   );
+  const [requiredOnly, setRequiredOnly] = useState(false);
 
   useEffect(() => {
     if (!user) { router.push("/auth/signin"); return; }
@@ -170,6 +171,18 @@ export default function RateMoviePage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-3 mb-6">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div
+            onClick={() => setRequiredOnly((v) => !v)}
+            className={`relative w-10 h-5 rounded-full transition-colors ${requiredOnly ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${requiredOnly ? "translate-x-5" : ""}`} />
+          </div>
+          <span className="text-sm text-[var(--foreground-muted)]">Required fields only</span>
+        </label>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {Object.entries(CRITERIA).map(([catName, cat]) => (
           <div key={catName} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
@@ -187,7 +200,7 @@ export default function RateMoviePage() {
 
             {openSections[catName] && (
               <div className="px-5 pb-5 space-y-5 border-t border-[var(--border)]">
-                {cat.fields.map((field) => (
+                {cat.fields.filter((f) => !requiredOnly || f.required).map((field) => (
                   <div key={field.key} className="pt-4">
                     <div className="flex items-center gap-2 mb-1">
                       <label className="text-sm font-medium text-white">
@@ -207,9 +220,10 @@ export default function RateMoviePage() {
                         step={0.5}
                         value={values[field.key] ?? 5}
                         onChange={(e) => setValue(field.key, parseFloat(e.target.value))}
-                        className="flex-1 accent-[var(--ratist-red)]"
+                        onClick={(e) => setValue(field.key, parseFloat((e.target as HTMLInputElement).value))}
+                        className={`flex-1 ${values[field.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
                       />
-                      <span className="text-sm font-bold text-white w-8 text-right">
+                      <span className={`text-sm font-bold w-8 text-right ${values[field.key] != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>
                         {values[field.key] ?? "—"}
                       </span>
                     </div>
@@ -249,9 +263,10 @@ export default function RateMoviePage() {
                       step={0.5}
                       value={values[g.key] ?? 5}
                       onChange={(e) => setValue(g.key, parseFloat(e.target.value))}
-                      className="flex-1 accent-[var(--ratist-red)]"
+                      onClick={(e) => setValue(g.key, parseFloat((e.target as HTMLInputElement).value))}
+                      className={`flex-1 ${values[g.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
                     />
-                    <span className="text-sm font-bold text-white w-8 text-right">{values[g.key] ?? "—"}</span>
+                    <span className={`text-sm font-bold w-8 text-right ${values[g.key] != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>{values[g.key] ?? "—"}</span>
                   </div>
                 </div>
               ))}
@@ -270,9 +285,10 @@ export default function RateMoviePage() {
               step={0.5}
               value={overallRating ?? 5}
               onChange={(e) => setOverallRating(parseFloat(e.target.value))}
-              className="flex-1 accent-[var(--ratist-red)]"
+              onClick={(e) => setOverallRating(parseFloat((e.target as HTMLInputElement).value))}
+              className={`flex-1 ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
             />
-            <span className="text-sm font-bold text-white w-8 text-right">{overallRating ?? "—"}</span>
+            <span className={`text-sm font-bold w-8 text-right ${overallRating != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>{overallRating ?? "—"}</span>
           </div>
         </div>
 

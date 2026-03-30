@@ -119,9 +119,13 @@ export default function LooksLikePage() {
   const [formError, setFormError] = useState("");
 
   const fetchItems = useCallback(async () => {
-    const res = await fetch("/api/community/looks-like");
-    const data = await res.json();
-    setItems(data.items ?? []);
+    try {
+      const res = await fetch("/api/community/looks-like");
+      const data = await res.json();
+      setItems(data.items ?? []);
+    } catch {
+      // ignore
+    }
     setLoading(false);
   }, []);
 

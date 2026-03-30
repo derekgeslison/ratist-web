@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Movies" };
-import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
 import MovieListItem from "@/components/MovieListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
@@ -30,6 +30,8 @@ export default async function MoviesPage({ searchParams }: Props) {
   const mpaaRatings = params.mpaa?.split(",").filter(Boolean) ?? [];
   const certMin = mpaaRatings.length > 0 ? MPAA_ORDER.find((r) => mpaaRatings.includes(r)) : undefined;
   const certMax = mpaaRatings.length > 0 ? [...MPAA_ORDER].reverse().find((r) => mpaaRatings.includes(r)) : undefined;
+
+  const theaterStatus = params.theaterStatus; // "now_playing" | "upcoming" | undefined
 
   const hasFilters = !!(
     genres?.length ||
@@ -84,16 +86,24 @@ export default async function MoviesPage({ searchParams }: Props) {
   let result: MovieResult;
   let pageTitle = "Movies";
 
-  if (params.search && !hasFilters) {
+  if (theaterStatus === "now_playing" && !hasFilters && !params.search) {
+    result = await fetchPages((p) => getNowPlayingMovies(p));
+    pageTitle = "Now Playing in Theaters";
+  } else if (theaterStatus === "upcoming" && !hasFilters && !params.search) {
+    result = await fetchPages((p) => getUpcomingMovies(p));
+    pageTitle = "Coming Soon";
+  } else if (params.search && !hasFilters && !theaterStatus) {
     // Pure text search — use TMDB search API for better relevance ranking
     result = await fetchPages((p) => searchMovies(params.search!, p));
     pageTitle = `Search: "${params.search}"`;
-  } else if (params.search || hasFilters) {
+  } else if (params.search || hasFilters || theaterStatus) {
     // Text search + filters combined, or filters only — use discover with optional text query
     result = await fetchPages((p) =>
       discoverMovies({ ...discoverOptions, query: params.search, page: p })
     );
     if (params.search) pageTitle = `Search: "${params.search}"`;
+    else if (theaterStatus === "now_playing") pageTitle = "Now Playing in Theaters";
+    else if (theaterStatus === "upcoming") pageTitle = "Coming Soon";
   } else if (sort === "top_rated") {
     result = await fetchPages((p) => getTopRatedMovies(p));
     pageTitle = "Top Rated Movies";

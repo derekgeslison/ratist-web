@@ -99,7 +99,7 @@ export default function SeenPage() {
             </div>
           )}
 
-          {movies.length > 5 && (
+          {movies.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 mb-6">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
