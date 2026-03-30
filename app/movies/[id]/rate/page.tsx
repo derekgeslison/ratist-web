@@ -81,7 +81,7 @@ interface MovieInfo { title: string; poster_path: string | null; release_date: s
 export default function RateMoviePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [movie, setMovie] = useState<MovieInfo | null>(null);
   const [values, setValues] = useState<Record<string, number | null>>({});
   const [reviewText, setReviewText] = useState("");
@@ -94,6 +94,7 @@ export default function RateMoviePage() {
   const [requiredOnly, setRequiredOnly] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { router.push("/auth/signin"); return; }
     // Fetch movie info
     fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`)
@@ -117,7 +118,7 @@ export default function RateMoviePage() {
           }
         });
     });
-  }, [user, id, router]);
+  }, [authLoading, user, id, router]);
 
   // Fetch movie title from TMDB client-side for display
   useEffect(() => {
@@ -156,6 +157,8 @@ export default function RateMoviePage() {
       setSubmitting(false);
     }
   }
+
+  if (authLoading) return null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
