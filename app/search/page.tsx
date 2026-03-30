@@ -3,22 +3,15 @@ export const metadata: Metadata = { title: "Search" };
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Film, User } from "lucide-react";
-import { posterUrl } from "@/lib/tmdb";
+import { type TMDBMovie as LibTMDBMovie } from "@/lib/tmdb";
 import SearchFilters from "./SearchFilters";
+import MovieListItem from "@/components/MovieListItem";
 import { Suspense } from "react";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
-interface TMDBMovie {
-  id: number;
-  title: string;
-  poster_path: string | null;
-  release_date: string;
-  vote_average: number;
-  overview: string;
-  media_type: "movie";
-}
+type TMDBMovie = LibTMDBMovie & { media_type: "movie" };
 interface TMDBPerson {
   id: number;
   name: string;
@@ -156,27 +149,7 @@ export default async function SearchPage({ searchParams }: Props) {
           </h2>
           <div className="flex flex-col divide-y divide-[var(--border)]">
             {movies.map((movie) => (
-              <Link
-                key={movie.id}
-                href={`/movies/${movie.id}`}
-                className="flex items-center gap-4 py-3 hover:bg-[var(--surface)] px-3 -mx-3 rounded-lg transition-colors group"
-              >
-                <div className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                  {movie.poster_path ? (
-                    <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="40px" className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{movie.title}</p>
-                  <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                    {movie.release_date?.slice(0, 4)}
-                    {movie.vote_average > 0 && <span className="ml-2">&#x2B50; {movie.vote_average.toFixed(1)}</span>}
-                  </p>
-                  <p className="text-xs text-[var(--foreground-muted)] mt-0.5 line-clamp-1 hidden sm:block">{movie.overview}</p>
-                </div>
-              </Link>
+              <MovieListItem key={movie.id} movie={movie} />
             ))}
           </div>
         </section>

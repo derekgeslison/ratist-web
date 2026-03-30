@@ -131,8 +131,8 @@ export async function GET(req: NextRequest, { params }: Props) {
       entertainScore: userRating.entertainScore,
     } : null;
 
-    // Compute score estimate only when user hasn't rated this movie yet
-    const estimatedRating = !userRating
+    // Compute estimate when user has no rating or their rating has no computed score yet
+    const estimatedRating = (!userRating || userRating.ratistRating == null)
       ? await getScoreEstimate(user.id, movie.id)
       : null;
 

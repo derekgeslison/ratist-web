@@ -78,6 +78,7 @@ export default async function ProfilePage({ params }: Props) {
             tmdbId: true,
             title: true,
             posterPath: true,
+            voteAverage: true,
             genres: { include: { genre: true } },
           },
         },
@@ -141,7 +142,7 @@ export default async function ProfilePage({ params }: Props) {
 
   // Find similar users + recommendations
   let similarUsers: Awaited<ReturnType<typeof findSimilarUsers>> = [];
-  let recommendations: { tmdbId: number; title: string; posterPath: string | null; avgRating: number }[] = [];
+  let recommendations: { tmdbId: number; title: string; posterPath: string | null; voteAverage: number | null; avgRating: number }[] = [];
   try {
     similarUsers = await findSimilarUsers(user.id, 5);
     if (similarUsers.length > 0) {
@@ -153,15 +154,15 @@ export default async function ProfilePage({ params }: Props) {
           ratistRating: { gte: 8.0 },
           movieId: { notIn: [...ratedByUser] },
         },
-        include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true } } },
+        include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, voteAverage: true } } },
         orderBy: { ratistRating: "desc" },
         take: 50,
       });
-      const movieMap = new Map<string, { tmdbId: number; title: string; posterPath: string | null; sum: number; count: number }>();
+      const movieMap = new Map<string, { tmdbId: number; title: string; posterPath: string | null; voteAverage: number | null; sum: number; count: number }>();
       for (const r of topRatings) {
         const existing = movieMap.get(r.movieId);
         if (existing) { existing.sum += r.ratistRating ?? 0; existing.count++; }
-        else movieMap.set(r.movieId, { tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, sum: r.ratistRating ?? 0, count: 1 });
+        else movieMap.set(r.movieId, { tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? null, sum: r.ratistRating ?? 0, count: 1 });
       }
       recommendations = [...movieMap.values()]
         .map((m) => ({ ...m, avgRating: m.sum / m.count }))
@@ -219,6 +220,7 @@ export default async function ProfilePage({ params }: Props) {
           tmdbId: r.movie.tmdbId,
           title: r.movie.title,
           posterPath: r.movie.posterPath,
+          voteAverage: r.movie.voteAverage ?? null,
           ratistRating: r.ratistRating,
           reviewText: r.reviewText,
           createdAt: r.createdAt.toISOString(),

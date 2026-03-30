@@ -1,7 +1,7 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ChevronRight } from "lucide-react";
-import { posterUrl, type TMDBMovie } from "@/lib/tmdb";
+import { type TMDBMovie } from "@/lib/tmdb";
+import MovieCard from "./MovieCard";
 
 interface Props {
   title: string;
@@ -28,32 +28,9 @@ export default function MovieRow({ title, movies, viewAllHref }: Props) {
       <div className="overflow-x-auto">
         <div className="flex gap-3 pb-2" style={{ minWidth: "max-content" }}>
           {movies.map((movie) => (
-            <Link
-              key={movie.id}
-              href={`/movies/${movie.id}`}
-              className="group flex flex-col w-[140px] shrink-0"
-            >
-              <div className="relative aspect-[2/3] w-[140px] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-2">
-                <Image
-                  src={posterUrl(movie.poster_path)}
-                  alt={movie.title}
-                  fill
-                  sizes="140px"
-                  className="object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <p className="text-xs font-medium text-white line-clamp-1 leading-tight">
-                {movie.title}
-              </p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                {movie.release_date?.slice(0, 4) ?? "—"}
-              </p>
-              {movie.vote_average > 0 && (
-                <p className="text-xs text-yellow-400 font-semibold mt-0.5">
-                  ★ {movie.vote_average.toFixed(1)}
-                </p>
-              )}
-            </Link>
+            <div key={movie.id} className="w-[140px] shrink-0">
+              <MovieCard movie={movie} />
+            </div>
           ))}
         </div>
       </div>

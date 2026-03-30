@@ -7,12 +7,14 @@ import Link from "next/link";
 import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
 import CategoryScoreBar from "./CategoryScoreBar";
+import RatingBadge from "./RatingBadge";
 
 interface RatedMovie {
   id: string;
   tmdbId: number;
   title: string;
   posterPath: string | null;
+  voteAverage: number | null;
   ratistRating: number | null;
   reviewText: string | null;
   createdAt: string;
@@ -46,6 +48,7 @@ interface Recommendation {
   tmdbId: number;
   title: string;
   posterPath: string | null;
+  voteAverage: number | null;
   avgRating: number;
 }
 
@@ -238,9 +241,12 @@ export default function ProfileTabs({
                           <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
                         )}
                       </div>
-                      <p className="text-center text-xs mt-1 font-semibold" style={{ color: scoreColor(m.avgRating) }}>
-                        {m.avgRating.toFixed(1)}
-                      </p>
+                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                        {m.voteAverage != null && m.voteAverage > 0 && (
+                          <RatingBadge type="community" score={m.voteAverage} size="sm" />
+                        )}
+                        <RatingBadge type="ratist" score={m.avgRating} size="sm" />
+                      </div>
                     </Link>
                   ))}
                 </div>
@@ -261,11 +267,14 @@ export default function ProfileTabs({
                           <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
                         )}
                       </div>
-                      {r.ratistRating && (
-                        <p className="text-center text-xs mt-1 font-semibold" style={{ color: scoreColor(r.ratistRating) }}>
-                          {r.ratistRating.toFixed(1)}
-                        </p>
-                      )}
+                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                        {r.voteAverage != null && r.voteAverage > 0 && (
+                          <RatingBadge type="community" score={r.voteAverage} size="sm" />
+                        )}
+                        {r.ratistRating != null && (
+                          <RatingBadge type="ratist" score={r.ratistRating} size="sm" />
+                        )}
+                      </div>
                     </Link>
                   ))}
                 </div>
