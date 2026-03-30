@@ -99,13 +99,13 @@ export async function POST(req: NextRequest) {
           update: {},
         });
 
-        // Create/update incomplete rating with overallRating + review only
+        // Create/update rating — set both overallRating AND ratistRating so the
+        // imported score contributes to community averages and shows everywhere
         if (existingRating) {
-          // Already has an incomplete rating — update overall/review if not set
           await prisma.movieRating.update({
             where: { id: existingRating.id },
             data: {
-              ...(row.rating != null ? { overallRating: row.rating } : {}),
+              ...(row.rating != null ? { overallRating: row.rating, ratistRating: row.rating } : {}),
               ...(row.review ? { reviewText: row.review } : {}),
               importSource: source,
             },
@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
               userId: user.id,
               movieId: movie.id,
               overallRating: row.rating ?? null,
+              ratistRating: row.rating ?? null,
               reviewText: row.review ?? null,
               importSource: source,
             },
@@ -127,6 +128,16 @@ export async function POST(req: NextRequest) {
         failed++;
         errors.push(`Error importing "${row.title}": ${err instanceof Error ? err.message : "Unknown error"}`);
       }
+    }
+
+    // Backfill: set ratistRating = overallRating for any previously imported ratings
+    // that have overallRating but null ratistRating (from before this fix)
+    const staleImports = await prisma.movieRating.findMany({
+      where: { userId: user.id, importSource: { not: null }, ratistRating: null, overallRating: { not: null } },
+      select: { id: true, overallRating: true },
+    });
+    for (const s of staleImports) {
+      await prisma.movieRating.update({ where: { id: s.id }, data: { ratistRating: s.overallRating } }).catch(() => {});
     }
 
     // Rebuild user profile after import so imported ratings contribute to preferences

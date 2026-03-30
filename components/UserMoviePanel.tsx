@@ -150,10 +150,11 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
               </span>
             )}
             {isImported && (
-              <span className="text-xs text-blue-400/70" title="Complete the full Ratist review for better taste matching">
-                <svg className="w-3.5 h-3.5 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <span className="text-xs text-blue-400 cursor-help" title="Complete the full Ratist review for better taste matching">
+                <svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4m0 4h.01" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
               </span>
             )}
