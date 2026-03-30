@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
-      <head>
+      <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         {ADSENSE_ID && (
           <Script
             async
@@ -33,8 +33,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy="afterInteractive"
           />
         )}
-      </head>
-      <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         <AuthProvider>
           <Navbar />
           <main className="flex-1">{children}</main>
