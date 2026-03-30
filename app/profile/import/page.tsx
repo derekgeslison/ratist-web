@@ -25,7 +25,7 @@ interface ImportResult {
 
 function parseLetterboxd(csv: string): ParsedRow[] {
   const lines = csv.split("\n").map((l) => l.trim()).filter(Boolean);
-  // Find header row
+  // Find header row — works with both ratings.csv and reviews.csv
   const headerIdx = lines.findIndex((l) => l.toLowerCase().startsWith("date,name") || l.toLowerCase().startsWith("date,"));
   if (headerIdx === -1) return [];
   const headers = lines[headerIdx].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
@@ -38,10 +38,12 @@ function parseLetterboxd(csv: string): ParsedRow[] {
     const yearStr = get("year");
     const ratingStr = get("rating");
     const watchedDate = get("watched date") || get("date");
+    const reviewText = get("review");
     rows.push({
       title,
       year: yearStr ? parseInt(yearStr) : undefined,
       rating: ratingStr ? Math.min(10, parseFloat(ratingStr) * 2) : undefined,
+      review: reviewText || undefined,
       watchedDate: watchedDate || undefined,
     });
   }
@@ -227,7 +229,7 @@ export default function ImportPage() {
                 <li>Go to <strong className="text-white">letterboxd.com</strong> → Settings</li>
                 <li>Click <strong className="text-white">Data</strong> in the left sidebar</li>
                 <li>Click <strong className="text-white">Export your data</strong></li>
-                <li>Upload the <code className="bg-[var(--surface-2)] px-1 rounded">ratings.csv</code> file below</li>
+                <li>Upload the <code className="bg-[var(--surface-2)] px-1 rounded">reviews.csv</code> file below (or <code className="bg-[var(--surface-2)] px-1 rounded">ratings.csv</code>)</li>
               </ol>
             </>
           ) : (
@@ -354,10 +356,15 @@ export default function ImportPage() {
             </div>
           </div>
 
-          <p className="text-sm text-[var(--foreground-muted)]">
-            Imported movies are marked as{" "}
-            <span className="text-orange-400 font-medium">Incomplete</span> — visit each movie&apos;s page to finish the full Ratist rating.
-          </p>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-sm text-[var(--foreground-muted)] space-y-2">
+            <p>
+              Imported movies show your overall score with an{" "}
+              <span className="text-blue-400 font-medium">Imported</span> badge. Your scores and reviews are visible on your profile right away.
+            </p>
+            <p>
+              To get the most out of The Ratist — personalized score estimates, accurate taste matching, and better recommendations — complete the full rating form on movies you feel strongly about. The more detailed ratings you have, the better we can understand your taste.
+            </p>
+          </div>
 
           {result.errors.length > 0 && (
             <details className="text-sm">

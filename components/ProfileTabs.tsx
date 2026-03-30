@@ -19,7 +19,7 @@ interface RatedMovie {
   ratistRating: number | null;
   reviewText: string | null;
   createdAt: string;
-  ratingStatus: "complete" | "incomplete";
+  ratingStatus: "complete" | "incomplete" | "imported";
 }
 
 interface SeenMovie {
@@ -30,7 +30,7 @@ interface SeenMovie {
   seenAt: string;
   watchedDate: string | null;
   ratistRating: number | null;
-  ratingStatus: "complete" | "incomplete" | null;
+  ratingStatus: "complete" | "incomplete" | "imported" | null;
 }
 
 interface WatchlistMovie {
@@ -504,6 +504,17 @@ export default function ProfileTabs({
                     <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">
                       Incomplete
                     </span>
+                  ) : r.ratingStatus === "imported" ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {r.ratistRating != null && (
+                        <span className="text-sm font-bold" style={{ color: scoreColor(r.ratistRating) }}>
+                          {r.ratistRating.toFixed(1)}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-400/50 text-blue-400">
+                        Imported
+                      </span>
+                    </div>
                   ) : r.ratistRating !== null ? (
                     <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(r.ratistRating) }}>
                       {r.ratistRating.toFixed(1)}
@@ -579,6 +590,17 @@ export default function ProfileTabs({
                       <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">
                         Incomplete
                       </span>
+                    ) : m.ratingStatus === "imported" ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {m.ratistRating != null && (
+                          <span className="text-sm font-bold" style={{ color: scoreColor(m.ratistRating) }}>
+                            {m.ratistRating.toFixed(1)}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-400/50 text-blue-400">
+                          Imported
+                        </span>
+                      </div>
                     ) : m.ratistRating !== null ? (
                       <span
                         className="text-sm font-bold shrink-0 w-10 text-right"

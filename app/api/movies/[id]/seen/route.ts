@@ -108,6 +108,7 @@ export async function GET(req: NextRequest, { params }: Props) {
           cinematography: true, artisticEffect: true,
           overallEmotion: true, relatability: true,
           casting: true, actingQuality: true, appeal: true,
+          importSource: true,
         },
       }),
     ]);

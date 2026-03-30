@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { rebuildUserProfile } from "@/lib/profile";
 
 interface ImportRow {
   title: string;
@@ -126,6 +127,11 @@ export async function POST(req: NextRequest) {
         failed++;
         errors.push(`Error importing "${row.title}": ${err instanceof Error ? err.message : "Unknown error"}`);
       }
+    }
+
+    // Rebuild user profile after import so imported ratings contribute to preferences
+    if (imported > 0) {
+      rebuildUserProfile(user.id).catch((err) => console.error("Profile rebuild after import error:", err));
     }
 
     return NextResponse.json({ imported, skipped, failed, errors: errors.slice(0, 20) });

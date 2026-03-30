@@ -128,8 +128,14 @@ export async function rebuildUserProfile(userId: string) {
     const community = communityMap.get(rating.movieId) ?? {};
     const ratingObj = rating as unknown as Record<string, number | null>;
 
+    // For imported ratings with no component scores, inherit community averages
+    // so they still contribute to the user's profile
+    const isImportedOnly = rating.importSource != null &&
+      FOCUSED_CATEGORIES.narrativeFocused.every((f) => ratingObj[f] == null);
+    const effectiveScores = isImportedOnly ? community : ratingObj;
+
     for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
-      const userAvg = subFieldAvg(ratingObj, fields);
+      const userAvg = subFieldAvg(effectiveScores as Record<string, number | null>, fields);
       const communityAvg = subFieldAvg(community, fields);
       const maxVal = Math.max(userAvg ?? 0, communityAvg ?? 0);
       const contribution = maxVal >= THRESHOLD && overallRating >= THRESHOLD ? overallRating : 0;

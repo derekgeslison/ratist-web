@@ -12,10 +12,18 @@ export const REQUIRED_RATING_FIELDS = [
 
 export type RequiredRatingField = (typeof REQUIRED_RATING_FIELDS)[number];
 
-export type RatingStatus = "complete" | "incomplete";
+export type RatingStatus = "complete" | "incomplete" | "imported";
 
-/** Returns "complete" if all required fields are non-null, "incomplete" otherwise. */
+/**
+ * Returns the status of a rating:
+ *  - "complete" if all required fields are non-null
+ *  - "imported" if it has an importSource but no component scores filled
+ *  - "incomplete" otherwise (user started but didn't finish the form)
+ */
 export function getRatingStatus(rating: Record<string, unknown> | null): RatingStatus {
   if (!rating) return "incomplete";
-  return REQUIRED_RATING_FIELDS.every((f) => rating[f] != null) ? "complete" : "incomplete";
+  if (REQUIRED_RATING_FIELDS.every((f) => rating[f] != null)) return "complete";
+  // If it was imported and has no component scores, it's "imported" not "incomplete"
+  if (rating.importSource && REQUIRED_RATING_FIELDS.every((f) => rating[f] == null)) return "imported";
+  return "incomplete";
 }
