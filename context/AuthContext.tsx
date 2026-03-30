@@ -3,7 +3,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -17,7 +18,7 @@ import { auth, googleProvider } from "@/lib/firebase";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
+  signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -31,6 +32,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Process any pending redirect sign-in result and store isNewUser for routing
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          const info = getAdditionalUserInfo(result);
+          if (info?.isNewUser) sessionStorage.setItem("ratist_new_user", "1");
+        }
+      })
+      .catch(() => {});
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -52,9 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signInWithGoogle() {
-    const result = await signInWithPopup(auth, googleProvider);
-    const info = getAdditionalUserInfo(result);
-    return { isNewUser: info?.isNewUser ?? false };
+    // Use redirect instead of popup to avoid Cross-Origin-Opener-Policy issues.
+    // The browser navigates to Google and back — getRedirectResult handles the result.
+    await signInWithRedirect(auth, googleProvider);
   }
 
   async function signInWithEmail(email: string, password: string) {
