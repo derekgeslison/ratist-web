@@ -301,6 +301,98 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
 }
 
 /**
+ * Batch version of getScoreEstimate — computes estimates for multiple movies in 3 queries.
+ * Returns a map of movieId → estimated score (or null if not computable).
+ */
+export async function getBatchScoreEstimates(
+  userId: string,
+  movieIds: string[]
+): Promise<Map<string, number | null>> {
+  if (movieIds.length === 0) return new Map();
+
+  const [profile, communityAvgs, movies] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.movieRating.groupBy({
+      by: ["movieId"],
+      where: { movieId: { in: movieIds } },
+      _avg: {
+        plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+        relatability: true, characterDev: true, dialogueScripting: true,
+        overallEmotion: true, meaning: true, movingness: true,
+        cinematography: true, artisticEffect: true, visualEffects: true,
+        locationCost: true, musicSound: true,
+        casting: true, actingQuality: true, blockingChoreo: true,
+        appeal: true,
+      },
+      _count: { ratistRating: true },
+    }),
+    prisma.movie.findMany({
+      where: { id: { in: movieIds } },
+      include: { genres: true },
+    }),
+  ]);
+
+  const result = new Map<string, number | null>();
+
+  if (!profile) {
+    movieIds.forEach((id) => result.set(id, null));
+    return result;
+  }
+
+  const hasProfile = (Object.keys(FOCUSED_CATEGORIES) as FocusedKey[]).some(
+    (k) => (profile[k] as number) > 0
+  );
+  if (!hasProfile) {
+    movieIds.forEach((id) => result.set(id, null));
+    return result;
+  }
+
+  const communityMap = new Map(
+    communityAvgs.map((c) => [c.movieId, { avg: c._avg as Record<string, number | null>, count: c._count.ratistRating }])
+  );
+  const movieMap = new Map(movies.map((m) => [m.id, m]));
+
+  for (const movieId of movieIds) {
+    const community = communityMap.get(movieId);
+    if (!community || community.count === 0) { result.set(movieId, null); continue; }
+
+    const avg = community.avg;
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
+      const movieCategoryScore = subFieldAvg(avg, fields);
+      const userPref = profile[cat] as number;
+      if (movieCategoryScore != null && userPref > 0) {
+        weightedSum += movieCategoryScore * userPref;
+        totalWeight += userPref;
+      }
+    }
+
+    if (totalWeight === 0) { result.set(movieId, null); continue; }
+    const componentEstimate = weightedSum / totalWeight;
+
+    const movie = movieMap.get(movieId);
+    let estimate = componentEstimate;
+    if (movie) {
+      const genreScores: number[] = [];
+      for (const mg of movie.genres) {
+        const profileKey = TMDB_GENRE_TO_PROFILE[mg.genreId];
+        if (profileKey) genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+      }
+      if (genreScores.length > 0) {
+        const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
+        estimate = componentEstimate * 0.90 + genreScore * 0.10;
+      }
+    }
+
+    result.set(movieId, Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10);
+  }
+
+  return result;
+}
+
+/**
  * Get predicted Ratist rating for a movie for a given user,
  * based on ratings from similar users.
  */

@@ -16,6 +16,7 @@ interface WatchlistMovie {
   year: string;
   voteAverage: number | null;
   ratistRating: number | null;
+  estimatedRating: number | null;
   addedAt: string;
 }
 
@@ -109,9 +110,11 @@ export default function WatchlistPage() {
                     {movie.voteAverage != null && movie.voteAverage > 0 && (
                       <RatingBadge type="community" score={movie.voteAverage} size="sm" />
                     )}
-                    {movie.ratistRating != null && (
+                    {movie.ratistRating != null ? (
                       <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
-                    )}
+                    ) : movie.estimatedRating != null ? (
+                      <RatingBadge type="ratist" score={movie.estimatedRating} size="sm" isEstimate />
+                    ) : null}
                   </div>
                 </Link>
               ))}

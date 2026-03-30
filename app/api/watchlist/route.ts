@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { getBatchScoreEstimates } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,12 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    // Compute score estimates in batch for unrated movies
+    const unratedMovieIds = watchlist
+      .filter((w) => !w.movie.ratings[0]?.ratistRating)
+      .map((w) => w.movie.id);
+    const estimates = await getBatchScoreEstimates(user.id, unratedMovieIds);
+
     const movies = watchlist.map((w) => ({
       id: w.movie.id,
       tmdbId: w.movie.tmdbId,
@@ -44,6 +51,7 @@ export async function GET(req: NextRequest) {
       year: w.movie.releaseDate?.slice(0, 4) ?? "",
       voteAverage: w.movie.voteAverage ?? null,
       ratistRating: w.movie.ratings[0]?.ratistRating ?? null,
+      estimatedRating: !w.movie.ratings[0]?.ratistRating ? (estimates.get(w.movie.id) ?? null) : null,
       addedAt: w.createdAt,
     }));
 
