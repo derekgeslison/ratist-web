@@ -320,24 +320,24 @@ export default function OnboardingPage() {
               {moviesLoading ? (
                 <p className="text-[var(--foreground-muted)] text-sm py-4 text-center">Loading movies…</p>
               ) : (
-                <>
+                <div className="max-h-96 overflow-y-auto pr-1 mb-4 space-y-4">
                   {recentMovies.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Recent &amp; Popular</p>
+                    <div>
+                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5">Recent &amp; Popular</p>
                       <div className="grid grid-cols-5 gap-2">
                         {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
                       </div>
                     </div>
                   )}
                   {classicMovies.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2">All-Time Classics</p>
-                      <div className="grid grid-cols-5 gap-2 max-h-72 overflow-y-auto pr-1">
+                    <div>
+                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5">All-Time Classics</p>
+                      <div className="grid grid-cols-5 gap-2">
                         {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
