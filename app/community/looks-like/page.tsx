@@ -260,62 +260,68 @@ export default function LooksLikePage() {
           {sorted.map((item) => {
             const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
             return (
-              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4">
-                {/* Person 1 */}
-                <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                  <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
-                    {item.profilePath1 ? (
-                      <Image src={`${TMDB_IMG}${item.profilePath1}`} alt={item.name1} fill sizes="48px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name1[0]}</div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{item.name1}</p>
-                  </div>
-                </div>
+              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                  {/* People row */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0 mb-3 sm:mb-0">
+                    {/* Person 1 */}
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                        {item.profilePath1 ? (
+                          <Image src={`${TMDB_IMG}${item.profilePath1}`} alt={item.name1} fill sizes="48px" className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name1[0]}</div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white">{item.name1}</p>
+                        <p className="text-xs text-[var(--foreground-muted)]">submitted by {item.creator.name}</p>
+                      </div>
+                    </div>
 
-                {/* VS badge */}
-                <span className="text-lg text-purple-400 font-bold shrink-0">≈</span>
+                    {/* VS badge */}
+                    <span className="text-lg text-purple-400 font-bold shrink-0">≈</span>
 
-                {/* Person 2 */}
-                <div className="flex items-center gap-2.5 flex-1 min-w-0 justify-end">
-                  <div className="min-w-0 text-right">
-                    <p className="text-sm font-medium text-white truncate">{item.name2}</p>
+                    {/* Person 2 */}
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0 justify-end">
+                      <div className="min-w-0 text-right">
+                        <p className="text-sm font-medium text-white">{item.name2}</p>
+                      </div>
+                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                        {item.profilePath2 ? (
+                          <Image src={`${TMDB_IMG}${item.profilePath2}`} alt={item.name2} fill sizes="48px" className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name2[0]}</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
-                    {item.profilePath2 ? (
-                      <Image src={`${TMDB_IMG}${item.profilePath2}`} alt={item.name2} fill sizes="48px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name2[0]}</div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Vote controls */}
-                <div className="flex flex-col items-center gap-0.5 shrink-0 border-l border-[var(--border)] pl-4 ml-2">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => vote(item.id, 1)}
-                      disabled={!user}
-                      title="Twins!"
-                      className={`p-1.5 rounded transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}
-                    >
-                      <ThumbsUp className="w-4 h-4" />
-                    </button>
-                    <span className={`text-sm font-semibold w-8 text-center ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
-                      {item.score > 0 ? "+" : ""}{item.score}
-                    </span>
-                    <button
-                      onClick={() => vote(item.id, -1)}
-                      disabled={!user}
-                      title="Nah"
-                      className={`p-1.5 rounded transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}
-                    >
-                      <ThumbsDown className="w-4 h-4" />
-                    </button>
+                  {/* Vote controls */}
+                  <div className="flex items-center justify-between sm:flex-col sm:items-center sm:gap-0.5 sm:shrink-0 sm:border-l sm:border-[var(--border)] sm:pl-4 border-t sm:border-t-0 border-[var(--border)] pt-3 sm:pt-0">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => vote(item.id, 1)}
+                        disabled={!user}
+                        title="Twins!"
+                        className={`p-1.5 rounded transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </button>
+                      <span className={`text-sm font-semibold w-8 text-center ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+                        {item.score > 0 ? "+" : ""}{item.score}
+                      </span>
+                      <button
+                        onClick={() => vote(item.id, -1)}
+                        disabled={!user}
+                        title="Nah"
+                        className={`p-1.5 rounded transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                   </div>
-                  <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                 </div>
               </div>
             );

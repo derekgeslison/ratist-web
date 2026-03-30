@@ -7,6 +7,7 @@ import { ArrowLeft, Film, Clapperboard } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import CelebrityCreditsSection from "./CelebrityCreditsSection";
+import CelebrityBio from "./CelebrityBio";
 import CelebrityUserPanel from "./CelebrityUserPanel";
 import { upsertCelebrity } from "@/lib/tmdb-sync";
 
@@ -138,12 +139,12 @@ export default async function CelebrityPage({ params }: Props) {
   const seenIds = new Set<number>();
   const castCredits = person.movie_credits.cast
     .filter((m) => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true; })
-    .sort((a, b) => b.popularity - a.popularity);
+    .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
 
   // Directing credits
   const directingCredits = person.movie_credits.crew
     .filter((c) => c.job === "Director")
-    .sort((a, b) => b.popularity - a.popularity);
+    .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
 
   const age = person.birthday
     ? Math.floor(
@@ -260,9 +261,7 @@ export default async function CelebrityPage({ params }: Props) {
             )}
           </div>
 
-          {person.biography && (
-            <p className="text-sm text-[var(--foreground-muted)] leading-relaxed line-clamp-5">{person.biography}</p>
-          )}
+          {person.biography && <CelebrityBio biography={person.biography} />}
         </div>
       </div>
 

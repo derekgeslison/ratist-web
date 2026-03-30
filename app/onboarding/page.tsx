@@ -127,6 +127,7 @@ export default function OnboardingPage() {
   const [quickRating, setQuickRating] = useState<number>(7);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [componentsTouched, setComponentsTouched] = useState(false);
 
   const allMovies = [...recentMovies, ...classicMovies];
 
@@ -203,8 +204,10 @@ export default function OnboardingPage() {
     setSaving(true);
 
     const payload: Record<string, number> = {};
-    for (const g of GENRES) payload[g.key] = selectedGenres.has(g.key) ? 8 : 2;
-    for (const c of COMPONENTS) payload[c.key] = componentScores[c.key];
+    for (const g of GENRES) payload[g.key] = selectedGenres.has(g.key) ? 8 : 5;
+    if (componentsTouched) {
+      for (const c of COMPONENTS) payload[c.key] = componentScores[c.key];
+    }
 
     try {
       const token = await user.getIdToken();
@@ -291,7 +294,7 @@ export default function OnboardingPage() {
                     <input
                       type="range" min={1} max={10} step={1}
                       value={componentScores[c.key]}
-                      onChange={(e) => setComponentScores((prev) => ({ ...prev, [c.key]: Number(e.target.value) }))}
+                      onChange={(e) => { setComponentsTouched(true); setComponentScores((prev) => ({ ...prev, [c.key]: Number(e.target.value) })); }}
                       className="w-full accent-[var(--ratist-red)] cursor-pointer"
                     />
                   </div>
@@ -323,7 +326,7 @@ export default function OnboardingPage() {
                 <div className="max-h-96 overflow-y-auto pr-1 mb-4 space-y-4">
                   {recentMovies.length > 0 && (
                     <div>
-                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5">Recent &amp; Popular</p>
+                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">Recent &amp; Popular</p>
                       <div className="grid grid-cols-5 gap-2">
                         {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
                       </div>
@@ -331,7 +334,7 @@ export default function OnboardingPage() {
                   )}
                   {classicMovies.length > 0 && (
                     <div>
-                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5">All-Time Classics</p>
+                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">All-Time Classics</p>
                       <div className="grid grid-cols-5 gap-2">
                         {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
                       </div>

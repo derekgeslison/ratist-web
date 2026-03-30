@@ -127,7 +127,8 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
       {/* Personal rating */}
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
+        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider flex items-center gap-1">
+          <Image src="/logo.png" alt="R" width={12} height={12} className="w-3 h-3 opacity-70" />
           {ratistScore != null ? "Your Rating" : "Your Ratist Score Estimate"}
         </span>
         <div className="flex items-center gap-2">
