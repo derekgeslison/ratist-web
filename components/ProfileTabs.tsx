@@ -483,7 +483,7 @@ export default function ProfileTabs({
       {/* ── RATINGS TAB ── */}
       {activeTab === "Ratings" && (
         <div>
-          {isOwnProfile && ratings.length > 0 && (
+          {isOwnProfile && (
             <div className="flex justify-end mb-3">
               <Link href="/profile/import" className="text-xs text-[var(--foreground-muted)] hover:text-white hover:underline">
                 Import from Letterboxd / IMDb →
@@ -494,7 +494,12 @@ export default function ProfileTabs({
             <div className="text-center py-16">
               <p className="text-[var(--foreground-muted)] mb-3">No ratings yet.</p>
               {isOwnProfile && (
-                <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
+                <div className="flex flex-col items-center gap-2">
+                  <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
+                  <Link href="/profile/import" className="text-sm text-[var(--foreground-muted)] hover:text-white hover:underline">
+                    Import from Letterboxd or IMDb →
+                  </Link>
+                </div>
               )}
             </div>
           ) : (

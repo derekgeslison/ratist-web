@@ -144,7 +144,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Mark as seen
-        const watchedAt = row.watchedDate ? new Date(row.watchedDate) : new Date();
+        // Append T12:00:00 to avoid UTC midnight timezone shift
+        const watchedAt = row.watchedDate ? new Date(`${row.watchedDate}T12:00:00`) : new Date();
         await prisma.userFavoriteMovie.upsert({
           where: { userId_movieId: { userId: user.id, movieId: movie.id } },
           create: { userId: user.id, movieId: movie.id, watchedDate: watchedAt },

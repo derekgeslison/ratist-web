@@ -64,9 +64,12 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     if (!movie) return NextResponse.json({ error: "Movie not found" }, { status: 404 });
 
     const { watchedDate } = await req.json();
+    // Append T12:00:00 to avoid UTC midnight timezone shift (date-only strings
+    // are parsed as UTC, which rolls back a day in US timezones)
+    const parsedDate = watchedDate ? new Date(`${watchedDate}T12:00:00`) : null;
     await prisma.userFavoriteMovie.update({
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-      data: { watchedDate: watchedDate ? new Date(watchedDate) : null },
+      data: { watchedDate: parsedDate },
     });
 
     return NextResponse.json({ ok: true });
