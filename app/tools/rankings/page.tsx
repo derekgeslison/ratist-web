@@ -89,8 +89,8 @@ function SortableItem({
       {movie.ratistRating != null && (
         <span className="text-sm font-bold text-[var(--ratist-red)] shrink-0">{movie.ratistRating.toFixed(1)}</span>
       )}
-      {/* Move to # (hidden on mobile to save space) */}
-      <form onSubmit={handleMoveSubmit} className="hidden sm:flex items-center gap-1 shrink-0">
+      {/* Move to # */}
+      <form onSubmit={handleMoveSubmit} className="flex items-center gap-1 shrink-0">
         <input
           type="number"
           min={1}
@@ -98,7 +98,7 @@ function SortableItem({
           value={inputVal}
           onChange={(e) => setInputVal(e.target.value)}
           placeholder="#"
-          className="w-12 bg-[var(--surface-2)] border border-[var(--border)] rounded px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[var(--ratist-red)]"
+          className="w-10 sm:w-12 bg-[var(--surface-2)] border border-[var(--border)] rounded px-1 sm:px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[var(--ratist-red)]"
         />
         <button type="submit" className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors px-1">→</button>
       </form>
