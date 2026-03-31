@@ -37,6 +37,7 @@ export default function SeenPage() {
   const [view, setView] = useState<ViewMode>("month");
   const [sort, setSort] = useState<"date" | "title" | "rating">("date");
   const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   // Calendar navigation
   const now = new Date();
@@ -162,10 +163,12 @@ export default function SeenPage() {
   }, [filtered, sort]);
 
   function prevMonth() {
+    setSelectedDay(null);
     if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); }
     else setCalMonth((m) => m - 1);
   }
   function nextMonth() {
+    setSelectedDay(null);
     if (calMonth === 11) { setCalMonth(0); setCalYear((y) => y + 1); }
     else setCalMonth((m) => m + 1);
   }
@@ -327,7 +330,7 @@ export default function SeenPage() {
                 <div>
                   {[...monthByDay.entries()].map(([dayLabel, dayMovies]) => (
                     <div key={dayLabel}>
-                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider pt-4 pb-2 border-b border-[var(--border)]/20">
+                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider pt-4 pb-2 border-b border-[var(--border)]/20 sticky top-0 bg-[var(--background)] z-10">
                         {dayLabel}
                       </p>
                       {dayMovies.map((movie) => (
@@ -384,40 +387,87 @@ export default function SeenPage() {
                   if (day === null) return <div key={`empty-${i}`} />;
                   const dayMovies = moviesByDay.get(day) ?? [];
                   const isToday = day === now.getDate() && calMonth === now.getMonth() && calYear === now.getFullYear();
+                  const hasMovies = dayMovies.length > 0;
                   return (
-                    <div
+                    <button
                       key={day}
-                      className={`min-h-[80px] sm:min-h-[100px] rounded-lg border p-1 transition-colors ${
-                        dayMovies.length > 0
-                          ? "border-[var(--border)] bg-[var(--surface)]"
-                          : isToday
-                            ? "border-[var(--ratist-red)]/30 bg-[var(--ratist-red)]/5"
-                            : "border-transparent"
+                      type="button"
+                      onClick={() => hasMovies && setSelectedDay(selectedDay === day ? null : day)}
+                      className={`min-h-[80px] sm:min-h-[100px] rounded-lg border p-1 transition-colors text-left ${
+                        selectedDay === day
+                          ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10"
+                          : hasMovies
+                            ? "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--ratist-red)]/50 cursor-pointer"
+                            : isToday
+                              ? "border-[var(--ratist-red)]/30 bg-[var(--ratist-red)]/5 cursor-default"
+                              : "border-transparent cursor-default"
                       }`}
                     >
                       <span className={`text-[10px] block mb-0.5 ${isToday ? "text-[var(--ratist-red)] font-bold" : "text-[var(--foreground-muted)]"}`}>
                         {day}
                       </span>
-                      <div className="flex flex-wrap gap-0.5">
+                      <div className="flex flex-wrap gap-0.5 pointer-events-none">
                         {dayMovies.slice(0, 4).map((m) => (
-                          <Link key={m.id} href={`/movies/${m.tmdbId}`} title={`${m.title}${m.ratistRating ? ` — ${m.ratistRating.toFixed(1)}` : ""}`}>
-                            {m.posterPath ? (
-                              <div className="relative w-6 h-9 sm:w-8 sm:h-12 rounded-sm overflow-hidden">
-                                <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />
-                              </div>
-                            ) : (
-                              <div className="w-6 h-9 sm:w-8 sm:h-12 rounded-sm bg-[var(--surface-2)] flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
-                            )}
-                          </Link>
+                          m.posterPath ? (
+                            <div key={m.id} className="relative w-6 h-9 sm:w-8 sm:h-12 rounded-sm overflow-hidden">
+                              <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />
+                            </div>
+                          ) : (
+                            <div key={m.id} className="w-6 h-9 sm:w-8 sm:h-12 rounded-sm bg-[var(--surface-2)] flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
+                          )
                         ))}
                         {dayMovies.length > 4 && (
                           <span className="text-[8px] text-[var(--foreground-muted)] self-end">+{dayMovies.length - 4}</span>
                         )}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
+
+              {/* Day detail popup */}
+              {selectedDay !== null && (moviesByDay.get(selectedDay) ?? []).length > 0 && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                  onClick={(e) => { if (e.target === e.currentTarget) setSelectedDay(null); }}
+                >
+                  <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5 max-h-[80vh] overflow-y-auto mx-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-base font-bold text-white">
+                        {MONTH_NAMES[calMonth]} {selectedDay}, {calYear}
+                      </h3>
+                      <button onClick={() => setSelectedDay(null)} className="text-[var(--foreground-muted)] hover:text-white transition-colors text-sm">
+                        Close
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {(moviesByDay.get(selectedDay) ?? []).map((m) => (
+                        <Link key={m.id} href={`/movies/${m.tmdbId}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--surface)] transition-colors group">
+                          <div className="relative w-12 h-[72px] shrink-0 rounded-lg overflow-hidden bg-[var(--surface-2)]">
+                            {m.posterPath ? (
+                              <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="48px" className="object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{m.title}</p>
+                            <p className="text-xs text-[var(--foreground-muted)]">{m.year}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {m.voteAverage != null && m.voteAverage > 0 && (
+                                <RatingBadge type="community" score={m.voteAverage} size="sm" />
+                              )}
+                              {m.ratistRating != null && (
+                                <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
