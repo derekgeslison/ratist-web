@@ -20,26 +20,16 @@ interface RatingBreakdown {
   releaseDate: string;
   ratistScore: number | null;
   totalRatings: number;
-  breakdown: {
-    label: string;
-    category: string;
-    score: number | null;
-  }[];
+  breakdown: { category: string; score: number | null }[];
+  fields: Record<string, number | null>;
 }
 
-const CRITERIA = [
-  { label: "Plot", category: "story", field: "plot" },
-  { label: "Storytelling", category: "story", field: "storytelling" },
-  { label: "Pacing", category: "story", field: "pacingClimax" },
-  { label: "Character Dev", category: "story", field: "characterDev" },
-  { label: "Acting", category: "performance", field: "acting" },
-  { label: "Dialogue", category: "performance", field: "dialogue" },
-  { label: "Visuals", category: "craft", field: "cinematography" },
-  { label: "Direction", category: "craft", field: "direction" },
-  { label: "Score", category: "craft", field: "musicScore" },
-  { label: "Originality", category: "experience", field: "premiseOriginality" },
-  { label: "Rewatchability", category: "experience", field: "rewatchability" },
-  { label: "Emotional Impact", category: "experience", field: "emotionalImpact" },
+const CATEGORIES = [
+  { label: "Story", key: "Story" },
+  { label: "Style", key: "Style" },
+  { label: "Emotion", key: "Emotion" },
+  { label: "Acting", key: "Acting" },
+  { label: "Entertainment", key: "Entertainment" },
 ];
 
 function MoviePicker({ label, onSelect, onClear, selected }: {
@@ -225,15 +215,15 @@ export default function MatchupPage() {
                 <p className="text-sm font-semibold text-white truncate text-right">{data2.title}</p>
               </div>
 
-              {CRITERIA.map(({ label, field }) => {
-                const s1 = data1.breakdown.find((b) => b.category === field)?.score ?? null;
-                const s2 = data2.breakdown.find((b) => b.category === field)?.score ?? null;
+              {CATEGORIES.map(({ label, key }) => {
+                const s1 = data1.breakdown.find((b) => b.category === key)?.score ?? null;
+                const s2 = data2.breakdown.find((b) => b.category === key)?.score ?? null;
                 const bothPresent = s1 !== null && s2 !== null;
                 const isTie = bothPresent && s1 === s2;
                 const state1: BarState = !bothPresent ? "lose" : s1! > s2! ? "win" : isTie ? "tie" : "lose";
                 const state2: BarState = !bothPresent ? "lose" : s2! > s1! ? "win" : isTie ? "tie" : "lose";
                 return (
-                  <div key={field} className="col-span-3 grid grid-cols-[1fr_120px_1fr] items-center px-4 py-2.5 gap-3">
+                  <div key={key} className="col-span-3 grid grid-cols-[1fr_120px_1fr] items-center px-4 py-2.5 gap-3">
                     <ScoreBar score={s1} state={state1} />
                     <p className="text-xs text-[var(--foreground-muted)] text-center shrink-0">{label}</p>
                     <div className="flex items-center gap-2 flex-row-reverse">
@@ -247,14 +237,14 @@ export default function MatchupPage() {
 
           {/* Win count */}
           {data1.totalRatings > 0 && data2.totalRatings > 0 && (() => {
-            const wins1 = CRITERIA.filter(({ field }) => {
-              const s1 = data1.breakdown.find((b) => b.category === field)?.score ?? null;
-              const s2 = data2.breakdown.find((b) => b.category === field)?.score ?? null;
+            const wins1 = CATEGORIES.filter(({ key }) => {
+              const s1 = data1.breakdown.find((b) => b.category === key)?.score ?? null;
+              const s2 = data2.breakdown.find((b) => b.category === key)?.score ?? null;
               return s1 !== null && s2 !== null && s1 > s2;
             }).length;
-            const wins2 = CRITERIA.filter(({ field }) => {
-              const s1 = data1.breakdown.find((b) => b.category === field)?.score ?? null;
-              const s2 = data2.breakdown.find((b) => b.category === field)?.score ?? null;
+            const wins2 = CATEGORIES.filter(({ key }) => {
+              const s1 = data1.breakdown.find((b) => b.category === key)?.score ?? null;
+              const s2 = data2.breakdown.find((b) => b.category === key)?.score ?? null;
               return s1 !== null && s2 !== null && s2 > s1;
             }).length;
             return (

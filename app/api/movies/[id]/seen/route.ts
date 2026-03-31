@@ -120,7 +120,15 @@ export async function GET(req: NextRequest, { params }: Props) {
     // Get community averages for this movie
     const aggregates = await prisma.movieRating.aggregate({
       where: { movieId: movie.id, ratistRating: { not: null } },
-      _avg: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true },
+      _avg: {
+        ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
+        // Individual fields for expandable breakdown
+        plot: true, premiseOriginality: true, storytelling: true, characterDev: true, pacingClimax: true,
+        cinematography: true, locationCost: true, artisticEffect: true, visualEffects: true, musicSound: true,
+        overallEmotion: true, relatability: true, meaning: true, movingness: true,
+        casting: true, actingQuality: true, dialogueScripting: true,
+        appeal: true,
+      },
       _sum: { ratistRating: true },
       _count: { ratistRating: true },
     });
@@ -157,6 +165,20 @@ export async function GET(req: NextRequest, { params }: Props) {
         actingScore: aggregates._avg.actingScore,
         entertainScore: aggregates._avg.entertainScore,
         count: aggregates._count.ratistRating,
+        // Individual fields for expandable breakdown
+        fields: {
+          plot: aggregates._avg.plot, premiseOriginality: aggregates._avg.premiseOriginality,
+          storytelling: aggregates._avg.storytelling, characterDev: aggregates._avg.characterDev,
+          pacingClimax: aggregates._avg.pacingClimax,
+          cinematography: aggregates._avg.cinematography, locationCost: aggregates._avg.locationCost,
+          artisticEffect: aggregates._avg.artisticEffect, visualEffects: aggregates._avg.visualEffects,
+          musicSound: aggregates._avg.musicSound,
+          overallEmotion: aggregates._avg.overallEmotion, relatability: aggregates._avg.relatability,
+          meaning: aggregates._avg.meaning, movingness: aggregates._avg.movingness,
+          casting: aggregates._avg.casting, actingQuality: aggregates._avg.actingQuality,
+          dialogueScripting: aggregates._avg.dialogueScripting,
+          appeal: aggregates._avg.appeal,
+        },
       },
     });
   } catch (err) {

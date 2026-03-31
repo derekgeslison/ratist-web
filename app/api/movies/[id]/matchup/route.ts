@@ -4,11 +4,6 @@ import { prisma } from "@/lib/prisma";
 const TMDB_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
-async function avg(values: (number | null)[]): Promise<number | null> {
-  const nums = values.filter((v): v is number => v !== null);
-  return nums.length === 0 ? null : nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,11 +12,9 @@ export async function GET(
   const tmdbId = parseInt(tmdbIdStr, 10);
   if (isNaN(tmdbId)) return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
-  // Get or create the movie record
   let movie = await prisma.movie.findFirst({ where: { tmdbId } });
 
   if (!movie) {
-    // Fetch from TMDB
     const res = await fetch(`${TMDB_BASE}/movie/${tmdbId}?api_key=${TMDB_KEY}`);
     if (!res.ok) return NextResponse.json({ error: "Movie not found" }, { status: 404 });
     const tmdb = await res.json();
@@ -39,37 +32,81 @@ export async function GET(
     });
   }
 
-  const ratings = await prisma.movieRating.findMany({ where: { movieId: movie.id } });
+  // Get community averages — same aggregate as the movie page uses
+  const agg = await prisma.movieRating.aggregate({
+    where: { movieId: movie.id, ratistRating: { not: null } },
+    _avg: {
+      ratistRating: true,
+      storyScore: true,
+      styleScore: true,
+      emotiveScore: true,
+      actingScore: true,
+      entertainScore: true,
+      // Individual fields
+      plot: true,
+      premiseOriginality: true,
+      storytelling: true,
+      characterDev: true,
+      pacingClimax: true,
+      cinematography: true,
+      locationCost: true,
+      artisticEffect: true,
+      visualEffects: true,
+      musicSound: true,
+      overallEmotion: true,
+      relatability: true,
+      meaning: true,
+      movingness: true,
+      casting: true,
+      actingQuality: true,
+      dialogueScripting: true,
+      appeal: true,
+    },
+    _sum: { ratistRating: true },
+    _count: { ratistRating: true },
+  });
 
-  const fields = [
-    { category: "plot", values: ratings.map((r) => r.plot) },
-    { category: "storytelling", values: ratings.map((r) => r.storytelling) },
-    { category: "pacingClimax", values: ratings.map((r) => r.pacingClimax) },
-    { category: "characterDev", values: ratings.map((r) => r.characterDev) },
-    { category: "premiseOriginality", values: ratings.map((r) => r.premiseOriginality) },
-    { category: "cinematography", values: ratings.map((r) => r.cinematography) },
-    { category: "artisticEffect", values: ratings.map((r) => r.artisticEffect) },
-    { category: "musicSound", values: ratings.map((r) => r.musicSound) },
-    { category: "acting", values: ratings.map((r) => r.actingQuality) },
-    { category: "dialogue", values: ratings.map((r) => r.dialogueScripting) },
-    { category: "overallEmotion", values: ratings.map((r) => r.overallEmotion) },
-    { category: "rewatchability", values: ratings.map((r) => r.appeal) },
-    { category: "emotionalImpact", values: ratings.map((r) => r.movingness) },
-    { category: "direction", values: ratings.map((r) => r.artisticEffect) },
-    { category: "musicScore", values: ratings.map((r) => r.musicSound) },
-  ] as const;
+  // Hybrid community rating (same formula as movie page)
+  const tmdbScore = movie.voteAverage;
+  const ratistCount = agg._count.ratistRating;
+  const ratistSum = agg._sum.ratistRating ?? 0;
+  const buffer = Math.max(0, 50 - ratistCount);
+  const hybridRating = tmdbScore != null
+    ? Math.round(((tmdbScore * buffer + ratistSum) / Math.max(50, ratistCount)) * 10) / 10
+    : ratistCount > 0
+      ? Math.round((ratistSum / ratistCount) * 10) / 10
+      : null;
 
-  const breakdown = await Promise.all(
-    fields.map(async (f) => ({
-      category: f.category,
-      score: await avg([...f.values]),
-    }))
-  );
+  // Category breakdown — 5 pillars matching the movie page
+  const breakdown = [
+    { category: "Story", score: agg._avg.storyScore },
+    { category: "Style", score: agg._avg.styleScore },
+    { category: "Emotion", score: agg._avg.emotiveScore },
+    { category: "Acting", score: agg._avg.actingScore },
+    { category: "Entertainment", score: agg._avg.entertainScore },
+  ].map((b) => ({ ...b, score: b.score != null ? Math.round(b.score * 10) / 10 : null }));
 
-  // Use cached ratist score if available
-  const ratistScore = ratings.length > 0
-    ? ratings.reduce((sum, r) => sum + (r.overallRating ?? 0), 0) / ratings.length
-    : null;
+  // Individual field averages for detailed breakdown
+  const fields = {
+    plot: agg._avg.plot,
+    premiseOriginality: agg._avg.premiseOriginality,
+    storytelling: agg._avg.storytelling,
+    characterDev: agg._avg.characterDev,
+    pacingClimax: agg._avg.pacingClimax,
+    cinematography: agg._avg.cinematography,
+    locationCost: agg._avg.locationCost,
+    artisticEffect: agg._avg.artisticEffect,
+    visualEffects: agg._avg.visualEffects,
+    musicSound: agg._avg.musicSound,
+    overallEmotion: agg._avg.overallEmotion,
+    relatability: agg._avg.relatability,
+    meaning: agg._avg.meaning,
+    movingness: agg._avg.movingness,
+    casting: agg._avg.casting,
+    actingQuality: agg._avg.actingQuality,
+    dialogueScripting: agg._avg.dialogueScripting,
+    appeal: agg._avg.appeal,
+  };
 
   return NextResponse.json({
     tmdbId,
@@ -80,8 +117,9 @@ export async function GET(
           ? (movie.releaseDate as string).slice(0, 10)
           : (movie.releaseDate as Date).toISOString().slice(0, 10))
       : null,
-    ratistScore: ratistScore ? Math.round(ratistScore * 10) / 10 : null,
-    totalRatings: ratings.length,
+    ratistScore: hybridRating,
+    totalRatings: ratistCount,
     breakdown,
+    fields,
   });
 }
