@@ -9,6 +9,7 @@ import { scoreColor } from "@/lib/ratings";
 import CategoryScoreBar from "./CategoryScoreBar";
 import RatingBadge from "./RatingBadge";
 import ShareButton from "./ShareButton";
+import ProfileDiaryTab from "./ProfileDiaryTab";
 
 interface RatedMovie {
   id: string;
@@ -552,116 +553,18 @@ export default function ProfileTabs({
 
       {/* ── DIARY TAB ── */}
       {activeTab === "Diary" && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            {isOwnProfile && (
-              <p className="text-xs text-[var(--foreground-muted)]">
-                Click the date on any entry to update when you watched it.
-              </p>
-            )}
-            {seenThisYear > 0 && (
-              <div className="flex items-center gap-3 ml-auto">
-                <Link
-                  href={`/profile/${profileUserId}/year-in-review/${activeYear}`}
-                  className="text-xs text-[var(--ratist-red)] hover:underline shrink-0"
-                >
-                  {activeYear} Year in Review →
-                </Link>
-                <ShareButton
-                  label={`Share ${activeYear}`}
-                  text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${activeYear}! Check out my year in film on The Ratist.`}
-                  url={`${siteUrl}/profile/${profileUserId}/year-in-review/${activeYear}`}
-                  cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(profileUserId)}&year=${activeYear}`}
-                />
-              </div>
-            )}
-          </div>
-          {seenMovies.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-[var(--foreground-muted)] mb-3">
-                {isOwnProfile ? "No movies marked as seen yet." : "No diary entries."}
-              </p>
-              {isOwnProfile && (
-                <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">Mark some movies as seen →</Link>
-              )}
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--border)]/30">
-              {seenMovies.map((m, i) => {
-                const displayDate = watchedDates[m.tmdbId] !== undefined
-                  ? watchedDates[m.tmdbId]
-                  : m.watchedDate;
-                const dateValue = displayDate
-                  ? new Date(displayDate).toISOString().split("T")[0]
-                  : "";
-
-                return (
-                  <div key={i} className="flex items-center gap-3 py-3 group">
-                    <Link href={`/movies/${m.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                      {m.posterPath && (
-                        <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="40px" className="object-cover" />
-                      )}
-                    </Link>
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/movies/${m.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                        {m.title}
-                      </Link>
-                      <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
-                    </div>
-                    {/* Rating badge */}
-                    {m.ratingStatus === "incomplete" ? (
-                      <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">
-                        Incomplete
-                      </span>
-                    ) : m.ratingStatus === "imported" ? (
-                      <div className="flex items-center gap-1 shrink-0 group/tip relative">
-                        {m.ratistRating != null && (
-                          <span className="text-sm font-bold" style={{ color: scoreColor(m.ratistRating) }}>
-                            {m.ratistRating.toFixed(1)}
-                          </span>
-                        )}
-                        <svg className="w-3.5 h-3.5 text-blue-400/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M12 8v4m0 4h.01" />
-                        </svg>
-                        <div className="absolute bottom-full right-0 mb-2 w-52 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5 text-xs text-[var(--foreground-muted)] shadow-xl opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-10">
-                          Complete the full Ratist review to improve your taste profile accuracy.
-                        </div>
-                      </div>
-                    ) : m.ratistRating !== null ? (
-                      <span
-                        className="text-sm font-bold shrink-0 w-10 text-right"
-                        style={{ color: scoreColor(m.ratistRating) }}
-                      >
-                        {m.ratistRating.toFixed(1)}
-                      </span>
-                    ) : null}
-                    {/* Date — editable for own profile */}
-                    {isOwnProfile ? (
-                      <div className="shrink-0">
-                        <input
-                          type="date"
-                          value={dateValue}
-                          onChange={(e) => updateWatchedDate(m.tmdbId, e.target.value || null)}
-                          className="text-xs text-[var(--foreground-muted)] bg-transparent border border-transparent hover:border-[var(--border)] focus:border-[var(--ratist-red)] focus:outline-none rounded px-1.5 py-0.5 cursor-pointer w-32 [color-scheme:dark]"
-                          title="Edit watched date"
-                        />
-                        {!dateValue && (
-                          <p className="text-xs text-[var(--foreground-muted)]/50 text-right">add date</p>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-[var(--foreground-muted)] shrink-0">
-                        {displayDate ? new Date(displayDate).toLocaleDateString() : new Date(m.seenAt).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <ProfileDiaryTab
+          seenMovies={seenMovies}
+          isOwnProfile={isOwnProfile}
+          profileUserId={profileUserId}
+          activeYear={activeYear}
+          seenThisYear={seenThisYear}
+          siteUrl={siteUrl}
+          watchedDates={watchedDates}
+          updateWatchedDate={updateWatchedDate}
+        />
       )}
+
 
       {/* ── WATCHLIST TAB ── */}
       {activeTab === "Watchlist" && (

@@ -22,7 +22,7 @@ interface SeenMovie {
   watchedDate: string;
 }
 
-type ViewMode = "calendar" | "grid" | "list";
+type ViewMode = "month" | "calendar" | "all";
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -34,7 +34,7 @@ export default function SeenPage() {
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
   const [ratingFilter, setRatingFilter] = useState<"" | "8+" | "6+" | "unrated">("");
-  const [view, setView] = useState<ViewMode>("calendar");
+  const [view, setView] = useState<ViewMode>("month");
   const [sort, setSort] = useState<"date" | "title" | "rating">("date");
   const [editingDate, setEditingDate] = useState<string | null>(null);
 
@@ -127,7 +127,28 @@ export default function SeenPage() {
   }, [calYear, calMonth]);
 
   // Stats for current view
-  const statsMovies = view === "calendar" ? calendarMovies : filtered;
+  // Month-list movies (same filter as calendar — by selected month)
+  const monthListMovies = useMemo(() => {
+    return filtered.filter((m) => {
+      const d = new Date(m.watchedDate ?? m.seenAt);
+      return d.getFullYear() === calYear && d.getMonth() === calMonth;
+    }).sort((a, b) => new Date(b.watchedDate ?? b.seenAt).getTime() - new Date(a.watchedDate ?? a.seenAt).getTime());
+  }, [filtered, calYear, calMonth]);
+
+  // Group month-list by day
+  const monthByDay = useMemo(() => {
+    const map = new Map<string, SeenMovie[]>();
+    for (const m of monthListMovies) {
+      const d = new Date(m.watchedDate ?? m.seenAt);
+      const key = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const list = map.get(key) ?? [];
+      list.push(m);
+      map.set(key, list);
+    }
+    return map;
+  }, [monthListMovies]);
+
+  const statsMovies = view === "all" ? filtered : (view === "month" ? monthListMovies : calendarMovies);
   const rated = statsMovies.filter((m) => m.ratistRating != null);
   const avgRating = rated.length > 0 ? rated.reduce((s, m) => s + m.ratistRating!, 0) / rated.length : null;
 
@@ -196,7 +217,7 @@ export default function SeenPage() {
           {/* Stats banner */}
           <div className="flex items-center gap-4 mb-4 text-sm">
             <span className="text-white font-bold">{statsMovies.length}</span>
-            <span className="text-[var(--foreground-muted)]">movies{view === "calendar" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
+            <span className="text-[var(--foreground-muted)]">movies{view !== "all" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
             {avgRating != null && (
               <>
                 <span className="text-[var(--foreground-muted)]">·</span>
@@ -217,9 +238,9 @@ export default function SeenPage() {
             {/* View toggle */}
             <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden">
               {([
+                { mode: "month" as ViewMode, icon: List, label: "Month" },
                 { mode: "calendar" as ViewMode, icon: Calendar, label: "Calendar" },
-                { mode: "grid" as ViewMode, icon: LayoutGrid, label: "Grid" },
-                { mode: "list" as ViewMode, icon: List, label: "List" },
+                { mode: "all" as ViewMode, icon: LayoutGrid, label: "All" },
               ]).map(({ mode, icon: Icon, label }) => (
                 <button
                   key={mode}
@@ -266,7 +287,7 @@ export default function SeenPage() {
             </select>
 
             {/* Sort (grid/list only) */}
-            {view !== "calendar" && (
+            {view === "all" && (
               <div className="flex items-center gap-1 text-xs">
                 <ArrowUpDown className="w-3 h-3 text-[var(--foreground-muted)]" />
                 {(["date", "title", "rating"] as const).map((s) => (
@@ -282,21 +303,73 @@ export default function SeenPage() {
             )}
           </div>
 
+          {/* Month navigation (shared for month + calendar views) */}
+          {view !== "all" && (
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={prevMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <h2 className="text-lg font-bold text-white">
+                {MONTH_NAMES[calMonth]} {calYear}
+              </h2>
+              <button onClick={nextMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
+          {/* ── MONTH LIST VIEW (default) ── */}
+          {view === "month" && (
+            <div>
+              {monthListMovies.length === 0 ? (
+                <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
+              ) : (
+                <div>
+                  {[...monthByDay.entries()].map(([dayLabel, dayMovies]) => (
+                    <div key={dayLabel}>
+                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider pt-4 pb-2 border-b border-[var(--border)]/20">
+                        {dayLabel}
+                      </p>
+                      {dayMovies.map((movie) => (
+                        <div key={movie.id} className="flex items-center gap-3 py-3 group">
+                          <Link href={`/movies/${movie.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                            {movie.posterPath && (
+                              <Image src={posterUrl(movie.posterPath, "w92")} alt={movie.title} fill sizes="40px" className="object-cover" />
+                            )}
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                              {movie.title}
+                            </Link>
+                            <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {movie.voteAverage != null && movie.voteAverage > 0 && (
+                              <RatingBadge type="community" score={movie.voteAverage} size="sm" />
+                            )}
+                            {movie.ratistRating != null ? (
+                              <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
+                            ) : (
+                              <Link
+                                href={`/movies/${movie.tmdbId}/rate`}
+                                className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                              >
+                                Rate
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── CALENDAR VIEW ── */}
           {view === "calendar" && (
             <div>
-              {/* Month navigation */}
-              <div className="flex items-center justify-between mb-4">
-                <button onClick={prevMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <h2 className="text-lg font-bold text-white">
-                  {MONTH_NAMES[calMonth]} {calYear}
-                </h2>
-                <button onClick={nextMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
 
               {/* Day headers */}
               <div className="grid grid-cols-7 gap-1 mb-1">
@@ -348,8 +421,8 @@ export default function SeenPage() {
             </div>
           )}
 
-          {/* ── GRID VIEW ── */}
-          {view === "grid" && (
+          {/* ── ALL VIEW (full list) ── */}
+          {view === "all" && (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
               {sortedFiltered.map((movie) => {
                 const dateStr = movie.watchedDate
@@ -406,42 +479,6 @@ export default function SeenPage() {
                         <Calendar className="w-2.5 h-2.5 shrink-0" />
                         {new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ── LIST VIEW ── */}
-          {view === "list" && (
-            <div className="divide-y divide-[var(--border)]/30">
-              {sortedFiltered.map((movie) => {
-                const dateStr = new Date(movie.watchedDate ?? movie.seenAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                return (
-                  <div key={movie.id} className="flex items-center gap-3 py-3 group">
-                    <Link href={`/movies/${movie.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                      {movie.posterPath && (
-                        <Image src={posterUrl(movie.posterPath, "w92")} alt={movie.title} fill sizes="40px" className="object-cover" />
-                      )}
-                    </Link>
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                        {movie.title}
-                      </Link>
-                      <p className="text-xs text-[var(--foreground-muted)]">{movie.year} · {dateStr}</p>
-                    </div>
-                    {movie.ratistRating != null ? (
-                      <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(movie.ratistRating) }}>
-                        {movie.ratistRating.toFixed(1)}
-                      </span>
-                    ) : (
-                      <Link
-                        href={`/movies/${movie.tmdbId}/rate`}
-                        className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors shrink-0"
-                      >
-                        Rate →
-                      </Link>
                     )}
                   </div>
                 );
