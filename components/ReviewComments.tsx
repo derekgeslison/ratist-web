@@ -65,9 +65,9 @@ export default function ReviewComments({ reviewId }: Props) {
   if (loading) return null;
   if (disabled) return null;
 
-  function CommentItem({ comment, isReply = false }: { comment: Comment; isReply?: boolean }) {
+  function renderComment(comment: Comment, isReply: boolean) {
     return (
-      <div className={`flex gap-2.5 ${isReply ? "ml-10 mt-2" : "mt-3"}`}>
+      <div key={comment.id} className={`flex gap-2.5 ${isReply ? "ml-10 mt-2" : "mt-3"}`}>
         <Link href={`/profile/${comment.user.id}`} className="shrink-0">
           <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--ratist-red)] flex items-center justify-center">
             {comment.user.avatarUrl ? (
@@ -95,7 +95,6 @@ export default function ReviewComments({ reviewId }: Props) {
               Reply
             </button>
           )}
-          {/* Reply input */}
           {replyingTo === comment.id && (
             <div className="flex items-center gap-2 mt-2">
               <input
@@ -114,10 +113,7 @@ export default function ReviewComments({ reviewId }: Props) {
               </button>
             </div>
           )}
-          {/* Replies */}
-          {comment.replies?.map((reply) => (
-            <CommentItem key={reply.id} comment={reply} isReply />
-          ))}
+          {comment.replies?.map((reply) => renderComment(reply, true))}
         </div>
       </div>
     );
@@ -126,7 +122,6 @@ export default function ReviewComments({ reviewId }: Props) {
   return (
     <div className="px-4 pb-3">
       <div className="border-t border-[var(--border)]/30 pt-3">
-        {/* Toggle header */}
         <button
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors mb-2"
@@ -138,7 +133,6 @@ export default function ReviewComments({ reviewId }: Props) {
 
         {expanded && (
           <>
-            {/* Comment input */}
             {user ? (
               <div className="flex items-center gap-2 mb-3">
                 <input
@@ -162,14 +156,11 @@ export default function ReviewComments({ reviewId }: Props) {
               </p>
             )}
 
-            {/* Comments list */}
             {comments.length === 0 ? (
               <p className="text-xs text-[var(--foreground-muted)]">No comments yet. Be the first!</p>
             ) : (
               <div>
-                {comments.map((c) => (
-                  <CommentItem key={c.id} comment={c} />
-                ))}
+                {comments.map((c) => renderComment(c, false))}
               </div>
             )}
           </>
