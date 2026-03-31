@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { GripVertical, Star } from "lucide-react";
+import { GripVertical, Star, ChevronUp, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -49,11 +49,34 @@ function SortableItem({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 hover:border-[var(--ratist-red)]/50 transition-colors">
-      <span className="text-xl font-bold text-[var(--foreground-muted)] w-8 text-center shrink-0">{index + 1}</span>
-      <button {...attributes} {...listeners} className="text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0">
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 sm:gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 hover:border-[var(--ratist-red)]/50 transition-colors">
+      <span className="text-lg sm:text-xl font-bold text-[var(--foreground-muted)] w-7 sm:w-8 text-center shrink-0">{index + 1}</span>
+
+      {/* Up/down arrows (always visible, great for mobile) */}
+      <div className="flex flex-col shrink-0">
+        <button
+          onClick={() => index > 0 && onMoveTo(index, index - 1)}
+          disabled={index === 0}
+          className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5"
+          aria-label="Move up"
+        >
+          <ChevronUp className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => index < total - 1 && onMoveTo(index, index + 1)}
+          disabled={index === total - 1}
+          className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5"
+          aria-label="Move down"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Drag handle (hidden on small screens since arrows are better for mobile) */}
+      <button {...attributes} {...listeners} className="hidden sm:block text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none">
         <GripVertical className="w-5 h-5" />
       </button>
+
       <div className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
         {movie.posterPath ? (
           <Image src={posterUrl(movie.posterPath, "w92")} alt="" fill sizes="40px" className="object-cover" />
@@ -66,8 +89,8 @@ function SortableItem({
       {movie.ratistRating != null && (
         <span className="text-sm font-bold text-[var(--ratist-red)] shrink-0">{movie.ratistRating.toFixed(1)}</span>
       )}
-      {/* Move to # */}
-      <form onSubmit={handleMoveSubmit} className="flex items-center gap-1 shrink-0">
+      {/* Move to # (hidden on mobile to save space) */}
+      <form onSubmit={handleMoveSubmit} className="hidden sm:flex items-center gap-1 shrink-0">
         <input
           type="number"
           min={1}
@@ -90,7 +113,8 @@ export default function RankingsPage() {
   const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
