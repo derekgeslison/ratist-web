@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       genres: f.movie.genres.map((g) => g.genre.name),
       ratistRating: f.movie.ratings[0]?.ratistRating ?? null,
       seenAt: f.createdAt,
-      watchedDate: f.watchedDate ?? f.createdAt,
+      watchedDate: f.watchedDate,
     }));
 
     return NextResponse.json({ movies });

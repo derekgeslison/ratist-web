@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
         await prisma.userFavoriteMovie.upsert({
           where: { userId_movieId: { userId: user.id, movieId: movie.id } },
           create: { userId: user.id, movieId: movie.id, watchedDate: watchedAt },
-          update: {},
+          update: { ...(row.watchedDate ? { watchedDate: watchedAt } : {}) },
         });
 
         // Create/update rating — set both overallRating AND ratistRating
