@@ -42,10 +42,11 @@ const CATEGORIES = [
   ]},
   { label: "Acting", key: "Acting", fields: [
     { key: "casting", label: "Casting" }, { key: "actingQuality", label: "Acting Quality" },
-    { key: "dialogueScripting", label: "Dialogue" },
+    { key: "dialogueScripting", label: "Dialogue" }, { key: "blockingChoreo", label: "Blocking & Choreo" },
   ]},
   { label: "Entertainment", key: "Entertainment", fields: [
-    { key: "appeal", label: "Appeal" },
+    { key: "appeal", label: "Appeal" }, { key: "superficialAllure", label: "Superficial Allure" },
+    { key: "choreography", label: "Choreography" },
   ]},
 ];
 

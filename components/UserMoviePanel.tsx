@@ -38,10 +38,11 @@ const CATEGORY_FIELDS: { label: string; scoreKey: string; fields: { key: string;
   ]},
   { label: "Acting", scoreKey: "actingScore", fields: [
     { key: "casting", label: "Casting" }, { key: "actingQuality", label: "Acting Quality" },
-    { key: "dialogueScripting", label: "Dialogue" },
+    { key: "dialogueScripting", label: "Dialogue" }, { key: "blockingChoreo", label: "Blocking & Choreo" },
   ]},
   { label: "Entertainment", scoreKey: "entertainScore", fields: [
-    { key: "appeal", label: "Appeal" },
+    { key: "appeal", label: "Appeal" }, { key: "superficialAllure", label: "Superficial Allure" },
+    { key: "choreography", label: "Choreography" },
   ]},
 ];
 

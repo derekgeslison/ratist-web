@@ -60,7 +60,10 @@ export async function GET(
       casting: true,
       actingQuality: true,
       dialogueScripting: true,
+      blockingChoreo: true,
       appeal: true,
+      superficialAllure: true,
+      choreography: true,
     },
     _sum: { ratistRating: true },
     _count: { ratistRating: true },
@@ -105,7 +108,10 @@ export async function GET(
     casting: agg._avg.casting,
     actingQuality: agg._avg.actingQuality,
     dialogueScripting: agg._avg.dialogueScripting,
+    blockingChoreo: agg._avg.blockingChoreo,
     appeal: agg._avg.appeal,
+    superficialAllure: agg._avg.superficialAllure,
+    choreography: agg._avg.choreography,
   };
 
   return NextResponse.json({
