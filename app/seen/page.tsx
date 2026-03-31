@@ -328,43 +328,43 @@ export default function SeenPage() {
                 <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
               ) : (
                 <div>
-                  {[...monthByDay.entries()].map(([dayLabel, dayMovies]) => (
-                    <div key={dayLabel}>
-                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider pt-4 pb-2 border-b border-[var(--border)]/20 sticky top-0 bg-[var(--background)] z-10">
+                  {[...monthByDay.entries()].flatMap(([dayLabel, dayMovies]) => [
+                    <div key={`h-${dayLabel}`} className="sticky top-0 z-10 bg-[var(--background)] pt-3 pb-2 border-b border-[var(--border)]/20">
+                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
                         {dayLabel}
                       </p>
-                      {dayMovies.map((movie) => (
-                        <div key={movie.id} className="flex items-center gap-3 py-3 group">
-                          <Link href={`/movies/${movie.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                            {movie.posterPath && (
-                              <Image src={posterUrl(movie.posterPath, "w92")} alt={movie.title} fill sizes="40px" className="object-cover" />
-                            )}
+                    </div>,
+                    ...dayMovies.map((movie) => (
+                      <div key={movie.id} className="flex items-center gap-3 py-3 group">
+                        <Link href={`/movies/${movie.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                          {movie.posterPath && (
+                            <Image src={posterUrl(movie.posterPath, "w92")} alt={movie.title} fill sizes="40px" className="object-cover" />
+                          )}
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                          <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                            {movie.title}
                           </Link>
-                          <div className="flex-1 min-w-0">
-                            <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                              {movie.title}
-                            </Link>
-                            <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {movie.voteAverage != null && movie.voteAverage > 0 && (
-                              <RatingBadge type="community" score={movie.voteAverage} size="sm" />
-                            )}
-                            {movie.ratistRating != null ? (
-                              <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
-                            ) : (
-                              <Link
-                                href={`/movies/${movie.tmdbId}/rate`}
-                                className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-                              >
-                                Rate
-                              </Link>
-                            )}
-                          </div>
+                          <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
                         </div>
-                      ))}
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {movie.voteAverage != null && movie.voteAverage > 0 && (
+                            <RatingBadge type="community" score={movie.voteAverage} size="sm" />
+                          )}
+                          {movie.ratistRating != null ? (
+                            <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
+                          ) : (
+                            <Link
+                              href={`/movies/${movie.tmdbId}/rate`}
+                              className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                            >
+                              Rate
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    )),
+                  ])}
                 </div>
               )}
             </div>

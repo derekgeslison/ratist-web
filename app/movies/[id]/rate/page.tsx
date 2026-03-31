@@ -290,7 +290,6 @@ export default function RateMoviePage() {
             step={0.5}
             value={overallRating ?? 5}
             onChange={(e) => setOverallRating(parseFloat(e.target.value))}
-            onClick={(e) => setOverallRating(parseFloat((e.target as HTMLInputElement).value))}
             className={`w-full ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
           />
           <div className="flex justify-between text-xs text-[var(--foreground-muted)] mt-1">
@@ -334,7 +333,6 @@ export default function RateMoviePage() {
                             step={0.5}
                             value={values[field.key] ?? 5}
                             onChange={(e) => setValue(field.key, parseFloat(e.target.value))}
-                            onClick={(e) => setValue(field.key, parseFloat((e.target as HTMLInputElement).value))}
                             className={`flex-1 ${values[field.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
                           />
                           <span className={`text-sm font-bold w-8 text-right ${values[field.key] != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>
@@ -403,7 +401,6 @@ export default function RateMoviePage() {
                           step={0.5}
                           value={values[g.key] ?? 5}
                           onChange={(e) => setValue(g.key, parseFloat(e.target.value))}
-                          onClick={(e) => setValue(g.key, parseFloat((e.target as HTMLInputElement).value))}
                           className={`flex-1 ${values[g.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
                         />
                         <span className={`text-sm font-bold w-8 text-right ${values[g.key] != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>{values[g.key] ?? "—"}</span>
