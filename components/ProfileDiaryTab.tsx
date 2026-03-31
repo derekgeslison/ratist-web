@@ -32,7 +32,9 @@ interface Props {
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function getWatchDate(m: SeenMovie): Date {
-  return new Date(m.watchedDate ?? m.seenAt);
+  const str = m.watchedDate ?? m.seenAt;
+  if (str && str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
+  return new Date(str);
 }
 
 export default function ProfileDiaryTab({

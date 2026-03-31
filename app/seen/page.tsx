@@ -29,7 +29,11 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function getWatchDate(m: SeenMovie): Date {
-  return new Date(m.watchedDate ?? m.seenAt);
+  const str = m.watchedDate ?? m.seenAt;
+  // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight by JS,
+  // which shifts back a day in US timezones. Append noon to prevent this.
+  if (str && str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
+  return new Date(str);
 }
 
 export default function SeenPage() {
@@ -56,7 +60,9 @@ export default function SeenPage() {
         body: JSON.stringify({ watchedDate: date }),
       });
     });
-    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId ? { ...m, watchedDate: date } : m)));
+    // Store with T12:00:00 so new Date() doesn't shift due to UTC parsing
+    const safeDate = date.includes("T") ? date : `${date}T12:00:00`;
+    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId ? { ...m, watchedDate: safeDate } : m)));
   }
 
   useEffect(() => {
@@ -160,7 +166,8 @@ export default function SeenPage() {
   /** Render diary rows for a list of movies grouped by day, with day numbers on the left */
   function renderDayRows(dayMovies: SeenMovie[], day: number, editable: boolean) {
     return dayMovies.map((m, idx) => {
-      const dateVal = m.watchedDate ? new Date(m.watchedDate).toISOString().slice(0, 10) : "";
+      const wd = m.watchedDate ? getWatchDate(m) : null;
+          const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
       return (
         <DiaryRow
           key={m.id}
@@ -366,7 +373,8 @@ export default function SeenPage() {
                       const d = getWatchDate(m);
                       const prevDay = idx > 0 ? getWatchDate(mlist[idx - 1]).getDate() : null;
                       const showDay = idx === 0 || d.getDate() !== prevDay;
-                      const dateVal = m.watchedDate ? new Date(m.watchedDate).toISOString().slice(0, 10) : "";
+                      const wd = m.watchedDate ? getWatchDate(m) : null;
+          const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
                       return (
                         <DiaryRow
                           key={m.id}
@@ -388,7 +396,8 @@ export default function SeenPage() {
               ) : (
                 allSorted.map((m) => {
                   const d = getWatchDate(m);
-                  const dateVal = m.watchedDate ? new Date(m.watchedDate).toISOString().slice(0, 10) : "";
+                  const wd = m.watchedDate ? getWatchDate(m) : null;
+          const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
                   return (
                     <DiaryRow
                       key={m.id}

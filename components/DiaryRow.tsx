@@ -78,7 +78,8 @@ export default function DiaryRow({
               type="date"
               defaultValue={dateValue}
               autoFocus
-              onBlur={(e) => { if (e.target.value) onDateChange(e.target.value); setEditing(false); }}
+              onChange={(e) => { if (e.target.value) { onDateChange(e.target.value); setEditing(false); } }}
+              onBlur={() => setEditing(false)}
               className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
             />
           ) : (
