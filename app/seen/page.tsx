@@ -213,6 +213,7 @@ export default function SeenPage() {
         <div className="flex items-center gap-3">
           <Eye className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl font-bold text-white">Film Diary</h1>
+          <span className="text-xs text-[var(--ratist-red)]">v2</span>
         </div>
         <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">Watchlist →</Link>
       </div>
