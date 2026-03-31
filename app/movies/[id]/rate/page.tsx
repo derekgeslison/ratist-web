@@ -101,6 +101,7 @@ export default function RateMoviePage() {
   );
   const [requiredOnly, setRequiredOnly] = useState(false);
   const [hasSpoilers, setHasSpoilers] = useState(false);
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
   // Critic mode comments
   const [fieldComments, setFieldComments] = useState<Record<string, string>>({});
   const [categoryComments, setCategoryComments] = useState<Record<string, string>>({});
@@ -125,6 +126,7 @@ export default function RateMoviePage() {
             setReviewText(rating.reviewText ?? "");
             if (rating.reviewType) setMode(rating.reviewType);
             if (rating.hasSpoilers) setHasSpoilers(rating.hasSpoilers);
+            if (rating.commentsDisabled) setCommentsDisabled(rating.commentsDisabled);
             if (rating.fieldComments) setFieldComments(rating.fieldComments);
             if (rating.categoryComments) setCategoryComments(rating.categoryComments);
           }
@@ -168,6 +170,7 @@ export default function RateMoviePage() {
       reviewText,
       reviewType: mode,
       hasSpoilers,
+      commentsDisabled,
       movieTitle: movie?.title,
       releaseDate: movie?.release_date ?? null,
     };
@@ -423,15 +426,26 @@ export default function RateMoviePage() {
             rows={4}
             className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-4 py-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none"
           />
-          <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={hasSpoilers}
-              onChange={(e) => setHasSpoilers(e.target.checked)}
-              className="accent-[var(--ratist-red)]"
-            />
-            <span className="text-xs text-[var(--foreground-muted)]">This review contains spoilers</span>
-          </label>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hasSpoilers}
+                onChange={(e) => setHasSpoilers(e.target.checked)}
+                className="accent-[var(--ratist-red)]"
+              />
+              <span className="text-xs text-[var(--foreground-muted)]">Contains spoilers</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={commentsDisabled}
+                onChange={(e) => setCommentsDisabled(e.target.checked)}
+                className="accent-[var(--ratist-red)]"
+              />
+              <span className="text-xs text-[var(--foreground-muted)]">Disable comments on this review</span>
+            </label>
+          </div>
         </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}

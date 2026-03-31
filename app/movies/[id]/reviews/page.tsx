@@ -68,6 +68,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
       fieldComments: true,
       categoryComments: true,
       hasSpoilers: true,
+      commentsDisabled: true,
       createdAt: true,
       user: { select: { id: true, name: true, avatarUrl: true } },
       _count: { select: { likes: true } },
@@ -138,9 +139,10 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
                 fieldComments: r.fieldComments as Record<string, string> | null,
                 categoryComments: r.categoryComments as Record<string, string> | null,
                 hasSpoilers: r.hasSpoilers,
+                commentsDisabled: r.commentsDisabled,
                 createdAt: r.createdAt.toISOString(),
                 likeCount: r._count.likes,
-                likedByMe: false, // hydrated client-side
+                likedByMe: false,
                 user: r.user,
               }}
               movieTmdbId={Number(id)}

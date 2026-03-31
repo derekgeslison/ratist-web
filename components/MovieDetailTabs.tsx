@@ -16,6 +16,7 @@ interface Review {
   overallRating: number | null;
   reviewType: string;
   hasSpoilers: boolean;
+  commentsDisabled: boolean;
   likeCount: number;
   user: { id: string; name: string; avatarUrl: string | null };
   createdAt: string;
@@ -152,6 +153,7 @@ export default function MovieDetailTabs({
                           fieldComments: null,
                           categoryComments: null,
                           hasSpoilers: r.hasSpoilers,
+                          commentsDisabled: r.commentsDisabled,
                           createdAt: r.createdAt,
                           likeCount: r.likeCount,
                           likedByMe: false,

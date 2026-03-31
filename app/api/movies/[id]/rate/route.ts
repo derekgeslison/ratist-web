@@ -107,6 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Review mode
       reviewType,
       hasSpoilers: body.hasSpoilers ?? false,
+      commentsDisabled: body.commentsDisabled ?? false,
       // Critic mode comments
       fieldComments: body.fieldComments ?? null,
       categoryComments: body.categoryComments ?? null,

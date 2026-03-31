@@ -82,6 +82,7 @@ export default async function MovieDetailPage({ params }: Props) {
     overallRating: number | null;
     reviewType: string;
     hasSpoilers: boolean;
+    commentsDisabled: boolean;
     user: { id: string; name: string; avatarUrl: string | null };
     createdAt: Date;
     _count: { likes: number };
@@ -104,6 +105,7 @@ export default async function MovieDetailPage({ params }: Props) {
           overallRating: true,
           reviewType: true,
           hasSpoilers: true,
+          commentsDisabled: true,
           createdAt: true,
           user: { select: { id: true, name: true, avatarUrl: true } },
           _count: { select: { likes: true } },
@@ -227,6 +229,7 @@ export default async function MovieDetailPage({ params }: Props) {
             overallRating: r.overallRating,
             reviewType: r.reviewType,
             hasSpoilers: r.hasSpoilers,
+            commentsDisabled: r.commentsDisabled,
             likeCount: r._count.likes,
             user: r.user,
             createdAt: r.createdAt.toISOString(),

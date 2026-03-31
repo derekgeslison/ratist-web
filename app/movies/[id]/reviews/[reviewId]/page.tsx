@@ -112,12 +112,14 @@ export default async function SingleReviewPage({ params }: Props) {
           fieldComments: rating.fieldComments as Record<string, string> | null,
           categoryComments: rating.categoryComments as Record<string, string> | null,
           hasSpoilers: rating.hasSpoilers,
+          commentsDisabled: rating.commentsDisabled,
           createdAt: rating.createdAt.toISOString(),
           likeCount: rating.likes.length,
-          likedByMe: false, // server-rendered — client hydrates this
+          likedByMe: false,
           user: rating.user,
         }}
         movieTmdbId={rating.movie.tmdbId}
+        isFullPage
       />
 
       {/* Full score breakdown */}

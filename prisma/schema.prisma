@@ -44,6 +44,7 @@ model User {
   hotTakes       HotTake[]
   hotTakeVotes   HotTakeVote[]
   reviewLikes    ReviewLike[]
+  reviewComments ReviewComment[]
 
   @@map("users")
 }
@@ -246,7 +247,9 @@ model MovieRating {
   fieldComments    Json?    @map("field_comments") // critic mode: { "plot": "comment", ... }
   categoryComments Json?    @map("category_comments") // critic mode: { "story": "comment", ... }
   hasSpoilers      Boolean  @default(false) @map("has_spoilers")
+  commentsDisabled Boolean  @default(false) @map("comments_disabled")
   likes            ReviewLike[]
+  comments         ReviewComment[]
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -268,6 +271,22 @@ model ReviewLike {
 
   @@unique([userId, ratingId])
   @@map("review_likes")
+}
+
+model ReviewComment {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  ratingId  String   @map("rating_id")
+  parentId  String?  @map("parent_id") // null = top-level, set = reply
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating  MovieRating    @relation(fields: [ratingId], references: [id], onDelete: Cascade)
+  parent  ReviewComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies ReviewComment[] @relation("CommentReplies")
+
+  @@map("review_comments")
 }
 
 model UserFavoriteMovie {

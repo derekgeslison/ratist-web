@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Heart, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
+import ReviewComments from "./ReviewComments";
 
 interface ReviewData {
   id: string;
@@ -21,6 +22,7 @@ interface ReviewData {
   fieldComments: Record<string, string> | null;
   categoryComments: Record<string, string> | null;
   hasSpoilers: boolean;
+  commentsDisabled: boolean;
   createdAt: string;
   likeCount: number;
   likedByMe: boolean;
@@ -32,6 +34,8 @@ interface Props {
   movieTmdbId?: number;
   /** Compact mode for movie page overview (fewer details) */
   compact?: boolean;
+  /** When viewing the dedicated review page — hides redundant links */
+  isFullPage?: boolean;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -39,7 +43,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   acting: "Acting & Casting", entertainment: "Pure Entertainment",
 };
 
-export default function ReviewCard({ review, movieTmdbId, compact = false }: Props) {
+export default function ReviewCard({ review, movieTmdbId, compact = false, isFullPage = false }: Props) {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [spoilerRevealed, setSpoilerRevealed] = useState(false);
@@ -194,7 +198,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false }: Pro
         </button>
 
         <div className="flex items-center gap-3">
-          {hasCriticComments && !expanded && (
+          {!isFullPage && hasCriticComments && !expanded && (
             <button
               onClick={() => setExpanded(true)}
               className="text-xs text-purple-400 hover:underline"
@@ -202,7 +206,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false }: Pro
               View commentary
             </button>
           )}
-          {movieTmdbId && (
+          {!isFullPage && movieTmdbId && (
             <Link
               href={`/movies/${movieTmdbId}/reviews/${review.id}`}
               className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
@@ -212,6 +216,11 @@ export default function ReviewCard({ review, movieTmdbId, compact = false }: Pro
           )}
         </div>
       </div>
+
+      {/* Comments section — shown on full page and non-compact views */}
+      {!compact && !review.commentsDisabled && (
+        <ReviewComments reviewId={review.id} />
+      )}
     </div>
   );
 }
