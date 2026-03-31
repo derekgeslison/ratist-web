@@ -31,6 +31,13 @@ interface Props {
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function getWatchedDate(m: SeenMovie): Date {
+  const str = m.watchedDate ?? m.seenAt;
+  return new Date(str);
+}
 
 export default function ProfileDiaryTab({
   seenMovies, isOwnProfile, profileUserId, activeYear, seenThisYear,
@@ -40,30 +47,26 @@ export default function ProfileDiaryTab({
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(parseInt(activeYear));
 
-  // Group movies by month
   const monthMovies = useMemo(() => {
     return seenMovies.filter((m) => {
-      const d = new Date(m.watchedDate ?? m.seenAt);
+      const d = getWatchedDate(m);
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    }).sort((a, b) => {
-      const da = new Date(a.watchedDate ?? a.seenAt).getTime();
-      const db = new Date(b.watchedDate ?? b.seenAt).getTime();
-      return db - da;
-    });
+    }).sort((a, b) => getWatchedDate(b).getTime() - getWatchedDate(a).getTime());
   }, [seenMovies, viewYear, viewMonth]);
 
-  // Group by day for display
+  // Group by day number, sorted descending
   const moviesByDay = useMemo(() => {
-    const map = new Map<string, SeenMovie[]>();
+    const map = new Map<number, SeenMovie[]>();
     for (const m of monthMovies) {
-      const d = new Date(m.watchedDate ?? m.seenAt);
-      const key = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      const list = map.get(key) ?? [];
+      const day = getWatchedDate(m).getDate();
+      const list = map.get(day) ?? [];
       list.push(m);
-      map.set(key, list);
+      map.set(day, list);
     }
     return map;
   }, [monthMovies]);
+
+  const sortedDays = useMemo(() => [...moviesByDay.keys()].sort((a, b) => b - a), [moviesByDay]);
 
   const prevMonth = useCallback(() => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
@@ -79,12 +82,11 @@ export default function ProfileDiaryTab({
     <div>
       {/* Header row */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <Link
-          href="/seen"
-          className="text-sm text-[var(--ratist-red)] hover:underline"
-        >
-          View full diary →
-        </Link>
+        {isOwnProfile ? (
+          <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">
+            View full diary →
+          </Link>
+        ) : <div />}
         <div className="flex items-center gap-3">
           {seenThisYear > 0 && (
             <>
@@ -129,7 +131,6 @@ export default function ProfileDiaryTab({
             </button>
           </div>
 
-          {/* Stats */}
           <p className="text-xs text-[var(--foreground-muted)] mb-4">
             {monthMovies.length} movie{monthMovies.length !== 1 ? "s" : ""} in {MONTH_NAMES[viewMonth]}
           </p>
@@ -137,50 +138,39 @@ export default function ProfileDiaryTab({
           {monthMovies.length === 0 ? (
             <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
           ) : (
-            <div className="space-y-1">
-              {[...moviesByDay.entries()].map(([dayLabel, dayMovies]) => (
-                <div key={dayLabel}>
-                  <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider pt-3 pb-1 border-b border-[var(--border)]/20 mb-1">
-                    {dayLabel}
-                  </p>
-                  {dayMovies.map((m) => {
-                    const displayDate = watchedDates[m.tmdbId] !== undefined ? watchedDates[m.tmdbId] : m.watchedDate;
-                    const dateValue = displayDate ? new Date(displayDate).toISOString().split("T")[0] : "";
-                    return (
-                      <div key={m.tmdbId} className="flex items-center gap-3 py-2 group">
-                        <Link href={`/movies/${m.tmdbId}`} className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                          {m.posterPath && (
-                            <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />
-                          )}
+            <div>
+              {sortedDays.flatMap((day) => {
+                const dayMovies = moviesByDay.get(day) ?? [];
+                const dayOfWeek = DAY_NAMES[new Date(viewYear, viewMonth, day).getDay()];
+                const dayLabel = `${dayOfWeek}, ${MONTH_SHORT[viewMonth]} ${day}`;
+                return [
+                  <div key={`h-${day}`} className="sticky top-0 z-10 bg-[var(--background)] pt-3 pb-2 border-b border-[var(--border)]/20">
+                    <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">{dayLabel}</p>
+                  </div>,
+                  ...dayMovies.map((m) => (
+                    <div key={m.tmdbId} className="flex items-center gap-3 py-2">
+                      <Link href={`/movies/${m.tmdbId}`} className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                        {m.posterPath && (
+                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />
+                        )}
+                      </Link>
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/movies/${m.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                          {m.title}
                         </Link>
-                        <div className="flex-1 min-w-0">
-                          <Link href={`/movies/${m.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                            {m.title}
-                          </Link>
-                          <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
-                        </div>
-                        {/* Rating */}
-                        {m.ratingStatus === "incomplete" ? (
-                          <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">Incomplete</span>
-                        ) : m.ratistRating != null ? (
-                          <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(m.ratistRating) }}>
-                            {m.ratistRating.toFixed(1)}
-                          </span>
-                        ) : null}
-                        {/* Date (editable for own profile) */}
-                        {isOwnProfile ? (
-                          <input
-                            type="date"
-                            value={dateValue}
-                            onChange={(e) => updateWatchedDate(m.tmdbId, e.target.value || null)}
-                            className="text-xs text-[var(--foreground-muted)] bg-transparent border border-transparent hover:border-[var(--border)] focus:border-[var(--ratist-red)] focus:outline-none rounded px-1 py-0.5 cursor-pointer w-28 shrink-0 [color-scheme:dark]"
-                          />
-                        ) : null}
+                        <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
                       </div>
-                    );
-                  })}
-                </div>
-              ))}
+                      {m.ratingStatus === "incomplete" ? (
+                        <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">Incomplete</span>
+                      ) : m.ratistRating != null ? (
+                        <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(m.ratistRating) }}>
+                          {m.ratistRating.toFixed(1)}
+                        </span>
+                      ) : null}
+                    </div>
+                  )),
+                ];
+              })}
             </div>
           )}
         </>

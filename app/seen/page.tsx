@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, LayoutGrid, List, Star } from "lucide-react";
+import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText, Star } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -213,7 +213,6 @@ export default function SeenPage() {
         <div className="flex items-center gap-3">
           <Eye className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl font-bold text-white">Film Diary</h1>
-          <span className="text-xs text-[var(--ratist-red)]">v2</span>
         </div>
         <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">Watchlist →</Link>
       </div>
@@ -269,7 +268,7 @@ export default function SeenPage() {
               {([
                 { mode: "month" as ViewMode, icon: List, label: "Month" },
                 { mode: "calendar" as ViewMode, icon: Calendar, label: "Calendar" },
-                { mode: "all" as ViewMode, icon: LayoutGrid, label: "All" },
+                { mode: "all" as ViewMode, icon: ScrollText, label: "All" },
               ]).map(({ mode, icon: Icon, label }) => (
                 <button
                   key={mode}
