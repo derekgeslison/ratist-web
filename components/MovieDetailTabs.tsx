@@ -17,6 +17,7 @@ interface Review {
   reviewType: string;
   hasSpoilers: boolean;
   commentsDisabled: boolean;
+  commentCount: number;
   likeCount: number;
   user: { id: string; name: string; avatarUrl: string | null };
   createdAt: string;
@@ -126,14 +127,12 @@ export default function MovieDetailTabs({
                       Community Reviews
                       <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>
                     </h3>
-                    {reviews.length > 5 && (
-                      <Link
-                        href={`/movies/${movie.id}/reviews`}
-                        className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1"
-                      >
-                        See all {reviews.length} <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-                    )}
+                    <Link
+                      href={`/movies/${movie.id}/reviews`}
+                      className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1"
+                    >
+                      {reviews.length > 5 ? `See all ${reviews.length}` : "View all"} <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
                   <div className="space-y-4">
                     {reviews.slice(0, 5).map((r) => (
@@ -155,6 +154,7 @@ export default function MovieDetailTabs({
                           hasSpoilers: r.hasSpoilers,
                           commentsDisabled: r.commentsDisabled,
                           createdAt: r.createdAt,
+                          commentCount: r.commentCount,
                           likeCount: r.likeCount,
                           likedByMe: false,
                           user: r.user,

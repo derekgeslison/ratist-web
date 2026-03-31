@@ -85,7 +85,7 @@ export default async function MovieDetailPage({ params }: Props) {
     commentsDisabled: boolean;
     user: { id: string; name: string; avatarUrl: string | null };
     createdAt: Date;
-    _count: { likes: number };
+    _count: { likes: number; comments: number };
   }[] = [];
   try {
     const dbMovie = await prisma.movie.findUnique({
@@ -108,7 +108,7 @@ export default async function MovieDetailPage({ params }: Props) {
           commentsDisabled: true,
           createdAt: true,
           user: { select: { id: true, name: true, avatarUrl: true } },
-          _count: { select: { likes: true } },
+          _count: { select: { likes: true, comments: true } },
         },
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -230,6 +230,7 @@ export default async function MovieDetailPage({ params }: Props) {
             reviewType: r.reviewType,
             hasSpoilers: r.hasSpoilers,
             commentsDisabled: r.commentsDisabled,
+            commentCount: r._count.comments,
             likeCount: r._count.likes,
             user: r.user,
             createdAt: r.createdAt.toISOString(),

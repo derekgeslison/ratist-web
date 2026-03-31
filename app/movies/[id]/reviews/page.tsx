@@ -71,7 +71,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
       commentsDisabled: true,
       createdAt: true,
       user: { select: { id: true, name: true, avatarUrl: true } },
-      _count: { select: { likes: true } },
+      _count: { select: { likes: true, comments: true } },
     },
     orderBy,
   });
@@ -141,6 +141,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
                 hasSpoilers: r.hasSpoilers,
                 commentsDisabled: r.commentsDisabled,
                 createdAt: r.createdAt.toISOString(),
+                commentCount: r._count.comments,
                 likeCount: r._count.likes,
                 likedByMe: false,
                 user: r.user,

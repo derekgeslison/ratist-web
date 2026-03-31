@@ -114,6 +114,7 @@ export default async function SingleReviewPage({ params }: Props) {
           hasSpoilers: rating.hasSpoilers,
           commentsDisabled: rating.commentsDisabled,
           createdAt: rating.createdAt.toISOString(),
+          commentCount: 0, // loaded client-side by ReviewComments
           likeCount: rating.likes.length,
           likedByMe: false,
           user: rating.user,

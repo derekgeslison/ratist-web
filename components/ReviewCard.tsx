@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { Heart, ChevronDown, ChevronUp, AlertTriangle, MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 import ReviewComments from "./ReviewComments";
@@ -24,6 +24,7 @@ interface ReviewData {
   hasSpoilers: boolean;
   commentsDisabled: boolean;
   createdAt: string;
+  commentCount: number;
   likeCount: number;
   likedByMe: boolean;
   user: { id: string; name: string; avatarUrl: string | null };
@@ -183,19 +184,27 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
         </div>
       )}
 
-      {/* Footer: like button + link to full review */}
+      {/* Footer: like button + comment count + links */}
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)]/30">
-        <button
-          onClick={toggleLike}
-          disabled={!user || liking}
-          className={`flex items-center gap-1.5 text-xs transition-colors ${
-            liked ? "text-[var(--ratist-red)]" : "text-[var(--foreground-muted)] hover:text-[var(--ratist-red)]"
-          } disabled:opacity-40`}
-        >
-          <Heart className={`w-3.5 h-3.5 ${liked ? "fill-current" : ""}`} />
-          {likeCount > 0 && <span>{likeCount}</span>}
-          {likeCount === 0 && !liked && <span>Like</span>}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={toggleLike}
+            disabled={!user || liking}
+            className={`flex items-center gap-1.5 text-xs transition-colors ${
+              liked ? "text-[var(--ratist-red)]" : "text-[var(--foreground-muted)] hover:text-[var(--ratist-red)]"
+            } disabled:opacity-40`}
+          >
+            <Heart className={`w-3.5 h-3.5 ${liked ? "fill-current" : ""}`} />
+            {likeCount > 0 && <span>{likeCount}</span>}
+            {likeCount === 0 && !liked && <span>Like</span>}
+          </button>
+          {!review.commentsDisabled && (
+            <span className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]">
+              <MessageCircle className="w-3.5 h-3.5" />
+              {review.commentCount > 0 ? review.commentCount : ""}
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-3">
           {!isFullPage && hasCriticComments && !expanded && (
