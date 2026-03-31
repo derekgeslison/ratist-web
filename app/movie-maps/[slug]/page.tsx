@@ -4,7 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
 import CommentForm from "@/components/CommentForm";
-import { ArrowLeft, Calendar, Map } from "lucide-react";
+import { ArrowLeft, Calendar, Map, MessageCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,13 @@ export default async function MovieMapPostPage({ params }: Props) {
   const { slug } = await params;
   const post = await prisma.blogPost.findUnique({
     where: { slug, published: true, type: "MOVIE_MAP" },
-    include: { author: { select: { name: true, avatarUrl: true } } },
+    include: {
+      author: { select: { name: true, avatarUrl: true } },
+      comments: {
+        include: { author: { select: { name: true, avatarUrl: true } } },
+        orderBy: { createdAt: "asc" },
+      },
+    },
   });
   if (!post) notFound();
 
@@ -53,7 +59,34 @@ export default async function MovieMapPostPage({ params }: Props) {
       </div>
       <RichTextRenderer content={post.content} />
       <div className="mt-12 pt-8 border-t border-[var(--border)]">
-        <h2 className="text-base font-semibold text-white mb-4">Comments</h2>
+        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+          <MessageCircle className="w-4 h-4" />
+          {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
+        </h2>
+        {post.comments.length === 0 ? (
+          <p className="text-sm text-[var(--foreground-muted)] mb-6">No comments yet. Be the first.</p>
+        ) : (
+          <div className="space-y-4 mb-6">
+            {post.comments.map((comment) => (
+              <div key={comment.id} className="flex gap-3">
+                {comment.author.avatarUrl ? (
+                  <Image src={comment.author.avatarUrl} alt="" width={32} height={32} className="rounded-full w-8 h-8 object-cover shrink-0 mt-0.5" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+                    {comment.author.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-medium text-white">{comment.author.name}</span>
+                    <span className="text-xs text-[var(--foreground-muted)]">{comment.createdAt.toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{comment.content}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <CommentForm slug={slug} />
       </div>
     </div>

@@ -151,6 +151,9 @@ export default function Navbar() {
                     <Link href="/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <Settings className="w-4 h-4" /> Preferences
                     </Link>
+                    <Link href="/about" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
+                      <BookOpen className="w-4 h-4" /> About The Ratist
+                    </Link>
                     <div className="border-t border-[var(--border)]" />
                     <button onClick={() => { signOut(); setUserMenuOpen(false); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <LogOut className="w-4 h-4" /> Sign Out
@@ -212,10 +215,14 @@ export default function Navbar() {
                 <Link href="/seen" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Movies Seen</Link>
                 <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Watchlist</Link>
                 <Link href="/settings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Preferences</Link>
+                <Link href="/about" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">About The Ratist</Link>
                 <button onClick={() => { signOut(); setMenuOpen(false); }} className="text-left py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Sign Out</button>
               </>
             ) : (
-              <Link href="/auth/signin" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--ratist-red)] font-medium">Sign In</Link>
+              <>
+                <Link href="/about" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">About The Ratist</Link>
+                <Link href="/auth/signin" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--ratist-red)] font-medium">Sign In</Link>
+              </>
             )}
           </nav>
         </div>

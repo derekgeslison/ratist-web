@@ -102,7 +102,8 @@ export default async function ComparePage({ params }: Props) {
     }));
 
   const mostAgreed = [...sharedMovies].sort((a, b) => a.diff - b.diff).slice(0, 5);
-  const mostDisagreed = [...sharedMovies].sort((a, b) => b.diff - a.diff).slice(0, 5);
+  const agreedIds = new Set(mostAgreed.map((m) => m.tmdbId));
+  const mostDisagreed = [...sharedMovies].filter((m) => !agreedIds.has(m.tmdbId)).sort((a, b) => b.diff - a.diff).slice(0, 5);
 
   const matchColor = overallMatch >= 80 ? "#22c55e" : overallMatch >= 60 ? "#eab308" : "#888888";
   const shareUrl = `${SITE_URL}/compare/${userId1}/${userId2}`;
