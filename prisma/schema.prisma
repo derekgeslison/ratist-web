@@ -240,7 +240,10 @@ model MovieRating {
   ratistRating      Float? @map("ratist_rating")
 
   reviewText   String?  @map("review_text")
-  importSource String?  @map("import_source") // "letterboxd" | "imdb" | "trakt" etc.
+  importSource     String?  @map("import_source") // "letterboxd" | "imdb" | "trakt" etc.
+  reviewType       String   @default("standard") @map("review_type") // "basic" | "standard" | "critic"
+  fieldComments    Json?    @map("field_comments") // critic mode: { "plot": "comment", ... }
+  categoryComments Json?    @map("category_comments") // critic mode: { "story": "comment", ... }
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

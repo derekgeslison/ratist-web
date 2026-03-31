@@ -14,9 +14,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const body = await req.json();
+    const reviewType = body.reviewType ?? "standard";
 
     // Ensure movie exists in our DB
-    let movie = await prisma.movie.upsert({
+    const movie = await prisma.movie.upsert({
       where: { tmdbId: Number(tmdbId) },
       create: {
         tmdbId: Number(tmdbId),
@@ -24,16 +25,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         releaseDate: body.releaseDate ?? null,
       },
       update: {
-        // Backfill releaseDate if it was missing
         ...(body.releaseDate ? { releaseDate: body.releaseDate } : {}),
         ...(body.movieTitle ? { title: body.movieTitle } : {}),
       },
     });
 
-    // Compute scores
-    const scores = computeRatistScores(body);
+    // For basic mode: set ratistRating = overallRating, skip component computation
+    // For standard/critic: compute from components as normal
+    let scores;
+    if (reviewType === "basic") {
+      scores = {
+        storyScore: null,
+        styleScore: null,
+        emotiveScore: null,
+        actingScore: null,
+        entertainScore: null,
+        ratistRating: body.overallRating ?? null,
+      };
+    } else {
+      scores = computeRatistScores(body);
+    }
 
-    const ratingData = {
+    const ratingData: Record<string, unknown> = {
       // Story
       plot: body.plot ?? null,
       premiseOriginality: body.premiseOriginality ?? null,
@@ -91,6 +104,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       actingScore: scores.actingScore,
       entertainScore: scores.entertainScore,
       ratistRating: scores.ratistRating,
+      // Review mode
+      reviewType,
+      // Critic mode comments
+      fieldComments: body.fieldComments ?? null,
+      categoryComments: body.categoryComments ?? null,
+      // Clear importSource when user submits any review (they've taken ownership)
+      importSource: null,
     };
 
     const rating = await prisma.movieRating.upsert({
@@ -104,9 +124,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       create: { userId: user.id, movieId: movie.id, watchedDate: new Date() },
       update: {},
-    }).catch(() => {}); // Ignore if already exists with different logic
+    }).catch(() => {});
 
-    // Rebuild user profile/persona async (don't block response)
+    // Rebuild user profile/persona async
     rebuildUserProfile(user.id).catch(console.error);
 
     return NextResponse.json({ rating });

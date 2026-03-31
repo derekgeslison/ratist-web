@@ -17,13 +17,14 @@ export type RatingStatus = "complete" | "incomplete" | "imported";
 /**
  * Returns the status of a rating:
  *  - "complete" if all required fields are non-null
- *  - "imported" if it has an importSource but no component scores filled
+ *  - "imported" if it's an import or basic review with no component scores
  *  - "incomplete" otherwise (user started but didn't finish the form)
  */
 export function getRatingStatus(rating: Record<string, unknown> | null): RatingStatus {
   if (!rating) return "incomplete";
   if (REQUIRED_RATING_FIELDS.every((f) => rating[f] != null)) return "complete";
-  // If it was imported and has no component scores, it's "imported" not "incomplete"
-  if (rating.importSource && REQUIRED_RATING_FIELDS.every((f) => rating[f] == null)) return "imported";
+  const noComponents = REQUIRED_RATING_FIELDS.every((f) => rating[f] == null);
+  // Imported or basic review with no component scores → show score with info icon
+  if (noComponents && (rating.importSource || rating.reviewType === "basic")) return "imported";
   return "incomplete";
 }
