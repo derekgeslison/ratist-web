@@ -11,29 +11,55 @@ interface ImportRow {
   watchedDate?: string;
 }
 
-async function searchTMDB(title: string, year?: number): Promise<{ id: number; title: string; posterPath: string | null; releaseDate: string | null } | null> {
-  const apiKey = process.env.TMDB_API_KEY;
-  if (!apiKey) return null;
+const API_KEY = process.env.TMDB_API_KEY;
+const TMDB_BASE = "https://api.themoviedb.org/3";
 
-  const params = new URLSearchParams({ query: title, api_key: apiKey, include_adult: "false" });
+interface TMDBSearchResult {
+  id: number;
+  title: string;
+  poster_path: string | null;
+  release_date: string | null;
+  genre_ids: number[];
+}
+
+interface TMDBMovieDetail {
+  id: number;
+  runtime: number | null;
+  vote_average: number | null;
+}
+
+async function searchTMDB(title: string, year?: number): Promise<TMDBSearchResult | null> {
+  if (!API_KEY) return null;
+  const params = new URLSearchParams({ query: title, api_key: API_KEY, include_adult: "false" });
   if (year) params.set("year", String(year));
-
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/search/movie?${params}`, { next: { revalidate: 0 } });
+    const res = await fetch(`${TMDB_BASE}/search/movie?${params}`, { next: { revalidate: 0 } });
     if (!res.ok) return null;
     const data = await res.json();
-    const first = data.results?.[0];
-    if (!first) return null;
-    return {
-      id: first.id,
-      title: first.title,
-      posterPath: first.poster_path ?? null,
-      releaseDate: first.release_date ?? null,
-    };
+    return data.results?.[0] ?? null;
   } catch {
     return null;
   }
 }
+
+async function fetchTMDBDetails(tmdbId: number): Promise<TMDBMovieDetail | null> {
+  if (!API_KEY) return null;
+  try {
+    const res = await fetch(`${TMDB_BASE}/movie/${tmdbId}?api_key=${API_KEY}`, { next: { revalidate: 0 } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// TMDB genre ID → Genre name mapping
+const TMDB_GENRE_NAMES: Record<number, string> = {
+  28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
+  99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
+  27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance",
+  878: "Science Fiction", 10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -65,20 +91,47 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Upsert movie stub
+        // Fetch runtime from TMDB details
+        const details = await fetchTMDBDetails(tmdbResult.id);
+
+        // Upsert movie with runtime + voteAverage
         const movie = await prisma.movie.upsert({
           where: { tmdbId: tmdbResult.id },
           create: {
             tmdbId: tmdbResult.id,
             title: tmdbResult.title,
-            posterPath: tmdbResult.posterPath,
-            releaseDate: tmdbResult.releaseDate,
+            posterPath: tmdbResult.poster_path,
+            releaseDate: tmdbResult.release_date,
+            runtime: details?.runtime ?? null,
+            voteAverage: details?.vote_average ?? null,
           },
           update: {
-            ...(tmdbResult.posterPath ? { posterPath: tmdbResult.posterPath } : {}),
-            ...(tmdbResult.releaseDate ? { releaseDate: tmdbResult.releaseDate } : {}),
+            ...(tmdbResult.poster_path ? { posterPath: tmdbResult.poster_path } : {}),
+            ...(tmdbResult.release_date ? { releaseDate: tmdbResult.release_date } : {}),
+            ...(details?.runtime ? { runtime: details.runtime } : {}),
+            ...(details?.vote_average ? { voteAverage: details.vote_average } : {}),
           },
         });
+
+        // Upsert genres from search result genre_ids
+        if (tmdbResult.genre_ids?.length > 0) {
+          for (const genreId of tmdbResult.genre_ids) {
+            const genreName = TMDB_GENRE_NAMES[genreId];
+            if (!genreName) continue;
+            // Ensure genre exists
+            await prisma.genre.upsert({
+              where: { id: genreId },
+              create: { id: genreId, name: genreName },
+              update: {},
+            });
+            // Link movie ↔ genre
+            await prisma.movieGenre.upsert({
+              where: { movieId_genreId: { movieId: movie.id, genreId } },
+              create: { movieId: movie.id, genreId },
+              update: {},
+            });
+          }
+        }
 
         // Check if user already has a COMPLETE rating — skip if so
         const existingRating = await prisma.movieRating.findUnique({
@@ -86,7 +139,6 @@ export async function POST(req: NextRequest) {
           select: { id: true, plot: true },
         });
         if (existingRating?.plot != null) {
-          // Has a complete rating — don't overwrite
           skipped++;
           continue;
         }
@@ -99,8 +151,7 @@ export async function POST(req: NextRequest) {
           update: {},
         });
 
-        // Create/update rating — set both overallRating AND ratistRating so the
-        // imported score contributes to community averages and shows everywhere
+        // Create/update rating — set both overallRating AND ratistRating
         if (existingRating) {
           await prisma.movieRating.update({
             where: { id: existingRating.id },
@@ -131,7 +182,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Backfill: set ratistRating = overallRating for any previously imported ratings
-    // that have overallRating but null ratistRating (from before this fix)
     const staleImports = await prisma.movieRating.findMany({
       where: { userId: user.id, importSource: { not: null }, ratistRating: null, overallRating: { not: null } },
       select: { id: true, overallRating: true },
@@ -140,7 +190,7 @@ export async function POST(req: NextRequest) {
       await prisma.movieRating.update({ where: { id: s.id }, data: { ratistRating: s.overallRating } }).catch(() => {});
     }
 
-    // Rebuild user profile after import so imported ratings contribute to preferences
+    // Rebuild user profile after import
     if (imported > 0) {
       rebuildUserProfile(user.id).catch((err) => console.error("Profile rebuild after import error:", err));
     }

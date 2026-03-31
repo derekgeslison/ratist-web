@@ -80,6 +80,9 @@ function parseLetterboxd(csv: string): ParsedRow[] {
   if (headerIdx === -1) return [];
   const headers = allRows[headerIdx].map((h) => h.toLowerCase());
 
+  // Deduplicate rewatches — Letterboxd reviews.csv is newest-first,
+  // so the first occurrence of each movie is the most recent rewatch.
+  const seen = new Set<string>();
   const rows: ParsedRow[] = [];
   for (let i = headerIdx + 1; i < allRows.length; i++) {
     const cols = allRows[i];
@@ -90,6 +93,9 @@ function parseLetterboxd(csv: string): ParsedRow[] {
     const title = get("name");
     if (!title) continue;
     const yearStr = get("year");
+    const dedupeKey = `${title.toLowerCase()}::${yearStr}`;
+    if (seen.has(dedupeKey)) continue; // skip older rewatch
+    seen.add(dedupeKey);
     const ratingStr = get("rating");
     const watchedDate = get("watched date") || get("date");
     const reviewText = get("review");
