@@ -3,12 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 export const dynamic = "force-dynamic";
 import Image from "next/image";
-import CompareTasteButton from "@/components/CompareTasteButton";
+import ProfileHeader from "@/components/ProfileHeader";
 import { getRatingStatus } from "@/lib/rating-status";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
-import { scoreColor } from "@/lib/ratings";
 
 interface Props { params: Promise<{ userId: string }> }
 
@@ -192,24 +191,17 @@ export default async function ProfilePage({ params }: Props) {
           )}
         </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white mb-1">{user.name}</h1>
-          {user.bio && <p className="text-sm text-[var(--foreground-muted)] mb-3">{user.bio}</p>}
-          <div className="flex flex-wrap gap-4 text-sm text-[var(--foreground-muted)]">
-            <span><strong className="text-white">{ratingCount}</strong> rated</span>
-            <span><strong className="text-white">{seenCount}</strong> seen</span>
-            {avgRatingValue && (
-              <span>
-                Avg:{" "}
-                <strong style={{ color: scoreColor(avgRatingValue) }}>
-                  {avgRatingValue.toFixed(1)}
-                </strong>
-              </span>
-            )}
-            <span>Member since {user.createdAt.getFullYear()}</span>
-          </div>
-          <div className="mt-3">
-            <CompareTasteButton profileFirebaseUid={user.firebaseUid} profileUserId={user.id} />
-          </div>
+          <ProfileHeader
+            userName={user.name}
+            bio={user.bio}
+            isPrivate={user.isPrivate}
+            profileFirebaseUid={user.firebaseUid}
+            profileUserId={user.id}
+            ratingCount={ratingCount}
+            seenCount={seenCount}
+            avgRating={avgRatingValue}
+            memberSince={user.createdAt.getFullYear()}
+          />
         </div>
       </div>
 
@@ -259,6 +251,7 @@ export default async function ProfilePage({ params }: Props) {
         profileUserId={user.id}
         profileUserName={user.name}
         isPrivate={user.isPrivate}
+        publicTabs={user.publicTabs as Record<string, boolean> ?? {}}
         siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}
       />
     </div>

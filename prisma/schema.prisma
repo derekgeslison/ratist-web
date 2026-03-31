@@ -20,6 +20,7 @@ model User {
   avatarUrl   String?  @map("avatar_url")
   bio         String?
   isPrivate   Boolean  @default(false) @map("is_private")
+  publicTabs  Json     @default("{\"overview\":true,\"ratings\":true,\"diary\":true,\"watchlist\":true,\"stats\":true,\"rankings\":true}") @map("public_tabs")
   isAdmin     Boolean  @default(false) @map("is_admin")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

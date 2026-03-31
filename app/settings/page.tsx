@@ -46,6 +46,9 @@ export default function SettingsPage() {
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [publicTabs, setPublicTabs] = useState<Record<string, boolean>>({
+    overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true,
+  });
   const [savingAccount, setSavingAccount] = useState(false);
   const [savedAccount, setSavedAccount] = useState(false);
   const [accountError, setAccountError] = useState("");
@@ -73,6 +76,9 @@ export default function SettingsPage() {
         setAvatarUrl(meData.user.avatarUrl ?? "");
         setBio(meData.user.bio ?? "");
         setIsPrivate(meData.user.isPrivate ?? false);
+        if (meData.user.publicTabs) {
+          setPublicTabs((prev) => ({ ...prev, ...meData.user.publicTabs }));
+        }
       }
       const p = prefData.profile;
       if (p) {
@@ -158,7 +164,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile/me", {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: displayName, bio, isPrivate }),
+        body: JSON.stringify({ name: displayName, bio, isPrivate, publicTabs }),
       });
 
       if (res.ok) {
@@ -307,7 +313,7 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm font-medium text-white">Private profile</p>
               <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                When on, only you can see your ratings, diary, and watchlist. You still contribute to community recommendations anonymously.
+                When on, only you can see your profile. Shared links (Year in Review, rating cards, taste comparisons) still work.
               </p>
             </div>
             <button
@@ -318,6 +324,52 @@ export default function SettingsPage() {
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${isPrivate ? "translate-x-5" : "translate-x-0"}`} />
             </button>
           </div>
+
+          {/* Per-tab visibility (only shown when profile is NOT fully private) */}
+          {!isPrivate && (
+            <div className="pt-2">
+              <p className="text-sm font-medium text-white mb-1">Visible to others</p>
+              <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                Choose which tabs visitors can see on your profile.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { key: "overview", label: "Overview" },
+                  { key: "ratings", label: "Ratings" },
+                  { key: "diary", label: "Diary" },
+                  { key: "watchlist", label: "Watchlist" },
+                  { key: "stats", label: "Stats" },
+                  { key: "rankings", label: "Rankings" },
+                ].map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                      publicTabs[key]
+                        ? "border-[var(--ratist-red)]/50 bg-[var(--ratist-red)]/10 text-white"
+                        : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={publicTabs[key] ?? true}
+                      onChange={(e) => setPublicTabs((prev) => ({ ...prev, [key]: e.target.checked }))}
+                      className="sr-only"
+                    />
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                      publicTabs[key] ? "bg-[var(--ratist-red)] border-[var(--ratist-red)]" : "border-[var(--border)]"
+                    }`}>
+                      {publicTabs[key] && (
+                        <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {accountError && <p className="text-sm text-red-400 mt-3">{accountError}</p>}

@@ -80,6 +80,7 @@ interface Props {
   profileUserId: string;
   profileUserName: string;
   isPrivate: boolean;
+  publicTabs?: Record<string, boolean>;
   siteUrl?: string;
 }
 
@@ -100,11 +101,28 @@ export default function ProfileTabs({
   profileUserId,
   profileUserName,
   isPrivate,
+  publicTabs = {},
   siteUrl = "https://theratist.com",
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
-  const [activeTab, setActiveTab] = useState<Tab>("Overview");
+
+  // Default all tabs to public, then apply user overrides
+  const defaultPublic: Record<string, boolean> = { overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true };
+  const tabVisibility: Record<string, boolean> = { ...defaultPublic, ...publicTabs };
+
+  // For visitors (not own profile), filter to only public tabs. Owner sees all.
+  const TAB_KEY_MAP: Record<Tab, string> = {
+    Overview: "overview", Ratings: "ratings", Diary: "diary",
+    Watchlist: "watchlist", Stats: "stats", Rankings: "rankings",
+  };
+  const visibleTabs = isOwnProfile
+    ? TABS
+    : isPrivate
+      ? [] // fully private = no tabs
+      : TABS.filter((t) => tabVisibility[TAB_KEY_MAP[t]]);
+
+  const [activeTab, setActiveTab] = useState<Tab>(visibleTabs[0] ?? "Overview");
   const profileUrl = `${siteUrl}/profile/${profileUserId}`;
   const currentYear = new Date().getFullYear().toString();
   const prevYear = (new Date().getFullYear() - 1).toString();
@@ -191,7 +209,7 @@ export default function ProfileTabs({
     <div>
       {/* Tab navigation */}
       <div className="flex items-center gap-1 border-b border-[var(--border)] mb-8 overflow-x-auto">
-        {TABS.map((tab) => (
+        {(isOwnProfile ? TABS : visibleTabs).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -222,7 +240,7 @@ export default function ProfileTabs({
       </div>
 
       {/* ── PRIVATE GATE ── */}
-      {isPrivate && !isOwnProfile ? (
+      {!isOwnProfile && (isPrivate || visibleTabs.length === 0) ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-14 h-14 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-4">
             <svg className="w-6 h-6 text-[var(--foreground-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
