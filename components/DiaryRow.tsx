@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { Calendar } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
 
@@ -33,27 +34,7 @@ export default function DiaryRow({
       {/* Day number */}
       <div className="w-8 shrink-0 text-center">
         {dayNumber != null && (
-          editable && onDateChange ? (
-            editing ? (
-              <input
-                type="date"
-                defaultValue={dateValue}
-                autoFocus
-                onBlur={(e) => { if (e.target.value) onDateChange(e.target.value); setEditing(false); }}
-                className="w-full bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-0.5 py-0.5 focus:outline-none [color-scheme:dark]"
-              />
-            ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="text-xl font-bold text-white hover:text-[var(--ratist-red)] transition-colors cursor-pointer"
-                title="Edit watched date"
-              >
-                {dayNumber}
-              </button>
-            )
-          ) : (
-            <span className="text-xl font-bold text-white">{dayNumber}</span>
-          )
+          <span className="text-xl font-bold text-white">{dayNumber}</span>
         )}
       </div>
 
@@ -88,6 +69,29 @@ export default function DiaryRow({
           </Link>
         )}
       </div>
+
+      {/* Edit date button — per row, so any movie can be edited */}
+      {editable && onDateChange && (
+        <div className="shrink-0">
+          {editing ? (
+            <input
+              type="date"
+              defaultValue={dateValue}
+              autoFocus
+              onBlur={(e) => { if (e.target.value) onDateChange(e.target.value); setEditing(false); }}
+              className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
+            />
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="p-1 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+              title="Edit watched date"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
