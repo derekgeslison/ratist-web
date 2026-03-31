@@ -106,6 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ratistRating: scores.ratistRating,
       // Review mode
       reviewType,
+      hasSpoilers: body.hasSpoilers ?? false,
       // Critic mode comments
       fieldComments: body.fieldComments ?? null,
       categoryComments: body.categoryComments ?? null,

@@ -77,10 +77,14 @@ export default async function MovieDetailPage({ params }: Props) {
   // Fetch text reviews from DB
   let reviews: {
     id: string;
-    reviewText: string;
+    reviewText: string | null;
     ratistRating: number | null;
-    user: { name: string; avatarUrl: string | null };
+    overallRating: number | null;
+    reviewType: string;
+    hasSpoilers: boolean;
+    user: { id: string; name: string; avatarUrl: string | null };
     createdAt: Date;
+    _count: { likes: number };
   }[] = [];
   try {
     const dbMovie = await prisma.movie.findUnique({
@@ -97,8 +101,12 @@ export default async function MovieDetailPage({ params }: Props) {
           id: true,
           reviewText: true,
           ratistRating: true,
+          overallRating: true,
+          reviewType: true,
+          hasSpoilers: true,
           createdAt: true,
-          user: { select: { name: true, avatarUrl: true } },
+          user: { select: { id: true, name: true, avatarUrl: true } },
+          _count: { select: { likes: true } },
         },
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -213,8 +221,14 @@ export default async function MovieDetailPage({ params }: Props) {
           streaming={watchProviders?.flatrate ?? null}
           rent={watchProviders?.rent ?? null}
           reviews={reviews.map((r) => ({
-            ...r,
-            reviewText: r.reviewText!,
+            id: r.id,
+            reviewText: r.reviewText ?? "",
+            ratistRating: r.ratistRating,
+            overallRating: r.overallRating,
+            reviewType: r.reviewType,
+            hasSpoilers: r.hasSpoilers,
+            likeCount: r._count.likes,
+            user: r.user,
             createdAt: r.createdAt.toISOString(),
           }))}
         />

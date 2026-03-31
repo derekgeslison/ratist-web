@@ -7,13 +7,17 @@ import { Play, Star, ArrowRight } from "lucide-react";
 import { posterUrl, type TMDBMovie, type TMDBCastMember, type TMDBCrewMember, type TMDBImage, type TMDBWatchProvider } from "@/lib/tmdb";
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
-import { scoreColor } from "@/lib/ratings";
+import ReviewCard from "./ReviewCard";
 
 interface Review {
   id: string;
   reviewText: string;
   ratistRating: number | null;
-  user: { name: string; avatarUrl: string | null };
+  overallRating: number | null;
+  reviewType: string;
+  hasSpoilers: boolean;
+  likeCount: number;
+  user: { id: string; name: string; avatarUrl: string | null };
   createdAt: string;
 }
 
@@ -132,28 +136,30 @@ export default function MovieDetailTabs({
                   </div>
                   <div className="space-y-4">
                     {reviews.slice(0, 5).map((r) => (
-                      <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-7 h-7 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                            {r.user.name[0]?.toUpperCase() ?? "?"}
-                          </div>
-                          <span className="text-sm font-medium text-white">{r.user.name}</span>
-                          {r.ratistRating !== null && (
-                            <span
-                              className="ml-auto text-sm font-bold"
-                              style={{ color: scoreColor(r.ratistRating) }}
-                            >
-                              {r.ratistRating.toFixed(1)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-[var(--foreground-muted)] leading-relaxed line-clamp-4">
-                          {r.reviewText}
-                        </p>
-                        <p className="text-xs text-[var(--foreground-muted)]/60 mt-2">
-                          {new Date(r.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
+                      <ReviewCard
+                        key={r.id}
+                        review={{
+                          id: r.id,
+                          reviewText: r.reviewText,
+                          ratistRating: r.ratistRating,
+                          overallRating: r.overallRating,
+                          storyScore: null,
+                          styleScore: null,
+                          emotiveScore: null,
+                          actingScore: null,
+                          entertainScore: null,
+                          reviewType: r.reviewType,
+                          fieldComments: null,
+                          categoryComments: null,
+                          hasSpoilers: r.hasSpoilers,
+                          createdAt: r.createdAt,
+                          likeCount: r.likeCount,
+                          likedByMe: false,
+                          user: r.user,
+                        }}
+                        movieTmdbId={movie.id}
+                        compact
+                      />
                     ))}
                   </div>
                 </div>

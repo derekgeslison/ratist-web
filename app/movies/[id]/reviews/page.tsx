@@ -4,7 +4,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getMovieDetails } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
+import ReviewCard from "@/components/ReviewCard";
+
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -40,27 +42,43 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
 
   const orderBy = sort === "top"
     ? [{ ratistRating: "desc" as const }]
-    : [{ createdAt: "desc" as const }];
+    : sort === "liked"
+      ? [{ createdAt: "desc" as const }] // we'll sort by like count in JS
+      : [{ createdAt: "desc" as const }];
 
   const reviews = await prisma.movieRating.findMany({
     where: {
       movieId: dbMovie.id,
-      reviewText: { not: null },
+      OR: [
+        { reviewText: { not: null } },
+        { ratistRating: { not: null } },
+      ],
     },
     select: {
       id: true,
       reviewText: true,
       ratistRating: true,
+      overallRating: true,
       storyScore: true,
       styleScore: true,
       emotiveScore: true,
       actingScore: true,
       entertainScore: true,
+      reviewType: true,
+      fieldComments: true,
+      categoryComments: true,
+      hasSpoilers: true,
       createdAt: true,
       user: { select: { id: true, name: true, avatarUrl: true } },
+      _count: { select: { likes: true } },
     },
     orderBy,
   });
+
+  // For "most liked" sort, re-sort by like count
+  const sortedReviews = sort === "liked"
+    ? [...reviews].sort((a, b) => b._count.likes - a._count.likes)
+    : reviews;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -78,88 +96,55 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
         </div>
 
         <div className="flex items-center gap-2">
-          <Link
-            href={`/movies/${id}/reviews?sort=recent`}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-              sort !== "top"
-                ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
-                : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-            }`}
-          >
-            Most Recent
-          </Link>
-          <Link
-            href={`/movies/${id}/reviews?sort=top`}
-            className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-              sort === "top"
-                ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
-                : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-            }`}
-          >
-            Top Rated
-          </Link>
+          {(["recent", "top", "liked"] as const).map((s) => (
+            <Link
+              key={s}
+              href={`/movies/${id}/reviews?sort=${s}`}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                sort === s
+                  ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                  : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              {s === "recent" ? "Recent" : s === "top" ? "Top Rated" : "Most Liked"}
+            </Link>
+          ))}
         </div>
       </div>
 
       {reviews.length === 0 ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
-          <p className="mb-2">No written reviews yet.</p>
+          <p className="mb-2">No reviews yet.</p>
           <Link href={`/movies/${id}/rate`} className="text-sm text-[var(--ratist-red)] hover:underline">
             Be the first to write a review →
           </Link>
         </div>
       ) : (
         <div className="space-y-4">
-          {reviews.map((r) => (
-            <div key={r.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <Link href={`/profile/${r.user.id}`} className="flex items-center gap-2 group">
-                  <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                    {r.user.name[0]?.toUpperCase() ?? "?"}
-                  </div>
-                  <span className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors">
-                    {r.user.name}
-                  </span>
-                </Link>
-                <div className="flex items-center gap-3 shrink-0">
-                  {r.ratistRating !== null && (
-                    <span
-                      className="text-lg font-bold"
-                      style={{ color: scoreColor(r.ratistRating) }}
-                    >
-                      {r.ratistRating.toFixed(1)}
-                    </span>
-                  )}
-                  <span className="text-xs text-[var(--foreground-muted)]">
-                    {new Date(r.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{r.reviewText}</p>
-
-              {/* Pillar breakdown */}
-              {(r.storyScore || r.styleScore || r.actingScore) && (
-                <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-[var(--border)]/50">
-                  {[
-                    { label: "Story", score: r.storyScore },
-                    { label: "Style", score: r.styleScore },
-                    { label: "Emotion", score: r.emotiveScore },
-                    { label: "Acting", score: r.actingScore },
-                    { label: "Entertainment", score: r.entertainScore },
-                  ]
-                    .filter((p) => p.score !== null)
-                    .map((p) => (
-                      <span key={p.label} className="text-xs text-[var(--foreground-muted)]">
-                        {p.label}:{" "}
-                        <span className="font-semibold" style={{ color: scoreColor(p.score!) }}>
-                          {p.score!.toFixed(1)}
-                        </span>
-                      </span>
-                    ))}
-                </div>
-              )}
-            </div>
+          {sortedReviews.map((r) => (
+            <ReviewCard
+              key={r.id}
+              review={{
+                id: r.id,
+                reviewText: r.reviewText,
+                ratistRating: r.ratistRating,
+                overallRating: r.overallRating,
+                storyScore: r.storyScore,
+                styleScore: r.styleScore,
+                emotiveScore: r.emotiveScore,
+                actingScore: r.actingScore,
+                entertainScore: r.entertainScore,
+                reviewType: r.reviewType,
+                fieldComments: r.fieldComments as Record<string, string> | null,
+                categoryComments: r.categoryComments as Record<string, string> | null,
+                hasSpoilers: r.hasSpoilers,
+                createdAt: r.createdAt.toISOString(),
+                likeCount: r._count.likes,
+                likedByMe: false, // hydrated client-side
+                user: r.user,
+              }}
+              movieTmdbId={Number(id)}
+            />
           ))}
         </div>
       )}
