@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Search, Swords, X } from "lucide-react";
+import { Search, Swords, X, ChevronDown, ChevronUp } from "lucide-react";
+import ShareButton from "@/components/ShareButton";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 
@@ -25,11 +26,27 @@ interface RatingBreakdown {
 }
 
 const CATEGORIES = [
-  { label: "Story", key: "Story" },
-  { label: "Style", key: "Style" },
-  { label: "Emotion", key: "Emotion" },
-  { label: "Acting", key: "Acting" },
-  { label: "Entertainment", key: "Entertainment" },
+  { label: "Story", key: "Story", fields: [
+    { key: "plot", label: "Plot" }, { key: "premiseOriginality", label: "Originality" },
+    { key: "storytelling", label: "Storytelling" }, { key: "characterDev", label: "Character Dev" },
+    { key: "pacingClimax", label: "Pacing" },
+  ]},
+  { label: "Style", key: "Style", fields: [
+    { key: "cinematography", label: "Cinematography" }, { key: "locationCost", label: "Location" },
+    { key: "artisticEffect", label: "Artistic Effect" }, { key: "visualEffects", label: "VFX" },
+    { key: "musicSound", label: "Music & Sound" },
+  ]},
+  { label: "Emotion", key: "Emotion", fields: [
+    { key: "overallEmotion", label: "Emotion" }, { key: "relatability", label: "Relatability" },
+    { key: "meaning", label: "Meaning" }, { key: "movingness", label: "Movingness" },
+  ]},
+  { label: "Acting", key: "Acting", fields: [
+    { key: "casting", label: "Casting" }, { key: "actingQuality", label: "Acting Quality" },
+    { key: "dialogueScripting", label: "Dialogue" },
+  ]},
+  { label: "Entertainment", key: "Entertainment", fields: [
+    { key: "appeal", label: "Appeal" },
+  ]},
 ];
 
 function MoviePicker({ label, onSelect, onClear, selected }: {
@@ -127,6 +144,7 @@ export default function MatchupPage() {
   const [data1, setData1] = useState<RatingBreakdown | null>(null);
   const [data2, setData2] = useState<RatingBreakdown | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!movie1 || !movie2) return;
@@ -215,27 +233,67 @@ export default function MatchupPage() {
                 <p className="text-sm font-semibold text-white truncate text-right">{data2.title}</p>
               </div>
 
-              {CATEGORIES.map(({ label, key }) => {
+              {CATEGORIES.map(({ label, key, fields }) => {
                 const s1 = data1.breakdown.find((b) => b.category === key)?.score ?? null;
                 const s2 = data2.breakdown.find((b) => b.category === key)?.score ?? null;
                 const bothPresent = s1 !== null && s2 !== null;
                 const isTie = bothPresent && s1 === s2;
                 const state1: BarState = !bothPresent ? "lose" : s1! > s2! ? "win" : isTie ? "tie" : "lose";
                 const state2: BarState = !bothPresent ? "lose" : s2! > s1! ? "win" : isTie ? "tie" : "lose";
+                const isExpanded = expandedCats.has(key);
                 return (
-                  <div key={key} className="col-span-3 grid grid-cols-[1fr_120px_1fr] items-center px-4 py-2.5 gap-3">
-                    <ScoreBar score={s1} state={state1} />
-                    <p className="text-xs text-[var(--foreground-muted)] text-center shrink-0">{label}</p>
-                    <div className="flex items-center gap-2 flex-row-reverse">
-                      <ScoreBar score={s2} state={state2} />
-                    </div>
+                  <div key={key} className="col-span-3">
+                    <button
+                      onClick={() => setExpandedCats((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; })}
+                      className="w-full grid grid-cols-[1fr_120px_1fr] items-center px-4 py-2.5 gap-3 hover:bg-[var(--surface-2)]/50 transition-colors"
+                    >
+                      <ScoreBar score={s1} state={state1} />
+                      <div className="flex items-center justify-center gap-1">
+                        <p className="text-xs text-[var(--foreground-muted)] shrink-0">{label}</p>
+                        {isExpanded ? <ChevronUp className="w-3 h-3 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-3 h-3 text-[var(--foreground-muted)]" />}
+                      </div>
+                      <div className="flex items-center gap-2 flex-row-reverse">
+                        <ScoreBar score={s2} state={state2} />
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="px-4 pb-2 space-y-1.5 bg-[var(--surface-2)]/30">
+                        {fields.map(({ key: fk, label: fl }) => {
+                          const fs1 = data1.fields[fk] ?? null;
+                          const fs2 = data2.fields[fk] ?? null;
+                          const fboth = fs1 !== null && fs2 !== null;
+                          const ftie = fboth && Math.abs(fs1! - fs2!) < 0.05;
+                          const fst1: BarState = !fboth ? "lose" : fs1! > fs2! ? "win" : ftie ? "tie" : "lose";
+                          const fst2: BarState = !fboth ? "lose" : fs2! > fs1! ? "win" : ftie ? "tie" : "lose";
+                          return (
+                            <div key={fk} className="grid grid-cols-[1fr_120px_1fr] items-center gap-3">
+                              <ScoreBar score={fs1 != null ? Math.round(fs1 * 10) / 10 : null} state={fst1} />
+                              <p className="text-[10px] text-[var(--foreground-muted)] text-center">{fl}</p>
+                              <div className="flex items-center gap-2 flex-row-reverse">
+                                <ScoreBar score={fs2 != null ? Math.round(fs2 * 10) / 10 : null} state={fst2} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Win count */}
+          {/* Share + Win count */}
+          {data1.totalRatings > 0 && data2.totalRatings > 0 && (
+            <div className="flex justify-center mt-4">
+              <ShareButton
+                label="Share matchup"
+                text={`${data1.title} (${data1.ratistScore?.toFixed(1) ?? "?"}) vs ${data2.title} (${data2.ratistScore?.toFixed(1) ?? "?"}) — see the full breakdown on The Ratist!`}
+                url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/matchup`}
+                cardImageUrl={`/api/og/matchup?movie1=${data1.tmdbId}&movie2=${data2.tmdbId}`}
+              />
+            </div>
+          )}
           {data1.totalRatings > 0 && data2.totalRatings > 0 && (() => {
             const wins1 = CATEGORIES.filter(({ key }) => {
               const s1 = data1.breakdown.find((b) => b.category === key)?.score ?? null;
