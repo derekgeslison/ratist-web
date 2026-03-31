@@ -228,11 +228,17 @@ export default function OscarPicksPage() {
                                   />
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-medium ${isWinner ? "text-yellow-300" : "text-white"}`}>
-                                    {nominee.movieTitle}
-                                  </p>
-                                  {nominee.nomineeDetail && (
-                                    <p className="text-xs text-[var(--foreground-muted)]">{nominee.nomineeDetail}</p>
+                                  {nominee.nomineeDetail ? (
+                                    <>
+                                      <p className={`text-sm font-medium ${isWinner ? "text-yellow-300" : "text-white"}`}>
+                                        {nominee.nomineeDetail}
+                                      </p>
+                                      <p className="text-xs text-[var(--foreground-muted)]">{nominee.movieTitle}</p>
+                                    </>
+                                  ) : (
+                                    <p className={`text-sm font-medium ${isWinner ? "text-yellow-300" : "text-white"}`}>
+                                      {nominee.movieTitle}
+                                    </p>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">

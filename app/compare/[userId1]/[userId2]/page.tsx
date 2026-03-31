@@ -168,19 +168,19 @@ export default async function ComparePage({ params }: Props) {
               const s1 = p1[key] ?? 0;
               const s2 = p2[key] ?? 0;
               return (
-                <div key={key} className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                  <div className="flex justify-end gap-2 items-center">
-                    <span className="text-xs" style={{ color: scoreColor(s1) }}>{s1.toFixed(1)}</span>
-                    <div className="w-20 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden flex justify-end">
+                <div key={key} className="grid grid-cols-[1fr_auto_1fr] gap-1.5 sm:gap-3 items-center">
+                  <div className="flex justify-end gap-1.5 items-center">
+                    <span className="text-[10px] sm:text-xs shrink-0" style={{ color: scoreColor(s1) }}>{s1.toFixed(1)}</span>
+                    <div className="w-12 sm:w-20 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden flex justify-end">
                       <div className="h-full rounded-full" style={{ width: `${(s1 / 10) * 100}%`, backgroundColor: scoreColor(s1) }} />
                     </div>
                   </div>
-                  <span className="text-xs text-[var(--foreground-muted)] text-center w-28">{COMPONENT_LABELS[key]}</span>
-                  <div className="flex gap-2 items-center">
-                    <div className="w-20 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                  <span className="text-[10px] sm:text-xs text-[var(--foreground-muted)] text-center w-16 sm:w-28 truncate">{COMPONENT_LABELS[key]}</span>
+                  <div className="flex gap-1.5 items-center">
+                    <div className="w-12 sm:w-20 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
                       <div className="h-full rounded-full" style={{ width: `${(s2 / 10) * 100}%`, backgroundColor: scoreColor(s2) }} />
                     </div>
-                    <span className="text-xs" style={{ color: scoreColor(s2) }}>{s2.toFixed(1)}</span>
+                    <span className="text-[10px] sm:text-xs shrink-0" style={{ color: scoreColor(s2) }}>{s2.toFixed(1)}</span>
                   </div>
                 </div>
               );

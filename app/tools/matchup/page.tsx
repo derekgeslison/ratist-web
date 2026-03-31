@@ -87,12 +87,12 @@ function MoviePicker({ label, onSelect, onClear, selected }: {
       <div className="w-32 rounded-xl bg-[var(--surface)] border-2 border-dashed border-[var(--border)] flex items-center justify-center" style={{ aspectRatio: "2/3" }}>
         <span className="text-xs text-[var(--foreground-muted)] px-3 text-center">{label}</span>
       </div>
-      <div className="relative w-48">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+      <div className="relative w-32 sm:w-48">
+        <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
         <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search movie…"
-          className="w-full pl-9 pr-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]" />
+          className="w-full pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]" />
         {results.length > 0 && (
-          <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-xl">
+          <div className="absolute z-10 top-full mt-1 w-[200px] sm:w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-xl">
             {results.map((m) => (
               <button key={m.id} onClick={() => { onSelect(m); setResults([]); }}
                 className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">

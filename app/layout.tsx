@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   },
   description:
     "Discover movies through deep, criteria-based ratings. Get personalized recommendations based on your unique taste profile.",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

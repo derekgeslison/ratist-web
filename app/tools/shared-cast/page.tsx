@@ -233,7 +233,7 @@ export default function SharedCastPage() {
         <div>
           <p className="text-sm text-[var(--foreground-muted)] mb-4">
             {results.length} result{results.length !== 1 ? "s" : ""} found
-            {results.length === 0 && " — try lowering the minimum overlap"}
+            {results.length === 0 && " — try lowering the minimum overlap or selecting different entries"}
           </p>
           {results.length > 0 && (
             mode === "movies-to-people" ? (
