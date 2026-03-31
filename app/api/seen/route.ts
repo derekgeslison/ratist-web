@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
             posterPath: true,
             releaseDate: true,
             voteAverage: true,
+            genres: { include: { genre: { select: { name: true } } } },
             ratings: {
               where: { userId: user.id },
               select: { ratistRating: true },
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
       posterPath: f.movie.posterPath,
       year: f.movie.releaseDate?.slice(0, 4) ?? "",
       voteAverage: f.movie.voteAverage ?? null,
+      genres: f.movie.genres.map((g) => g.genre.name),
       ratistRating: f.movie.ratings[0]?.ratistRating ?? null,
       seenAt: f.createdAt,
       watchedDate: f.watchedDate ?? f.createdAt,
