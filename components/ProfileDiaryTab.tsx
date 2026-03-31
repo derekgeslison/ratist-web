@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
 import ShareButton from "./ShareButton";
+import DiaryRow from "./DiaryRow";
 
 interface SeenMovie {
   tmdbId: number;
@@ -31,12 +30,9 @@ interface Props {
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getWatchedDate(m: SeenMovie): Date {
-  const str = m.watchedDate ?? m.seenAt;
-  return new Date(str);
+function getWatchDate(m: SeenMovie): Date {
+  return new Date(m.watchedDate ?? m.seenAt);
 }
 
 export default function ProfileDiaryTab({
@@ -49,16 +45,15 @@ export default function ProfileDiaryTab({
 
   const monthMovies = useMemo(() => {
     return seenMovies.filter((m) => {
-      const d = getWatchedDate(m);
+      const d = getWatchDate(m);
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    }).sort((a, b) => getWatchedDate(b).getTime() - getWatchedDate(a).getTime());
+    }).sort((a, b) => getWatchDate(b).getTime() - getWatchDate(a).getTime());
   }, [seenMovies, viewYear, viewMonth]);
 
-  // Group by day number, sorted descending
   const moviesByDay = useMemo(() => {
     const map = new Map<number, SeenMovie[]>();
     for (const m of monthMovies) {
-      const day = getWatchedDate(m).getDate();
+      const day = getWatchDate(m).getDate();
       const list = map.get(day) ?? [];
       list.push(m);
       map.set(day, list);
@@ -80,20 +75,15 @@ export default function ProfileDiaryTab({
 
   return (
     <div>
-      {/* Header row */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         {isOwnProfile ? (
-          <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">
-            View full diary →
-          </Link>
+          <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">View full diary →</Link>
         ) : <div />}
         <div className="flex items-center gap-3">
           {seenThisYear > 0 && (
             <>
-              <Link
-                href={`/profile/${profileUserId}/year-in-review/${activeYear}`}
-                className="text-xs text-[var(--ratist-red)] hover:underline shrink-0"
-              >
+              <Link href={`/profile/${profileUserId}/year-in-review/${activeYear}`}
+                className="text-xs text-[var(--ratist-red)] hover:underline shrink-0">
                 {activeYear} Year in Review →
               </Link>
               <ShareButton
@@ -118,14 +108,11 @@ export default function ProfileDiaryTab({
         </div>
       ) : (
         <>
-          {/* Month navigation */}
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="p-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-bold text-white">
-              {MONTH_NAMES[viewMonth]} {viewYear}
-            </h3>
+            <h3 className="text-base font-bold text-white">{MONTH_NAMES[viewMonth]} {viewYear}</h3>
             <button onClick={nextMonth} className="p-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors">
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -139,37 +126,19 @@ export default function ProfileDiaryTab({
             <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
           ) : (
             <div>
-              {sortedDays.flatMap((day) => {
+              {sortedDays.map((day) => {
                 const dayMovies = moviesByDay.get(day) ?? [];
-                const dayOfWeek = DAY_NAMES[new Date(viewYear, viewMonth, day).getDay()];
-                const dayLabel = `${dayOfWeek}, ${MONTH_SHORT[viewMonth]} ${day}`;
-                return [
-                  <div key={`h-${day}`} className="sticky top-0 z-10 bg-[var(--background)] pt-3 pb-2 border-b border-[var(--border)]/20">
-                    <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">{dayLabel}</p>
-                  </div>,
-                  ...dayMovies.map((m) => (
-                    <div key={m.tmdbId} className="flex items-center gap-3 py-2">
-                      <Link href={`/movies/${m.tmdbId}`} className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                        {m.posterPath && (
-                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />
-                        )}
-                      </Link>
-                      <div className="flex-1 min-w-0">
-                        <Link href={`/movies/${m.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                          {m.title}
-                        </Link>
-                        <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
-                      </div>
-                      {m.ratingStatus === "incomplete" ? (
-                        <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">Incomplete</span>
-                      ) : m.ratistRating != null ? (
-                        <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(m.ratistRating) }}>
-                          {m.ratistRating.toFixed(1)}
-                        </span>
-                      ) : null}
-                    </div>
-                  )),
-                ];
+                return dayMovies.map((m, idx) => (
+                  <DiaryRow
+                    key={m.tmdbId}
+                    tmdbId={m.tmdbId}
+                    title={m.title}
+                    posterPath={m.posterPath}
+                    year={m.releaseDate?.slice(0, 4) ?? ""}
+                    ratistRating={m.ratistRating}
+                    dayNumber={idx === 0 ? day : null}
+                  />
+                ));
               })}
             </div>
           )}

@@ -3,10 +3,11 @@
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText, Star } from "lucide-react";
+import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
+import DiaryRow from "@/components/DiaryRow";
 import { scoreColor } from "@/lib/ratings";
 
 interface SeenMovie {
@@ -25,19 +26,10 @@ interface SeenMovie {
 type ViewMode = "month" | "calendar" | "all";
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** Parse date to local y/m/d to avoid timezone shifts */
-function localDate(dateStr: string | null): { year: number; month: number; day: number; date: Date } | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate(), date: d };
-}
-
-function getWatchedLocal(m: SeenMovie) {
-  return localDate(m.watchedDate) ?? localDate(m.seenAt)!;
+function getWatchDate(m: SeenMovie): Date {
+  return new Date(m.watchedDate ?? m.seenAt);
 }
 
 export default function SeenPage() {
@@ -55,17 +47,16 @@ export default function SeenPage() {
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
 
-  async function updateWatchedDate(tmdbId: number, date: string) {
+  function updateWatchedDate(tmdbId: number, date: string) {
     if (!user) return;
-    const token = await user.getIdToken();
-    await fetch(`/api/movies/${tmdbId}/seen`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ watchedDate: date }),
+    user.getIdToken().then((token) => {
+      fetch(`/api/movies/${tmdbId}/seen`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ watchedDate: date }),
+      });
     });
-    setMovies((prev) =>
-      prev.map((m) => (m.tmdbId === tmdbId ? { ...m, watchedDate: date } : m))
-    );
+    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId ? { ...m, watchedDate: date } : m)));
   }
 
   useEffect(() => {
@@ -80,7 +71,7 @@ export default function SeenPage() {
 
   const availableYears = useMemo(() => {
     const years = new Set<number>();
-    for (const m of movies) years.add(getWatchedLocal(m).year);
+    for (const m of movies) years.add(getWatchDate(m).getFullYear());
     return [...years].sort((a, b) => b - a);
   }, [movies]);
 
@@ -101,19 +92,17 @@ export default function SeenPage() {
     });
   }, [movies, query, genreFilter, ratingFilter]);
 
-  // Month-scoped movies
   const monthMovies = useMemo(() => {
     return filtered.filter((m) => {
-      const d = getWatchedLocal(m);
-      return d.year === calYear && d.month === calMonth;
-    }).sort((a, b) => getWatchedLocal(b).date.getTime() - getWatchedLocal(a).date.getTime());
+      const d = getWatchDate(m);
+      return d.getFullYear() === calYear && d.getMonth() === calMonth;
+    }).sort((a, b) => getWatchDate(b).getTime() - getWatchDate(a).getTime());
   }, [filtered, calYear, calMonth]);
 
-  // Group by day number for month + calendar views
   const moviesByDay = useMemo(() => {
     const map = new Map<number, SeenMovie[]>();
     for (const m of monthMovies) {
-      const day = getWatchedLocal(m).day;
+      const day = getWatchDate(m).getDate();
       const list = map.get(day) ?? [];
       list.push(m);
       map.set(day, list);
@@ -121,33 +110,29 @@ export default function SeenPage() {
     return map;
   }, [monthMovies]);
 
-  // Sorted day numbers descending for the month list
   const sortedDays = useMemo(() => [...moviesByDay.keys()].sort((a, b) => b - a), [moviesByDay]);
 
-  // All movies sorted for continuous scroll and "all" view
   const allSorted = useMemo(() => {
     const arr = [...filtered];
     if (sort === "title") arr.sort((a, b) => a.title.localeCompare(b.title));
     else if (sort === "rating") arr.sort((a, b) => (b.ratistRating ?? -1) - (a.ratistRating ?? -1));
-    else arr.sort((a, b) => getWatchedLocal(b).date.getTime() - getWatchedLocal(a).date.getTime());
+    else arr.sort((a, b) => getWatchDate(b).getTime() - getWatchDate(a).getTime());
     return arr;
   }, [filtered, sort]);
 
-  // Group all sorted by "Month Year" for continuous scroll
   const allByMonth = useMemo(() => {
-    if (sort !== "date") return null; // only group when sorted by date
-    const map = new Map<string, SeenMovie[]>();
+    if (sort !== "date") return null;
+    const map = new Map<string, { label: string; movies: SeenMovie[] }>();
     for (const m of allSorted) {
-      const d = getWatchedLocal(m);
-      const key = `${MONTH_NAMES[d.month]} ${d.year}`;
-      const list = map.get(key) ?? [];
-      list.push(m);
-      map.set(key, list);
+      const d = getWatchDate(m);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      const existing = map.get(key);
+      if (existing) existing.movies.push(m);
+      else map.set(key, { label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, movies: [m] });
     }
     return map;
   }, [allSorted, sort]);
 
-  // Calendar grid
   const calendarDays = useMemo(() => {
     const firstDay = new Date(calYear, calMonth, 1).getDay();
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
@@ -172,39 +157,26 @@ export default function SeenPage() {
     else setCalMonth((m) => m + 1);
   }
 
-  /** Render a movie row (shared between month list and all view) */
-  function movieRow(movie: SeenMovie, showDate: boolean) {
-    const wd = getWatchedLocal(movie);
-    return (
-      <div key={movie.id} className="flex items-center gap-3 py-3">
-        <Link href={`/movies/${movie.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-          {movie.posterPath && (
-            <Image src={posterUrl(movie.posterPath, "w92")} alt={movie.title} fill sizes="40px" className="object-cover" />
-          )}
-        </Link>
-        <div className="flex-1 min-w-0">
-          <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-            {movie.title}
-          </Link>
-          <p className="text-xs text-[var(--foreground-muted)]">
-            {movie.year}
-            {showDate && <> · {MONTH_SHORT[wd.month]} {wd.day}, {wd.year}</>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {movie.voteAverage != null && movie.voteAverage > 0 && (
-            <RatingBadge type="community" score={movie.voteAverage} size="sm" />
-          )}
-          {movie.ratistRating != null ? (
-            <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
-          ) : (
-            <Link href={`/movies/${movie.tmdbId}/rate`} className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
-              Rate
-            </Link>
-          )}
-        </div>
-      </div>
-    );
+  /** Render diary rows for a list of movies grouped by day, with day numbers on the left */
+  function renderDayRows(dayMovies: SeenMovie[], day: number, editable: boolean) {
+    return dayMovies.map((m, idx) => {
+      const dateVal = m.watchedDate ? new Date(m.watchedDate).toISOString().slice(0, 10) : "";
+      return (
+        <DiaryRow
+          key={m.id}
+          tmdbId={m.tmdbId}
+          title={m.title}
+          posterPath={m.posterPath}
+          year={m.year}
+          ratistRating={m.ratistRating}
+          voteAverage={m.voteAverage}
+          dayNumber={idx === 0 ? day : null}
+          editable={editable}
+          dateValue={dateVal}
+          onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+        />
+      );
+    });
   }
 
   return (
@@ -227,22 +199,16 @@ export default function SeenPage() {
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <Eye className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="mb-2">Nothing here yet.</p>
-          <p className="text-sm">Click &ldquo;Mark Seen&rdquo; on any movie to start your diary.</p>
           <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
         </div>
       ) : (
         <>
-          {/* Year tabs */}
+          {/* Year tabs (month + calendar only) */}
           {view !== "all" && (
             <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
               {availableYears.map((y) => (
-                <button
-                  key={y}
-                  onClick={() => { setCalYear(y); setCalMonth(y === now.getFullYear() ? now.getMonth() : 0); }}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${
-                    calYear === y ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-                  }`}
-                >
+                <button key={y} onClick={() => { setCalYear(y); setCalMonth(y === now.getFullYear() ? now.getMonth() : 0); }}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${calYear === y ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
                   {y}
                 </button>
               ))}
@@ -255,8 +221,7 @@ export default function SeenPage() {
             <span className="text-[var(--foreground-muted)]">movies{view !== "all" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
             {avgRating != null && (
               <>
-                <span className="text-[var(--foreground-muted)]">·</span>
-                <span className="text-[var(--foreground-muted)]">avg </span>
+                <span className="text-[var(--foreground-muted)]">· avg</span>
                 <span className="font-bold" style={{ color: scoreColor(avgRating) }}>{avgRating.toFixed(1)}</span>
               </>
             )}
@@ -270,12 +235,8 @@ export default function SeenPage() {
                 { mode: "calendar" as ViewMode, icon: Calendar, label: "Calendar" },
                 { mode: "all" as ViewMode, icon: ScrollText, label: "All" },
               ]).map(({ mode, icon: Icon, label }) => (
-                <button
-                  key={mode}
-                  onClick={() => setView(mode)}
-                  title={label}
-                  className={`p-2 transition-colors ${view === mode ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
-                >
+                <button key={mode} onClick={() => setView(mode)} title={label}
+                  className={`p-2 transition-colors ${view === mode ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
                   <Icon className="w-4 h-4" />
                 </button>
               ))}
@@ -310,7 +271,7 @@ export default function SeenPage() {
             )}
           </div>
 
-          {/* Month navigation (month + calendar views) */}
+          {/* Month navigation */}
           {view !== "all" && (
             <div className="flex items-center justify-between mb-4">
               <button onClick={prevMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
@@ -323,21 +284,19 @@ export default function SeenPage() {
             </div>
           )}
 
-          {/* ── MONTH LIST VIEW ── */}
+          {/* ── MONTH VIEW ── */}
           {view === "month" && (
             monthMovies.length === 0 ? (
               <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
             ) : (
               <div>
-                {sortedDays.flatMap((day) => {
+                {sortedDays.map((day) => {
                   const dayMovies = moviesByDay.get(day) ?? [];
-                  const dayLabel = `${DAY_LABELS[new Date(calYear, calMonth, day).getDay()]}, ${MONTH_SHORT[calMonth]} ${day}`;
-                  return [
-                    <div key={`h-${day}`} className="sticky top-0 z-10 bg-[var(--background)] pt-3 pb-2 border-b border-[var(--border)]/20">
-                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">{dayLabel}</p>
-                    </div>,
-                    ...dayMovies.map((m) => movieRow(m, false)),
-                  ];
+                  return (
+                    <div key={day}>
+                      {renderDayRows(dayMovies, day, true)}
+                    </div>
+                  );
                 })}
               </div>
             )
@@ -347,24 +306,20 @@ export default function SeenPage() {
           {view === "calendar" && (
             <div>
               <div className="grid grid-cols-7 gap-1 mb-1">
-                {DAY_LABELS.map((d) => (
-                  <div key={d} className="text-center text-xs text-[var(--foreground-muted)] py-1">{d}</div>
-                ))}
+                {DAY_LABELS.map((d) => <div key={d} className="text-center text-xs text-[var(--foreground-muted)] py-1">{d}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-1">
                 {calendarDays.map((day, i) => {
-                  if (day === null) return <div key={`empty-${i}`} />;
+                  if (day === null) return <div key={`e-${i}`} />;
                   const dayMovies = moviesByDay.get(day) ?? [];
                   const isToday = day === now.getDate() && calMonth === now.getMonth() && calYear === now.getFullYear();
                   const hasMovies = dayMovies.length > 0;
                   return (
-                    <button key={day} type="button"
-                      onClick={() => hasMovies && setSelectedDay(selectedDay === day ? null : day)}
+                    <button key={day} type="button" onClick={() => hasMovies && setSelectedDay(selectedDay === day ? null : day)}
                       className={`min-h-[80px] sm:min-h-[100px] rounded-lg border p-1 transition-colors text-left ${
                         selectedDay === day ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10"
                         : hasMovies ? "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--ratist-red)]/50 cursor-pointer"
-                        : isToday ? "border-[var(--ratist-red)]/30 bg-[var(--ratist-red)]/5 cursor-default"
-                        : "border-transparent cursor-default"
+                        : isToday ? "border-[var(--ratist-red)]/30 bg-[var(--ratist-red)]/5 cursor-default" : "border-transparent cursor-default"
                       }`}>
                       <span className={`text-[10px] block mb-0.5 ${isToday ? "text-[var(--ratist-red)] font-bold" : "text-[var(--foreground-muted)]"}`}>{day}</span>
                       <div className="flex flex-wrap gap-0.5 pointer-events-none">
@@ -383,7 +338,6 @@ export default function SeenPage() {
                   );
                 })}
               </div>
-              {/* Day detail popup */}
               {selectedDay !== null && (moviesByDay.get(selectedDay) ?? []).length > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
                   onClick={(e) => { if (e.target === e.currentTarget) setSelectedDay(null); }}>
@@ -392,37 +346,71 @@ export default function SeenPage() {
                       <h3 className="text-base font-bold text-white">{MONTH_NAMES[calMonth]} {selectedDay}, {calYear}</h3>
                       <button onClick={() => setSelectedDay(null)} className="text-[var(--foreground-muted)] hover:text-white transition-colors text-sm">Close</button>
                     </div>
-                    <div className="space-y-1">
-                      {(moviesByDay.get(selectedDay) ?? []).map((m) => movieRow(m, false))}
-                    </div>
+                    {renderDayRows(moviesByDay.get(selectedDay) ?? [], selectedDay, true)}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* ── ALL VIEW (continuous scroll) ── */}
+          {/* ── ALL VIEW ── */}
           {view === "all" && (
             <div>
               {sort === "date" && allByMonth ? (
-                // Grouped by month headers for continuous scroll
-                [...allByMonth.entries()].flatMap(([monthLabel, monthMovies]) => [
-                  <div key={`mh-${monthLabel}`} className="sticky top-0 z-10 bg-[var(--background)] pt-4 pb-2 border-b border-[var(--border)]/30">
-                    <h3 className="text-sm font-bold text-white">{monthLabel}</h3>
-                  </div>,
-                  ...monthMovies.map((m) => movieRow(m, true)),
-                ])
+                [...allByMonth.values()].map(({ label, movies: mlist }) => (
+                  <div key={label}>
+                    <div className="sticky top-[72px] z-10 bg-[var(--background)] py-2 border-b border-[var(--border)]/30">
+                      <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-widest">{label}</h3>
+                    </div>
+                    {mlist.map((m, idx) => {
+                      const d = getWatchDate(m);
+                      const prevDay = idx > 0 ? getWatchDate(mlist[idx - 1]).getDate() : null;
+                      const showDay = idx === 0 || d.getDate() !== prevDay;
+                      const dateVal = m.watchedDate ? new Date(m.watchedDate).toISOString().slice(0, 10) : "";
+                      return (
+                        <DiaryRow
+                          key={m.id}
+                          tmdbId={m.tmdbId}
+                          title={m.title}
+                          posterPath={m.posterPath}
+                          year={m.year}
+                          ratistRating={m.ratistRating}
+                          voteAverage={m.voteAverage}
+                          dayNumber={showDay ? d.getDate() : null}
+                          editable
+                          dateValue={dateVal}
+                          onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                        />
+                      );
+                    })}
+                  </div>
+                ))
               ) : (
-                // Flat list when sorted by title or rating
-                allSorted.map((m) => movieRow(m, true))
+                allSorted.map((m) => {
+                  const d = getWatchDate(m);
+                  const dateVal = m.watchedDate ? new Date(m.watchedDate).toISOString().slice(0, 10) : "";
+                  return (
+                    <DiaryRow
+                      key={m.id}
+                      tmdbId={m.tmdbId}
+                      title={m.title}
+                      posterPath={m.posterPath}
+                      year={m.year}
+                      ratistRating={m.ratistRating}
+                      voteAverage={m.voteAverage}
+                      dayNumber={d.getDate()}
+                      editable
+                      dateValue={dateVal}
+                      onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                    />
+                  );
+                })
               )}
             </div>
           )}
 
           {filtered.length === 0 && movies.length > 0 && (
-            <div className="text-center py-12 text-[var(--foreground-muted)]">
-              <p>No movies match your filters.</p>
-            </div>
+            <div className="text-center py-12 text-[var(--foreground-muted)]"><p>No movies match your filters.</p></div>
           )}
         </>
       )}
