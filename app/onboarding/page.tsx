@@ -162,17 +162,23 @@ export default function OnboardingPage() {
     });
   }
 
-  async function markSeen(movie: TMDBMovie) {
+  async function toggleSeen(movie: TMDBMovie) {
     if (!user || markingId === movie.id) return;
     setMarkingId(movie.id);
     try {
       const token = await user.getIdToken();
-      await fetch(`/api/movies/${movie.id}/seen`, {
+      const res = await fetch(`/api/movies/${movie.id}/seen`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
       });
-      setSeenMovieIds((prev) => new Set([...prev, movie.id]));
+      const data = await res.json();
+      setSeenMovieIds((prev) => {
+        const next = new Set(prev);
+        if (data.seen) next.add(movie.id);
+        else next.delete(movie.id);
+        return next;
+      });
     } catch { /* continue */ }
     setMarkingId(null);
   }
@@ -327,7 +333,7 @@ export default function OnboardingPage() {
                     <div>
                       <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">Recent &amp; Popular</p>
                       <div className="grid grid-cols-5 gap-2">
-                        {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
+                        {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={toggleSeen} />)}
                       </div>
                     </div>
                   )}
@@ -335,7 +341,7 @@ export default function OnboardingPage() {
                     <div>
                       <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">All-Time Classics</p>
                       <div className="grid grid-cols-5 gap-2">
-                        {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={markSeen} />)}
+                        {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={toggleSeen} />)}
                       </div>
                     </div>
                   )}
@@ -522,9 +528,9 @@ function MovieTile({
   return (
     <button
       onClick={() => onMark(movie)}
-      disabled={isSeen || isMarking}
+      disabled={isMarking}
       className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
-        isSeen ? "border-green-500" : "border-transparent hover:border-[var(--ratist-red)]"
+        isSeen ? "border-green-500 hover:border-red-400" : "border-transparent hover:border-[var(--ratist-red)]"
       }`}
     >
       <div className="aspect-[2/3] bg-[var(--surface-2)]">
