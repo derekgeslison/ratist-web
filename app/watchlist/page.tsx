@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Globe,
-  ArrowUpDown, Pencil, Trash2, SlidersHorizontal,
+  ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -75,6 +75,9 @@ export default function WatchlistPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editPrivate, setEditPrivate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [listPickerMovie, setListPickerMovie] = useState<WatchlistMovie | null>(null);
+  const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
+  const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   const activeList = watchlists.find((w) => w.id === activeId) ?? null;
 
@@ -197,6 +200,50 @@ export default function WatchlistPage() {
       const data = await res.json();
       setMovies((prev) => prev.map((m) => m.id === movie.id ? { ...m, isChecked: data.isChecked, checkedAt: data.checkedAt } : m));
     }
+  }
+
+  /* ── List picker for adding movie to other lists ── */
+  async function openListPicker(movie: WatchlistMovie) {
+    setListPickerMovie(movie);
+    const token = await getToken();
+    if (!token) return;
+    const res = await fetch(`/api/movies/${movie.tmdbId}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    setMovieLists(data.lists ?? []);
+  }
+
+  async function toggleMovieList(listId: string) {
+    if (!listPickerMovie) return;
+    setTogglingListId(listId);
+    const token = await getToken();
+    if (!token) return;
+    const list = movieLists.find((l) => l.id === listId);
+    if (!list) { setTogglingListId(null); return; }
+
+    if (list.hasMovie) {
+      const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const entry = data.movies?.find((m: { tmdbId: number }) => m.tmdbId === listPickerMovie.tmdbId);
+      if (entry) {
+        await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      }
+      setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: false } : l));
+      // If removed from the currently viewed list, remove from grid
+      if (listId === activeId) {
+        setMovies((prev) => prev.filter((m) => m.tmdbId !== listPickerMovie.tmdbId));
+        setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: w.movieCount - 1 } : w));
+      }
+    } else {
+      await fetch(`/api/watchlist/${listId}/movies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId: listPickerMovie.tmdbId, title: listPickerMovie.title, posterPath: listPickerMovie.posterPath }),
+      });
+      setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: true } : l));
+      // Update count for the list it was added to
+      setWatchlists((prev) => prev.map((w) => w.id === listId ? { ...w, movieCount: w.movieCount + 1 } : w));
+    }
+    setTogglingListId(null);
   }
 
   /* ── Collect all genres from current movie set ── */
@@ -476,6 +523,16 @@ export default function WatchlistPage() {
                             >
                               <X className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
                             </button>
+                            {/* Add to other lists */}
+                            {watchlists.length > 1 && (
+                              <button
+                                onClick={() => openListPicker(movie)}
+                                className="absolute bottom-[calc(100%-2.5rem)] right-6 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:border-blue-600 transition-all"
+                                title="Add to other lists"
+                              >
+                                <ListPlus className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
+                              </button>
+                            )}
                             {/* Check-off button */}
                             <button
                               onClick={() => toggleCheck(movie)}
@@ -558,6 +615,39 @@ export default function WatchlistPage() {
               <button onClick={saveEdit} disabled={!editName.trim()} className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50">Save</button>
               <button onClick={() => setEditingList(false)} className="px-4 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-xl transition-colors">Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* List picker modal */}
+      {listPickerMovie && movieLists.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setListPickerMovie(null); }}>
+          <div className="w-full max-w-xs bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5 mx-4">
+            <h3 className="text-sm font-semibold text-white mb-1">Manage lists</h3>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3 truncate">{listPickerMovie.title}</p>
+            <div className="space-y-0.5">
+              {movieLists.map((list) => (
+                <button
+                  key={list.id}
+                  onClick={() => toggleMovieList(list.id)}
+                  disabled={togglingListId === list.id}
+                  className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
+                >
+                  <span className="text-white truncate">
+                    {list.name}
+                    {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
+                  </span>
+                  {list.hasMovie ? (
+                    <Check className="w-4 h-4 text-green-400 shrink-0" />
+                  ) : (
+                    <Plus className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setListPickerMovie(null)} className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-3 py-1 transition-colors">
+              Done
+            </button>
           </div>
         </div>
       )}

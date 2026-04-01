@@ -90,7 +90,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [rewatchSaved, setRewatchSaved] = useState(false);
   const [loggingRewatch, setLoggingRewatch] = useState(false);
   const [showListPicker, setShowListPicker] = useState(false);
-  const [otherLists, setOtherLists] = useState<{ id: string; name: string; hasMovie: boolean }[]>([]);
+  const [allLists, setAllLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -127,21 +127,37 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
     setTogglingSeeen(false);
   }
 
-  async function toggleWatchlist() {
+  async function handleWatchlistClick() {
     if (!user) return;
-    setTogglingWatchlist(true);
+    if (watchlisted) {
+      // Already in a list — just open picker to manage
+      await openListPicker();
+    } else {
+      // Not in any list — add to default, then show picker
+      setTogglingWatchlist(true);
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: movieTitle, poster_path: posterPath }),
+      });
+      const data = await res.json();
+      setWatchlisted(data.watchlisted ?? true);
+      setTogglingWatchlist(false);
+      if (data.lists) {
+        setAllLists(data.lists);
+        setShowListPicker(true);
+      }
+    }
+  }
+
+  async function openListPicker() {
+    if (!user) return;
     const token = await user.getIdToken();
-    const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: movieTitle, poster_path: posterPath }),
-    });
+    const res = await fetch(`/api/movies/${tmdbId}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
-    setWatchlisted(data.watchlisted ?? !watchlisted);
-    setTogglingWatchlist(false);
-    // If just added and user has other lists, show picker
-    if (data.watchlisted && data.otherLists?.length > 0) {
-      setOtherLists(data.otherLists);
+    if (data.lists) {
+      setAllLists(data.lists);
       setShowListPicker(true);
     }
   }
@@ -150,25 +166,30 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
     if (!user) return;
     setTogglingListId(listId);
     const token = await user.getIdToken();
-    const list = otherLists.find((l) => l.id === listId);
-    if (!list) return;
+    const list = allLists.find((l) => l.id === listId);
+    if (!list) { setTogglingListId(null); return; }
 
     if (list.hasMovie) {
-      // Find entry and remove
+      // Remove from this list
       const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       const entry = data.movies?.find((m: { tmdbId: number }) => m.tmdbId === tmdbId);
       if (entry) {
         await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       }
-      setOtherLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: false } : l));
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: false } : l);
+      setAllLists(updated);
+      setWatchlisted(updated.some((l) => l.hasMovie));
     } else {
+      // Add to this list
       await fetch(`/api/watchlist/${listId}/movies`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ tmdbId, title: movieTitle, posterPath }),
       });
-      setOtherLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: true } : l));
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: true } : l);
+      setAllLists(updated);
+      setWatchlisted(true);
     }
     setTogglingListId(null);
   }
@@ -270,11 +291,11 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
               </button>
               <div className="relative">
                 <button
-                  onClick={toggleWatchlist}
+                  onClick={handleWatchlistClick}
                   disabled={togglingWatchlist}
                   className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
                     watchlisted
-                      ? "bg-[var(--surface-2)] border border-blue-500/50 text-blue-400 hover:border-red-500/50 hover:text-red-400"
+                      ? "bg-[var(--surface-2)] border border-blue-500/50 text-blue-400 hover:text-blue-300"
                       : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-blue-400 hover:text-white"
                   }`}
                 >
@@ -285,17 +306,20 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                   )}
                 </button>
                 {/* List picker popup */}
-                {showListPicker && otherLists.length > 0 && (
+                {showListPicker && allLists.length > 0 && (
                   <div className="absolute top-full left-0 mt-2 w-56 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl z-30 p-2">
-                    <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Also add to...</p>
-                    {otherLists.map((list) => (
+                    <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Manage watchlists</p>
+                    {allLists.map((list) => (
                       <button
                         key={list.id}
                         onClick={() => toggleListMembership(list.id)}
                         disabled={togglingListId === list.id}
                         className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
                       >
-                        <span className="text-white truncate">{list.name}</span>
+                        <span className="text-white truncate">
+                          {list.name}
+                          {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
+                        </span>
                         {list.hasMovie ? (
                           <Check className="w-4 h-4 text-green-400 shrink-0" />
                         ) : (

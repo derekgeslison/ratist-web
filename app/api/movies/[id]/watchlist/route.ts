@@ -6,6 +6,43 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+/** GET — return all user's watchlists with membership status for this movie */
+export async function GET(req: NextRequest, { params }: Props) {
+  try {
+    const { id: tmdbId } = await params;
+    const authorization = req.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
+    const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const movie = await prisma.movie.findUnique({ where: { tmdbId: Number(tmdbId) } });
+
+    const lists = await prisma.watchlist.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true, name: true, isDefault: true,
+        movies: movie ? { where: { movieId: movie.id }, select: { id: true }, take: 1 } : undefined,
+      },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    });
+
+    return NextResponse.json({
+      lists: lists.map((l) => ({
+        id: l.id,
+        name: l.name,
+        isDefault: l.isDefault,
+        hasMovie: (l.movies?.length ?? 0) > 0,
+      })),
+    });
+  } catch (err) {
+    console.error("Watchlist lists error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+/** POST — toggle movie on default watchlist (for quick-add from browse pages) */
 export async function POST(req: NextRequest, { params }: Props) {
   try {
     const { id: tmdbId } = await params;
@@ -40,31 +77,36 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.watchlistMovie.delete({
         where: { watchlistId_movieId: { watchlistId: defaultList.id, movieId: movie.id } },
       });
-      return NextResponse.json({ watchlisted: false });
     } else {
       await prisma.watchlistMovie.create({
         data: { watchlistId: defaultList.id, movieId: movie.id },
       });
-
-      // Return user's other lists so the UI can show the "add to list" popup
-      const otherLists = await prisma.watchlist.findMany({
-        where: { userId: user.id, isDefault: false },
-        select: {
-          id: true, name: true,
-          movies: { where: { movieId: movie.id }, select: { id: true }, take: 1 },
-        },
-        orderBy: { createdAt: "asc" },
-      });
-
-      return NextResponse.json({
-        watchlisted: true,
-        otherLists: otherLists.map((l) => ({
-          id: l.id,
-          name: l.name,
-          hasMovie: l.movies.length > 0,
-        })),
-      });
     }
+
+    // Return all lists with membership status
+    const lists = await prisma.watchlist.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true, name: true, isDefault: true,
+        movies: { where: { movieId: movie.id }, select: { id: true }, take: 1 },
+      },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    });
+
+    const allLists = lists.map((l) => ({
+      id: l.id,
+      name: l.name,
+      isDefault: l.isDefault,
+      hasMovie: l.movies.length > 0,
+    }));
+
+    const inAnyList = allLists.some((l) => l.hasMovie);
+
+    return NextResponse.json({
+      watchlisted: inAnyList,
+      defaultWatchlisted: !existing, // toggled state
+      lists: allLists,
+    });
   } catch (err) {
     console.error("Watchlist toggle error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
