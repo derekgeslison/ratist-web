@@ -245,6 +245,7 @@ export default function SharedCastPage() {
                   : `${results.length} movie${results.length !== 1 ? "s" : ""} shared by ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
                 }
                 url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
+                cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&count=${results.length}`}
               />
             )}
           </div>

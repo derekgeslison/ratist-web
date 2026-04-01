@@ -198,6 +198,7 @@ function ActorLookupContent() {
                           label="Share"
                           text={`I've seen ${seenMovies.length} movie${seenMovies.length !== 1 ? "s" : ""} with ${selectedPerson.name}${avg != null ? ` (avg rating ${avg.toFixed(1)})` : ""} on The Ratist!`}
                           url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/actor-lookup?personId=${selectedPerson.id}&name=${encodeURIComponent(selectedPerson.name)}`}
+                          cardImageUrl={`/api/og/actor-lookup?personId=${selectedPerson.id}&name=${encodeURIComponent(selectedPerson.name)}&count=${seenMovies.length}${avg != null ? `&avg=${avg.toFixed(1)}` : ""}`}
                         />
                       </div>
                     );
