@@ -14,6 +14,8 @@ export async function GET(request: Request) {
   const overlap = searchParams.get("overlap") ?? "";
   const total = searchParams.get("total") ?? "";
   const avgRating = searchParams.get("avg") ?? "";
+  const callout = searchParams.get("callout") ?? "";
+  const yearRange = searchParams.get("years") ?? "";
 
   try {
     const logoSrc = getLogoBase64();
@@ -117,6 +119,20 @@ export async function GET(request: Request) {
           {hasPartialOverlap && (
             <span style={{ color: "#555", fontSize: 11, marginBottom: 4 }}>
               {isPeopleMode ? "featuring" : "appearing in"} at least {overlapNum} of {totalNum} selections
+            </span>
+          )}
+
+          {/* Callout — who/what appears in ALL */}
+          {callout && (
+            <span style={{ color: "#eab308", fontSize: 13, fontWeight: 700, marginTop: 8 }}>
+              {callout}
+            </span>
+          )}
+
+          {/* Year range for people-to-movies */}
+          {yearRange && (
+            <span style={{ color: "#666", fontSize: 12, marginTop: 4 }}>
+              Collaborations spanning {yearRange}
             </span>
           )}
 

@@ -239,6 +239,25 @@ export default function SharedCastPage() {
             </p>
             {results.length > 0 && (() => {
               const overlapText = minOverlap < selected.length ? ` (at least ${minOverlap} of ${selected.length})` : "";
+              // Compute callout: who/what appears in ALL selected items
+              let callout = "";
+              if (mode === "movies-to-people") {
+                const allMatch = personResults.filter((p) => p.count === selected.length);
+                if (allMatch.length === 1) callout = `${allMatch[0].name} appeared in all ${selected.length}`;
+                else if (allMatch.length >= 2 && allMatch.length <= 3) callout = `${allMatch.map((p) => p.name).join(", ")} appeared in all ${selected.length}`;
+                else if (allMatch.length > 3) callout = `${allMatch.length} people appeared in all ${selected.length} films`;
+              } else {
+                const allMatch = movieResults.filter((m) => m.count === selected.length);
+                if (allMatch.length === 1) callout = `${allMatch[0].title} features all ${selected.length}`;
+                else if (allMatch.length >= 2 && allMatch.length <= 3) callout = `${allMatch.map((m) => m.title).join(", ")} feature all ${selected.length}`;
+                else if (allMatch.length > 3) callout = `${allMatch.length} movies feature all ${selected.length} people`;
+              }
+              // Year range for people-to-movies
+              let yearRange = "";
+              if (mode === "people-to-movies" && movieResults.length > 0) {
+                const years = movieResults.map((m) => parseInt(m.release_date?.slice(0, 4))).filter((y) => !isNaN(y)).sort();
+                if (years.length > 1 && years[0] !== years[years.length - 1]) yearRange = `${years[0]}–${years[years.length - 1]}`;
+              }
               return (
                 <ShareButton
                   label="Share"
@@ -247,7 +266,7 @@ export default function SharedCastPage() {
                     : `${results.length} movie${results.length !== 1 ? "s" : ""} featuring${overlapText} ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
                   }
                   url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
-                  cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&ids=${selected.map((s) => s.id).join(",")}&count=${results.length}&overlap=${minOverlap}&total=${selected.length}`}
+                  cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&ids=${selected.map((s) => s.id).join(",")}&count=${results.length}&overlap=${minOverlap}&total=${selected.length}${callout ? `&callout=${encodeURIComponent(callout)}` : ""}${yearRange ? `&years=${encodeURIComponent(yearRange)}` : ""}`}
                 />
               );
             })()}
