@@ -212,7 +212,8 @@ export default function Navbar() {
             {user ? (
               <>
                 <Link href={`/profile/${user.uid}`} onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Profile</Link>
-                <Link href="/seen" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Movies Seen</Link>
+                <Link href="/seen" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Film Diary</Link>
+                <Link href="/ratings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Ratings</Link>
                 <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Watchlist</Link>
                 <Link href="/settings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Preferences</Link>
                 <Link href="/about" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">About The Ratist</Link>

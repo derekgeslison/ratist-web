@@ -484,7 +484,10 @@ export default function ProfileTabs({
       {activeTab === "Ratings" && (
         <div>
           {isOwnProfile && (
-            <div className="flex justify-end mb-3">
+            <div className="flex justify-between mb-3">
+              <Link href="/ratings" className="text-sm text-[var(--ratist-red)] hover:underline">
+                View all ratings →
+              </Link>
               <Link href="/profile/import" className="text-xs text-[var(--foreground-muted)] hover:text-white hover:underline">
                 Import from Letterboxd / IMDb →
               </Link>
