@@ -46,7 +46,7 @@ model User {
   reviewLikes    ReviewLike[]
   reviewComments ReviewComment[]
   watchLog       UserWatchLog[]
-  autoDateOnSeen Boolean  @default(true) @map("auto_date_on_seen")
+  autoDateOnSeen Boolean  @default(false) @map("auto_date_on_seen")
 
   @@map("users")
 }

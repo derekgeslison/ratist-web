@@ -46,7 +46,7 @@ export default function SettingsPage() {
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
-  const [autoDateOnSeen, setAutoDateOnSeen] = useState(true);
+  const [autoDateOnSeen, setAutoDateOnSeen] = useState(false);
   const [publicTabs, setPublicTabs] = useState<Record<string, boolean>>({
     overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true,
   });
@@ -77,7 +77,7 @@ export default function SettingsPage() {
         setAvatarUrl(meData.user.avatarUrl ?? "");
         setBio(meData.user.bio ?? "");
         setIsPrivate(meData.user.isPrivate ?? false);
-        setAutoDateOnSeen(meData.user.autoDateOnSeen ?? true);
+        setAutoDateOnSeen(meData.user.autoDateOnSeen ?? false);
         if (meData.user.publicTabs) {
           setPublicTabs((prev) => ({ ...prev, ...meData.user.publicTabs }));
         }

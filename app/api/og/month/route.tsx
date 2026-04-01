@@ -27,10 +27,7 @@ export async function GET(request: Request) {
     const seenThisMonth = await prisma.userFavoriteMovie.findMany({
       where: {
         userId: user.id,
-        OR: [
-          { watchedDate: { gte: startDate, lt: endDate } },
-          { AND: [{ watchedDate: null }, { createdAt: { gte: startDate, lt: endDate } }] },
-        ],
+        watchedDate: { gte: startDate, lt: endDate },
       },
       include: {
         movie: {
