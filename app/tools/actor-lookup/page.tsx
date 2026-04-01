@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Search, Film, Users, ExternalLink } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
+import ShareButton from "@/components/ShareButton";
 
 interface PersonResult { id: number; name: string; profile_path: string | null; known_for_department: string }
 interface MovieSearchResult { id: number; title: string; poster_path: string | null; release_date: string }
@@ -184,7 +185,23 @@ function ActorLookupContent() {
                 </p>
               ) : (
                 <div>
-                  <p className="text-sm text-[var(--foreground-muted)] mb-4">{seenMovies.length} movie{seenMovies.length !== 1 ? "s" : ""} you&apos;ve seen with {selectedPerson.name}</p>
+                  {(() => {
+                    const rated = seenMovies.filter((m) => m.ratistRating != null);
+                    const avg = rated.length > 0 ? rated.reduce((s, m) => s + (m.ratistRating ?? 0), 0) / rated.length : null;
+                    return (
+                      <div className="flex items-center justify-between mb-4">
+                        <p className="text-sm text-[var(--foreground-muted)]">
+                          {seenMovies.length} movie{seenMovies.length !== 1 ? "s" : ""} you&apos;ve seen with {selectedPerson.name}
+                          {avg != null && <> · avg rating <span className="text-white font-semibold">{avg.toFixed(1)}</span></>}
+                        </p>
+                        <ShareButton
+                          label="Share"
+                          text={`I've seen ${seenMovies.length} movie${seenMovies.length !== 1 ? "s" : ""} with ${selectedPerson.name}${avg != null ? ` (avg rating ${avg.toFixed(1)})` : ""} on The Ratist!`}
+                          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/actor-lookup?personId=${selectedPerson.id}&name=${encodeURIComponent(selectedPerson.name)}`}
+                        />
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {seenMovies.map((m) => (
                       <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group">

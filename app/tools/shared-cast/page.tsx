@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, X, Users } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
+import ShareButton from "@/components/ShareButton";
 
 const SESSION_KEY = "shared-cast-state";
 
@@ -231,10 +232,22 @@ export default function SharedCastPage() {
       {/* Results table */}
       {!loading && hasResults && selected.length >= 2 && (
         <div>
-          <p className="text-sm text-[var(--foreground-muted)] mb-4">
-            {results.length} result{results.length !== 1 ? "s" : ""} found
-            {results.length === 0 && " — try lowering the minimum overlap or selecting different entries"}
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-[var(--foreground-muted)]">
+              {results.length} result{results.length !== 1 ? "s" : ""} found
+              {results.length === 0 && " — try lowering the minimum overlap or selecting different entries"}
+            </p>
+            {results.length > 0 && (
+              <ShareButton
+                label="Share"
+                text={mode === "movies-to-people"
+                  ? `${results.length} cast & crew member${results.length !== 1 ? "s" : ""} shared across ${selected.map((s) => s.title ?? s.name).join(", ")} — found on The Ratist!`
+                  : `${results.length} movie${results.length !== 1 ? "s" : ""} shared by ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
+                }
+                url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
+              />
+            )}
+          </div>
           {results.length > 0 && (
             mode === "movies-to-people" ? (
               <PeopleTable results={personResults} selected={selected} />
