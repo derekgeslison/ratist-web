@@ -39,6 +39,8 @@ interface WatchlistMovie {
   title: string;
   posterPath: string | null;
   releaseDate: string | null;
+  voteAverage: number | null;
+  ratistRating: number | null;
 }
 
 interface SimilarUser {
@@ -574,6 +576,13 @@ export default function ProfileTabs({
       {/* ── WATCHLIST TAB ── */}
       {activeTab === "Watchlist" && (
         <div>
+          {isOwnProfile && watchlistMovies.length > 0 && (
+            <div className="mb-4">
+              <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">
+                Go to full watchlist →
+              </Link>
+            </div>
+          )}
           {watchlistMovies.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-[var(--foreground-muted)] mb-3">
@@ -596,6 +605,14 @@ export default function ProfileTabs({
                   </div>
                   <p className="text-xs font-medium text-white line-clamp-1">{m.title}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    {m.voteAverage != null && m.voteAverage > 0 && (
+                      <RatingBadge type="community" score={m.voteAverage} size="sm" />
+                    )}
+                    {m.ratistRating != null && (
+                      <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
+                    )}
+                  </div>
                 </Link>
               ))}
             </div>

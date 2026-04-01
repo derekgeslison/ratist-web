@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, Search } from "lucide-react";
+import { Bookmark, Search, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -35,6 +35,26 @@ export default function WatchlistPage() {
         .catch(() => setLoading(false));
     });
   }, [user]);
+
+  const [removing, setRemoving] = useState<Set<number>>(new Set());
+
+  async function removeFromWatchlist(movie: WatchlistMovie) {
+    if (!user) return;
+    setRemoving((prev) => new Set(prev).add(movie.tmdbId));
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/movies/${movie.tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: movie.title, poster_path: movie.posterPath, release_date: null }),
+      });
+      if (res.ok) {
+        setMovies((prev) => prev.filter((m) => m.tmdbId !== movie.tmdbId));
+      }
+    } finally {
+      setRemoving((prev) => { const s = new Set(prev); s.delete(movie.tmdbId); return s; });
+    }
+  }
 
   const filtered = query
     ? movies.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()))
@@ -96,27 +116,37 @@ export default function WatchlistPage() {
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
               {filtered.map((movie) => (
-                <Link key={movie.id} href={`/movies/${movie.tmdbId}`} className="group flex flex-col">
-                  <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                    {movie.posterPath ? (
-                      <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="120px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
-                    )}
+                <div key={movie.id} className="group flex flex-col relative">
+                  <button
+                    onClick={() => removeFromWatchlist(movie)}
+                    disabled={removing.has(movie.tmdbId)}
+                    className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 hover:border-red-600 transition-all"
+                    title="Remove from watchlist"
+                  >
+                    <X className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
+                  </button>
+                  <Link href={`/movies/${movie.tmdbId}`} className="flex flex-col">
+                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
+                      {movie.posterPath ? (
+                        <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="120px" className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                      )}
                     </div>
-                  <p className="text-xs font-medium text-white line-clamp-1 group-hover:text-[var(--ratist-red)] transition-colors">{movie.title}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
-                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    {movie.voteAverage != null && movie.voteAverage > 0 && (
-                      <RatingBadge type="community" score={movie.voteAverage} size="sm" />
-                    )}
-                    {movie.ratistRating != null ? (
-                      <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
-                    ) : movie.estimatedRating != null ? (
-                      <RatingBadge type="ratist" score={movie.estimatedRating} size="sm" isEstimate />
-                    ) : null}
-                  </div>
-                </Link>
+                    <p className="text-xs font-medium text-white line-clamp-1 group-hover:text-[var(--ratist-red)] transition-colors">{movie.title}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                      {movie.voteAverage != null && movie.voteAverage > 0 && (
+                        <RatingBadge type="community" score={movie.voteAverage} size="sm" />
+                      )}
+                      {movie.ratistRating != null ? (
+                        <RatingBadge type="ratist" score={movie.ratistRating} size="sm" />
+                      ) : movie.estimatedRating != null ? (
+                        <RatingBadge type="ratist" score={movie.estimatedRating} size="sm" isEstimate />
+                      ) : null}
+                    </div>
+                  </Link>
+                </div>
               ))}
             </div>
           )}
