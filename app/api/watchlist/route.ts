@@ -32,6 +32,10 @@ export async function GET(req: NextRequest) {
       where: { OR: [{ userId: user.id }, { collaborators: { some: { userId: user.id } } }] },
       include: {
         _count: { select: { movies: true } },
+        user: { select: { name: true, firebaseUid: true } },
+        collaborators: {
+          include: { user: { select: { name: true, firebaseUid: true } } },
+        },
         movies: {
           take: 4,
           orderBy: { addedAt: "desc" },
@@ -45,18 +49,26 @@ export async function GET(req: NextRequest) {
     const defaultMovies = await loadWatchlistMovies(defaultList.id, user.id);
 
     return NextResponse.json({
-      watchlists: watchlists.map((wl) => ({
-        id: wl.id,
-        name: wl.name,
-        slug: wl.slug,
-        description: wl.description,
-        isDefault: wl.isDefault,
-        isPrivate: wl.isPrivate,
-        movieCount: wl._count.movies,
-        previewPosters: wl.movies.map((m) => m.movie.posterPath).filter(Boolean),
-        isOwner: wl.userId === user.id,
-        createdAt: wl.createdAt,
-      })),
+      watchlists: watchlists.map((wl) => {
+        const isOwner = wl.userId === user.id;
+        const myCollab = wl.collaborators.find((c) => c.userId === user.id);
+        return {
+          id: wl.id,
+          name: wl.name,
+          slug: wl.slug,
+          description: wl.description,
+          isDefault: wl.isDefault,
+          isPrivate: wl.isPrivate,
+          movieCount: wl._count.movies,
+          previewPosters: wl.movies.map((m) => m.movie.posterPath).filter(Boolean),
+          isOwner,
+          ownerName: isOwner ? undefined : wl.user.name,
+          ownerUid: isOwner ? undefined : wl.user.firebaseUid,
+          myRole: myCollab?.role ?? null,
+          collaboratorCount: wl.collaborators.length,
+          createdAt: wl.createdAt,
+        };
+      }),
       defaultMovies,
     });
   } catch (err) {

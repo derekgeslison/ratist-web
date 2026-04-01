@@ -4,8 +4,8 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Globe,
-  ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus,
+  Bookmark, Search, X, Plus, Check, ChevronDown, Lock,
+  ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -22,7 +22,20 @@ interface WatchlistMeta {
   movieCount: number;
   previewPosters: (string | null)[];
   isOwner: boolean;
+  ownerName?: string;
+  ownerUid?: string;
+  myRole: string | null;
+  collaboratorCount: number;
   createdAt: string;
+}
+
+interface Collaborator {
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  firebaseUid: string;
+  role: string;
 }
 
 interface WatchlistMovie {
@@ -75,6 +88,12 @@ export default function WatchlistPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editPrivate, setEditPrivate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCollaborators, setShowCollaborators] = useState(false);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [inviteQuery, setInviteQuery] = useState("");
+  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState("");
   const [listPickerMovie, setListPickerMovie] = useState<WatchlistMovie | null>(null);
   const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
@@ -167,6 +186,82 @@ export default function WatchlistPage() {
     const def = watchlists.find((w) => w.isDefault);
     if (def) { setActiveId(def.id); loadList(def.id); }
     setShowDeleteConfirm(false);
+  }
+
+  /* ── Collaborator management ── */
+  async function openCollaborators() {
+    if (!activeId) return;
+    const token = await getToken();
+    if (!token) return;
+    const res = await fetch(`/api/watchlist/${activeId}/collaborators`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      const data = await res.json();
+      setCollaborators(data.collaborators ?? []);
+    }
+    setInviteQuery("");
+    setInviteError("");
+    setShowCollaborators(true);
+  }
+
+  async function inviteCollaborator() {
+    if (!activeId || !inviteQuery.trim() || inviting) return;
+    setInviting(true);
+    setInviteError("");
+    const token = await getToken();
+    if (!token) return;
+    const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: inviteQuery.trim(), role: inviteRole }),
+    });
+    const data = await res.json();
+    if (res.ok && data.collaborator) {
+      setCollaborators((prev) => [...prev, data.collaborator]);
+      setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount + 1 } : w));
+      setInviteQuery("");
+    } else {
+      setInviteError(data.error ?? "Failed to invite");
+    }
+    setInviting(false);
+  }
+
+  async function changeRole(userId: string, role: string) {
+    if (!activeId) return;
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/watchlist/${activeId}/collaborators`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, role }),
+    });
+    setCollaborators((prev) => prev.map((c) => c.userId === userId ? { ...c, role } : c));
+  }
+
+  async function removeCollaborator(userId: string) {
+    if (!activeId) return;
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/watchlist/${activeId}/collaborators`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    setCollaborators((prev) => prev.filter((c) => c.userId !== userId));
+    setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount - 1 } : w));
+  }
+
+  async function leaveList() {
+    if (!activeId || !user) return;
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/watchlist/${activeId}/collaborators`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.uid }),
+    });
+    setWatchlists((prev) => prev.filter((w) => w.id !== activeId));
+    const def = watchlists.find((w) => w.isDefault);
+    if (def) { setActiveId(def.id); loadList(def.id); }
   }
 
   /* ── Remove movie ── */
@@ -276,6 +371,7 @@ export default function WatchlistPage() {
     return list;
   }, [movies, query, seenFilter, genreFilter, sortKey, sortAsc]);
 
+  const canEdit = activeList ? (activeList.isOwner || activeList.myRole === "editor") : false;
   const checkedCount = movies.filter((m) => m.isChecked).length;
   const uncheckedCount = movies.length - checkedCount;
 
@@ -319,9 +415,15 @@ export default function WatchlistPage() {
                       : "text-[var(--foreground-muted)] hover:bg-[var(--surface)] hover:text-white"
                   }`}
                 >
-                  <span className="flex items-center gap-2 truncate">
-                    {wl.isPrivate && <Lock className="w-3 h-3 shrink-0 opacity-50" />}
-                    <span className="truncate">{wl.name}</span>
+                  <span className="flex flex-col truncate">
+                    <span className="flex items-center gap-1.5 truncate">
+                      {wl.isPrivate && <Lock className="w-3 h-3 shrink-0 opacity-50" />}
+                      {wl.collaboratorCount > 0 && <Users className="w-3 h-3 shrink-0 opacity-50" />}
+                      <span className="truncate">{wl.name}</span>
+                    </span>
+                    {!wl.isOwner && wl.ownerName && (
+                      <span className="text-[10px] opacity-50 truncate">by {wl.ownerName}</span>
+                    )}
                   </span>
                   <span className="text-xs opacity-60 shrink-0 ml-2">{wl.movieCount}</span>
                 </button>
@@ -374,28 +476,54 @@ export default function WatchlistPage() {
                       {activeList.isPrivate && <Lock className="w-3.5 h-3.5 text-[var(--foreground-muted)]" />}
                     </div>
                     {activeList.description && <p className="text-sm text-[var(--foreground-muted)] mt-0.5">{activeList.description}</p>}
+                    {!activeList.isOwner && activeList.ownerName && (
+                      <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                        by <Link href={`/profile/${activeList.ownerUid}`} className="text-[var(--ratist-red)] hover:underline">{activeList.ownerName}</Link>
+                        {activeList.myRole && <span> · you&apos;re {activeList.myRole === "editor" ? "an editor" : "a viewer"}</span>}
+                      </p>
+                    )}
                     <div className="flex gap-4 mt-1 text-xs text-[var(--foreground-muted)]">
                       <span>{movies.length} movie{movies.length !== 1 ? "s" : ""}</span>
                       {checkedCount > 0 && <span className="text-green-400">{checkedCount} watched</span>}
                       {uncheckedCount > 0 && <span>{uncheckedCount} to go</span>}
                     </div>
                   </div>
-                  {activeList.isOwner && !activeList.isDefault && (
+                  {!activeList.isDefault && (
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => { setEditingList(true); setEditName(activeList.name); setEditDesc(activeList.description ?? ""); setEditPrivate(activeList.isPrivate); }}
-                        className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
-                        title="Edit list"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
-                        title="Delete list"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {activeList.isOwner && (
+                        <>
+                          <button
+                            onClick={() => { setEditingList(true); setEditName(activeList.name); setEditDesc(activeList.description ?? ""); setEditPrivate(activeList.isPrivate); }}
+                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
+                            title="Edit list"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={openCollaborators}
+                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
+                            title="Manage collaborators"
+                          >
+                            <Users className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
+                            title="Delete list"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {!activeList.isOwner && (
+                        <button
+                          onClick={leaveList}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
+                          title="Leave this list"
+                        >
+                          <LogOut className="w-4 h-4" /> Leave
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -504,7 +632,7 @@ export default function WatchlistPage() {
                     {filtered.map((movie) => (
                       <div key={movie.id} className="group flex flex-col relative">
                         {/* Confirm remove overlay */}
-                        {confirmingRemove === movie.id ? (
+                        {canEdit && confirmingRemove === movie.id ? (
                           <div className="absolute inset-0 z-10 bg-black/80 rounded-lg flex flex-col items-center justify-center gap-2 p-2">
                             <p className="text-xs text-white text-center font-medium">Remove<br /><span className="text-[var(--foreground-muted)]">{movie.title}</span>?</p>
                             <div className="flex gap-2">
@@ -512,7 +640,7 @@ export default function WatchlistPage() {
                               <button onClick={() => setConfirmingRemove(null)} className="px-3 py-1 text-xs rounded-lg bg-[var(--surface-2)] text-white border border-[var(--border)] hover:border-white/30 transition-colors">Cancel</button>
                             </div>
                           </div>
-                        ) : (
+                        ) : canEdit ? (
                           <>
                             {/* Remove button */}
                             <button
@@ -546,7 +674,7 @@ export default function WatchlistPage() {
                               <Check className={`w-3.5 h-3.5 ${movie.isChecked ? "text-white" : "text-[var(--foreground-muted)] hover:text-white"}`} />
                             </button>
                           </>
-                        )}
+                        ) : null}
 
                         <Link href={`/movies/${movie.tmdbId}`} className={`flex flex-col ${movie.isChecked ? "opacity-60" : ""}`}>
                           <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
@@ -646,6 +774,89 @@ export default function WatchlistPage() {
               ))}
             </div>
             <button onClick={() => setListPickerMovie(null)} className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-3 py-1 transition-colors">
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Collaborator management modal */}
+      {showCollaborators && activeList && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowCollaborators(false); }}>
+          <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-2xl p-6 mx-4">
+            <h3 className="text-base font-semibold text-white mb-1">Collaborators</h3>
+            <p className="text-xs text-[var(--foreground-muted)] mb-4">{activeList.name}</p>
+
+            {/* Invite form */}
+            <div className="flex gap-2 mb-4">
+              <input
+                value={inviteQuery}
+                onChange={(e) => { setInviteQuery(e.target.value); setInviteError(""); }}
+                placeholder="Username or email"
+                className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                onKeyDown={(e) => { if (e.key === "Enter") inviteCollaborator(); }}
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as "editor" | "viewer")}
+                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-2 text-sm text-white focus:outline-none"
+              >
+                <option value="editor">Editor</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button
+                onClick={inviteCollaborator}
+                disabled={!inviteQuery.trim() || inviting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                <UserPlus className="w-4 h-4" />
+              </button>
+            </div>
+            {inviteError && <p className="text-xs text-red-400 mb-3 -mt-2">{inviteError}</p>}
+
+            {/* Current collaborators */}
+            {collaborators.length === 0 ? (
+              <p className="text-sm text-[var(--foreground-muted)] text-center py-4">No collaborators yet. Invite someone above.</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {collaborators.map((c) => (
+                  <div key={c.userId} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-[var(--surface)]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {c.avatarUrl ? (
+                        <Image src={c.avatarUrl} alt={c.name} width={28} height={28} className="rounded-full shrink-0" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)] shrink-0">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm text-white truncate">{c.name}</p>
+                        <p className="text-[10px] text-[var(--foreground-muted)] truncate">{c.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        value={c.role}
+                        onChange={(e) => changeRole(c.userId, e.target.value)}
+                        className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                      >
+                        <option value="editor">Editor</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                      <button
+                        onClick={() => removeCollaborator(c.userId)}
+                        className="p-1 rounded text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                        title="Remove"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={() => setShowCollaborators(false)} className="w-full text-center text-sm text-[var(--foreground-muted)] hover:text-white mt-4 py-2 transition-colors">
               Done
             </button>
           </div>

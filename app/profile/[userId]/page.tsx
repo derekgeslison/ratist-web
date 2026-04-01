@@ -61,6 +61,7 @@ export default async function ProfilePage({ params }: Props) {
     allRatings,
     seenMovies,
     watchlistMovies,
+    userWatchlists,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
     prisma.movieRating.aggregate({
@@ -117,6 +118,11 @@ export default async function ProfilePage({ params }: Props) {
         },
         orderBy: { addedAt: "desc" },
       });
+    }),
+    prisma.watchlist.findMany({
+      where: { userId: user.id, isDefault: false },
+      include: { _count: { select: { movies: true } } },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -246,6 +252,13 @@ export default async function ProfilePage({ params }: Props) {
           releaseDate: w.movie.releaseDate,
           voteAverage: w.movie.voteAverage ?? null,
           ratistRating: w.movie.ratings[0]?.ratistRating ?? null,
+        }))}
+        userWatchlists={userWatchlists.map((wl) => ({
+          id: wl.id,
+          name: wl.name,
+          description: wl.description,
+          isPrivate: wl.isPrivate,
+          movieCount: wl._count.movies,
         }))}
         recommendations={recommendations}
         similarUsers={similarUsers}

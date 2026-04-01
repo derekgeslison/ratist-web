@@ -69,10 +69,19 @@ interface StatsData {
   genreBreakdown: { name: string; count: number; avg: number }[];
 }
 
+interface UserWatchlistInfo {
+  id: string;
+  name: string;
+  description: string | null;
+  isPrivate: boolean;
+  movieCount: number;
+}
+
 interface Props {
   ratings: RatedMovie[];
   seenMovies: SeenMovie[];
   watchlistMovies: WatchlistMovie[];
+  userWatchlists?: UserWatchlistInfo[];
   recommendations: Recommendation[];
   similarUsers: SimilarUser[];
   profile: Profile | null;
@@ -94,6 +103,7 @@ export default function ProfileTabs({
   ratings,
   seenMovies,
   watchlistMovies,
+  userWatchlists = [],
   recommendations,
   similarUsers,
   profile,
@@ -615,6 +625,29 @@ export default function ProfileTabs({
                   </div>
                 </Link>
               ))}
+            </div>
+          )}
+
+          {/* Custom lists */}
+          {userWatchlists.filter((wl) => !wl.isPrivate || isOwnProfile).length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-sm font-semibold text-white mb-3">
+                {isOwnProfile ? "Your Lists" : "Lists"}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {userWatchlists
+                  .filter((wl) => !wl.isPrivate || isOwnProfile)
+                  .map((wl) => (
+                    <Link key={wl.id} href={`/watchlist/${wl.id}/view`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors block">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-sm font-medium text-white truncate">{wl.name}</h4>
+                        <span className="text-xs text-[var(--foreground-muted)] shrink-0 ml-2">{wl.movieCount} movie{wl.movieCount !== 1 ? "s" : ""}</span>
+                      </div>
+                      {wl.description && <p className="text-xs text-[var(--foreground-muted)] line-clamp-2">{wl.description}</p>}
+                      {wl.isPrivate && <span className="text-[10px] text-[var(--foreground-muted)] opacity-60">Private</span>}
+                    </Link>
+                  ))}
+              </div>
             </div>
           )}
         </div>

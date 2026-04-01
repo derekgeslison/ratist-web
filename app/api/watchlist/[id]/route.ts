@@ -20,13 +20,17 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     const watchlist = await prisma.watchlist.findUnique({
       where: { id },
-      include: { collaborators: true },
+      include: {
+        collaborators: { include: { user: { select: { name: true, firebaseUid: true } } } },
+        user: { select: { name: true, firebaseUid: true } },
+      },
     });
     if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // Access check: owner, collaborator, or public
     const isOwner = user?.id === watchlist.userId;
-    const isCollab = user ? watchlist.collaborators.some((c) => c.userId === user.id) : false;
+    const myCollab = user ? watchlist.collaborators.find((c) => c.userId === user.id) : null;
+    const isCollab = !!myCollab;
     if (watchlist.isPrivate && !isOwner && !isCollab) {
       return NextResponse.json({ error: "Private watchlist" }, { status: 403 });
     }
@@ -38,6 +42,10 @@ export async function GET(req: NextRequest, { params }: Props) {
         id: watchlist.id, name: watchlist.name, slug: watchlist.slug,
         description: watchlist.description, isDefault: watchlist.isDefault,
         isPrivate: watchlist.isPrivate, isOwner, isCollab,
+        myRole: myCollab?.role ?? null,
+        ownerName: watchlist.user.name,
+        ownerUid: watchlist.user.firebaseUid,
+        collaboratorCount: watchlist.collaborators.length,
       },
       movies,
     });
