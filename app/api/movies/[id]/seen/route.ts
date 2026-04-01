@@ -75,11 +75,23 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     if (!movie) return NextResponse.json({ error: "Movie not found" }, { status: 404 });
 
     const { watchedDate } = await req.json();
-    // Append T12:00:00 to avoid UTC midnight timezone shift (date-only strings
-    // are parsed as UTC, which rolls back a day in US timezones)
     // Handle both "YYYY-MM-DD" and "YYYY-MM-DDT12:00:00" formats
     const dateStr = watchedDate ? String(watchedDate).split("T")[0] : null;
     const parsedDate = dateStr ? new Date(`${dateStr}T12:00:00`) : null;
+
+    // Check if parsedDate is valid
+    if (parsedDate && isNaN(parsedDate.getTime())) {
+      return NextResponse.json({ error: "Invalid date", received: watchedDate }, { status: 400 });
+    }
+
+    // Check record exists before updating
+    const existing = await prisma.userFavoriteMovie.findUnique({
+      where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Movie not marked as seen" }, { status: 404 });
+    }
+
     await prisma.userFavoriteMovie.update({
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       data: { watchedDate: parsedDate },
@@ -88,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Seen date update error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ error: "Server error", detail: String(err) }, { status: 500 });
   }
 }
 
