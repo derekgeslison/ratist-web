@@ -237,17 +237,20 @@ export default function SharedCastPage() {
               {results.length} result{results.length !== 1 ? "s" : ""} found
               {results.length === 0 && " — try lowering the minimum overlap or selecting different entries"}
             </p>
-            {results.length > 0 && (
-              <ShareButton
-                label="Share"
-                text={mode === "movies-to-people"
-                  ? `${results.length} cast & crew member${results.length !== 1 ? "s" : ""} shared across ${selected.map((s) => s.title ?? s.name).join(", ")} — found on The Ratist!`
-                  : `${results.length} movie${results.length !== 1 ? "s" : ""} shared by ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
-                }
-                url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
-                cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&count=${results.length}`}
-              />
-            )}
+            {results.length > 0 && (() => {
+              const overlapText = minOverlap < selected.length ? ` (at least ${minOverlap} of ${selected.length})` : "";
+              return (
+                <ShareButton
+                  label="Share"
+                  text={mode === "movies-to-people"
+                    ? `${results.length} cast & crew member${results.length !== 1 ? "s" : ""} appearing in${overlapText} ${selected.map((s) => s.title ?? s.name).join(", ")} — found on The Ratist!`
+                    : `${results.length} movie${results.length !== 1 ? "s" : ""} featuring${overlapText} ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
+                  }
+                  url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
+                  cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&ids=${selected.map((s) => s.id).join(",")}&count=${results.length}&overlap=${minOverlap}&total=${selected.length}`}
+                />
+              );
+            })()}
           </div>
           {results.length > 0 && (
             mode === "movies-to-people" ? (
