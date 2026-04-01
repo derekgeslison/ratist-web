@@ -23,20 +23,47 @@ export async function POST(req: NextRequest, { params }: Props) {
       update: {},
     });
 
-    const existing = await prisma.userWatchlistMovie.findUnique({
-      where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+    // Ensure default watchlist exists
+    let defaultList = await prisma.watchlist.findFirst({ where: { userId: user.id, isDefault: true } });
+    if (!defaultList) {
+      defaultList = await prisma.watchlist.create({
+        data: { userId: user.id, name: "Watchlist", slug: "watchlist", isDefault: true },
+      });
+    }
+
+    // Toggle on default watchlist
+    const existing = await prisma.watchlistMovie.findUnique({
+      where: { watchlistId_movieId: { watchlistId: defaultList.id, movieId: movie.id } },
     });
 
     if (existing) {
-      await prisma.userWatchlistMovie.delete({
-        where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+      await prisma.watchlistMovie.delete({
+        where: { watchlistId_movieId: { watchlistId: defaultList.id, movieId: movie.id } },
       });
       return NextResponse.json({ watchlisted: false });
     } else {
-      await prisma.userWatchlistMovie.create({
-        data: { userId: user.id, movieId: movie.id },
+      await prisma.watchlistMovie.create({
+        data: { watchlistId: defaultList.id, movieId: movie.id },
       });
-      return NextResponse.json({ watchlisted: true });
+
+      // Return user's other lists so the UI can show the "add to list" popup
+      const otherLists = await prisma.watchlist.findMany({
+        where: { userId: user.id, isDefault: false },
+        select: {
+          id: true, name: true,
+          movies: { where: { movieId: movie.id }, select: { id: true }, take: 1 },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      return NextResponse.json({
+        watchlisted: true,
+        otherLists: otherLists.map((l) => ({
+          id: l.id,
+          name: l.name,
+          hasMovie: l.movies.length > 0,
+        })),
+      });
     }
   } catch (err) {
     console.error("Watchlist toggle error:", err);

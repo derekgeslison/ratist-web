@@ -68,7 +68,9 @@ export default async function ProfilePage({ params }: Props) {
       _avg: { ratistRating: true },
     }),
     prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
-    prisma.userWatchlistMovie.count({ where: { userId: user.id } }),
+    prisma.watchlistMovie.count({
+      where: { watchlist: { userId: user.id, isDefault: true } },
+    }),
     prisma.movieRating.findMany({
       where: { userId: user.id },
       include: {
@@ -100,18 +102,21 @@ export default async function ProfilePage({ params }: Props) {
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
-    prisma.userWatchlistMovie.findMany({
-      where: { userId: user.id },
-      include: {
-        movie: {
-          select: {
-            tmdbId: true, title: true, posterPath: true, releaseDate: true,
-            voteAverage: true,
-            ratings: { where: { userId: user.id }, select: { ratistRating: true }, take: 1 },
+    prisma.watchlist.findFirst({ where: { userId: user.id, isDefault: true } }).then(async (wl) => {
+      if (!wl) return [];
+      return prisma.watchlistMovie.findMany({
+        where: { watchlistId: wl.id },
+        include: {
+          movie: {
+            select: {
+              tmdbId: true, title: true, posterPath: true, releaseDate: true,
+              voteAverage: true,
+              ratings: { where: { userId: user.id }, select: { ratistRating: true }, take: 1 },
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
+        orderBy: { addedAt: "desc" },
+      });
     }),
   ]);
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw, Plus } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
@@ -89,6 +89,9 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [rewatchNotes, setRewatchNotes] = useState("");
   const [rewatchSaved, setRewatchSaved] = useState(false);
   const [loggingRewatch, setLoggingRewatch] = useState(false);
+  const [showListPicker, setShowListPicker] = useState(false);
+  const [otherLists, setOtherLists] = useState<{ id: string; name: string; hasMovie: boolean }[]>([]);
+  const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   useEffect(() => {
     // Don't mark loaded until Firebase auth has initialized
@@ -136,6 +139,38 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
     const data = await res.json();
     setWatchlisted(data.watchlisted ?? !watchlisted);
     setTogglingWatchlist(false);
+    // If just added and user has other lists, show picker
+    if (data.watchlisted && data.otherLists?.length > 0) {
+      setOtherLists(data.otherLists);
+      setShowListPicker(true);
+    }
+  }
+
+  async function toggleListMembership(listId: string) {
+    if (!user) return;
+    setTogglingListId(listId);
+    const token = await user.getIdToken();
+    const list = otherLists.find((l) => l.id === listId);
+    if (!list) return;
+
+    if (list.hasMovie) {
+      // Find entry and remove
+      const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const entry = data.movies?.find((m: { tmdbId: number }) => m.tmdbId === tmdbId);
+      if (entry) {
+        await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      }
+      setOtherLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: false } : l));
+    } else {
+      await fetch(`/api/watchlist/${listId}/movies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId, title: movieTitle, posterPath }),
+      });
+      setOtherLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: true } : l));
+    }
+    setTogglingListId(null);
   }
 
   const ratistScore = userRating?.ratistRating ?? null;
@@ -233,21 +268,50 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                   <><EyeOff className="w-4 h-4" /> Mark Seen</>
                 )}
               </button>
-              <button
-                onClick={toggleWatchlist}
-                disabled={togglingWatchlist}
-                className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
-                  watchlisted
-                    ? "bg-[var(--surface-2)] border border-blue-500/50 text-blue-400 hover:border-red-500/50 hover:text-red-400"
-                    : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-blue-400 hover:text-white"
-                }`}
-              >
-                {watchlisted ? (
-                  <><BookmarkCheck className="w-4 h-4" /> Watchlisted</>
-                ) : (
-                  <><Bookmark className="w-4 h-4" /> Watchlist</>
+              <div className="relative">
+                <button
+                  onClick={toggleWatchlist}
+                  disabled={togglingWatchlist}
+                  className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
+                    watchlisted
+                      ? "bg-[var(--surface-2)] border border-blue-500/50 text-blue-400 hover:border-red-500/50 hover:text-red-400"
+                      : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-blue-400 hover:text-white"
+                  }`}
+                >
+                  {watchlisted ? (
+                    <><BookmarkCheck className="w-4 h-4" /> Watchlisted</>
+                  ) : (
+                    <><Bookmark className="w-4 h-4" /> Watchlist</>
+                  )}
+                </button>
+                {/* List picker popup */}
+                {showListPicker && otherLists.length > 0 && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl z-30 p-2">
+                    <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Also add to...</p>
+                    {otherLists.map((list) => (
+                      <button
+                        key={list.id}
+                        onClick={() => toggleListMembership(list.id)}
+                        disabled={togglingListId === list.id}
+                        className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
+                      >
+                        <span className="text-white truncate">{list.name}</span>
+                        {list.hasMovie ? (
+                          <Check className="w-4 h-4 text-green-400 shrink-0" />
+                        ) : (
+                          <Plus className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setShowListPicker(false)}
+                      className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-1 py-1 transition-colors"
+                    >
+                      Done
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
               {/* Log Rewatch — only when already seen */}
               {seen && (
                 <button

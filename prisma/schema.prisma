@@ -28,7 +28,8 @@ model User {
   ratings        MovieRating[]
   profile        UserProfile?
   favoriteMovies UserFavoriteMovie[]
-  watchlist      UserWatchlistMovie[]
+  watchlistsOwned  Watchlist[]
+  watchlistCollab  WatchlistCollaborator[]
   blogPosts      BlogPost[]
   blogComments   BlogComment[]
   pjArguments    PunchAndJudyArgument[]
@@ -116,7 +117,7 @@ model Movie {
   ratings     MovieRating[]
   favoritedBy UserFavoriteMovie[]
   watchLog    UserWatchLog[]
-  watchlistedBy UserWatchlistMovie[]
+  watchlistEntries WatchlistMovie[]
 
   @@map("movies")
 }
@@ -320,16 +321,52 @@ model UserWatchLog {
   @@map("user_watch_log")
 }
 
-model UserWatchlistMovie {
-  userId    String   @map("user_id")
-  movieId   String   @map("movie_id")
-  createdAt DateTime @default(now()) @map("created_at")
+model Watchlist {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  slug        String
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  isPrivate   Boolean  @default(false) @map("is_private")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movies        WatchlistMovie[]
+  collaborators WatchlistCollaborator[]
 
-  @@id([userId, movieId])
-  @@map("user_watchlist_movies")
+  @@unique([userId, slug])
+  @@map("watchlists")
+}
+
+model WatchlistMovie {
+  id          String    @id @default(cuid())
+  watchlistId String    @map("watchlist_id")
+  movieId     String    @map("movie_id")
+  sortOrder   Int       @default(0) @map("sort_order")
+  isChecked   Boolean   @default(false) @map("is_checked")
+  checkedAt   DateTime? @map("checked_at")
+  addedAt     DateTime  @default(now()) @map("added_at")
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  movie     Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, movieId])
+  @@map("watchlist_movies")
+}
+
+model WatchlistCollaborator {
+  watchlistId String   @map("watchlist_id")
+  userId      String   @map("user_id")
+  role        String   @default("editor") // "editor" | "viewer"
+  addedAt     DateTime @default(now()) @map("added_at")
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([watchlistId, userId])
+  @@map("watchlist_collaborators")
 }
 
 model BlogPost {

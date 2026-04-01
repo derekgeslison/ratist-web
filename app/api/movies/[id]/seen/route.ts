@@ -123,8 +123,11 @@ export async function GET(req: NextRequest, { params }: Props) {
       prisma.userFavoriteMovie.findUnique({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       }),
-      prisma.userWatchlistMovie.findUnique({
-        where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+      prisma.watchlist.findFirst({ where: { userId: user.id, isDefault: true } }).then(async (wl) => {
+        if (!wl) return null;
+        return prisma.watchlistMovie.findUnique({
+          where: { watchlistId_movieId: { watchlistId: wl.id, movieId: movie.id } },
+        });
       }),
       prisma.movieRating.findUnique({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },

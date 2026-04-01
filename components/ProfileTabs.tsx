@@ -579,7 +579,7 @@ export default function ProfileTabs({
           {isOwnProfile && watchlistMovies.length > 0 && (
             <div className="mb-4">
               <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">
-                Go to full watchlist →
+                Manage watchlists →
               </Link>
             </div>
           )}
