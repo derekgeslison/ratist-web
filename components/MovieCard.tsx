@@ -34,9 +34,9 @@ export default function MovieCard({ movie }: Props) {
     setMarkingS(false);
   }
 
-  async function toggleWatchlist(e: React.MouseEvent) {
+  async function addToWatchlist(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
-    if (!user || markingW) return;
+    if (!user || markingW || watchlisted) return;
     setMarkingW(true);
     const token = await user.getIdToken();
     const res = await fetch(`/api/movies/${movie.id}/watchlist`, {
@@ -46,7 +46,7 @@ export default function MovieCard({ movie }: Props) {
     }).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
-      setWatchlistState(data.watchlisted ?? !watchlisted);
+      setWatchlistState(data.watchlisted ?? true);
     }
     setMarkingW(false);
   }
@@ -76,10 +76,10 @@ export default function MovieCard({ movie }: Props) {
               {seen ? <><Check className="w-3.5 h-3.5" /> Seen!</> : <><Eye className="w-3.5 h-3.5" /> {markingS ? "..." : "Mark Seen"}</>}
             </button>
             <button
-              onClick={toggleWatchlist}
-              disabled={markingW}
+              onClick={addToWatchlist}
+              disabled={markingW || watchlisted}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                watchlisted ? "bg-blue-600/80 text-white" : "bg-white/90 text-black hover:bg-white"
+                watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
               }`}
             >
               {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {markingW ? "..." : "Watchlist"}</>}

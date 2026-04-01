@@ -523,11 +523,11 @@ export default function WatchlistPage() {
                             >
                               <X className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
                             </button>
-                            {/* Add to other lists */}
+                            {/* Add to other lists — top center */}
                             {watchlists.length > 1 && (
                               <button
                                 onClick={() => openListPicker(movie)}
-                                className="absolute bottom-[calc(100%-2.5rem)] right-6 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:border-blue-600 transition-all"
+                                className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:border-blue-600 transition-all"
                                 title="Add to other lists"
                               >
                                 <ListPlus className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />

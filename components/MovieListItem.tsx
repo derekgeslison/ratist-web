@@ -34,9 +34,9 @@ export default function MovieListItem({ movie }: Props) {
     setMarkingS(false);
   }
 
-  async function toggleWatchlist(e: React.MouseEvent) {
+  async function addToWatchlist(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
-    if (!user || markingW) return;
+    if (!user || markingW || watchlisted) return;
     setMarkingW(true);
     const token = await user.getIdToken();
     const res = await fetch(`/api/movies/${movie.id}/watchlist`, {
@@ -46,7 +46,7 @@ export default function MovieListItem({ movie }: Props) {
     }).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
-      setWatchlistState(data.watchlisted ?? !watchlisted);
+      setWatchlistState(data.watchlisted ?? true);
     }
     setMarkingW(false);
   }
@@ -88,12 +88,12 @@ export default function MovieListItem({ movie }: Props) {
           </button>
 
           <button
-            onClick={toggleWatchlist}
-            disabled={markingW}
-            title={watchlisted ? "Remove from watchlist" : "Add to watchlist"}
+            onClick={addToWatchlist}
+            disabled={markingW || watchlisted}
+            title={watchlisted ? "In your watchlist" : "Add to watchlist"}
             className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold pl-2 pr-0 group-hover:pr-2 py-1.5 rounded-full border gap-0 group-hover:gap-1.5 ${
               watchlisted
-                ? "border-blue-500/50 text-blue-400 bg-blue-500/10 w-[26px] group-hover:w-[118px]"
+                ? "border-blue-500/50 text-blue-400 bg-blue-500/10 w-[26px] group-hover:w-[118px] cursor-default"
                 : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-blue-400 hover:text-blue-300 w-[26px] group-hover:w-[118px]"
             }`}
           >
