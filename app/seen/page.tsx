@@ -3,11 +3,12 @@
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText } from "lucide-react";
+import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText, Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import DiaryRow from "@/components/DiaryRow";
+import ShareButton from "@/components/ShareButton";
 import { scoreColor } from "@/lib/ratings";
 
 interface SeenMovie {
@@ -148,6 +149,22 @@ export default function SeenPage() {
     return days;
   }, [calYear, calMonth]);
 
+  // Throwback: movies watched on this day in previous years (1, 2, 3 years ago)
+  const throwbacks = useMemo(() => {
+    const today = new Date();
+    const todayMonth = today.getMonth();
+    const todayDay = today.getDate();
+    const results: { yearsAgo: number; movie: SeenMovie }[] = [];
+    for (const m of movies) {
+      const d = getWatchDate(m);
+      if (d.getMonth() === todayMonth && d.getDate() === todayDay) {
+        const yearsAgo = today.getFullYear() - d.getFullYear();
+        if (yearsAgo >= 1 && yearsAgo <= 3) results.push({ yearsAgo, movie: m });
+      }
+    }
+    return results.sort((a, b) => a.yearsAgo - b.yearsAgo);
+  }, [movies]);
+
   const statsMovies = view === "all" ? filtered : monthMovies;
   const rated = statsMovies.filter((m) => m.ratistRating != null);
   const avgRating = rated.length > 0 ? rated.reduce((s, m) => s + m.ratistRating!, 0) / rated.length : null;
@@ -278,13 +295,48 @@ export default function SeenPage() {
             )}
           </div>
 
-          {/* Month navigation */}
+          {/* Throwback banner */}
+          {throwbacks.length > 0 && (
+            <div className="bg-gradient-to-r from-[var(--surface)] to-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-[var(--ratist-red)]" />
+                <span className="text-xs font-semibold text-[var(--ratist-red)] uppercase tracking-wider">On this day</span>
+              </div>
+              <div className="space-y-2">
+                {throwbacks.map(({ yearsAgo, movie: m }) => (
+                  <Link key={`${m.id}-${yearsAgo}`} href={`/movies/${m.tmdbId}`} className="flex items-center gap-3 group">
+                    <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                      {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{m.title}</span>
+                      <span className="text-xs text-[var(--foreground-muted)]"> · {yearsAgo} year{yearsAgo !== 1 ? "s" : ""} ago</span>
+                    </div>
+                    {m.ratistRating != null && (
+                      <span className="text-xs font-bold shrink-0" style={{ color: scoreColor(m.ratistRating) }}>{m.ratistRating.toFixed(1)}</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Month navigation + share */}
           {view !== "all" && (
             <div className="flex items-center justify-between mb-4">
               <button onClick={prevMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <h2 className="text-lg font-bold text-white">{MONTH_NAMES[calMonth]} {calYear}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-bold text-white">{MONTH_NAMES[calMonth]} {calYear}</h2>
+                {view === "month" && monthMovies.length > 0 && (
+                  <ShareButton
+                    label="Share"
+                    text={`My ${MONTH_NAMES[calMonth]} ${calYear} in film: ${monthMovies.length} movie${monthMovies.length !== 1 ? "s" : ""} watched${avgRating != null ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check it out on The Ratist!`}
+                    url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/seen`}
+                  />
+                )}
+              </div>
               <button onClick={nextMonth} className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors">
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -299,8 +351,14 @@ export default function SeenPage() {
               <div>
                 {sortedDays.map((day) => {
                   const dayMovies = moviesByDay.get(day) ?? [];
+                  const dayOfWeek = DAY_LABELS[new Date(calYear, calMonth, day).getDay()];
                   return (
                     <div key={day}>
+                      <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/20">
+                        <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
+                          {dayOfWeek}, {MONTH_NAMES[calMonth].slice(0, 3)} {day}
+                        </span>
+                      </div>
                       {renderDayRows(dayMovies, day, true)}
                     </div>
                   );
@@ -366,7 +424,7 @@ export default function SeenPage() {
               {sort === "date" && allByMonth ? (
                 [...allByMonth.values()].map(({ label, movies: mlist }) => (
                   <div key={label}>
-                    <div className="sticky top-[72px] z-10 bg-[var(--background)] py-2 border-b border-[var(--border)]/30">
+                    <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/30">
                       <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-widest">{label}</h3>
                     </div>
                     {mlist.map((m, idx) => {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp } from "lucide-react";
+import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
@@ -85,6 +85,10 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [togglingWatchlist, setTogglingWatchlist] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [showRewatchModal, setShowRewatchModal] = useState(false);
+  const [rewatchNotes, setRewatchNotes] = useState("");
+  const [rewatchSaved, setRewatchSaved] = useState(false);
+  const [loggingRewatch, setLoggingRewatch] = useState(false);
 
   useEffect(() => {
     // Don't mark loaded until Firebase auth has initialized
@@ -244,8 +248,73 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                   <><Bookmark className="w-4 h-4" /> Watchlist</>
                 )}
               </button>
+              {/* Log Rewatch — only when already seen */}
+              {seen && (
+                <button
+                  onClick={() => setShowRewatchModal(true)}
+                  className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" /> Log Rewatch
+                </button>
+              )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Rewatch modal */}
+      {showRewatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowRewatchModal(false); }}>
+          <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-2xl p-6 mx-4">
+            <h3 className="text-base font-semibold text-white mb-1">Log Rewatch</h3>
+            <p className="text-xs text-[var(--foreground-muted)] mb-4">{movieTitle}</p>
+            {rewatchSaved ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-green-400 font-semibold mb-3">Rewatch logged!</p>
+                <div className="flex flex-col gap-2">
+                  <Link href={`/movies/${tmdbId}/rate`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                    Update your rating →
+                  </Link>
+                  <button onClick={() => { setShowRewatchModal(false); setRewatchSaved(false); setRewatchNotes(""); }} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={rewatchNotes}
+                  onChange={(e) => setRewatchNotes(e.target.value)}
+                  placeholder="Any thoughts on this rewatch? (optional)"
+                  rows={3}
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none mb-4"
+                />
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      if (!user) return;
+                      setLoggingRewatch(true);
+                      const token = await user.getIdToken();
+                      await fetch(`/api/movies/${tmdbId}/rewatch`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                        body: JSON.stringify({ notes: rewatchNotes }),
+                      });
+                      setLoggingRewatch(false);
+                      setRewatchSaved(true);
+                    }}
+                    disabled={loggingRewatch}
+                    className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {loggingRewatch ? "Saving..." : "Log Rewatch"}
+                  </button>
+                  <button onClick={() => setShowRewatchModal(false)} className="px-4 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-xl transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

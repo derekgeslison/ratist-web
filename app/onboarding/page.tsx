@@ -170,7 +170,7 @@ export default function OnboardingPage() {
       const res = await fetch(`/api/movies/${movie.id}/seen`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
+        body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date, noDate: true }),
       });
       const data = await res.json();
       setSeenMovieIds((prev) => {

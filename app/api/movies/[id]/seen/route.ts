@@ -21,7 +21,8 @@ export async function POST(req: NextRequest, { params }: Props) {
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     // Ensure movie exists in DB
-    const { title, poster_path, release_date } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { title, poster_path, release_date, noDate } = body;
     const movie = await prisma.movie.upsert({
       where: { tmdbId: Number(tmdbId) },
       create: { tmdbId: Number(tmdbId), title: title ?? "Unknown", posterPath: poster_path ?? null, releaseDate: release_date ?? null },
@@ -39,9 +40,18 @@ export async function POST(req: NextRequest, { params }: Props) {
       });
       return NextResponse.json({ seen: false });
     } else {
+      // Respect autoDateOnSeen preference (or noDate flag from onboarding)
+      const setDate = noDate ? false : user.autoDateOnSeen;
+      const watchedDate = setDate ? new Date() : null;
       await prisma.userFavoriteMovie.create({
-        data: { userId: user.id, movieId: movie.id, watchedDate: new Date() },
+        data: { userId: user.id, movieId: movie.id, watchedDate },
       });
+      // Also create a watch log entry (for diary/rewatch tracking)
+      if (watchedDate) {
+        await prisma.userWatchLog.create({
+          data: { userId: user.id, movieId: movie.id, watchedDate, isRewatch: false },
+        }).catch(() => {}); // non-critical
+      }
       return NextResponse.json({ seen: true });
     }
   } catch (err) {

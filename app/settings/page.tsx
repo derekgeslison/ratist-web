@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [autoDateOnSeen, setAutoDateOnSeen] = useState(true);
   const [publicTabs, setPublicTabs] = useState<Record<string, boolean>>({
     overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true,
   });
@@ -76,6 +77,7 @@ export default function SettingsPage() {
         setAvatarUrl(meData.user.avatarUrl ?? "");
         setBio(meData.user.bio ?? "");
         setIsPrivate(meData.user.isPrivate ?? false);
+        setAutoDateOnSeen(meData.user.autoDateOnSeen ?? true);
         if (meData.user.publicTabs) {
           setPublicTabs((prev) => ({ ...prev, ...meData.user.publicTabs }));
         }
@@ -164,7 +166,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile/me", {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: displayName, bio, isPrivate, publicTabs }),
+        body: JSON.stringify({ name: displayName, bio, isPrivate, autoDateOnSeen, publicTabs }),
       });
 
       if (res.ok) {
@@ -371,6 +373,23 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+          {/* Auto-date on seen */}
+          <div className="flex items-start justify-between gap-4 pt-2">
+            <div>
+              <p className="text-sm font-medium text-white">Auto-log date when marking seen</p>
+              <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                When on, marking a movie as seen automatically logs today&apos;s date in your diary. Turn off if you prefer to add dates manually.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoDateOnSeen((v) => !v)}
+              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${autoDateOnSeen ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoDateOnSeen ? "translate-x-5" : "translate-x-0"}`} />
+            </button>
+          </div>
 
         {accountError && <p className="text-sm text-red-400 mt-3">{accountError}</p>}
 

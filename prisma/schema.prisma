@@ -45,6 +45,8 @@ model User {
   hotTakeVotes   HotTakeVote[]
   reviewLikes    ReviewLike[]
   reviewComments ReviewComment[]
+  watchLog       UserWatchLog[]
+  autoDateOnSeen Boolean  @default(true) @map("auto_date_on_seen")
 
   @@map("users")
 }
@@ -113,6 +115,7 @@ model Movie {
   cast        MovieCast[]
   ratings     MovieRating[]
   favoritedBy UserFavoriteMovie[]
+  watchLog    UserWatchLog[]
   watchlistedBy UserWatchlistMovie[]
 
   @@map("movies")
@@ -300,6 +303,21 @@ model UserFavoriteMovie {
 
   @@id([userId, movieId])
   @@map("user_favorite_movies")
+}
+
+model UserWatchLog {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  movieId     String    @map("movie_id")
+  watchedDate DateTime? @map("watched_date")
+  notes       String?
+  isRewatch   Boolean   @default(false) @map("is_rewatch")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@map("user_watch_log")
 }
 
 model UserWatchlistMovie {
