@@ -30,6 +30,7 @@ interface Props {
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function getWatchDate(m: SeenMovie): Date {
   const str = m.watchedDate ?? m.seenAt;
@@ -130,17 +131,27 @@ export default function ProfileDiaryTab({
             <div>
               {sortedDays.map((day) => {
                 const dayMovies = moviesByDay.get(day) ?? [];
-                return dayMovies.map((m, idx) => (
-                  <DiaryRow
-                    key={m.tmdbId}
-                    tmdbId={m.tmdbId}
-                    title={m.title}
-                    posterPath={m.posterPath}
-                    year={m.releaseDate?.slice(0, 4) ?? ""}
-                    ratistRating={m.ratistRating}
-                    dayNumber={idx === 0 ? day : null}
-                  />
-                ));
+                const dayOfWeek = DAY_NAMES[new Date(viewYear, viewMonth, day).getDay()];
+                return (
+                  <div key={day}>
+                    <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/20">
+                      <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
+                        {dayOfWeek}, {MONTH_NAMES[viewMonth].slice(0, 3)} {day}
+                      </span>
+                    </div>
+                    {dayMovies.map((m, idx) => (
+                      <DiaryRow
+                        key={m.tmdbId}
+                        tmdbId={m.tmdbId}
+                        title={m.title}
+                        posterPath={m.posterPath}
+                        year={m.releaseDate?.slice(0, 4) ?? ""}
+                        ratistRating={m.ratistRating}
+                        dayNumber={idx === 0 ? day : null}
+                      />
+                    ))}
+                  </div>
+                );
               })}
             </div>
           )}

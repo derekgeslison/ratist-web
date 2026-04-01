@@ -14,6 +14,7 @@ interface ParsedRow {
   rating?: number;
   review?: string;
   watchedDate?: string;
+  isRewatch?: boolean;
 }
 
 interface ImportResult {
@@ -80,8 +81,8 @@ function parseLetterboxd(csv: string): ParsedRow[] {
   if (headerIdx === -1) return [];
   const headers = allRows[headerIdx].map((h) => h.toLowerCase());
 
-  // Deduplicate rewatches — Letterboxd reviews.csv is newest-first,
-  // so the first occurrence of each movie is the most recent rewatch.
+  // Keep all entries including rewatches. First occurrence per movie (newest)
+  // gets the rating/review. Subsequent occurrences are logged as rewatches.
   const seen = new Set<string>();
   const rows: ParsedRow[] = [];
   for (let i = headerIdx + 1; i < allRows.length; i++) {
@@ -94,18 +95,29 @@ function parseLetterboxd(csv: string): ParsedRow[] {
     if (!title) continue;
     const yearStr = get("year");
     const dedupeKey = `${title.toLowerCase()}::${yearStr}`;
-    if (seen.has(dedupeKey)) continue; // skip older rewatch
-    seen.add(dedupeKey);
+    const rewatchField = get("rewatch");
+    const isRewatch = rewatchField.toLowerCase() === "yes" || seen.has(dedupeKey);
     const ratingStr = get("rating");
     const watchedDate = get("watched date") || get("date");
     const reviewText = get("review");
-    rows.push({
-      title,
-      year: yearStr ? parseInt(yearStr) : undefined,
-      rating: ratingStr ? Math.min(10, parseFloat(ratingStr) * 2) : undefined,
-      review: reviewText || undefined,
-      watchedDate: watchedDate || undefined,
-    });
+    if (!seen.has(dedupeKey)) {
+      // First occurrence = main entry with rating/review
+      seen.add(dedupeKey);
+      rows.push({
+        title, year: yearStr ? parseInt(yearStr) : undefined,
+        rating: ratingStr ? Math.min(10, parseFloat(ratingStr) * 2) : undefined,
+        review: reviewText || undefined,
+        watchedDate: watchedDate || undefined,
+        isRewatch: false,
+      });
+    } else {
+      // Subsequent occurrences = rewatch log entries (no rating override)
+      rows.push({
+        title, year: yearStr ? parseInt(yearStr) : undefined,
+        watchedDate: watchedDate || undefined,
+        isRewatch: true,
+      });
+    }
   }
   return rows;
 }

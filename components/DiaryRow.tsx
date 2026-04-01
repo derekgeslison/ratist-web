@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { Calendar } from "lucide-react";
+import { Calendar, RotateCcw } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
 
@@ -21,11 +21,13 @@ interface Props {
   /** Current date string for edit input */
   dateValue?: string;
   onDateChange?: (date: string) => void;
+  isRewatch?: boolean;
+  notes?: string | null;
 }
 
 export default function DiaryRow({
   tmdbId, title, posterPath, year, ratistRating, voteAverage,
-  dayNumber, editable, dateValue, onDateChange,
+  dayNumber, editable, dateValue, onDateChange, isRewatch, notes,
 }: Props) {
   const [editing, setEditing] = useState(false);
 
@@ -45,12 +47,20 @@ export default function DiaryRow({
         )}
       </Link>
 
-      {/* Title + year */}
+      {/* Title + year + rewatch indicator */}
       <div className="flex-1 min-w-0">
-        <Link href={`/movies/${tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-          {title}
-        </Link>
+        <div className="flex items-center gap-1.5">
+          <Link href={`/movies/${tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+            {title}
+          </Link>
+          {isRewatch && (
+            <span title="Rewatch"><RotateCcw className="w-3 h-3 text-[var(--foreground-muted)] shrink-0" /></span>
+          )}
+        </div>
         <p className="text-xs text-[var(--foreground-muted)]">{year}</p>
+        {notes && (
+          <p className="text-xs text-[var(--foreground-muted)]/70 italic line-clamp-1 mt-0.5">{notes}</p>
+        )}
       </div>
 
       {/* Ratings */}

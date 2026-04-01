@@ -9,6 +9,7 @@ interface ImportRow {
   rating?: number; // already normalized to 1-10
   review?: string;
   watchedDate?: string;
+  isRewatch?: boolean;
 }
 
 const API_KEY = process.env.TMDB_API_KEY;
@@ -133,6 +134,23 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Compute watched date early (needed for both rewatch and normal flow)
+        const watchedAt = row.watchedDate ? new Date(`${row.watchedDate}T12:00:00`) : new Date();
+
+        // If this is a rewatch entry, just log it and continue
+        if (row.isRewatch) {
+          await prisma.userWatchLog.create({
+            data: {
+              userId: user.id,
+              movieId: movie.id,
+              watchedDate: watchedAt,
+              isRewatch: true,
+            },
+          }).catch(() => {}); // ignore duplicate
+          imported++;
+          continue;
+        }
+
         // Check if user already has a COMPLETE rating — skip if so
         const existingRating = await prisma.movieRating.findUnique({
           where: { userId_movieId: { userId: user.id, movieId: movie.id } },
@@ -144,8 +162,6 @@ export async function POST(req: NextRequest) {
         }
 
         // Mark as seen
-        // Append T12:00:00 to avoid UTC midnight timezone shift
-        const watchedAt = row.watchedDate ? new Date(`${row.watchedDate}T12:00:00`) : new Date();
         await prisma.userFavoriteMovie.upsert({
           where: { userId_movieId: { userId: user.id, movieId: movie.id } },
           create: { userId: user.id, movieId: movie.id, watchedDate: watchedAt },

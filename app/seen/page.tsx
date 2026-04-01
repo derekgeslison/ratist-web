@@ -13,6 +13,7 @@ import { scoreColor } from "@/lib/ratings";
 
 interface SeenMovie {
   id: string;
+  logId: string | null;
   tmdbId: number;
   title: string;
   posterPath: string | null;
@@ -22,6 +23,8 @@ interface SeenMovie {
   ratistRating: number | null;
   seenAt: string;
   watchedDate: string | null;
+  isRewatch: boolean;
+  notes: string | null;
 }
 
 type ViewMode = "month" | "calendar" | "all";
@@ -198,6 +201,8 @@ export default function SeenPage() {
           editable={editable}
           dateValue={dateVal}
           onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+          isRewatch={m.isRewatch}
+          notes={m.notes}
         />
       );
     });
@@ -329,11 +334,12 @@ export default function SeenPage() {
               </button>
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-bold text-white">{MONTH_NAMES[calMonth]} {calYear}</h2>
-                {view === "month" && monthMovies.length > 0 && (
+                {view === "month" && monthMovies.length > 0 && user && (
                   <ShareButton
                     label="Share"
                     text={`My ${MONTH_NAMES[calMonth]} ${calYear} in film: ${monthMovies.length} movie${monthMovies.length !== 1 ? "s" : ""} watched${avgRating != null ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check it out on The Ratist!`}
                     url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/seen`}
+                    cardImageUrl={`/api/og/month?userId=${encodeURIComponent(user.uid)}&year=${calYear}&month=${calMonth}`}
                   />
                 )}
               </div>
@@ -446,6 +452,8 @@ export default function SeenPage() {
                           editable
                           dateValue={dateVal}
                           onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                          isRewatch={m.isRewatch}
+                          notes={m.notes}
                         />
                       );
                     })}
@@ -469,6 +477,8 @@ export default function SeenPage() {
                       editable
                       dateValue={dateVal}
                       onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                      isRewatch={m.isRewatch}
+                      notes={m.notes}
                     />
                   );
                 })
