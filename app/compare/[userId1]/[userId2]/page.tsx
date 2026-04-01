@@ -77,15 +77,21 @@ export default async function ComparePage({ params }: Props) {
     overallMatch = Math.round((sims.reduce((a, b) => a + b, 0) / sims.length) * 100);
   }
 
-  // Movies both have rated
+  // Movies both have rated — include genres for genre comparison
   const [ratings1, ratings2] = await Promise.all([
     prisma.movieRating.findMany({
       where: { userId: user1.id, ratistRating: { not: null } },
-      select: { movieId: true, ratistRating: true, movie: { select: { tmdbId: true, title: true, posterPath: true } } },
+      select: {
+        movieId: true, ratistRating: true,
+        movie: { select: { tmdbId: true, title: true, posterPath: true, genres: { include: { genre: true } } } },
+      },
     }),
     prisma.movieRating.findMany({
       where: { userId: user2.id, ratistRating: { not: null } },
-      select: { movieId: true, ratistRating: true },
+      select: {
+        movieId: true, ratistRating: true,
+        movie: { select: { tmdbId: true, title: true, posterPath: true, genres: { include: { genre: true } } } },
+      },
     }),
   ]);
 
@@ -104,6 +110,47 @@ export default async function ComparePage({ params }: Props) {
   const mostAgreed = [...sharedMovies].sort((a, b) => a.diff - b.diff).slice(0, 5);
   const agreedIds = new Set(mostAgreed.map((m) => m.tmdbId));
   const mostDisagreed = [...sharedMovies].filter((m) => !agreedIds.has(m.tmdbId)).sort((a, b) => b.diff - a.diff).slice(0, 5);
+
+  // Genre comparison — count genres each user has rated, find overlap
+  const genreCount1 = new Map<string, { count: number; sum: number }>();
+  const genreCount2 = new Map<string, { count: number; sum: number }>();
+  for (const r of ratings1) {
+    for (const mg of r.movie.genres) {
+      const e = genreCount1.get(mg.genre.name) ?? { count: 0, sum: 0 };
+      e.count++; e.sum += r.ratistRating ?? 0;
+      genreCount1.set(mg.genre.name, e);
+    }
+  }
+  for (const r of ratings2) {
+    for (const mg of r.movie.genres) {
+      const e = genreCount2.get(mg.genre.name) ?? { count: 0, sum: 0 };
+      e.count++; e.sum += r.ratistRating ?? 0;
+      genreCount2.set(mg.genre.name, e);
+    }
+  }
+  // Genres both users have rated, sorted by combined count
+  const sharedGenres = [...genreCount1.entries()]
+    .filter(([name]) => genreCount2.has(name))
+    .map(([name, g1]) => {
+      const g2 = genreCount2.get(name)!;
+      return { name, count1: g1.count, avg1: g1.sum / g1.count, count2: g2.count, avg2: g2.sum / g2.count };
+    })
+    .sort((a, b) => (b.count1 + b.count2) - (a.count1 + a.count2))
+    .slice(0, 6);
+
+  // Recommend to each other — movies one rated highly that the other hasn't seen
+  const rated1Ids = new Set(ratings1.map((r) => r.movieId));
+  const rated2Ids = new Set(ratings2.map((r) => r.movieId));
+  const recsForUser2 = ratings1
+    .filter((r) => !rated2Ids.has(r.movieId) && r.ratistRating != null && r.ratistRating >= 7.5)
+    .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
+    .slice(0, 4)
+    .map((r) => ({ tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, rating: r.ratistRating! }));
+  const recsForUser1 = ratings2
+    .filter((r) => !rated1Ids.has(r.movieId) && r.ratistRating != null && r.ratistRating >= 7.5)
+    .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
+    .slice(0, 4)
+    .map((r) => ({ tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, rating: r.ratistRating! }));
 
   const matchColor = overallMatch >= 80 ? "#22c55e" : overallMatch >= 60 ? "#eab308" : "#888888";
   const shareUrl = `${SITE_URL}/compare/${userId1}/${userId2}`;
@@ -242,6 +289,87 @@ export default async function ComparePage({ params }: Props) {
         <div className="text-center py-8 text-[var(--foreground-muted)]">
           <p>No movies rated by both users yet.</p>
         </div>
+      )}
+
+      {/* Shared genre preferences */}
+      {sharedGenres.length > 0 && (
+        <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 mb-6">
+          <h2 className="text-base font-semibold text-white mb-4">Shared Genre Preferences</h2>
+          <div className="space-y-3">
+            {sharedGenres.map(({ name, count1, avg1, count2, avg2 }) => (
+              <div key={name} className="flex items-center gap-3">
+                <span className="text-xs font-semibold shrink-0" style={{ color: scoreColor(avg1) }}>{avg1.toFixed(1)}</span>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-[var(--foreground-muted)]">{count1} films</span>
+                    <span className="text-xs font-medium text-white">{name}</span>
+                    <span className="text-xs text-[var(--foreground-muted)]">{count2} films</span>
+                  </div>
+                  <div className="flex gap-1 h-1.5">
+                    <div className="flex-1 bg-[var(--surface-2)] rounded-full overflow-hidden flex justify-end">
+                      <div className="h-full rounded-full" style={{ width: `${(avg1 / 10) * 100}%`, backgroundColor: scoreColor(avg1) }} />
+                    </div>
+                    <div className="flex-1 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(avg2 / 10) * 100}%`, backgroundColor: scoreColor(avg2) }} />
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold shrink-0" style={{ color: scoreColor(avg2) }}>{avg2.toFixed(1)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mt-2">
+            <span>{user1.name}</span>
+            <span>{user2.name}</span>
+          </div>
+        </section>
+      )}
+
+      {/* Recommend to each other */}
+      {(recsForUser1.length > 0 || recsForUser2.length > 0) && (
+        <section className="mb-8">
+          <h2 className="text-base font-semibold text-white mb-4">Recommend To Each Other</h2>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {/* User2's top picks that User1 hasn't seen */}
+            {recsForUser1.length > 0 && (
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                  <span className="text-white font-medium">{user2.name}</span> thinks {user1.name} should watch
+                </p>
+                <div className="space-y-2">
+                  {recsForUser1.map((m) => (
+                    <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="flex items-center gap-2.5 group">
+                      <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                        {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />}
+                      </div>
+                      <span className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1 flex-1">{m.title}</span>
+                      <span className="text-xs font-bold shrink-0" style={{ color: scoreColor(m.rating) }}>{m.rating.toFixed(1)}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* User1's top picks that User2 hasn't seen */}
+            {recsForUser2.length > 0 && (
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                  <span className="text-white font-medium">{user1.name}</span> thinks {user2.name} should watch
+                </p>
+                <div className="space-y-2">
+                  {recsForUser2.map((m) => (
+                    <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="flex items-center gap-2.5 group">
+                      <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                        {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />}
+                      </div>
+                      <span className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1 flex-1">{m.title}</span>
+                      <span className="text-xs font-bold shrink-0" style={{ color: scoreColor(m.rating) }}>{m.rating.toFixed(1)}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {/* Non-member CTA */}
