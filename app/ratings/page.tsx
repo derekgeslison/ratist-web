@@ -26,25 +26,40 @@ interface UserRating {
   ratedAt: string;
 }
 
-type StatusFilter = "" | "complete" | "incomplete" | "imported" | "unrated";
+interface UnratedMovie {
+  tmdbId: number;
+  title: string;
+  posterPath: string | null;
+  year: string;
+  genres: string[];
+  voteAverage: number | null;
+  watchedDate: string | null;
+  seenAt: string;
+}
+
+type TabMode = "rated" | "needs-rating";
+type StatusFilter = "" | "complete" | "incomplete" | "imported";
 type SortBy = "rated" | "score" | "title" | "year";
 
 export default function RatingsPage() {
   const { user } = useAuth();
   const [ratings, setRatings] = useState<UserRating[]>([]);
+  const [unrated, setUnrated] = useState<UnratedMovie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<TabMode>("rated");
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [ratingRange, setRatingRange] = useState<"" | "8+" | "6+" | "4-">("");
   const [sort, setSort] = useState<SortBy>("rated");
+  const [unratedSort, setUnratedSort] = useState<"recent" | "title" | "year">("recent");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     user.getIdToken().then((token) => {
       fetch("/api/ratings", { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then((data) => { setRatings(data.ratings ?? []); setLoading(false); })
+        .then((data) => { setRatings(data.ratings ?? []); setUnrated(data.unrated ?? []); setLoading(false); })
         .catch(() => setLoading(false));
     });
   }, [user]);
@@ -52,8 +67,22 @@ export default function RatingsPage() {
   const availableGenres = useMemo(() => {
     const genres = new Set<string>();
     for (const r of ratings) r.genres.forEach((g) => genres.add(g));
+    for (const u of unrated) u.genres.forEach((g) => genres.add(g));
     return [...genres].sort();
-  }, [ratings]);
+  }, [ratings, unrated]);
+
+  // Filtered/sorted unrated movies
+  const filteredUnrated = useMemo(() => {
+    let arr = unrated.filter((m) => {
+      if (query && !m.title.toLowerCase().includes(query.toLowerCase())) return false;
+      if (genreFilter && !m.genres.includes(genreFilter)) return false;
+      return true;
+    });
+    if (unratedSort === "title") arr = [...arr].sort((a, b) => a.title.localeCompare(b.title));
+    else if (unratedSort === "year") arr = [...arr].sort((a, b) => (b.year || "0").localeCompare(a.year || "0"));
+    else arr = [...arr].sort((a, b) => new Date(b.watchedDate ?? b.seenAt).getTime() - new Date(a.watchedDate ?? a.seenAt).getTime());
+    return arr;
+  }, [unrated, query, genreFilter, unratedSort]);
 
   const filtered = useMemo(() => {
     return ratings.filter((r) => {
@@ -62,7 +91,6 @@ export default function RatingsPage() {
       if (statusFilter === "complete" && r.ratingStatus !== "complete") return false;
       if (statusFilter === "incomplete" && r.ratingStatus !== "incomplete") return false;
       if (statusFilter === "imported" && r.ratingStatus !== "imported") return false;
-      if (statusFilter === "unrated" && r.ratistRating != null) return false;
       const score = r.ratistRating ?? r.overallRating;
       if (ratingRange === "8+" && (score == null || score < 8)) return false;
       if (ratingRange === "6+" && (score == null || score < 6)) return false;
@@ -106,7 +134,7 @@ export default function RatingsPage() {
         </div>
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading…</p>
-      ) : ratings.length === 0 ? (
+      ) : ratings.length === 0 && unrated.length === 0 ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <Star className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="mb-2">No ratings yet.</p>
@@ -117,6 +145,29 @@ export default function RatingsPage() {
         </div>
       ) : (
         <>
+          {/* Tab toggle */}
+          <div className="flex items-center gap-1 border-b border-[var(--border)] mb-4">
+            <button
+              onClick={() => setTab("rated")}
+              className={`text-sm font-medium px-4 py-2.5 border-b-2 transition-colors ${tab === "rated" ? "border-[var(--ratist-red)] text-white" : "border-transparent text-[var(--foreground-muted)] hover:text-white"}`}
+            >
+              Rated
+              <span className="ml-1.5 text-xs bg-[var(--surface-2)] text-[var(--foreground-muted)] px-1.5 py-0.5 rounded-full">{ratings.length}</span>
+            </button>
+            <button
+              onClick={() => setTab("needs-rating")}
+              className={`text-sm font-medium px-4 py-2.5 border-b-2 transition-colors ${tab === "needs-rating" ? "border-[var(--ratist-red)] text-white" : "border-transparent text-[var(--foreground-muted)] hover:text-white"}`}
+            >
+              Needs Rating
+              {unrated.length > 0 && (
+                <span className="ml-1.5 text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] px-1.5 py-0.5 rounded-full">{unrated.length}</span>
+              )}
+            </button>
+          </div>
+
+          {/* ── RATED TAB ── */}
+          {tab === "rated" && (<>
+
           {/* Stats */}
           <div className="flex flex-wrap items-center gap-4 mb-4 text-sm">
             <span><span className="text-white font-bold">{ratings.length}</span> <span className="text-[var(--foreground-muted)]">total</span></span>
@@ -227,6 +278,76 @@ export default function RatingsPage() {
             <p className="text-xs text-[var(--foreground-muted)] text-center mt-4">
               Showing {sorted.length} of {ratings.length} ratings
             </p>
+          )}
+
+          </>)}
+
+          {/* ── NEEDS RATING TAB ── */}
+          {tab === "needs-rating" && (
+            <>
+              <p className="text-sm text-[var(--foreground-muted)] mb-4">
+                {unrated.length} movie{unrated.length !== 1 ? "s" : ""} you&apos;ve seen but haven&apos;t rated yet.
+              </p>
+
+              {/* Filters for needs-rating */}
+              <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search..."
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] w-40" />
+                </div>
+                <select value={genreFilter} onChange={(e) => setGenreFilter(e.target.value)}
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
+                  <option value="">All genres</option>
+                  {availableGenres.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <div className="flex items-center gap-1 text-xs">
+                  <ArrowUpDown className="w-3 h-3 text-[var(--foreground-muted)]" />
+                  {(["recent", "title", "year"] as const).map((s) => (
+                    <button key={s} onClick={() => setUnratedSort(s)}
+                      className={`px-2 py-1 rounded-md font-medium transition-colors ${unratedSort === s ? "bg-[var(--ratist-red)]/20 text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                      {s === "recent" ? "Recent" : s === "title" ? "Title" : "Year"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredUnrated.length === 0 ? (
+                <p className="text-center text-sm text-[var(--foreground-muted)] py-8">
+                  {unrated.length === 0 ? "All your seen movies have been rated!" : "No unrated movies match your filters."}
+                </p>
+              ) : (
+                <div className="divide-y divide-[var(--border)]/10">
+                  {filteredUnrated.map((m) => (
+                    <div key={m.tmdbId} className="flex items-center gap-3 py-3 group">
+                      <Link href={`/movies/${m.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                        {m.posterPath && (
+                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="40px" className="object-cover" />
+                        )}
+                      </Link>
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/movies/${m.tmdbId}`} className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                          {m.title}
+                        </Link>
+                        <p className="text-xs text-[var(--foreground-muted)]">{m.year}</p>
+                      </div>
+                      <Link
+                        href={`/movies/${m.tmdbId}/rate`}
+                        className="text-xs font-semibold px-3 py-1 rounded-full border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white transition-colors shrink-0"
+                      >
+                        Rate →
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {filteredUnrated.length > 0 && filteredUnrated.length < unrated.length && (
+                <p className="text-xs text-[var(--foreground-muted)] text-center mt-4">
+                  Showing {filteredUnrated.length} of {unrated.length} unrated movies
+                </p>
+              )}
+            </>
           )}
         </>
       )}

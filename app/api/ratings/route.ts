@@ -27,12 +27,20 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Also get watched dates from UserFavoriteMovie
+    // Also get watched dates and find unrated seen movies
     const favorites = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
-      select: { movieId: true, watchedDate: true },
+      include: {
+        movie: {
+          select: {
+            id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true,
+            genres: { include: { genre: { select: { name: true } } } },
+          },
+        },
+      },
     });
     const watchedDateMap = new Map(favorites.map((f) => [f.movieId, f.watchedDate]));
+    const ratedMovieIds = new Set(allRatings.map((r) => r.movieId));
 
     const ratings = allRatings.map((r) => ({
       id: r.id,
@@ -51,7 +59,21 @@ export async function GET(req: NextRequest) {
       ratedAt: r.createdAt.toISOString(),
     }));
 
-    return NextResponse.json({ ratings });
+    // Seen movies with no rating record at all
+    const unrated = favorites
+      .filter((f) => !ratedMovieIds.has(f.movieId))
+      .map((f) => ({
+        tmdbId: f.movie.tmdbId,
+        title: f.movie.title,
+        posterPath: f.movie.posterPath,
+        year: f.movie.releaseDate?.slice(0, 4) ?? "",
+        genres: f.movie.genres.map((g) => g.genre.name),
+        voteAverage: f.movie.voteAverage ?? null,
+        watchedDate: f.watchedDate?.toISOString() ?? null,
+        seenAt: f.createdAt.toISOString(),
+      }));
+
+    return NextResponse.json({ ratings, unrated });
   } catch (err) {
     console.error("Ratings list error:", err);
     return NextResponse.json({ ratings: [] });
