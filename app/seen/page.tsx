@@ -55,7 +55,7 @@ export default function SeenPage() {
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
 
-  function updateWatchedDate(tmdbId: number, date: string) {
+  function updateWatchedDate(tmdbId: number, date: string | null) {
     if (!user) return;
     user.getIdToken().then((token) => {
       fetch(`/api/movies/${tmdbId}/seen`, {
@@ -64,9 +64,28 @@ export default function SeenPage() {
         body: JSON.stringify({ watchedDate: date }),
       });
     });
-    // Store with T12:00:00 so new Date() doesn't shift due to UTC parsing
-    const safeDate = date.includes("T") ? date : `${date}T12:00:00`;
-    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId ? { ...m, watchedDate: safeDate } : m)));
+    const safeDate = date ? (date.includes("T") ? date : `${date}T12:00:00`) : null;
+    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId && !m.isRewatch ? { ...m, watchedDate: safeDate } : m)));
+  }
+
+  function deleteRewatch(logId: string) {
+    if (!user) return;
+    user.getIdToken().then((token) => {
+      fetch(`/api/watchlog/${logId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    });
+    setMovies((prev) => prev.filter((m) => m.logId !== logId));
+  }
+
+  function editRewatchNotes(logId: string, notes: string) {
+    if (!user) return;
+    user.getIdToken().then((token) => {
+      fetch(`/api/watchlog/${logId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ notes }),
+      });
+    });
+    setMovies((prev) => prev.map((m) => (m.logId === logId ? { ...m, notes } : m)));
   }
 
   useEffect(() => {
@@ -203,6 +222,9 @@ export default function SeenPage() {
           onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
           isRewatch={m.isRewatch}
           notes={m.notes}
+          logId={m.logId}
+          onDeleteRewatch={deleteRewatch}
+          onEditNotes={editRewatchNotes}
         />
       );
     });
@@ -454,6 +476,9 @@ export default function SeenPage() {
                           onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
                           isRewatch={m.isRewatch}
                           notes={m.notes}
+                          logId={m.logId}
+                          onDeleteRewatch={deleteRewatch}
+                          onEditNotes={editRewatchNotes}
                         />
                       );
                     })}
@@ -479,6 +504,9 @@ export default function SeenPage() {
                       onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
                       isRewatch={m.isRewatch}
                       notes={m.notes}
+                      logId={m.logId}
+                      onDeleteRewatch={deleteRewatch}
+                      onEditNotes={editRewatchNotes}
                     />
                   );
                 })

@@ -144,6 +144,7 @@ export async function POST(req: NextRequest) {
               userId: user.id,
               movieId: movie.id,
               watchedDate: watchedAt,
+              notes: row.review?.trim() || null,
               isRewatch: true,
             },
           }).catch(() => {}); // ignore duplicate

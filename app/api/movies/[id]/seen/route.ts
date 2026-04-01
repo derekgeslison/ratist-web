@@ -41,7 +41,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       return NextResponse.json({ seen: false });
     } else {
       // Respect autoDateOnSeen preference (or noDate flag from onboarding)
-      const setDate = noDate ? false : (user.autoDateOnSeen ?? true);
+      const autoDate = user.autoDateOnSeen === false ? false : true; // explicit check for false
+      const setDate = noDate === true ? false : autoDate;
       const watchedDate = setDate ? new Date() : null;
       await prisma.userFavoriteMovie.create({
         data: { userId: user.id, movieId: movie.id, watchedDate },

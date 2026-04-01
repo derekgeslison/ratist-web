@@ -114,6 +114,7 @@ function parseLetterboxd(csv: string): ParsedRow[] {
       // Subsequent occurrences = rewatch log entries (no rating override)
       rows.push({
         title, year: yearStr ? parseInt(yearStr) : undefined,
+        review: reviewText || undefined,
         watchedDate: watchedDate || undefined,
         isRewatch: true,
       });

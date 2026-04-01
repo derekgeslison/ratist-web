@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { Calendar, RotateCcw } from "lucide-react";
+import { Calendar, RotateCcw, X, Pencil } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
 
@@ -14,22 +15,25 @@ interface Props {
   year: string;
   ratistRating: number | null;
   voteAverage?: number | null;
-  /** Day number to show on the left. null = blank (same day as row above) */
   dayNumber: number | null;
-  /** Allow editing the watched date */
   editable?: boolean;
-  /** Current date string for edit input */
   dateValue?: string;
-  onDateChange?: (date: string) => void;
+  onDateChange?: (date: string | null) => void;
   isRewatch?: boolean;
   notes?: string | null;
+  logId?: string | null;
+  onDeleteRewatch?: (logId: string) => void;
+  onEditNotes?: (logId: string, notes: string) => void;
 }
 
 export default function DiaryRow({
   tmdbId, title, posterPath, year, ratistRating, voteAverage,
   dayNumber, editable, dateValue, onDateChange, isRewatch, notes,
+  logId, onDeleteRewatch, onEditNotes,
 }: Props) {
-  const [editing, setEditing] = useState(false);
+  const [editingDate, setEditingDate] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState(notes ?? "");
 
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-[var(--border)]/10 last:border-0">
@@ -47,7 +51,7 @@ export default function DiaryRow({
         )}
       </Link>
 
-      {/* Title + year + rewatch indicator */}
+      {/* Title + year + rewatch indicator + notes */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <Link href={`/movies/${tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
@@ -58,9 +62,30 @@ export default function DiaryRow({
           )}
         </div>
         <p className="text-xs text-[var(--foreground-muted)]">{year}</p>
-        {notes && (
-          <p className="text-xs text-[var(--foreground-muted)]/70 italic line-clamp-1 mt-0.5">{notes}</p>
-        )}
+        {/* Notes display/edit */}
+        {editingNotes && logId ? (
+          <div className="flex items-center gap-1 mt-1">
+            <input
+              value={notesValue}
+              onChange={(e) => setNotesValue(e.target.value)}
+              autoFocus
+              className="flex-1 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-2 py-1 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { onEditNotes?.(logId, notesValue); setEditingNotes(false); }
+                if (e.key === "Escape") setEditingNotes(false);
+              }}
+              onBlur={() => { onEditNotes?.(logId, notesValue); setEditingNotes(false); }}
+            />
+          </div>
+        ) : notes ? (
+          <button onClick={() => logId && setEditingNotes(true)} className="text-xs text-[var(--foreground-muted)]/70 italic line-clamp-1 mt-0.5 text-left hover:text-white transition-colors">
+            {notes}
+          </button>
+        ) : isRewatch && logId && onEditNotes ? (
+          <button onClick={() => setEditingNotes(true)} className="text-[10px] text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors mt-0.5">
+            + add note
+          </button>
+        ) : null}
       </div>
 
       {/* Ratings */}
@@ -80,25 +105,50 @@ export default function DiaryRow({
         )}
       </div>
 
-      {/* Edit date button — per row, so any movie can be edited */}
-      {editable && onDateChange && (
-        <div className="shrink-0">
-          {editing ? (
-            <input
-              type="date"
-              defaultValue={dateValue}
-              autoFocus
-              onChange={(e) => { if (e.target.value) { onDateChange(e.target.value); setEditing(false); } }}
-              onBlur={() => setEditing(false)}
-              className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
-            />
-          ) : (
+      {/* Actions: edit date / delete rewatch */}
+      {editable && (
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Date edit */}
+          {onDateChange && (
+            editingDate ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  defaultValue={dateValue}
+                  autoFocus
+                  onChange={(e) => { onDateChange(e.target.value || null); setEditingDate(false); }}
+                  onBlur={() => setEditingDate(false)}
+                  className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
+                />
+                {/* Remove date button */}
+                {dateValue && (
+                  <button
+                    onClick={() => { onDateChange(null); setEditingDate(false); }}
+                    className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                    title="Remove date"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditingDate(true)}
+                className="p-1 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                title="Edit watched date"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+              </button>
+            )
+          )}
+          {/* Delete rewatch */}
+          {isRewatch && logId && onDeleteRewatch && (
             <button
-              onClick={() => setEditing(true)}
-              className="p-1 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-              title="Edit watched date"
+              onClick={() => onDeleteRewatch(logId)}
+              className="p-1 text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+              title="Remove rewatch entry"
             >
-              <Calendar className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
