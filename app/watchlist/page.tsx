@@ -94,6 +94,8 @@ export default function WatchlistPage() {
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [searchResults, setSearchResults] = useState<{ userId: string; name: string; email: string; avatarUrl: string | null }[]>([]);
+  const [searching, setSearching] = useState(false);
   const [listPickerMovie, setListPickerMovie] = useState<WatchlistMovie | null>(null);
   const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
@@ -203,8 +205,23 @@ export default function WatchlistPage() {
     setShowCollaborators(true);
   }
 
-  async function inviteCollaborator() {
-    if (!activeId || !inviteQuery.trim() || inviting) return;
+  async function searchUsers(q: string) {
+    setInviteQuery(q);
+    setInviteError("");
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    setSearching(true);
+    const token = await getToken();
+    if (!token) return;
+    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q.trim())}`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    // Filter out users already collaborating
+    const collabIds = new Set(collaborators.map((c) => c.userId));
+    setSearchResults((data.users ?? []).filter((u: { userId: string }) => !collabIds.has(u.userId)));
+    setSearching(false);
+  }
+
+  async function inviteUser(targetUserId: string) {
+    if (!activeId || inviting) return;
     setInviting(true);
     setInviteError("");
     const token = await getToken();
@@ -212,12 +229,13 @@ export default function WatchlistPage() {
     const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: inviteQuery.trim(), role: inviteRole }),
+      body: JSON.stringify({ userId: targetUserId, role: inviteRole }),
     });
     const data = await res.json();
     if (res.ok && data.collaborator) {
       setCollaborators((prev) => [...prev, data.collaborator]);
       setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount + 1 } : w));
+      setSearchResults((prev) => prev.filter((u) => u.userId !== targetUserId));
       setInviteQuery("");
     } else {
       setInviteError(data.error ?? "Failed to invite");
@@ -787,32 +805,58 @@ export default function WatchlistPage() {
             <h3 className="text-base font-semibold text-white mb-1">Collaborators</h3>
             <p className="text-xs text-[var(--foreground-muted)] mb-4">{activeList.name}</p>
 
-            {/* Invite form */}
-            <div className="flex gap-2 mb-4">
-              <input
-                value={inviteQuery}
-                onChange={(e) => { setInviteQuery(e.target.value); setInviteError(""); }}
-                placeholder="Username or email"
-                className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-                onKeyDown={(e) => { if (e.key === "Enter") inviteCollaborator(); }}
-              />
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as "editor" | "viewer")}
-                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-2 text-sm text-white focus:outline-none"
-              >
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
-              </select>
-              <button
-                onClick={inviteCollaborator}
-                disabled={!inviteQuery.trim() || inviting}
-                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
-              >
-                <UserPlus className="w-4 h-4" />
-              </button>
+            {/* Search + invite */}
+            <div className="mb-4">
+              <div className="flex gap-2">
+                <input
+                  value={inviteQuery}
+                  onChange={(e) => searchUsers(e.target.value)}
+                  placeholder="Search by name or email..."
+                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as "editor" | "viewer")}
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-2 text-sm text-white focus:outline-none"
+                >
+                  <option value="editor">Editor</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+              </div>
+              {inviteError && <p className="text-xs text-red-400 mt-2">{inviteError}</p>}
+              {searching && <p className="text-xs text-[var(--foreground-muted)] mt-2">Searching...</p>}
+              {searchResults.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
+                  {searchResults.map((u) => (
+                    <div key={u.userId} className="flex items-center justify-between p-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] transition-colors">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {u.avatarUrl ? (
+                          <Image src={u.avatarUrl} alt={u.name} width={24} height={24} className="rounded-full shrink-0" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[10px] text-[var(--foreground-muted)] shrink-0">
+                            {u.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{u.name}</p>
+                          <p className="text-[10px] text-[var(--foreground-muted)] truncate">{u.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => inviteUser(u.userId)}
+                        disabled={inviting}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" /> Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {inviteQuery.trim().length >= 2 && !searching && searchResults.length === 0 && (
+                <p className="text-xs text-[var(--foreground-muted)] mt-2">No users found matching &ldquo;{inviteQuery}&rdquo;</p>
+              )}
             </div>
-            {inviteError && <p className="text-xs text-red-400 mb-3 -mt-2">{inviteError}</p>}
 
             {/* Current collaborators */}
             {collaborators.length === 0 ? (

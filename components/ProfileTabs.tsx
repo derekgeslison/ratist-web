@@ -638,7 +638,7 @@ export default function ProfileTabs({
                 {userWatchlists
                   .filter((wl) => !wl.isPrivate || isOwnProfile)
                   .map((wl) => (
-                    <Link key={wl.id} href={`/watchlist/${wl.id}/view`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors block">
+                    <Link key={wl.id} href={isOwnProfile ? `/watchlist` : `/watchlist/${wl.id}/view`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors block">
                       <div className="flex items-center justify-between mb-1">
                         <h4 className="text-sm font-medium text-white truncate">{wl.name}</h4>
                         <span className="text-xs text-[var(--foreground-muted)] shrink-0 ml-2">{wl.movieCount} movie{wl.movieCount !== 1 ? "s" : ""}</span>

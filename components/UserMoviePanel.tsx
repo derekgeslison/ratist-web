@@ -90,7 +90,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [rewatchSaved, setRewatchSaved] = useState(false);
   const [loggingRewatch, setLoggingRewatch] = useState(false);
   const [showListPicker, setShowListPicker] = useState(false);
-  const [allLists, setAllLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
+  const [allLists, setAllLists] = useState<{ id: string; name: string; isDefault: boolean; isOwned?: boolean; ownerName?: string; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -319,6 +319,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                         <span className="text-white truncate">
                           {list.name}
                           {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
+                          {list.ownerName && <span className="text-[var(--foreground-muted)] text-xs ml-1">· {list.ownerName}</span>}
                         </span>
                         {list.hasMovie ? (
                           <Check className="w-4 h-4 text-green-400 shrink-0" />

@@ -57,20 +57,11 @@ export async function POST(req: NextRequest, { params }: Props) {
     if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (watchlist.userId !== user.id) return NextResponse.json({ error: "Only the owner can invite collaborators" }, { status: 403 });
 
-    const { query, role } = await req.json();
-    if (!query?.trim()) return NextResponse.json({ error: "Search query required" }, { status: 400 });
+    const { userId: targetUserId, role } = await req.json();
+    if (!targetUserId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
     const cleanRole = role === "viewer" ? "viewer" : "editor";
 
-    // Find user by name or email (case-insensitive)
-    const target = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { name: { equals: query.trim(), mode: "insensitive" } },
-          { email: { equals: query.trim(), mode: "insensitive" } },
-        ],
-      },
-    });
-
+    const target = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
     if (target.id === user.id) return NextResponse.json({ error: "You can't add yourself" }, { status: 400 });
 

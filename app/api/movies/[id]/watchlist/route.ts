@@ -20,9 +20,15 @@ export async function GET(req: NextRequest, { params }: Props) {
     const movie = await prisma.movie.findUnique({ where: { tmdbId: Number(tmdbId) } });
 
     const lists = await prisma.watchlist.findMany({
-      where: { userId: user.id },
+      where: {
+        OR: [
+          { userId: user.id },
+          { collaborators: { some: { userId: user.id, role: "editor" } } },
+        ],
+      },
       select: {
-        id: true, name: true, isDefault: true,
+        id: true, name: true, isDefault: true, userId: true,
+        user: { select: { name: true } },
         movies: movie ? { where: { movieId: movie.id }, select: { id: true }, take: 1 } : undefined,
       },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -33,6 +39,8 @@ export async function GET(req: NextRequest, { params }: Props) {
         id: l.id,
         name: l.name,
         isDefault: l.isDefault,
+        isOwned: l.userId === user.id,
+        ownerName: l.userId !== user.id ? l.user.name : undefined,
         hasMovie: (l.movies?.length ?? 0) > 0,
       })),
     });
@@ -83,11 +91,17 @@ export async function POST(req: NextRequest, { params }: Props) {
       });
     }
 
-    // Return all lists with membership status
+    // Return all lists with membership status (owned + editor-collaborated)
     const lists = await prisma.watchlist.findMany({
-      where: { userId: user.id },
+      where: {
+        OR: [
+          { userId: user.id },
+          { collaborators: { some: { userId: user.id, role: "editor" } } },
+        ],
+      },
       select: {
-        id: true, name: true, isDefault: true,
+        id: true, name: true, isDefault: true, userId: true,
+        user: { select: { name: true } },
         movies: { where: { movieId: movie.id }, select: { id: true }, take: 1 },
       },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -97,6 +111,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       id: l.id,
       name: l.name,
       isDefault: l.isDefault,
+      isOwned: l.userId === user.id,
+      ownerName: l.userId !== user.id ? l.user.name : undefined,
       hasMovie: l.movies.length > 0,
     }));
 
