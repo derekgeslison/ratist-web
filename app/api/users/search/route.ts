@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/users/search?q=... — search users by name or email (partial match) */
+/** GET /api/users/search?q=... — search users by name or user ID (partial match) */
 export async function GET(req: NextRequest) {
   try {
     const authorization = req.headers.get("authorization");
@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
         id: { not: currentUser.id },
         OR: [
           { name: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
+          { firebaseUid: { contains: q } },
         ],
       },
-      select: { id: true, name: true, email: true, avatarUrl: true, firebaseUid: true },
+      select: { id: true, name: true, avatarUrl: true, firebaseUid: true },
       take: 8,
     });
 
@@ -33,7 +33,6 @@ export async function GET(req: NextRequest) {
       users: users.map((u) => ({
         userId: u.id,
         name: u.name,
-        email: u.email,
         avatarUrl: u.avatarUrl,
         firebaseUid: u.firebaseUid,
       })),

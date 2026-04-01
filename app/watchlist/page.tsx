@@ -32,7 +32,6 @@ interface WatchlistMeta {
 interface Collaborator {
   userId: string;
   name: string;
-  email: string;
   avatarUrl: string | null;
   firebaseUid: string;
   role: string;
@@ -94,7 +93,7 @@ export default function WatchlistPage() {
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
-  const [searchResults, setSearchResults] = useState<{ userId: string; name: string; email: string; avatarUrl: string | null }[]>([]);
+  const [searchResults, setSearchResults] = useState<{ userId: string; name: string; avatarUrl: string | null; firebaseUid: string }[]>([]);
   const [searching, setSearching] = useState(false);
   const [listPickerMovie, setListPickerMovie] = useState<WatchlistMovie | null>(null);
   const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
@@ -811,7 +810,7 @@ export default function WatchlistPage() {
                 <input
                   value={inviteQuery}
                   onChange={(e) => searchUsers(e.target.value)}
-                  placeholder="Search by name or email..."
+                  placeholder="Search by name or user ID..."
                   className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
                 />
                 <select
@@ -839,7 +838,7 @@ export default function WatchlistPage() {
                         )}
                         <div className="min-w-0">
                           <p className="text-sm text-white truncate">{u.name}</p>
-                          <p className="text-[10px] text-[var(--foreground-muted)] truncate">{u.email}</p>
+                          <p className="text-[10px] text-[var(--foreground-muted)] truncate">ID: {u.firebaseUid?.slice(0, 12)}...</p>
                         </div>
                       </div>
                       <button
@@ -875,7 +874,7 @@ export default function WatchlistPage() {
                       )}
                       <div className="min-w-0">
                         <p className="text-sm text-white truncate">{c.name}</p>
-                        <p className="text-[10px] text-[var(--foreground-muted)] truncate">{c.email}</p>
+                        <p className="text-[10px] text-[var(--foreground-muted)] truncate">ID: {c.firebaseUid?.slice(0, 12)}...</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

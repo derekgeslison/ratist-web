@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     const collaborators = await prisma.watchlistCollaborator.findMany({
       where: { watchlistId: id },
-      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, firebaseUid: true } } },
+      include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } },
       orderBy: { addedAt: "asc" },
     });
 
@@ -33,7 +33,6 @@ export async function GET(req: NextRequest, { params }: Props) {
       collaborators: collaborators.map((c) => ({
         userId: c.userId,
         name: c.user.name,
-        email: c.user.email,
         avatarUrl: c.user.avatarUrl,
         firebaseUid: c.user.firebaseUid,
         role: c.role,
@@ -79,7 +78,6 @@ export async function POST(req: NextRequest, { params }: Props) {
       collaborator: {
         userId: target.id,
         name: target.name,
-        email: target.email,
         avatarUrl: target.avatarUrl,
         firebaseUid: target.firebaseUid,
         role: cleanRole,
