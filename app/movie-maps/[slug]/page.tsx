@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
 import CommentForm from "@/components/CommentForm";
 import { ArrowLeft, Calendar, Map, MessageCircle } from "lucide-react";
+import PageShare from "@/components/PageShare";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,10 @@ export default async function MovieMapPostPage({ params }: Props) {
           <Image src={post.coverImage} alt={post.title} fill sizes="(max-width: 768px) 100vw, 768px" className="object-cover" />
         </div>
       )}
-      <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4">{post.title}</h1>
+      <div className="flex items-start justify-between gap-2 mb-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">{post.title}</h1>
+        <PageShare title={post.title} />
+      </div>
       <div className="flex items-center gap-3 mb-8 pb-8 border-b border-[var(--border)]">
         {post.author.avatarUrl && (
           <Image src={post.author.avatarUrl} alt="" width={36} height={36} className="rounded-full w-9 h-9 object-cover" />

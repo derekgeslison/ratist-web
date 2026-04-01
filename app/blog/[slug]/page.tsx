@@ -7,6 +7,7 @@ import CommentForm from "@/components/CommentForm";
 
 export const dynamic = "force-dynamic";
 import { Calendar, ArrowLeft, MessageCircle } from "lucide-react";
+import PageShare from "@/components/PageShare";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -53,7 +54,10 @@ export default async function BlogPostPage({ params }: Props) {
         </div>
       )}
 
-      <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4 leading-tight">{post.title}</h1>
+      <div className="flex items-start justify-between gap-2 mb-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{post.title}</h1>
+        <PageShare title={post.title} />
+      </div>
 
       <div className="flex items-center gap-3 mb-8 pb-8 border-b border-[var(--border)]">
         {post.author.avatarUrl && (

@@ -179,16 +179,22 @@ export default function SeenPage() {
   }, [calYear, calMonth]);
 
   // Throwback: movies watched on this day in previous years (1, 2, 3 years ago)
+  // Uses getWatchDate which normalizes to noon to avoid timezone drift
   const throwbacks = useMemo(() => {
     const today = new Date();
     const todayMonth = today.getMonth();
     const todayDay = today.getDate();
+    const todayYear = today.getFullYear();
     const results: { yearsAgo: number; movie: SeenMovie }[] = [];
     for (const m of movies) {
       const d = getWatchDate(m);
       if (!d) continue;
-      if (d.getMonth() === todayMonth && d.getDate() === todayDay) {
-        const yearsAgo = today.getFullYear() - d.getFullYear();
+      // Use UTC methods since our dates are stored at noon UTC
+      const mMonth = d.getUTCMonth();
+      const mDay = d.getUTCDate();
+      const mYear = d.getUTCFullYear();
+      if (mMonth === todayMonth && mDay === todayDay) {
+        const yearsAgo = todayYear - mYear;
         if (yearsAgo >= 1 && yearsAgo <= 3) results.push({ yearsAgo, movie: m });
       }
     }

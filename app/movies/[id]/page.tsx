@@ -17,6 +17,7 @@ import UserMoviePanel from "@/components/UserMoviePanel";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
 import { upsertMovie } from "@/lib/tmdb-sync";
 import { prisma } from "@/lib/prisma";
+import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 
 interface Props {
@@ -157,9 +158,12 @@ export default async function MovieDetailPage({ params }: Props) {
 
           {/* Details */}
           <div className="flex-1 pt-24 sm:pt-28 lg:pt-32 min-w-0">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight mb-1">
-              {movie.title}
-            </h1>
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                {movie.title}
+              </h1>
+              <PageShare title={`${movie.title} on The Ratist`} />
+            </div>
             {movie.tagline && (
               <p className="text-sm italic text-[var(--foreground-muted)] mb-3">{movie.tagline}</p>
             )}

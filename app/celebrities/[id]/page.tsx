@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Film, Clapperboard, Search } from "lucide-react";
+import PageShare from "@/components/PageShare";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import CelebrityCreditsSection from "./CelebrityCreditsSection";
@@ -212,7 +213,10 @@ export default async function CelebrityPage({ params }: Props) {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">{person.name}</h1>
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">{person.name}</h1>
+            <PageShare title={`${person.name} on The Ratist`} />
+          </div>
           <p className="text-sm text-[var(--foreground-muted)] mb-4">{person.known_for_department}</p>
 
           {/* Ratist stats row */}
