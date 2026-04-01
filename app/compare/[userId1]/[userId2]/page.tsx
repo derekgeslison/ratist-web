@@ -138,19 +138,56 @@ export default async function ComparePage({ params }: Props) {
     .sort((a, b) => (b.count1 + b.count2) - (a.count1 + a.count2))
     .slice(0, 6);
 
-  // Recommend to each other — movies one rated highly that the other hasn't seen
+  // Recommend to each other — movies one rated highly that align with the other's taste
   const rated1Ids = new Set(ratings1.map((r) => r.movieId));
   const rated2Ids = new Set(ratings2.map((r) => r.movieId));
-  const recsForUser2 = ratings1
-    .filter((r) => !rated2Ids.has(r.movieId) && r.ratistRating != null && r.ratistRating >= 7.5)
-    .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
-    .slice(0, 4)
-    .map((r) => ({ tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, rating: r.ratistRating! }));
+
+  // Build genre preference maps from each user's profile
+  const GENRE_PROFILE_KEYS: Record<string, string> = {
+    "Action": "genreAction", "Adventure": "genreAction", "Comedy": "genreComedy",
+    "Crime": "genreCrime", "Documentary": "genreDocumentary", "Drama": "genreDrama",
+    "Family": "genreFamily", "Fantasy": "genreFantasy", "History": "genreHistorical",
+    "Horror": "genreHorror", "Music": "genreMusical", "Mystery": "genreMystery",
+    "Romance": "genreRomance", "Science Fiction": "genreScifi", "Thriller": "genreThriller",
+    "War": "genreHistorical", "Western": "genreWestern",
+  };
+  const p1 = user1.profile ? (user1.profile as unknown as Record<string, number>) : null;
+  const p2 = user2.profile ? (user2.profile as unknown as Record<string, number>) : null;
+
+  function genreAffinity(movieGenres: { genre: { name: string } }[], profile: Record<string, number> | null): number {
+    if (!profile || movieGenres.length === 0) return 0;
+    let sum = 0, count = 0;
+    for (const mg of movieGenres) {
+      const key = GENRE_PROFILE_KEYS[mg.genre.name];
+      if (key && profile[key] != null) { sum += profile[key]; count++; }
+    }
+    return count > 0 ? sum / count : 0;
+  }
+
+  function scoreRec(rating: number, affinity: number): number {
+    // Blend: 60% how highly the recommender rated it, 40% genre fit for recipient
+    return rating * 0.6 + affinity * 0.4;
+  }
+
   const recsForUser1 = ratings2
-    .filter((r) => !rated1Ids.has(r.movieId) && r.ratistRating != null && r.ratistRating >= 7.5)
-    .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
-    .slice(0, 4)
-    .map((r) => ({ tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, rating: r.ratistRating! }));
+    .filter((r) => !rated1Ids.has(r.movieId) && r.ratistRating != null && r.ratistRating >= 7)
+    .map((r) => ({
+      tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath,
+      rating: r.ratistRating!,
+      relevance: scoreRec(r.ratistRating!, genreAffinity(r.movie.genres, p1)),
+    }))
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, 4);
+
+  const recsForUser2 = ratings1
+    .filter((r) => !rated2Ids.has(r.movieId) && r.ratistRating != null && r.ratistRating >= 7)
+    .map((r) => ({
+      tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath,
+      rating: r.ratistRating!,
+      relevance: scoreRec(r.ratistRating!, genreAffinity(r.movie.genres, p2)),
+    }))
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, 4);
 
   const matchColor = overallMatch >= 80 ? "#22c55e" : overallMatch >= 60 ? "#eab308" : "#888888";
   const shareUrl = `${SITE_URL}/compare/${userId1}/${userId2}`;
@@ -328,13 +365,14 @@ export default async function ComparePage({ params }: Props) {
       {/* Recommend to each other */}
       {(recsForUser1.length > 0 || recsForUser2.length > 0) && (
         <section className="mb-8">
-          <h2 className="text-base font-semibold text-white mb-4">Recommend To Each Other</h2>
+          <h2 className="text-base font-semibold text-white mb-2">You Might Like</h2>
+          <p className="text-xs text-[var(--foreground-muted)] mb-4">Based on highly-rated films from each other&apos;s collections that align with your taste profile.</p>
           <div className="grid sm:grid-cols-2 gap-4">
-            {/* User2's top picks that User1 hasn't seen */}
+            {/* Movies for User1 based on User2's ratings + User1's taste */}
             {recsForUser1.length > 0 && (
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
                 <p className="text-xs text-[var(--foreground-muted)] mb-3">
-                  <span className="text-white font-medium">{user2.name}</span> thinks {user1.name} should watch
+                  For <span className="text-white font-medium">{user1.name}</span>, from {user2.name}&apos;s favorites
                 </p>
                 <div className="space-y-2">
                   {recsForUser1.map((m) => (
@@ -349,11 +387,11 @@ export default async function ComparePage({ params }: Props) {
                 </div>
               </div>
             )}
-            {/* User1's top picks that User2 hasn't seen */}
+            {/* Movies for User2 based on User1's ratings + User2's taste */}
             {recsForUser2.length > 0 && (
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
                 <p className="text-xs text-[var(--foreground-muted)] mb-3">
-                  <span className="text-white font-medium">{user1.name}</span> thinks {user2.name} should watch
+                  For <span className="text-white font-medium">{user2.name}</span>, from {user1.name}&apos;s favorites
                 </p>
                 <div className="space-y-2">
                   {recsForUser2.map((m) => (
