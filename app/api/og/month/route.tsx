@@ -79,9 +79,13 @@ export async function GET(request: Request) {
               <span style={{ color: "white", fontWeight: 800, fontSize: 16, letterSpacing: 1 }}>THE RATIST</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", width: 24, height: 24, borderRadius: 12, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>{user.name[0]?.toUpperCase()}</span>
-              </div>
+              {avatarSrc ? (
+                <img src={avatarSrc} width={24} height={24} style={{ borderRadius: 12 }} />
+              ) : (
+                <div style={{ display: "flex", width: 24, height: 24, borderRadius: 12, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>{user.name[0]?.toUpperCase()}</span>
+                </div>
+              )}
               <span style={{ color: "#aaa", fontSize: 14 }}>{user.name}</span>
             </div>
           </div>
@@ -105,8 +109,8 @@ export async function GET(request: Request) {
               </div>
             )}
             {topGenre && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px" }}>
-                <span style={{ color: "#eab308", fontSize: 18, fontWeight: 800 }}>{topGenre[0]}</span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px", minWidth: 100 }}>
+                <span style={{ color: "#eab308", fontSize: topGenre[0].length > 8 ? 15 : 18, fontWeight: 800, lineHeight: 1.5 }}>{topGenre[0]}</span>
                 <span style={{ color: "#666", fontSize: 12 }}>Top Genre</span>
               </div>
             )}

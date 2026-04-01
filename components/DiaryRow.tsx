@@ -34,6 +34,7 @@ export default function DiaryRow({
   const [editingDate, setEditingDate] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(notes ?? "");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-[var(--border)]/10 last:border-0">
@@ -120,10 +121,10 @@ export default function DiaryRow({
                   onBlur={() => setEditingDate(false)}
                   className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
                 />
-                {/* Remove date button */}
+                {/* Remove date button — onMouseDown prevents input blur from hiding it */}
                 {dateValue && (
                   <button
-                    onClick={() => { onDateChange(null); setEditingDate(false); }}
+                    onMouseDown={(e) => { e.preventDefault(); onDateChange(null); setEditingDate(false); }}
                     className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
                     title="Remove date"
                   >
@@ -143,13 +144,30 @@ export default function DiaryRow({
           )}
           {/* Delete rewatch */}
           {isRewatch && logId && onDeleteRewatch && (
-            <button
-              onClick={() => onDeleteRewatch(logId)}
-              className="p-1 text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
-              title="Remove rewatch entry"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            confirmDelete ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { onDeleteRewatch(logId); setConfirmDelete(false); }}
+                  className="text-[10px] text-red-400 hover:text-red-300 font-semibold transition-colors"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-[10px] text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="p-1 text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                title="Remove rewatch entry"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )
           )}
         </div>
       )}
