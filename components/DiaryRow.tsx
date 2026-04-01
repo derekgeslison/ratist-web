@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
-import { Calendar, RotateCcw, X, Pencil } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { Calendar, RotateCcw, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
@@ -33,6 +33,7 @@ export default function DiaryRow({
 }: Props) {
   const [editingDate, setEditingDate] = useState(false);
   const [pendingDate, setPendingDate] = useState(dateValue ?? "");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(notes ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -118,9 +119,24 @@ export default function DiaryRow({
                   type="date"
                   value={pendingDate}
                   autoFocus
-                  onChange={(e) => setPendingDate(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPendingDate(val);
+                    // Debounce save — arrow clicks fire rapidly, actual date
+                    // selection is the last change in a sequence
+                    if (saveTimer.current) clearTimeout(saveTimer.current);
+                    if (val) {
+                      saveTimer.current = setTimeout(() => {
+                        if (val !== (dateValue ?? "")) {
+                          onDateChange(val);
+                          setEditingDate(false);
+                        }
+                      }, 600);
+                    }
+                  }}
                   onBlur={() => {
-                    // Save on blur (when picker closes) — compare to original
+                    // Also save on blur as fallback
+                    if (saveTimer.current) clearTimeout(saveTimer.current);
                     if (pendingDate !== (dateValue ?? "")) {
                       onDateChange(pendingDate || null);
                     }
