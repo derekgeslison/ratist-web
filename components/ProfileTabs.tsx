@@ -520,9 +520,6 @@ export default function ProfileTabs({
                     {r.reviewText && (
                       <p className="text-xs text-[var(--foreground-muted)] line-clamp-1 mt-0.5">{r.reviewText}</p>
                     )}
-                    <p className="text-xs text-[var(--foreground-muted)]/60 mt-0.5">
-                      {new Date(r.createdAt).toLocaleDateString()}
-                    </p>
                   </div>
                   {r.ratingStatus === "incomplete" ? (
                     <span className="text-xs font-semibold shrink-0 px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400">

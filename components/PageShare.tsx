@@ -26,11 +26,13 @@ export default function PageShare({ title, url }: Props) {
   }
 
   async function handleNativeShare() {
-    if (typeof navigator.share === "function") {
+    // Only attempt native share if the API exists AND we're likely on mobile
+    // (navigator.share exists on some desktop browsers too but behaves differently)
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function" && "ontouchstart" in window) {
       try {
         await navigator.share({ title: shareText, url: shareUrl });
-        return;
-      } catch { /* user cancelled or not supported */ }
+      } catch { /* user cancelled */ }
+      return; // always return — don't also show the modal
     }
     setOpen(true);
   }
