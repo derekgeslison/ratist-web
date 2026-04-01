@@ -32,12 +32,15 @@ type ViewMode = "month" | "calendar" | "all";
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getWatchDate(m: SeenMovie): Date {
-  const str = m.watchedDate ?? m.seenAt;
-  // Date-only strings (YYYY-MM-DD) are parsed as UTC midnight by JS,
-  // which shifts back a day in US timezones. Append noon to prevent this.
-  if (str && str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
+function getWatchDate(m: SeenMovie): Date | null {
+  const str = m.watchedDate;
+  if (!str) return null; // no date = undated entry
+  if (str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
   return new Date(str);
+}
+
+function getWatchDateOrFallback(m: SeenMovie): Date {
+  return getWatchDate(m) ?? new Date(m.seenAt);
 }
 
 export default function SeenPage() {
@@ -100,7 +103,7 @@ export default function SeenPage() {
 
   const availableYears = useMemo(() => {
     const years = new Set<number>();
-    for (const m of movies) years.add(getWatchDate(m).getFullYear());
+    for (const m of movies) { const d = getWatchDate(m); if (d) years.add(d.getFullYear()); }
     return [...years].sort((a, b) => b - a);
   }, [movies]);
 
@@ -121,17 +124,20 @@ export default function SeenPage() {
     });
   }, [movies, query, genreFilter, ratingFilter]);
 
+  const datedMovies = useMemo(() => filtered.filter((m) => m.watchedDate != null), [filtered]);
+  const undatedMovies = useMemo(() => filtered.filter((m) => m.watchedDate == null), [filtered]);
+
   const monthMovies = useMemo(() => {
-    return filtered.filter((m) => {
-      const d = getWatchDate(m);
+    return datedMovies.filter((m) => {
+      const d = getWatchDate(m)!;
       return d.getFullYear() === calYear && d.getMonth() === calMonth;
-    }).sort((a, b) => getWatchDate(b).getTime() - getWatchDate(a).getTime());
-  }, [filtered, calYear, calMonth]);
+    }).sort((a, b) => getWatchDate(b)!.getTime() - getWatchDate(a)!.getTime());
+  }, [datedMovies, calYear, calMonth]);
 
   const moviesByDay = useMemo(() => {
     const map = new Map<number, SeenMovie[]>();
     for (const m of monthMovies) {
-      const day = getWatchDate(m).getDate();
+      const day = getWatchDate(m)!.getDate();
       const list = map.get(day) ?? [];
       list.push(m);
       map.set(day, list);
@@ -145,7 +151,7 @@ export default function SeenPage() {
     const arr = [...filtered];
     if (sort === "title") arr.sort((a, b) => a.title.localeCompare(b.title));
     else if (sort === "rating") arr.sort((a, b) => (b.ratistRating ?? -1) - (a.ratistRating ?? -1));
-    else arr.sort((a, b) => getWatchDate(b).getTime() - getWatchDate(a).getTime());
+    else arr.sort((a, b) => getWatchDateOrFallback(b).getTime() - getWatchDateOrFallback(a).getTime());
     return arr;
   }, [filtered, sort]);
 
@@ -154,6 +160,7 @@ export default function SeenPage() {
     const map = new Map<string, { label: string; movies: SeenMovie[] }>();
     for (const m of allSorted) {
       const d = getWatchDate(m);
+      if (!d) continue; // undated handled separately
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       const existing = map.get(key);
       if (existing) existing.movies.push(m);
@@ -179,6 +186,7 @@ export default function SeenPage() {
     const results: { yearsAgo: number; movie: SeenMovie }[] = [];
     for (const m of movies) {
       const d = getWatchDate(m);
+      if (!d) continue;
       if (d.getMonth() === todayMonth && d.getDate() === todayDay) {
         const yearsAgo = today.getFullYear() - d.getFullYear();
         if (yearsAgo >= 1 && yearsAgo <= 3) results.push({ yearsAgo, movie: m });
@@ -456,8 +464,8 @@ export default function SeenPage() {
                       <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-widest">{label}</h3>
                     </div>
                     {mlist.map((m, idx) => {
-                      const d = getWatchDate(m);
-                      const prevDay = idx > 0 ? getWatchDate(mlist[idx - 1]).getDate() : null;
+                      const d = getWatchDate(m) ?? getWatchDateOrFallback(m);
+                      const prevDay = idx > 0 ? (getWatchDate(mlist[idx - 1]) ?? getWatchDateOrFallback(mlist[idx - 1])).getDate() : null;
                       const showDay = idx === 0 || d.getDate() !== prevDay;
                       const wd = m.watchedDate ? getWatchDate(m) : null;
           const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
@@ -486,7 +494,7 @@ export default function SeenPage() {
                 ))
               ) : (
                 allSorted.map((m) => {
-                  const d = getWatchDate(m);
+                  const d = getWatchDate(m) ?? getWatchDateOrFallback(m);
                   const wd = m.watchedDate ? getWatchDate(m) : null;
           const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
                   return (
@@ -510,6 +518,29 @@ export default function SeenPage() {
                     />
                   );
                 })
+              )}
+              {/* Undated movies at the bottom */}
+              {undatedMovies.length > 0 && sort === "date" && (
+                <>
+                  <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/30 mt-4">
+                    <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-widest">No date set</h3>
+                  </div>
+                  {undatedMovies.map((m) => (
+                    <DiaryRow
+                      key={m.id}
+                      tmdbId={m.tmdbId}
+                      title={m.title}
+                      posterPath={m.posterPath}
+                      year={m.year}
+                      ratistRating={m.ratistRating}
+                      voteAverage={m.voteAverage}
+                      dayNumber={null}
+                      editable
+                      dateValue=""
+                      onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                    />
+                  ))}
+                </>
               )}
             </div>
           )}

@@ -78,7 +78,7 @@ export default function DiaryRow({
             />
           </div>
         ) : notes ? (
-          <button onClick={() => logId && setEditingNotes(true)} className="text-xs text-[var(--foreground-muted)]/70 italic line-clamp-1 mt-0.5 text-left hover:text-white transition-colors">
+          <button onClick={() => logId && setEditingNotes(true)} className="text-xs text-[var(--foreground-muted)]/70 italic line-clamp-1 mt-0.5 pr-1 text-left hover:text-white transition-colors">
             {notes}
           </button>
         ) : isRewatch && logId && onEditNotes ? (

@@ -79,13 +79,9 @@ export async function GET(request: Request) {
               <span style={{ color: "white", fontWeight: 800, fontSize: 16, letterSpacing: 1 }}>THE RATIST</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {avatarSrc ? (
-                <img src={avatarSrc} width={24} height={24} style={{ borderRadius: 12 }} />
-              ) : (
-                <div style={{ display: "flex", width: 24, height: 24, borderRadius: 12, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>{user.name[0]?.toUpperCase()}</span>
-                </div>
-              )}
+              <div style={{ display: "flex", width: 24, height: 24, borderRadius: 12, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>{user.name[0]?.toUpperCase()}</span>
+              </div>
               <span style={{ color: "#aaa", fontSize: 14 }}>{user.name}</span>
             </div>
           </div>
@@ -116,14 +112,24 @@ export async function GET(request: Request) {
             )}
           </div>
 
-          {/* Poster row */}
-          {topPosters.length > 0 && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 12, flex: 1 }}>
-              {topPosters.map((url, i) => (
-                <div key={i} style={{ width: 100, borderRadius: 8, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
-                  <img src={url} style={{ width: 100, height: 150, objectFit: "cover" }} alt="" />
-                </div>
-              ))}
+          {/* Top movies list */}
+          {rated.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+              <span style={{ color: "#555", fontSize: 11, letterSpacing: 2, textTransform: "uppercase" as const, marginBottom: 4 }}>Top Rated</span>
+              {rated
+                .sort((a, b) => (b.movie.ratings[0]?.ratistRating ?? 0) - (a.movie.ratings[0]?.ratistRating ?? 0))
+                .slice(0, 5)
+                .map((m, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "#444", fontSize: 13, fontWeight: 800, width: 18 }}>{i + 1}</span>
+                    <span style={{ color: "#ccc", fontSize: 14, fontWeight: 600, flex: 1 }}>
+                      {m.movie.title.length > 35 ? m.movie.title.slice(0, 35) + "..." : m.movie.title}
+                    </span>
+                    <span style={{ color: scoreHex(m.movie.ratings[0]!.ratistRating!), fontSize: 14, fontWeight: 800 }}>
+                      {m.movie.ratings[0]!.ratistRating!.toFixed(1)}
+                    </span>
+                  </div>
+                ))}
             </div>
           )}
 
