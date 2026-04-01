@@ -60,15 +60,26 @@ export default function SeenPage() {
 
   function updateWatchedDate(tmdbId: number, date: string | null) {
     if (!user) return;
+    const safeDate = date ? (date.includes("T") ? date : `${date}T12:00:00`) : null;
+    // Optimistic update
+    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId && !m.isRewatch ? { ...m, watchedDate: safeDate } : m)));
+    // Persist to server
     user.getIdToken().then((token) => {
       fetch(`/api/movies/${tmdbId}/seen`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ watchedDate: date }),
+      }).then((res) => {
+        if (!res.ok) {
+          // Revert on failure
+          console.error("Failed to save date change");
+          setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId && !m.isRewatch ? { ...m, watchedDate: null } : m)));
+        }
+      }).catch(() => {
+        console.error("Network error saving date");
+        setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId && !m.isRewatch ? { ...m, watchedDate: null } : m)));
       });
     });
-    const safeDate = date ? (date.includes("T") ? date : `${date}T12:00:00`) : null;
-    setMovies((prev) => prev.map((m) => (m.tmdbId === tmdbId && !m.isRewatch ? { ...m, watchedDate: safeDate } : m)));
   }
 
   function deleteRewatch(logId: string) {

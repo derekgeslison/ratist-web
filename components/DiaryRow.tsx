@@ -32,6 +32,7 @@ export default function DiaryRow({
   logId, onDeleteRewatch, onEditNotes,
 }: Props) {
   const [editingDate, setEditingDate] = useState(false);
+  const [pendingDate, setPendingDate] = useState(dateValue ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(notes ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -115,16 +116,22 @@ export default function DiaryRow({
               <div className="flex items-center gap-1">
                 <input
                   type="date"
-                  defaultValue={dateValue}
+                  value={pendingDate}
                   autoFocus
-                  onChange={(e) => { onDateChange(e.target.value || null); setEditingDate(false); }}
-                  onBlur={() => setEditingDate(false)}
+                  onChange={(e) => setPendingDate(e.target.value)}
+                  onBlur={() => {
+                    // Save on blur (when picker closes) — compare to original
+                    if (pendingDate !== (dateValue ?? "")) {
+                      onDateChange(pendingDate || null);
+                    }
+                    setEditingDate(false);
+                  }}
                   className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
                 />
                 {/* Remove date button — onMouseDown prevents input blur from hiding it */}
-                {dateValue && (
+                {(dateValue || pendingDate) && (
                   <button
-                    onMouseDown={(e) => { e.preventDefault(); onDateChange(null); setEditingDate(false); }}
+                    onMouseDown={(e) => { e.preventDefault(); onDateChange(null); setPendingDate(""); setEditingDate(false); }}
                     className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
                     title="Remove date"
                   >
@@ -134,7 +141,7 @@ export default function DiaryRow({
               </div>
             ) : (
               <button
-                onClick={() => setEditingDate(true)}
+                onClick={() => { setPendingDate(dateValue ?? ""); setEditingDate(true); }}
                 className="p-1 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
                 title="Edit watched date"
               >
