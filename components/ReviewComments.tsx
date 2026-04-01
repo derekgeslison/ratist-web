@@ -10,7 +10,7 @@ interface Comment {
   id: string;
   text: string;
   createdAt: string;
-  user: { id: string; name: string; avatarUrl: string | null };
+  user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
   replies?: Comment[];
 }
 
@@ -68,7 +68,7 @@ export default function ReviewComments({ reviewId }: Props) {
   function renderComment(comment: Comment, isReply: boolean) {
     return (
       <div key={comment.id} className={`flex gap-2.5 ${isReply ? "ml-10 mt-2" : "mt-3"}`}>
-        <Link href={`/profile/${comment.user.id}`} className="shrink-0">
+        <Link href={`/profile/${comment.user.firebaseUid}`} className="shrink-0">
           <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--ratist-red)] flex items-center justify-center">
             {comment.user.avatarUrl ? (
               <Image src={comment.user.avatarUrl} alt="" fill sizes="24px" className="object-cover" unoptimized />
@@ -79,7 +79,7 @@ export default function ReviewComments({ reviewId }: Props) {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <Link href={`/profile/${comment.user.id}`} className="text-xs font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
+            <Link href={`/profile/${comment.user.firebaseUid}`} className="text-xs font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
               {comment.user.name}
             </Link>
             <span className="text-[10px] text-[var(--foreground-muted)]">

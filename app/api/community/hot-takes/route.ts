@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const items = await prisma.hotTake.findMany({
       include: {
-        author: { select: { id: true, name: true, avatarUrl: true } },
+        author: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
         votes: { select: { value: true, userId: true } },
       },
       orderBy: { createdAt: "desc" },

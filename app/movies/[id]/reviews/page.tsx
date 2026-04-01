@@ -70,7 +70,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
       hasSpoilers: true,
       commentsDisabled: true,
       createdAt: true,
-      user: { select: { id: true, name: true, avatarUrl: true } },
+      user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
       _count: { select: { likes: true, comments: true } },
     },
     orderBy,

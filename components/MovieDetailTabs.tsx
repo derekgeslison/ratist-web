@@ -19,7 +19,7 @@ interface Review {
   commentsDisabled: boolean;
   commentCount: number;
   likeCount: number;
-  user: { id: string; name: string; avatarUrl: string | null };
+  user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
   createdAt: string;
 }
 

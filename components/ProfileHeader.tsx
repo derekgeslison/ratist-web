@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Copy, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 import CompareTasteButton from "./CompareTasteButton";
@@ -10,6 +12,7 @@ interface Props {
   isPrivate: boolean;
   profileFirebaseUid: string;
   profileUserId: string;
+  inviteCode?: string;
   ratingCount: number;
   seenCount: number;
   avgRating: number | null;
@@ -17,12 +20,13 @@ interface Props {
 }
 
 export default function ProfileHeader({
-  userName, bio, isPrivate, profileFirebaseUid, profileUserId,
+  userName, bio, isPrivate, profileFirebaseUid, profileUserId, inviteCode,
   ratingCount, seenCount, avgRating, memberSince,
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
   const showStats = isOwnProfile || !isPrivate;
+  const [copied, setCopied] = useState(false);
 
   return (
     <>
@@ -46,6 +50,19 @@ export default function ProfileHeader({
       {!isPrivate && (
         <div className="mt-3">
           <CompareTasteButton profileFirebaseUid={profileFirebaseUid} profileUserId={profileUserId} />
+        </div>
+      )}
+      {isOwnProfile && inviteCode && (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-[var(--foreground-muted)]">Your invite code:</span>
+          <code className="text-xs font-mono bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-0.5 text-white">{inviteCode}</code>
+          <button
+            onClick={() => { navigator.clipboard.writeText(inviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+            className="text-[var(--foreground-muted)] hover:text-white transition-colors"
+            title="Copy invite code"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
         </div>
       )}
     </>

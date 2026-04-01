@@ -21,6 +21,7 @@ model User {
   bio         String?
   isPrivate   Boolean  @default(false) @map("is_private")
   publicTabs  Json     @default("{\"overview\":true,\"ratings\":true,\"diary\":true,\"watchlist\":true,\"stats\":true,\"rankings\":true}") @map("public_tabs")
+  inviteCode  String   @unique @map("invite_code")
   isAdmin     Boolean  @default(false) @map("is_admin")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -360,6 +361,7 @@ model WatchlistCollaborator {
   watchlistId String   @map("watchlist_id")
   userId      String   @map("user_id")
   role        String   @default("editor") // "editor" | "viewer"
+  status      String   @default("pending") // "pending" | "accepted"
   addedAt     DateTime @default(now()) @map("added_at")
 
   watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)

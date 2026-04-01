@@ -21,7 +21,7 @@ interface SeenMovie {
 interface Props {
   seenMovies: SeenMovie[];
   isOwnProfile: boolean;
-  profileUserId: string;
+  profileFirebaseUid: string;
   activeYear: string;
   seenThisYear: number;
   siteUrl: string;
@@ -39,7 +39,7 @@ function getWatchDate(m: SeenMovie): Date {
 }
 
 export default function ProfileDiaryTab({
-  seenMovies, isOwnProfile, profileUserId, activeYear, seenThisYear,
+  seenMovies, isOwnProfile, profileFirebaseUid, activeYear, seenThisYear,
   siteUrl, watchedDates, updateWatchedDate,
 }: Props) {
   const now = new Date();
@@ -85,15 +85,15 @@ export default function ProfileDiaryTab({
         <div className="flex items-center gap-3">
           {seenThisYear > 0 && (
             <>
-              <Link href={`/profile/${profileUserId}/year-in-review/${activeYear}`}
+              <Link href={`/profile/${profileFirebaseUid}/year-in-review/${activeYear}`}
                 className="text-xs text-[var(--ratist-red)] hover:underline shrink-0">
                 {activeYear} Year in Review →
               </Link>
               <ShareButton
                 label={`Share ${activeYear}`}
                 text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${activeYear}! Check out my year in film on The Ratist.`}
-                url={`${siteUrl}/profile/${profileUserId}/year-in-review/${activeYear}`}
-                cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(profileUserId)}&year=${activeYear}`}
+                url={`${siteUrl}/profile/${profileFirebaseUid}/year-in-review/${activeYear}`}
+                cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(profileFirebaseUid)}&year=${activeYear}`}
               />
             </>
           )}

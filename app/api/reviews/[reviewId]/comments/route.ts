@@ -18,10 +18,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ revi
     const comments = await prisma.reviewComment.findMany({
       where: { ratingId: reviewId, parentId: null }, // top-level only
       include: {
-        user: { select: { id: true, name: true, avatarUrl: true } },
+        user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
         replies: {
           include: {
-            user: { select: { id: true, name: true, avatarUrl: true } },
+            user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rev
         text: text.trim(),
       },
       include: {
-        user: { select: { id: true, name: true, avatarUrl: true } },
+        user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
       },
     });
 

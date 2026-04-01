@@ -33,8 +33,20 @@ interface Collaborator {
   userId: string;
   name: string;
   avatarUrl: string | null;
-  firebaseUid: string;
   role: string;
+  status: string;
+}
+
+interface PendingInvite {
+  watchlistId: string;
+  listName: string;
+  listDescription: string | null;
+  movieCount: number;
+  ownerName: string;
+  ownerAvatar: string | null;
+  ownerUid: string;
+  role: string;
+  invitedAt: string;
 }
 
 interface WatchlistMovie {
@@ -89,12 +101,12 @@ export default function WatchlistPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCollaborators, setShowCollaborators] = useState(false);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [inviteQuery, setInviteQuery] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
-  const [searchResults, setSearchResults] = useState<{ userId: string; name: string; avatarUrl: string | null; firebaseUid: string }[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [listPickerMovie, setListPickerMovie] = useState<WatchlistMovie | null>(null);
   const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
@@ -107,16 +119,21 @@ export default function WatchlistPage() {
     return user.getIdToken();
   }, [user]);
 
-  /* ── Load watchlists ── */
+  /* ── Load watchlists + pending invites ── */
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     (async () => {
       const token = await getToken();
       if (!token) return;
-      const res = await fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
+      const [listRes, inviteRes] = await Promise.all([
+        fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/watchlist/invites", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const data = await listRes.json();
+      const inviteData = await inviteRes.json();
       setWatchlists(data.watchlists ?? []);
       setMovies(data.defaultMovies ?? []);
+      setPendingInvites(inviteData.invites ?? []);
       const def = (data.watchlists ?? []).find((w: WatchlistMeta) => w.isDefault);
       if (def) setActiveId(def.id);
       setLoading(false);
@@ -199,28 +216,13 @@ export default function WatchlistPage() {
       const data = await res.json();
       setCollaborators(data.collaborators ?? []);
     }
-    setInviteQuery("");
+    setInviteCode("");
     setInviteError("");
     setShowCollaborators(true);
   }
 
-  async function searchUsers(q: string) {
-    setInviteQuery(q);
-    setInviteError("");
-    if (q.trim().length < 2) { setSearchResults([]); return; }
-    setSearching(true);
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q.trim())}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    // Filter out users already collaborating
-    const collabIds = new Set(collaborators.map((c) => c.userId));
-    setSearchResults((data.users ?? []).filter((u: { userId: string }) => !collabIds.has(u.userId)));
-    setSearching(false);
-  }
-
-  async function inviteUser(targetUserId: string) {
-    if (!activeId || inviting) return;
+  async function inviteByCode() {
+    if (!activeId || !inviteCode.trim() || inviting) return;
     setInviting(true);
     setInviteError("");
     const token = await getToken();
@@ -228,18 +230,36 @@ export default function WatchlistPage() {
     const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: targetUserId, role: inviteRole }),
+      body: JSON.stringify({ inviteCode: inviteCode.trim(), role: inviteRole }),
     });
     const data = await res.json();
     if (res.ok && data.collaborator) {
       setCollaborators((prev) => [...prev, data.collaborator]);
       setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount + 1 } : w));
-      setSearchResults((prev) => prev.filter((u) => u.userId !== targetUserId));
-      setInviteQuery("");
+      setInviteCode("");
     } else {
       setInviteError(data.error ?? "Failed to invite");
     }
     setInviting(false);
+  }
+
+  async function respondToInvite(watchlistId: string, action: "accept" | "decline") {
+    setRespondingTo(watchlistId);
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/watchlist/${watchlistId}/collaborators`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    setPendingInvites((prev) => prev.filter((i) => i.watchlistId !== watchlistId));
+    if (action === "accept") {
+      // Reload the sidebar to include the new list
+      const res = await fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setWatchlists(data.watchlists ?? []);
+    }
+    setRespondingTo(null);
   }
 
   async function changeRole(userId: string, role: string) {
@@ -412,6 +432,54 @@ export default function WatchlistPage() {
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading&hellip;</p>
       ) : (
+        <>
+        {/* Pending invites banner */}
+        {pendingInvites.length > 0 && (
+          <div className="mb-6 space-y-2">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-[var(--ratist-red)]" />
+              Pending Invites ({pendingInvites.length})
+            </h3>
+            {pendingInvites.map((inv) => (
+              <div key={inv.watchlistId} className="flex items-center justify-between gap-4 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl">
+                <div className="flex items-center gap-3 min-w-0">
+                  {inv.ownerAvatar ? (
+                    <Image src={inv.ownerAvatar} alt={inv.ownerName} width={32} height={32} className="rounded-full shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)] shrink-0">
+                      {inv.ownerName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm text-white font-medium truncate">
+                      {inv.ownerName} invited you to <span className="text-[var(--ratist-red)]">{inv.listName}</span>
+                    </p>
+                    <p className="text-xs text-[var(--foreground-muted)]">
+                      {inv.movieCount} movie{inv.movieCount !== 1 ? "s" : ""} · as {inv.role}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => respondToInvite(inv.watchlistId, "accept")}
+                    disabled={respondingTo === inv.watchlistId}
+                    className="px-3 py-1.5 text-xs font-semibold bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => respondToInvite(inv.watchlistId, "decline")}
+                    disabled={respondingTo === inv.watchlistId}
+                    className="px-3 py-1.5 text-xs font-semibold border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-6">
           {/* ── Sidebar: list switcher ── */}
           <div className="lg:w-56 shrink-0">
@@ -731,6 +799,7 @@ export default function WatchlistPage() {
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* Edit list modal */}
@@ -804,14 +873,16 @@ export default function WatchlistPage() {
             <h3 className="text-base font-semibold text-white mb-1">Collaborators</h3>
             <p className="text-xs text-[var(--foreground-muted)] mb-4">{activeList.name}</p>
 
-            {/* Search + invite */}
+            {/* Invite by code */}
             <div className="mb-4">
+              <p className="text-xs text-[var(--foreground-muted)] mb-2">Paste someone&apos;s invite code to add them.</p>
               <div className="flex gap-2">
                 <input
-                  value={inviteQuery}
-                  onChange={(e) => searchUsers(e.target.value)}
-                  placeholder="Search by name or user ID..."
-                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                  value={inviteCode}
+                  onChange={(e) => { setInviteCode(e.target.value); setInviteError(""); }}
+                  placeholder="e.g. R-7KX9M2"
+                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] font-mono"
+                  onKeyDown={(e) => { if (e.key === "Enter") inviteByCode(); }}
                 />
                 <select
                   value={inviteRole}
@@ -821,40 +892,15 @@ export default function WatchlistPage() {
                   <option value="editor">Editor</option>
                   <option value="viewer">Viewer</option>
                 </select>
+                <button
+                  onClick={inviteByCode}
+                  disabled={!inviteCode.trim() || inviting}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <UserPlus className="w-4 h-4" />
+                </button>
               </div>
               {inviteError && <p className="text-xs text-red-400 mt-2">{inviteError}</p>}
-              {searching && <p className="text-xs text-[var(--foreground-muted)] mt-2">Searching...</p>}
-              {searchResults.length > 0 && (
-                <div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
-                  {searchResults.map((u) => (
-                    <div key={u.userId} className="flex items-center justify-between p-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] transition-colors">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {u.avatarUrl ? (
-                          <Image src={u.avatarUrl} alt={u.name} width={24} height={24} className="rounded-full shrink-0" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[10px] text-[var(--foreground-muted)] shrink-0">
-                            {u.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm text-white truncate">{u.name}</p>
-                          <p className="text-[10px] text-[var(--foreground-muted)] truncate">ID: {u.firebaseUid?.slice(0, 12)}...</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => inviteUser(u.userId)}
-                        disabled={inviting}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" /> Add
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {inviteQuery.trim().length >= 2 && !searching && searchResults.length === 0 && (
-                <p className="text-xs text-[var(--foreground-muted)] mt-2">No users found matching &ldquo;{inviteQuery}&rdquo;</p>
-              )}
             </div>
 
             {/* Current collaborators */}
@@ -874,7 +920,7 @@ export default function WatchlistPage() {
                       )}
                       <div className="min-w-0">
                         <p className="text-sm text-white truncate">{c.name}</p>
-                        <p className="text-[10px] text-[var(--foreground-muted)] truncate">ID: {c.firebaseUid?.slice(0, 12)}...</p>
+                        {c.status === "pending" && <p className="text-[10px] text-yellow-400">Pending</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

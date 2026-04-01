@@ -60,7 +60,7 @@ export default async function SingleReviewPage({ params }: Props) {
   const rating = await prisma.movieRating.findUnique({
     where: { id: reviewId },
     include: {
-      user: { select: { id: true, name: true, avatarUrl: true } },
+      user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
       movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
       likes: { select: { userId: true } },
     },

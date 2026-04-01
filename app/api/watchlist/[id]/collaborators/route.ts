@@ -11,7 +11,7 @@ async function getAuthedUser(req: NextRequest) {
   return prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
 }
 
-/** GET — list collaborators for a watchlist */
+/** GET — list collaborators for a watchlist (owner only) */
 export async function GET(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
@@ -24,19 +24,17 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     const collaborators = await prisma.watchlistCollaborator.findMany({
       where: { watchlistId: id },
-      include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } },
+      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
       orderBy: { addedAt: "asc" },
     });
 
     return NextResponse.json({
-      owner: { id: user.id, name: user.name, avatarUrl: user.avatarUrl },
       collaborators: collaborators.map((c) => ({
         userId: c.userId,
         name: c.user.name,
         avatarUrl: c.user.avatarUrl,
-        firebaseUid: c.user.firebaseUid,
         role: c.role,
-        addedAt: c.addedAt,
+        status: c.status,
       })),
     });
   } catch (err) {
@@ -45,7 +43,7 @@ export async function GET(req: NextRequest, { params }: Props) {
   }
 }
 
-/** POST — invite a user as collaborator (by name or email) */
+/** POST — invite a user by invite code */
 export async function POST(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
@@ -56,22 +54,21 @@ export async function POST(req: NextRequest, { params }: Props) {
     if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (watchlist.userId !== user.id) return NextResponse.json({ error: "Only the owner can invite collaborators" }, { status: 403 });
 
-    const { userId: targetUserId, role } = await req.json();
-    if (!targetUserId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    const { inviteCode, role } = await req.json();
+    if (!inviteCode?.trim()) return NextResponse.json({ error: "Invite code is required" }, { status: 400 });
     const cleanRole = role === "viewer" ? "viewer" : "editor";
 
-    const target = await prisma.user.findUnique({ where: { id: targetUserId } });
-    if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
-    if (target.id === user.id) return NextResponse.json({ error: "You can't add yourself" }, { status: 400 });
+    const target = await prisma.user.findUnique({ where: { inviteCode: inviteCode.trim() } });
+    if (!target) return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
+    if (target.id === user.id) return NextResponse.json({ error: "You can't invite yourself" }, { status: 400 });
 
-    // Check if already a collaborator
     const existing = await prisma.watchlistCollaborator.findUnique({
       where: { watchlistId_userId: { watchlistId: id, userId: target.id } },
     });
-    if (existing) return NextResponse.json({ error: "User is already a collaborator" }, { status: 409 });
+    if (existing) return NextResponse.json({ error: "User already invited" }, { status: 409 });
 
     await prisma.watchlistCollaborator.create({
-      data: { watchlistId: id, userId: target.id, role: cleanRole },
+      data: { watchlistId: id, userId: target.id, role: cleanRole, status: "pending" },
     });
 
     return NextResponse.json({
@@ -79,8 +76,8 @@ export async function POST(req: NextRequest, { params }: Props) {
         userId: target.id,
         name: target.name,
         avatarUrl: target.avatarUrl,
-        firebaseUid: target.firebaseUid,
         role: cleanRole,
+        status: "pending",
       },
     });
   } catch (err) {
@@ -89,7 +86,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   }
 }
 
-/** PATCH — change a collaborator's role */
+/** PATCH — change role, or accept/decline an invite */
 export async function PATCH(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
@@ -97,9 +94,36 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const watchlist = await prisma.watchlist.findUnique({ where: { id } });
-    if (!watchlist || watchlist.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { userId, role } = await req.json();
+    const body = await req.json();
+
+    // Accept or decline an invite (collaborator themselves)
+    if (body.action === "accept" || body.action === "decline") {
+      const entry = await prisma.watchlistCollaborator.findUnique({
+        where: { watchlistId_userId: { watchlistId: id, userId: user.id } },
+      });
+      if (!entry || entry.status !== "pending") {
+        return NextResponse.json({ error: "No pending invite found" }, { status: 404 });
+      }
+
+      if (body.action === "decline") {
+        await prisma.watchlistCollaborator.delete({
+          where: { watchlistId_userId: { watchlistId: id, userId: user.id } },
+        });
+        return NextResponse.json({ declined: true });
+      }
+
+      await prisma.watchlistCollaborator.update({
+        where: { watchlistId_userId: { watchlistId: id, userId: user.id } },
+        data: { status: "accepted" },
+      });
+      return NextResponse.json({ accepted: true });
+    }
+
+    // Change role (owner only)
+    if (watchlist.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const { userId, role } = body;
     const cleanRole = role === "viewer" ? "viewer" : "editor";
 
     await prisma.watchlistCollaborator.update({
@@ -109,7 +133,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
 
     return NextResponse.json({ updated: true, role: cleanRole });
   } catch (err) {
-    console.error("Collaborator role update error:", err);
+    console.error("Collaborator update error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -128,7 +152,6 @@ export async function DELETE(req: NextRequest, { params }: Props) {
     const isOwner = watchlist.userId === user.id;
     const isSelf = userId === user.id;
 
-    // Owner can remove anyone, collaborator can only remove themselves
     if (!isOwner && !isSelf) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     await prisma.watchlistCollaborator.delete({

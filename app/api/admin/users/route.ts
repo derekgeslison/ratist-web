@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       where,
       select: {
         id: true,
+        firebaseUid: true,
         name: true,
         email: true,
         avatarUrl: true,

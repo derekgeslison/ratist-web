@@ -27,7 +27,7 @@ interface ReviewData {
   commentCount: number;
   likeCount: number;
   likedByMe: boolean;
-  user: { id: string; name: string; avatarUrl: string | null };
+  user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
 }
 
 interface Props {
@@ -81,7 +81,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 p-4 pb-0">
-        <Link href={`/profile/${review.user.id}`} className="flex items-center gap-2.5 group shrink-0">
+        <Link href={`/profile/${review.user.firebaseUid}`} className="flex items-center gap-2.5 group shrink-0">
           <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[var(--ratist-red)] flex items-center justify-center shrink-0">
             {review.user.avatarUrl ? (
               <Image src={review.user.avatarUrl} alt="" fill sizes="32px" className="object-cover" unoptimized />

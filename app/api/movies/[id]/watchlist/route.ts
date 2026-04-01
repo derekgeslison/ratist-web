@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       where: {
         OR: [
           { userId: user.id },
-          { collaborators: { some: { userId: user.id, role: "editor" } } },
+          { collaborators: { some: { userId: user.id, role: "editor", status: "accepted" } } },
         ],
       },
       select: {
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       where: {
         OR: [
           { userId: user.id },
-          { collaborators: { some: { userId: user.id, role: "editor" } } },
+          { collaborators: { some: { userId: user.id, role: "editor", status: "accepted" } } },
         ],
       },
       select: {

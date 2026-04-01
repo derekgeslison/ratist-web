@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     });
     if (!watchlist) return NextResponse.json({ error: "Watchlist not found" }, { status: 404 });
     const isOwner = watchlist.userId === user.id;
-    const isEditor = watchlist.collaborators.some((c) => c.role === "editor");
+    const isEditor = watchlist.collaborators.some((c) => c.role === "editor" && c.status === "accepted");
     if (!isOwner && !isEditor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { tmdbId, title, posterPath, releaseDate } = await req.json();

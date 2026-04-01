@@ -12,7 +12,7 @@ interface ForumPost {
   content: string;
   isEdited: boolean;
   createdAt: string;
-  author: { id: string; name: string; avatarUrl: string | null };
+  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
 }
 
 interface Thread {
@@ -24,7 +24,7 @@ interface Thread {
   viewCount: number;
   createdAt: string;
   category: { id: string; name: string; slug: string };
-  author: { id: string; name: string; avatarUrl: string | null };
+  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
   posts: ForumPost[];
 }
 
@@ -124,7 +124,7 @@ export default function ThreadPage({ params }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <Link href={`/profile/${post.author.id}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
+                <Link href={`/profile/${post.author.firebaseUid}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
                   {post.author.name}
                 </Link>
                 {idx === 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] font-medium">OP</span>}

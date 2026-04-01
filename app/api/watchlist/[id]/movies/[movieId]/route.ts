@@ -18,7 +18,7 @@ async function checkAccess(watchlistId: string, userId: string) {
   });
   if (!wl) return null;
   const isOwner = wl.userId === userId;
-  const isEditor = wl.collaborators.some((c) => c.role === "editor");
+  const isEditor = wl.collaborators.some((c) => c.role === "editor" && c.status === "accepted");
   return isOwner || isEditor ? wl : null;
 }
 

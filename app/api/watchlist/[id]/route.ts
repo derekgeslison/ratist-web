@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     // Access check: owner, collaborator, or public
     const isOwner = user?.id === watchlist.userId;
-    const myCollab = user ? watchlist.collaborators.find((c) => c.userId === user.id) : null;
+    const myCollab = user ? watchlist.collaborators.find((c) => c.userId === user.id && c.status === "accepted") : null;
     const isCollab = !!myCollab;
     if (watchlist.isPrivate && !isOwner && !isCollab) {
       return NextResponse.json({ error: "Private watchlist" }, { status: 403 });

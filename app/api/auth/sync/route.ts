@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+
+function generateInviteCode(): string {
+  return "R-" + crypto.randomBytes(4).toString("hex").slice(0, 7);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +24,7 @@ export async function POST(req: NextRequest) {
         name: name ?? "User",
         email: email ?? decoded.email ?? "",
         avatarUrl: avatarUrl ?? null,
+        inviteCode: generateInviteCode(),
         profile: { create: {} },
       },
       update: {

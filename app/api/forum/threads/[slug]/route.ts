@@ -27,9 +27,9 @@ export async function GET(_req: NextRequest, { params }: Props) {
     where: { slug },
     include: {
       category: { select: { id: true, name: true, slug: true } },
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
       posts: {
-        include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+        include: { author: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   const post = await prisma.forumPost.create({
     data: { threadId: thread.id, authorId: user.id, content: content.trim() },
-    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+    include: { author: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
   });
 
   // Update thread updatedAt

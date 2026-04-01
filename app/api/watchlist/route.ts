@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     // Get all user's watchlists with movie counts
     const watchlists = await prisma.watchlist.findMany({
-      where: { OR: [{ userId: user.id }, { collaborators: { some: { userId: user.id } } }] },
+      where: { OR: [{ userId: user.id }, { collaborators: { some: { userId: user.id, status: "accepted" } } }] },
       include: {
         _count: { select: { movies: true } },
         user: { select: { name: true, firebaseUid: true } },

@@ -8,6 +8,7 @@ import { Search, Shield, ShieldOff, ExternalLink, Trash2 } from "lucide-react";
 
 interface AdminUser {
   id: string;
+  firebaseUid: string;
   name: string;
   email: string;
   avatarUrl: string | null;
@@ -151,7 +152,7 @@ export default function AdminUsersPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 justify-end">
                     <Link
-                      href={`/profile/${u.id}`}
+                      href={`/profile/${u.firebaseUid}`}
                       target="_blank"
                       className="p-1.5 rounded text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors"
                       title="View profile"

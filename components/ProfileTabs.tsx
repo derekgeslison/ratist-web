@@ -44,7 +44,7 @@ interface WatchlistMovie {
 }
 
 interface SimilarUser {
-  user: { id: string; name: string; avatarUrl: string | null; isPrivate: boolean };
+  user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; isPrivate: boolean };
   overallMatch: number;
 }
 
@@ -136,7 +136,7 @@ export default function ProfileTabs({
       : TABS.filter((t) => tabVisibility[TAB_KEY_MAP[t]]);
 
   const [activeTab, setActiveTab] = useState<Tab>(visibleTabs[0] ?? "Overview");
-  const profileUrl = `${siteUrl}/profile/${profileUserId}`;
+  const profileUrl = `${siteUrl}/profile/${profileFirebaseUid}`;
   const currentYear = new Date().getFullYear().toString();
   const prevYear = (new Date().getFullYear() - 1).toString();
   // Show the most recently active year — keep previous year visible until the user has
@@ -469,7 +469,7 @@ export default function ProfileTabs({
                 <h3 className="text-sm font-semibold text-white mb-3">Similar Taste Profiles</h3>
                 <div className="space-y-3">
                   {similarUsers.filter((s) => !s.user.isPrivate).map((s) => (
-                    <Link key={s.user.id} href={`/profile/${s.user.id}`} className="flex items-center gap-3 group">
+                    <Link key={s.user.id} href={`/profile/${s.user.firebaseUid}`} className="flex items-center gap-3 group">
                       <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] shrink-0">
                         {s.user.avatarUrl ? (
                           <Image src={s.user.avatarUrl} alt="" fill sizes="32px" className="object-cover" unoptimized />
@@ -573,7 +573,7 @@ export default function ProfileTabs({
         <ProfileDiaryTab
           seenMovies={seenMovies}
           isOwnProfile={isOwnProfile}
-          profileUserId={profileUserId}
+          profileFirebaseUid={profileFirebaseUid}
           activeYear={activeYear}
           seenThisYear={seenThisYear}
           siteUrl={siteUrl}

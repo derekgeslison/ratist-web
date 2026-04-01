@@ -84,7 +84,7 @@ export default async function MovieDetailPage({ params }: Props) {
     reviewType: string;
     hasSpoilers: boolean;
     commentsDisabled: boolean;
-    user: { id: string; name: string; avatarUrl: string | null };
+    user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
     createdAt: Date;
     _count: { likes: number; comments: number };
   }[] = [];
@@ -108,7 +108,7 @@ export default async function MovieDetailPage({ params }: Props) {
           hasSpoilers: true,
           commentsDisabled: true,
           createdAt: true,
-          user: { select: { id: true, name: true, avatarUrl: true } },
+          user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
           _count: { select: { likes: true, comments: true } },
         },
         orderBy: { createdAt: "desc" },

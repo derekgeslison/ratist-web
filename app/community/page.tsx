@@ -47,6 +47,7 @@ export default async function CommunityPage() {
     where: { isPrivate: false },
     select: {
       id: true,
+      firebaseUid: true,
       name: true,
       avatarUrl: true,
       _count: { select: { ratings: true } },
@@ -94,7 +95,7 @@ export default async function CommunityPage() {
             {users.map((user) => (
               <Link
                 key={user.id}
-                href={`/profile/${user.id}`}
+                href={`/profile/${user.firebaseUid}`}
                 className="flex flex-col items-center gap-2 p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl hover:border-[var(--ratist-red)] transition-colors text-center group"
               >
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-[var(--surface-2)] border border-[var(--border)]">

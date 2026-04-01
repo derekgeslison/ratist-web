@@ -214,6 +214,7 @@ export default async function ProfilePage({ params }: Props) {
             isPrivate={user.isPrivate}
             profileFirebaseUid={user.firebaseUid}
             profileUserId={user.id}
+            inviteCode={user.inviteCode}
             ratingCount={ratingCount}
             seenCount={seenCount}
             avgRating={avgRatingValue}

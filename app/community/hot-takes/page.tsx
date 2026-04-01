@@ -12,7 +12,7 @@ interface HotTakeItem {
   createdAt: string;
   score: number;
   voterIds: { userId: string; value: number }[];
-  author: { id: string; name: string; avatarUrl: string | null };
+  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
 }
 
 type SortMode = "newest" | "score";
@@ -186,7 +186,7 @@ export default function HotTakesPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <Link href={`/profile/${item.author.id}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{item.author.name}</Link>
+                    <Link href={`/profile/${item.author.firebaseUid}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{item.author.name}</Link>
                     <span className="text-xs text-[var(--foreground-muted)]">{new Date(item.createdAt).toLocaleDateString()}</span>
                     {isHot && item.score >= 5 && <Flame className="w-3.5 h-3.5 text-orange-400" />}
                   </div>

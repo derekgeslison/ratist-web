@@ -179,7 +179,7 @@ export async function findSimilarUsers(userId: string, limit = 10) {
 
   const allProfiles = await prisma.userProfile.findMany({
     where: { userId: { not: userId } },
-    include: { user: { select: { id: true, name: true, avatarUrl: true, isPrivate: true } } },
+    include: { user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true, isPrivate: true } } },
   });
 
   const componentKeys = [
