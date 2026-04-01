@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords } from "lucide-react";
+import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Star } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -140,7 +140,10 @@ export default function Navbar() {
                       <User className="w-4 h-4" /> My Profile
                     </Link>
                     <Link href="/seen" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
-                      <Eye className="w-4 h-4" /> Movies Seen
+                      <Eye className="w-4 h-4" /> Film Diary
+                    </Link>
+                    <Link href="/ratings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
+                      <Star className="w-4 h-4" /> My Ratings
                     </Link>
                     <Link href="/watchlist" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <Bookmark className="w-4 h-4" /> My Watchlist
