@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef, useCallback } from "react";
-import { Calendar, RotateCcw, X } from "lucide-react";
+import { useState } from "react";
+import { Calendar, RotateCcw, X, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
@@ -33,7 +33,6 @@ export default function DiaryRow({
 }: Props) {
   const [editingDate, setEditingDate] = useState(false);
   const [pendingDate, setPendingDate] = useState(dateValue ?? "");
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(notes ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -119,35 +118,24 @@ export default function DiaryRow({
                   type="date"
                   value={pendingDate}
                   autoFocus
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setPendingDate(val);
-                    // Debounce save — arrow clicks fire rapidly, actual date
-                    // selection is the last change in a sequence
-                    if (saveTimer.current) clearTimeout(saveTimer.current);
-                    if (val) {
-                      saveTimer.current = setTimeout(() => {
-                        if (val !== (dateValue ?? "")) {
-                          onDateChange(val);
-                          setEditingDate(false);
-                        }
-                      }, 600);
-                    }
-                  }}
-                  onBlur={() => {
-                    // Also save on blur as fallback
-                    if (saveTimer.current) clearTimeout(saveTimer.current);
-                    if (pendingDate !== (dateValue ?? "")) {
-                      onDateChange(pendingDate || null);
-                    }
-                    setEditingDate(false);
-                  }}
+                  onChange={(e) => setPendingDate(e.target.value)}
                   className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
                 />
-                {/* Remove date button — onMouseDown prevents input blur from hiding it */}
+                {/* Confirm save */}
+                <button
+                  onClick={() => {
+                    if (pendingDate && pendingDate !== (dateValue ?? "")) onDateChange(pendingDate);
+                    setEditingDate(false);
+                  }}
+                  className="text-green-400 hover:text-green-300 transition-colors"
+                  title="Save date"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                {/* Remove date */}
                 {(dateValue || pendingDate) && (
                   <button
-                    onMouseDown={(e) => { e.preventDefault(); onDateChange(null); setPendingDate(""); setEditingDate(false); }}
+                    onClick={() => { onDateChange(null); setPendingDate(""); setEditingDate(false); }}
                     className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
                     title="Remove date"
                   >

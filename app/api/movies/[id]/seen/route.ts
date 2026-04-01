@@ -77,7 +77,9 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     const { watchedDate } = await req.json();
     // Append T12:00:00 to avoid UTC midnight timezone shift (date-only strings
     // are parsed as UTC, which rolls back a day in US timezones)
-    const parsedDate = watchedDate ? new Date(`${watchedDate}T12:00:00`) : null;
+    // Handle both "YYYY-MM-DD" and "YYYY-MM-DDT12:00:00" formats
+    const dateStr = watchedDate ? String(watchedDate).split("T")[0] : null;
+    const parsedDate = dateStr ? new Date(`${dateStr}T12:00:00`) : null;
     await prisma.userFavoriteMovie.update({
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       data: { watchedDate: parsedDate },
