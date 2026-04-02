@@ -21,6 +21,7 @@ interface AnalyticsData {
   contrarianScore: number | null;
   mostControversial: { title: string; userScore: number; communityScore: number; diff: number }[];
   seasonal: { month: string; count: number }[];
+  dayOfWeek: { day: string; count: number }[];
   blindSpots: { genre: string; count: number }[];
 }
 
@@ -72,7 +73,7 @@ export default function AnalyticsPage() {
   const [reportMaxRating, setReportMaxRating] = useState("");
   const [reportRows, setReportRows] = useState<ReportRow[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
-  const [reportSortBy, setReportSortBy] = useState<"count" | "avgRating" | "totalHours">("count");
+  const [reportSortBy, setReportSortBy] = useState<"label" | "count" | "avgRating" | "totalHours">("count");
   const [reportSortAsc, setReportSortAsc] = useState(false);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
@@ -111,6 +112,9 @@ export default function AnalyticsPage() {
   }
 
   const sortedReport = [...reportRows].sort((a, b) => {
+    if (reportSortBy === "label") {
+      return reportSortAsc ? a.label.localeCompare(b.label) : b.label.localeCompare(a.label);
+    }
     const av = reportSortBy === "count" ? a.count : reportSortBy === "avgRating" ? (a.avgRating ?? -1) : a.totalHours;
     const bv = reportSortBy === "count" ? b.count : reportSortBy === "avgRating" ? (b.avgRating ?? -1) : b.totalHours;
     return reportSortAsc ? av - bv : bv - av;
@@ -529,6 +533,32 @@ export default function AnalyticsPage() {
                 })()}
               </section>
 
+              {/* Day of week patterns */}
+              {data.dayOfWeek && (
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3">Day of the Week</h3>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">Which days you watch movies most (only dated entries).</p>
+                  {(() => {
+                    const maxDay = Math.max(...data.dayOfWeek.map((x) => x.count), 1);
+                    const barHeight = 112;
+                    return (
+                      <div className="flex items-end gap-2" style={{ height: barHeight + 28 }}>
+                        {data.dayOfWeek.map((d) => {
+                          const h = Math.round((d.count / maxDay) * barHeight);
+                          return (
+                            <div key={d.day} className="flex-1 flex flex-col items-center justify-end">
+                              <span className="text-[9px] text-[var(--foreground-muted)] mb-1">{d.count > 0 ? d.count : ""}</span>
+                              <div className="w-full bg-purple-500/70 rounded-t" style={{ height: h, minHeight: d.count > 0 ? 4 : 0 }} />
+                              <span className="text-[10px] text-[var(--foreground-muted)] mt-1">{d.day}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </section>
+              )}
+
               {/* Watch time stats */}
               <section>
                 <h3 className="text-sm font-semibold text-white mb-3">Watch Time</h3>
@@ -600,26 +630,27 @@ export default function AnalyticsPage() {
               </div>
 
               {/* Results */}
-              {reportRows.length > 0 && (
+              {reportRows.length > 0 && (() => {
+                const groupLabel = reportGroupBy === "genre" ? "Genre" : reportGroupBy === "decade" ? "Decade" : reportGroupBy === "year" ? "Year" : reportGroupBy === "director" ? "Director" : "Actor";
+                function sortHeader(label: string, key: "label" | "count" | "avgRating" | "totalHours", align: string) {
+                  const active = reportSortBy === key;
+                  return (
+                    <th className={`${align} px-4 py-2.5 font-medium cursor-pointer select-none hover:text-white transition-colors`}
+                      onClick={() => { if (active) setReportSortAsc(!reportSortAsc); else { setReportSortBy(key as any); setReportSortAsc(key === "label"); } }}>
+                      {label} {active ? (reportSortAsc ? "↑" : "↓") : ""}
+                    </th>
+                  );
+                }
+                return (
                 <div>
-                  <div className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] mb-2">
-                    Sort by:
-                    {(["count", "avgRating", "totalHours"] as const).map((s) => (
-                      <button key={s} onClick={() => { if (reportSortBy === s) setReportSortAsc(!reportSortAsc); else { setReportSortBy(s); setReportSortAsc(false); } }}
-                        className={`px-2 py-0.5 rounded ${reportSortBy === s ? "bg-[var(--ratist-red)]/20 text-white" : "hover:text-white"}`}>
-                        {s === "count" ? "Count" : s === "avgRating" ? "Avg Rating" : "Hours"}
-                        {reportSortBy === s && (reportSortAsc ? " ↑" : " ↓")}
-                      </button>
-                    ))}
-                  </div>
                   <div className="border border-[var(--border)] rounded-xl overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-[var(--surface)] text-[var(--foreground-muted)] text-xs">
-                          <th className="text-left px-4 py-2.5 font-medium">{reportGroupBy === "genre" ? "Genre" : reportGroupBy === "decade" ? "Decade" : reportGroupBy === "year" ? "Year" : reportGroupBy === "director" ? "Director" : "Actor"}</th>
-                          <th className="text-right px-4 py-2.5 font-medium">Movies</th>
-                          <th className="text-right px-4 py-2.5 font-medium">Avg Rating</th>
-                          <th className="text-right px-4 py-2.5 font-medium">Hours</th>
+                          {sortHeader(groupLabel, "label", "text-left")}
+                          {sortHeader("Movies", "count", "text-right")}
+                          {sortHeader("Avg Rating", "avgRating", "text-right")}
+                          {sortHeader("Hours", "totalHours", "text-right")}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--border)]/20">
@@ -638,7 +669,8 @@ export default function AnalyticsPage() {
                   </div>
                   <p className="text-xs text-[var(--foreground-muted)] mt-2">{sortedReport.length} results</p>
                 </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </>

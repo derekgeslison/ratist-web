@@ -246,6 +246,14 @@ export async function GET(req: NextRequest) {
         })
       : MONTH_LABELS.map((month, i) => ({ month, count: seasonalCounts[i] }));
 
+    // ── Day of week patterns (only dated entries) ──
+    const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dayCounts = Array(7).fill(0) as number[];
+    for (const s of datedSeen) {
+      dayCounts[s.watchedDate!.getDay()]++;
+    }
+    const dayOfWeek = DAY_LABELS.map((day, i) => ({ day, count: dayCounts[i] }));
+
     // ── Blind spots (genres with < 3 movies or 0) ──
     const allGenres = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "Thriller", "War", "Western"];
     const blindSpots = allGenres
@@ -271,6 +279,7 @@ export async function GET(req: NextRequest) {
       contrarianScore,
       mostControversial,
       seasonal,
+      dayOfWeek,
       blindSpots,
     });
   } catch (err) {
