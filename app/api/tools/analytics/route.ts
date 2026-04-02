@@ -121,41 +121,70 @@ export async function GET(req: NextRequest) {
       .map(([decade, d]) => ({ decade, count: d.count, avgRating: d.ratedCount > 0 ? Math.round((d.totalScore / d.ratedCount) * 10) / 10 : null }))
       .sort((a, b) => b.decade.localeCompare(a.decade));
 
-    // ── Director rankings ──
-    const dirMap = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
-    for (const r of ratings) {
-      const dirs = r.movie.cast.filter((c) => c.creditType === "crew" && c.job === "Director");
-      for (const d of dirs) {
-        const name = d.celebrity.name;
-        const entry = dirMap.get(name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
-        entry.count++;
-        if (r.ratistRating != null) { entry.totalScore += r.ratistRating; entry.ratedCount++; }
-        dirMap.set(name, entry);
-      }
-    }
-    const directors = [...dirMap.entries()]
-      .filter(([, d]) => d.count >= 2)
-      .map(([name, d]) => ({ name, count: d.count, avgRating: d.ratedCount > 0 ? Math.round((d.totalScore / d.ratedCount) * 10) / 10 : null }))
-      .sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0))
-      .slice(0, 20);
+    // ── Director & Actor rankings (from all seen movies) ──
+    // Batch fetch cast for all seen movieIds
+    const seenMovieIds = seen.map((s) => s.movieId);
+    const allCast = seenMovieIds.length > 0 ? await prisma.movieCast.findMany({
+      where: {
+        movieId: { in: seenMovieIds },
+        OR: [{ creditType: "cast" }, { creditType: "crew", job: "Director" }],
+      },
+      select: { movieId: true, creditType: true, job: true, castOrder: true, celebrity: { select: { name: true } } },
+    }) : [];
 
-    // ── Actor rankings ──
+    // Group cast by movie for easy lookup
+    const castByMovie = new Map<string, typeof allCast>();
+    for (const c of allCast) {
+      const list = castByMovie.get(c.movieId) ?? [];
+      list.push(c);
+      castByMovie.set(c.movieId, list);
+    }
+
+    const dirMap = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
     const actorMap = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
-    for (const r of ratings) {
-      const actors = r.movie.cast.filter((c) => c.creditType === "cast").slice(0, 5);
-      for (const a of actors) {
-        const name = a.celebrity.name;
-        const entry = actorMap.get(name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
+    for (const s of seen) {
+      const cast = castByMovie.get(s.movieId) ?? [];
+      const score = ratingByMovieId.get(s.movieId) ?? null;
+      // Directors
+      for (const c of cast.filter((c) => c.creditType === "crew" && c.job === "Director")) {
+        const entry = dirMap.get(c.celebrity.name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
         entry.count++;
-        if (r.ratistRating != null) { entry.totalScore += r.ratistRating; entry.ratedCount++; }
-        actorMap.set(name, entry);
+        if (score != null) { entry.totalScore += score; entry.ratedCount++; }
+        dirMap.set(c.celebrity.name, entry);
+      }
+      // Actors (top 5 billed)
+      const actors = cast.filter((c) => c.creditType === "cast").sort((a, b) => a.castOrder - b.castOrder).slice(0, 5);
+      for (const c of actors) {
+        const entry = actorMap.get(c.celebrity.name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
+        entry.count++;
+        if (score != null) { entry.totalScore += score; entry.ratedCount++; }
+        actorMap.set(c.celebrity.name, entry);
       }
     }
-    const actors = [...actorMap.entries()]
-      .filter(([, d]) => d.count >= 2)
+
+    // Top rated (2+ films with ratings)
+    const directorsTopRated = [...dirMap.entries()]
+      .filter(([, d]) => d.ratedCount >= 2)
+      .map(([name, d]) => ({ name, count: d.count, avgRating: Math.round((d.totalScore / d.ratedCount) * 10) / 10 }))
+      .sort((a, b) => b.avgRating - a.avgRating)
+      .slice(0, 10);
+
+    const actorsTopRated = [...actorMap.entries()]
+      .filter(([, d]) => d.ratedCount >= 2)
+      .map(([name, d]) => ({ name, count: d.count, avgRating: Math.round((d.totalScore / d.ratedCount) * 10) / 10 }))
+      .sort((a, b) => b.avgRating - a.avgRating)
+      .slice(0, 10);
+
+    // Most watched (by total count)
+    const directorsMostWatched = [...dirMap.entries()]
       .map(([name, d]) => ({ name, count: d.count, avgRating: d.ratedCount > 0 ? Math.round((d.totalScore / d.ratedCount) * 10) / 10 : null }))
-      .sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0))
-      .slice(0, 20);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    const actorsMostWatched = [...actorMap.entries()]
+      .map(([name, d]) => ({ name, count: d.count, avgRating: d.ratedCount > 0 ? Math.round((d.totalScore / d.ratedCount) * 10) / 10 : null }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
 
     // ── Rating distribution (0-10 in 0.5 steps) ──
     const distBuckets: Record<string, number> = {};
@@ -202,12 +231,20 @@ export async function GET(req: NextRequest) {
       .slice(0, 10);
 
     // ── Seasonal patterns (movies watched per calendar month — only dated) ──
+    const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const seasonalCounts = Array(12).fill(0) as number[];
     for (const s of datedSeen) {
       seasonalCounts[s.watchedDate!.getMonth()]++;
     }
-    const seasonal = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-      .map((month, i) => ({ month, count: seasonalCounts[i] }));
+    // Rotate to show last 12 months from current month when no year filter
+    const now = new Date();
+    const currentMonthIdx = now.getMonth();
+    const seasonal = (!yearFrom && !yearTo)
+      ? Array.from({ length: 12 }, (_, i) => {
+          const idx = (currentMonthIdx + 1 + i) % 12; // start from next month last year
+          return { month: MONTH_LABELS[idx], count: seasonalCounts[idx] };
+        })
+      : MONTH_LABELS.map((month, i) => ({ month, count: seasonalCounts[i] }));
 
     // ── Blind spots (genres with < 3 movies or 0) ──
     const allGenres = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "Thriller", "War", "Western"];
@@ -225,8 +262,10 @@ export async function GET(req: NextRequest) {
       velocity,
       genres,
       decades,
-      directors,
-      actors,
+      directorsTopRated,
+      actorsTopRated,
+      directorsMostWatched,
+      actorsMostWatched,
       distribution,
       ratingTrend,
       contrarianScore,

@@ -12,8 +12,10 @@ interface AnalyticsData {
   velocity: { month: string; count: number }[];
   genres: { name: string; count: number; avgRating: number | null }[];
   decades: { decade: string; count: number; avgRating: number | null }[];
-  directors: { name: string; count: number; avgRating: number | null }[];
-  actors: { name: string; count: number; avgRating: number | null }[];
+  directorsTopRated: { name: string; count: number; avgRating: number }[];
+  actorsTopRated: { name: string; count: number; avgRating: number }[];
+  directorsMostWatched: { name: string; count: number; avgRating: number | null }[];
+  actorsMostWatched: { name: string; count: number; avgRating: number | null }[];
   distribution: { score: number; count: number }[];
   ratingTrend: { month: string; avgRating: number; count: number }[];
   contrarianScore: number | null;
@@ -302,48 +304,96 @@ export default function AnalyticsPage() {
 
           {/* ── DIRECTORS & ACTORS ── */}
           {tab === "people" && (
-            <div className="grid md:grid-cols-2 gap-8">
-              <section>
-                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                  <Zap className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> Top Directors
-                </h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-3">Directors with 2+ rated movies, sorted by your average rating.</p>
-                {data.directors.length === 0 ? (
-                  <p className="text-xs text-[var(--foreground-muted)]">Rate more movies to see director insights.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {data.directors.map((d, i) => (
-                      <div key={d.name} className="flex items-center gap-2 py-1.5">
-                        <span className="text-xs text-[var(--foreground-muted)] w-5 text-right">{i + 1}</span>
-                        <span className="text-sm text-white flex-1 truncate">{d.name}</span>
-                        <span className="text-xs text-[var(--foreground-muted)]">{d.count} films</span>
-                        {d.avgRating && <span className="text-sm font-bold w-8 text-right" style={{ color: scoreColor(d.avgRating) }}>{d.avgRating}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+            <div className="space-y-10">
+              {/* Most Watched */}
+              <div className="grid md:grid-cols-2 gap-8">
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> Most Watched Directors
+                  </h3>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">Directors whose films you&apos;ve seen the most.</p>
+                  {data.directorsMostWatched.length === 0 ? (
+                    <p className="text-xs text-[var(--foreground-muted)]">Watch more movies to see director insights.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {data.directorsMostWatched.map((d, i) => (
+                        <div key={d.name} className="flex items-center gap-2 py-1.5">
+                          <span className="text-xs text-[var(--foreground-muted)] w-5 text-right">{i + 1}</span>
+                          <span className="text-sm text-white flex-1 truncate">{d.name}</span>
+                          <span className="text-xs font-semibold text-white">{d.count} films</span>
+                          {d.avgRating != null && <span className="text-xs w-8 text-right" style={{ color: scoreColor(d.avgRating) }}>{d.avgRating}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
 
-              <section>
-                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                  <Star className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> Top Actors
-                </h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-3">Actors with 2+ rated movies, sorted by your average rating.</p>
-                {data.actors.length === 0 ? (
-                  <p className="text-xs text-[var(--foreground-muted)]">Rate more movies to see actor insights.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {data.actors.map((a, i) => (
-                      <div key={a.name} className="flex items-center gap-2 py-1.5">
-                        <span className="text-xs text-[var(--foreground-muted)] w-5 text-right">{i + 1}</span>
-                        <span className="text-sm text-white flex-1 truncate">{a.name}</span>
-                        <span className="text-xs text-[var(--foreground-muted)]">{a.count} films</span>
-                        {a.avgRating && <span className="text-sm font-bold w-8 text-right" style={{ color: scoreColor(a.avgRating) }}>{a.avgRating}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> Most Watched Actors
+                  </h3>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">Actors you&apos;ve seen the most across all movies.</p>
+                  {data.actorsMostWatched.length === 0 ? (
+                    <p className="text-xs text-[var(--foreground-muted)]">Watch more movies to see actor insights.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {data.actorsMostWatched.map((a, i) => (
+                        <div key={a.name} className="flex items-center gap-2 py-1.5">
+                          <span className="text-xs text-[var(--foreground-muted)] w-5 text-right">{i + 1}</span>
+                          <span className="text-sm text-white flex-1 truncate">{a.name}</span>
+                          <span className="text-xs font-semibold text-white">{a.count} films</span>
+                          {a.avgRating != null && <span className="text-xs w-8 text-right" style={{ color: scoreColor(a.avgRating) }}>{a.avgRating}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              {/* Top Rated */}
+              <div className="grid md:grid-cols-2 gap-8">
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> Highest Rated Directors
+                  </h3>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">Directors with 2+ rated movies, sorted by your average rating.</p>
+                  {data.directorsTopRated.length === 0 ? (
+                    <p className="text-xs text-[var(--foreground-muted)]">Rate more movies to see rating-based director insights.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {data.directorsTopRated.map((d, i) => (
+                        <div key={d.name} className="flex items-center gap-2 py-1.5">
+                          <span className="text-xs text-[var(--foreground-muted)] w-5 text-right">{i + 1}</span>
+                          <span className="text-sm text-white flex-1 truncate">{d.name}</span>
+                          <span className="text-xs text-[var(--foreground-muted)]">{d.count} films</span>
+                          <span className="text-sm font-bold w-8 text-right" style={{ color: scoreColor(d.avgRating) }}>{d.avgRating}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Star className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> Highest Rated Actors
+                  </h3>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">Actors with 2+ rated movies, sorted by your average rating.</p>
+                  {data.actorsTopRated.length === 0 ? (
+                    <p className="text-xs text-[var(--foreground-muted)]">Rate more movies to see rating-based actor insights.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {data.actorsTopRated.map((a, i) => (
+                        <div key={a.name} className="flex items-center gap-2 py-1.5">
+                          <span className="text-xs text-[var(--foreground-muted)] w-5 text-right">{i + 1}</span>
+                          <span className="text-sm text-white flex-1 truncate">{a.name}</span>
+                          <span className="text-xs text-[var(--foreground-muted)]">{a.count} films</span>
+                          <span className="text-sm font-bold w-8 text-right" style={{ color: scoreColor(a.avgRating) }}>{a.avgRating}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
             </div>
           )}
 
