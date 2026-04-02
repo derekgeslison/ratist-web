@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const { nameToId, idToName } = await getGenreMaps();
     const currentYear = new Date().getFullYear();
 
-    // Build discover params
+    // Build discover params — experience sets the "what kind" but never restricts year
     let sort = "popularity.desc";
     let yearFrom = "";
     let yearTo = "";
@@ -57,18 +57,32 @@ export async function POST(req: NextRequest) {
 
     switch (experience) {
       case "popular":
-        sort = "popularity.desc"; yearFrom = String(currentYear - 2); voteCountGte = "100"; break;
+        // Well-known, widely seen films — sorted by vote count (not trending)
+        sort = "vote_count.desc";
+        voteCountGte = "1000";
+        ratingGte = "6";
+        break;
       case "hidden_gem":
-        sort = "vote_average.desc"; ratingGte = "7"; popularityLte = "30"; voteCountGte = "50"; break;
+        sort = "vote_average.desc";
+        ratingGte = "7";
+        popularityLte = "30";
+        voteCountGte = "50";
+        break;
       case "classic":
-        sort = "vote_average.desc"; yearTo = "2005"; ratingGte = "7.5"; voteCountGte = "500"; break;
+        // Highly acclaimed — high votes + high rating, no year restriction
+        sort = "vote_average.desc";
+        ratingGte = "7.5";
+        voteCountGte = "500";
+        break;
       case "random":
-        sort = "popularity.desc"; break;
+        sort = "popularity.desc";
+        break;
     }
 
+    // Era sets the year range independently from experience
     switch (era) {
-      case "recent": yearFrom = String(currentYear - 3); yearTo = ""; break;
-      case "2000s": yearFrom = "2000"; yearTo = String(currentYear); break;
+      case "recent": yearFrom = String(currentYear - 3); break;
+      case "2000s": yearFrom = "2000"; break;
       case "pre2000": yearTo = "1999"; break;
     }
 
@@ -186,9 +200,9 @@ export async function POST(req: NextRequest) {
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
-        reason: experience === "popular" ? "Trending now"
+        reason: experience === "popular" ? "Popular pick"
           : experience === "hidden_gem" ? "Hidden gem"
-          : experience === "classic" ? "Certified classic"
+          : experience === "classic" ? "Highly acclaimed"
           : experience === "random" ? "Random pick"
           : "Recommended for you",
       };
