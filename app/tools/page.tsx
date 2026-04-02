@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench, Users, Film, Map, Trophy, Swords, Star } from "lucide-react";
+import { Wrench, Users, Film, Map, Trophy, Swords, Star, BarChart3 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Cinephile Tools" };
 
@@ -40,6 +40,12 @@ const TOOLS = [
     icon: Star,
     title: "Personal Rankings",
     desc: "Rank your watched movies by year, all time, or a custom timeframe. Drag and drop to arrange your personal top lists.",
+  },
+  {
+    href: "/tools/analytics",
+    icon: BarChart3,
+    title: "My Analytics",
+    desc: "Deep insights into your movie habits. Genre breakdowns, director/actor affinities, rating trends, contrarian score, and custom reports.",
   },
 ];
 
