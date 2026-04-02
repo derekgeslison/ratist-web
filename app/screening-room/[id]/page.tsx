@@ -1261,15 +1261,15 @@ export default function ScreeningSessionPage() {
                     <p className="text-xs text-[var(--foreground-muted)] mb-4">The most active moments from your watch session.</p>
                     <div className="space-y-4">
                       {sortedGroups.map(([groupIdx, msgs]) => {
-                        const firstTime = new Date(msgs[0].timestamp);
-                        const lastTime = new Date(msgs[msgs.length - 1].timestamp);
-                        const startStr = firstTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-                        const endStr = lastTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                        const sessionStart = session.startedAt ? new Date(session.startedAt).getTime() : 0;
+                        const startElapsed = Math.max(0, Math.floor((new Date(msgs[0].timestamp).getTime() - sessionStart) / 1000));
+                        const endElapsed = Math.max(0, Math.floor((new Date(msgs[msgs.length - 1].timestamp).getTime() - sessionStart) / 1000));
+                        const fmtElapsed = (s: number) => { const m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, "0")}`; };
                         return (
                           <div key={groupIdx} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
                             <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
-                              <span className="text-[10px] text-[var(--ratist-red)] font-medium">Burst #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
-                              <span className="text-[10px] text-[var(--foreground-muted)]">{startStr} — {endStr}</span>
+                              <span className="text-[10px] text-[var(--ratist-red)] font-medium">Highlight Reel #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
+                              <span className="text-[10px] text-[var(--foreground-muted)]">{fmtElapsed(startElapsed)} — {fmtElapsed(endElapsed)}</span>
                             </div>
                             <div className="max-h-48 overflow-y-auto p-3 space-y-1.5 resize-y" style={{ minHeight: "80px" }}>
                               {msgs.map((h) => (
