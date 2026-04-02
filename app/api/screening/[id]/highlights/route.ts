@@ -118,15 +118,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         allItems.push({ userId: msg.userId, text: msg.text || "", emoji: msg.emoji || null, timestamp: msg.timestamp });
       }
       for (const poll of windowPolls) {
-        allItems.push({ userId: "system", text: poll.text, emoji: null, timestamp: poll.timestamp });
+        // Use host's userId for poll entries to satisfy FK constraint
+        allItems.push({ userId: session.hostId, text: poll.text, emoji: null, timestamp: poll.timestamp });
       }
       allItems.sort((a, b) => a.timestamp - b.timestamp);
       const capped = allItems.slice(0, MAX_PER_WINDOW);
 
       for (const item of capped) {
-        // Skip system entries (polls) — they'd violate the foreign key constraint
-        // Poll data is already visible in the session's polls section
-        if (item.userId === "system") continue;
+        // Skip entries with invalid userId
+        if (!item.userId || item.userId === "system") continue;
         highlights.push({
           sessionId: id,
           userId: item.userId,
