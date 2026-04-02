@@ -38,9 +38,8 @@ export async function GET(req: NextRequest) {
     // Fetch seen movies for watch dates
     const seen = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
-      select: { movieId: true, watchedDate: true, createdAt: true },
+      select: { movieId: true, watchedDate: true, createdAt: true, movie: { select: { runtime: true } } },
     });
-    const seenDateMap = new Map(seen.map((s) => [s.movieId, s.watchedDate ?? s.createdAt]));
 
     // ── Compute all analytics ──
 
@@ -49,12 +48,14 @@ export async function GET(req: NextRequest) {
     const totalSeen = seen.length;
     const allScores = ratedMovies.map((r) => r.ratistRating!);
     const avgRating = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
-    const totalRuntime = ratings.reduce((sum, r) => sum + (r.movie.runtime ?? 0), 0);
+    // Watch time from all seen movies (not just rated)
+    const totalRuntime = seen.reduce((sum, s) => sum + (s.movie.runtime ?? 0), 0);
 
-    // ── Viewing velocity (movies per month) ──
+    // ── Viewing velocity (movies per month) — only movies with actual watch dates ──
+    const datedSeen = seen.filter((s) => s.watchedDate != null);
     const monthCounts: Record<string, number> = {};
-    for (const s of seen) {
-      const d = s.watchedDate ?? s.createdAt;
+    for (const s of datedSeen) {
+      const d = s.watchedDate!;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       monthCounts[key] = (monthCounts[key] ?? 0) + 1;
     }
@@ -173,11 +174,10 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
       .slice(0, 10);
 
-    // ── Seasonal patterns (movies watched per calendar month) ──
-    const seasonalCounts = Array(12).fill(0);
-    for (const s of seen) {
-      const d = s.watchedDate ?? s.createdAt;
-      seasonalCounts[d.getMonth()]++;
+    // ── Seasonal patterns (movies watched per calendar month — only dated) ──
+    const seasonalCounts = Array(12).fill(0) as number[];
+    for (const s of datedSeen) {
+      seasonalCounts[s.watchedDate!.getMonth()]++;
     }
     const seasonal = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
       .map((month, i) => ({ month, count: seasonalCounts[i] }));
@@ -190,9 +190,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       overview: {
-        totalRated, totalSeen, avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
+        totalRated, totalSeen, totalDated: datedSeen.length,
+        avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
         totalRuntime, totalHours: Math.round(totalRuntime / 60),
-        avgMovieLength: totalRated > 0 ? Math.round(totalRuntime / totalRated) : null,
+        avgMovieLength: totalSeen > 0 ? Math.round(totalRuntime / totalSeen) : null,
       },
       velocity,
       genres,

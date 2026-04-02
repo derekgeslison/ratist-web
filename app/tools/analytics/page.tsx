@@ -8,7 +8,7 @@ import { scoreColor } from "@/lib/ratings";
 
 /* ── Types ── */
 interface AnalyticsData {
-  overview: { totalRated: number; totalSeen: number; avgRating: number | null; totalRuntime: number; totalHours: number; avgMovieLength: number | null };
+  overview: { totalRated: number; totalSeen: number; totalDated: number; avgRating: number | null; totalRuntime: number; totalHours: number; avgMovieLength: number | null };
   velocity: { month: string; count: number }[];
   genres: { name: string; count: number; avgRating: number | null }[];
   decades: { decade: string; count: number; avgRating: number | null }[];
@@ -162,24 +162,32 @@ export default function AnalyticsPage() {
               {data.velocity.length > 1 && (
                 <section>
                   <h3 className="text-sm font-semibold text-white mb-3">Movies per Month</h3>
-                  <div className="flex items-end gap-1 h-32">
-                    {data.velocity.slice(-24).map((v) => {
-                      const maxCount = Math.max(...data.velocity.slice(-24).map((x) => x.count));
-                      const pct = maxCount > 0 ? (v.count / maxCount) * 100 : 0;
-                      return (
-                        <div key={v.month} className="flex-1 flex flex-col items-center gap-1 group relative">
-                          <div className="w-full bg-[var(--ratist-red)]/80 rounded-t transition-all" style={{ height: `${pct}%`, minHeight: v.count > 0 ? 4 : 0 }} />
-                          <div className="absolute -top-6 bg-black/80 text-white text-[9px] px-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">
-                            {v.month}: {v.count}
-                          </div>
+                  {(() => {
+                    const last24 = data.velocity.slice(-24);
+                    const maxCount = Math.max(...last24.map((x) => x.count), 1);
+                    const barHeight = 120;
+                    return (
+                      <>
+                        <div className="flex items-end gap-1" style={{ height: barHeight + 16 }}>
+                          {last24.map((v) => {
+                            const h = Math.round((v.count / maxCount) * barHeight);
+                            return (
+                              <div key={v.month} className="flex-1 flex flex-col items-center justify-end group relative">
+                                <div className="w-full bg-[var(--ratist-red)]/80 rounded-t" style={{ height: h, minHeight: v.count > 0 ? 4 : 0 }} />
+                                <div className="absolute -top-6 bg-black/80 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                                  {v.month}: {v.count}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex justify-between text-[9px] text-[var(--foreground-muted)] mt-1">
-                    <span>{data.velocity.slice(-24)[0]?.month}</span>
-                    <span>{data.velocity.slice(-1)[0]?.month}</span>
-                  </div>
+                        <div className="flex justify-between text-[9px] text-[var(--foreground-muted)] mt-1">
+                          <span>{last24[0]?.month}</span>
+                          <span>{last24[last24.length - 1]?.month}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </section>
               )}
 
@@ -306,19 +314,24 @@ export default function AnalyticsPage() {
               {/* Distribution */}
               <section>
                 <h3 className="text-sm font-semibold text-white mb-3">Rating Distribution</h3>
-                <div className="flex items-end gap-1 h-28">
-                  {data.distribution.map((d) => {
-                    const maxCount = Math.max(...data.distribution.map((x) => x.count));
-                    const pct = maxCount > 0 ? (d.count / maxCount) * 100 : 0;
-                    return (
-                      <div key={d.score} className="flex-1 flex flex-col items-center gap-1">
-                        <span className="text-[9px] text-[var(--foreground-muted)]">{d.count > 0 ? d.count : ""}</span>
-                        <div className="w-full rounded-t transition-all" style={{ height: `${pct}%`, minHeight: d.count > 0 ? 4 : 0, backgroundColor: scoreColor(d.score) }} />
-                        <span className="text-[9px] text-[var(--foreground-muted)]">{d.score}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {(() => {
+                  const maxCount = Math.max(...data.distribution.map((x) => x.count), 1);
+                  const barHeight = 112; // px
+                  return (
+                    <div className="flex items-end gap-1" style={{ height: barHeight + 28 }}>
+                      {data.distribution.map((d) => {
+                        const h = maxCount > 0 ? Math.round((d.count / maxCount) * barHeight) : 0;
+                        return (
+                          <div key={d.score} className="flex-1 flex flex-col items-center justify-end">
+                            <span className="text-[9px] text-[var(--foreground-muted)] mb-1">{d.count > 0 ? d.count : ""}</span>
+                            <div className="w-full rounded-t" style={{ height: h, minHeight: d.count > 0 ? 4 : 0, backgroundColor: scoreColor(d.score) }} />
+                            <span className="text-[9px] text-[var(--foreground-muted)] mt-1">{d.score}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </section>
 
               {/* Rating trend */}
@@ -386,20 +399,25 @@ export default function AnalyticsPage() {
               {/* Seasonal patterns */}
               <section>
                 <h3 className="text-sm font-semibold text-white mb-3">When You Watch</h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-3">Movies watched per calendar month (all years combined).</p>
-                <div className="flex items-end gap-1 h-28">
-                  {data.seasonal.map((s) => {
-                    const maxCount = Math.max(...data.seasonal.map((x) => x.count));
-                    const pct = maxCount > 0 ? (s.count / maxCount) * 100 : 0;
-                    return (
-                      <div key={s.month} className="flex-1 flex flex-col items-center gap-1">
-                        <span className="text-[9px] text-[var(--foreground-muted)]">{s.count > 0 ? s.count : ""}</span>
-                        <div className="w-full bg-blue-500/70 rounded-t transition-all" style={{ height: `${pct}%`, minHeight: s.count > 0 ? 4 : 0 }} />
-                        <span className="text-[9px] text-[var(--foreground-muted)]">{s.month}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <p className="text-xs text-[var(--foreground-muted)] mb-3">Movies watched per calendar month (all years combined, only dated entries).</p>
+                {(() => {
+                  const maxCount = Math.max(...data.seasonal.map((x) => x.count), 1);
+                  const barHeight = 112;
+                  return (
+                    <div className="flex items-end gap-1" style={{ height: barHeight + 28 }}>
+                      {data.seasonal.map((s) => {
+                        const h = Math.round((s.count / maxCount) * barHeight);
+                        return (
+                          <div key={s.month} className="flex-1 flex flex-col items-center justify-end">
+                            <span className="text-[9px] text-[var(--foreground-muted)] mb-1">{s.count > 0 ? s.count : ""}</span>
+                            <div className="w-full bg-blue-500/70 rounded-t" style={{ height: h, minHeight: s.count > 0 ? 4 : 0 }} />
+                            <span className="text-[9px] text-[var(--foreground-muted)] mt-1">{s.month}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </section>
 
               {/* Watch time stats */}
