@@ -4,13 +4,16 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff } from "lucide-react";
+import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
 import { rtdbPaths, type RTDBChatMessage, playDing, playDoubleDing, playCountdownBeep, warmUpAudio } from "@/lib/screening";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
+import ScreeningSuperlatives from "@/components/screening/ScreeningSuperlatives";
+import ScreeningHeatmap from "@/components/screening/ScreeningHeatmap";
+import ScreeningTrivia from "@/components/screening/ScreeningTrivia";
 import ShareButton from "@/components/ShareButton";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
@@ -462,6 +465,14 @@ export default function ScreeningSessionPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function copyInviteLink() {
+    if (!session) return;
+    const url = `${window.location.origin}/screening-room/join/${session.inviteCode}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   async function toggleReady() {
     warmUpAudio(); // Unlock audio on first user interaction
     if (!rtdb || !myUserId) return;
@@ -787,10 +798,15 @@ export default function ScreeningSessionPage() {
           </div>
         </div>
         {showInviteCode && (
-          <button onClick={copyInviteCode} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white hover:border-[var(--ratist-red)] transition-colors flex-shrink-0">
-            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-            <span className="font-mono tracking-widest text-xs">{session.inviteCode}</span>
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={copyInviteCode} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-l-lg px-3 py-2 text-sm text-white hover:border-[var(--ratist-red)] transition-colors" title="Copy code">
+              {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+              <span className="font-mono tracking-widest text-xs">{session.inviteCode}</span>
+            </button>
+            <button onClick={copyInviteLink} className="bg-[var(--surface)] border border-[var(--border)] rounded-r-lg px-2.5 py-2 text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors" title="Copy invite link">
+              <Link2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -840,6 +856,9 @@ export default function ScreeningSessionPage() {
               <p className="text-sm text-[var(--foreground-muted)]">Waiting for the host to pick a movie...</p>
             )}
           </section>
+
+          {/* Movie Trivia */}
+          {session.tmdbId && <ScreeningTrivia tmdbId={session.tmdbId} />}
 
           {/* Participants */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
@@ -1156,7 +1175,17 @@ export default function ScreeningSessionPage() {
           )}
 
           {/* ── COMPARE PHASE ── */}
-          {postWatchPhase === "compare" && (
+          {postWatchPhase === "compare" && (() => {
+            // Compute pause request counts from chat system messages
+            const pauseCounts: Record<string, number> = {};
+            for (const msg of chatMessages) {
+              if ((msg as any).system && msg.text?.includes("requesting a pause")) {
+                // Match participant by name
+                const requester = session.participants.find((p) => msg.text?.includes(p.user.name));
+                if (requester) pauseCounts[requester.userId] = (pauseCounts[requester.userId] ?? 0) + 1;
+              }
+            }
+            return (
             <>
               {/* Rating comparison */}
               <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
@@ -1170,6 +1199,20 @@ export default function ScreeningSessionPage() {
                 </div>
                 <ScreeningRatingCompare ratings={session.ratings} tmdbId={session.tmdbId} myUserId={myUserId} />
               </section>
+
+              {/* Superlatives */}
+              <ScreeningSuperlatives
+                participants={session.participants}
+                predictions={session.predictions}
+                ratings={session.ratings}
+                polls={session.polls}
+                bookmarks={session.bookmarks}
+                chatMessages={chatMessages}
+                pauseRequestCounts={pauseCounts}
+              />
+
+              {/* Reaction heatmap */}
+              <ScreeningHeatmap chatMessages={chatMessages} startedAt={session.startedAt} />
 
               {/* Predictions reveal */}
               {session.predictions.length > 0 && (
@@ -1303,7 +1346,8 @@ export default function ScreeningSessionPage() {
                 </Link>
               </div>
             </>
-          )}
+            );
+          })()}
         </div>
         );
       })()}
