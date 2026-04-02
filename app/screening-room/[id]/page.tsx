@@ -251,19 +251,23 @@ export default function ScreeningSessionPage() {
     return () => off(pauseRef, "value", unsub);
   }, [id, session?.status]);
 
-  // RTDB listener for paused state
+  // RTDB listener for paused state — uses refs to avoid stale closures
+  const isPausedRef = useRef(false);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+
   useEffect(() => {
     if (!rtdb || !session || session.status !== "WATCHING") return;
     const pauseActiveRef = ref(rtdb, rtdbPaths.pauseActive(id));
     const unsub = onValue(pauseActiveRef, (snap) => {
       const val = snap.val();
       if (val && val.paused) {
-        if (!isPaused) {
+        if (!isPausedRef.current) {
           pauseStartedAt.current = val.pausedAt || Date.now();
         }
         setIsPaused(true);
       } else {
-        if (isPaused && pauseStartedAt.current) {
+        // Only add paused time if we haven't already (pauseStartedAt still set)
+        if (pauseStartedAt.current) {
           setTotalPausedMs((prev) => prev + (Date.now() - pauseStartedAt.current!));
           pauseStartedAt.current = null;
         }
@@ -271,7 +275,7 @@ export default function ScreeningSessionPage() {
       }
     });
     return () => off(pauseActiveRef, "value", unsub);
-  }, [id, session?.status, isPaused]);
+  }, [id, session?.status]);
 
   // RTDB listener for resume ready-up
   useEffect(() => {
@@ -304,7 +308,12 @@ export default function ScreeningSessionPage() {
   useEffect(() => {
     if (resumeCountdown === null) return;
     if (resumeCountdown <= 0) {
-      // Resume!
+      // Calculate paused duration BEFORE clearing state
+      if (pauseStartedAt.current) {
+        setTotalPausedMs((prev) => prev + (Date.now() - pauseStartedAt.current!));
+        pauseStartedAt.current = null;
+      }
+      // Resume — clear RTDB nodes
       if (rtdb) {
         remove(ref(rtdb, rtdbPaths.pauseActive(id)));
         remove(ref(rtdb, rtdbPaths.resumeReady(id)));
