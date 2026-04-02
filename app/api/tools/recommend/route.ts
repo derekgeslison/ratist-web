@@ -118,7 +118,12 @@ export async function POST(req: NextRequest) {
       if (!d) continue;
       let mpaa: string | null = null;
       const usRelease = d.release_dates?.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
-      if (usRelease?.release_dates?.[0]?.certification) mpaa = usRelease.release_dates[0].certification;
+      if (usRelease?.release_dates) {
+        // Check all US release date entries for a certification
+        for (const rd of usRelease.release_dates) {
+          if (rd.certification) { mpaa = rd.certification; break; }
+        }
+      }
       detailsMap.set(d.id, { runtime: d.runtime ?? null, mpaa });
     }
 
