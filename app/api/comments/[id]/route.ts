@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
 
 interface Props { params: Promise<{ id: string }> }
 
-async function getAuthedUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-  const decoded = await adminAuth.verifyIdToken(auth.slice(7));
-  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
-}
-
-/** DELETE /api/comments/[id] — delete own comment */
+/** DELETE /api/comments/[id] — delete own comment or admin delete */
 export async function DELETE(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
@@ -20,7 +13,7 @@ export async function DELETE(req: NextRequest, { params }: Props) {
 
     const comment = await prisma.comment.findUnique({ where: { id } });
     if (!comment) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (comment.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!canDelete(user, comment.userId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     await prisma.comment.delete({ where: { id } });
     return NextResponse.json({ deleted: true });
@@ -53,7 +46,6 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.commentLike.create({
         data: { userId: user.id, commentId: id },
       });
-      // Notify comment author (if not self)
       if (comment.userId !== user.id) {
         await prisma.notification.create({
           data: {

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle } from "lucide-react";
+import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 
 interface HotTakeItem {
@@ -30,6 +30,9 @@ export default function HotTakesPage() {
   const [error, setError] = useState("");
   const [votingId, setVotingId] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -41,6 +44,16 @@ export default function HotTakesPage() {
     }
     setLoading(false);
   }, []);
+
+  // Check admin status
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then((token) => {
+      fetch("/api/admin/stats", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => { if (r.ok) setIsAdmin(true); })
+        .catch(() => {});
+    });
+  }, [user]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -88,6 +101,23 @@ export default function HotTakesPage() {
     setNewTake("");
     setShowForm(false);
     setSubmitting(false);
+  }
+
+  async function deleteItem(id: string) {
+    setDeletingId(id);
+    try {
+      const token = await user!.getIdToken();
+      const res = await fetch(`/api/community/hot-takes/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setItems((prev) => prev.filter((item) => item.id !== id));
+      }
+    } finally {
+      setDeletingId(null);
+      setConfirmingDeleteId(null);
+    }
   }
 
   return (
@@ -182,8 +212,29 @@ export default function HotTakesPage() {
           {sorted.map((item) => {
             const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
             const isHot = item.score > 0;
+            const canDelete = user && (user.uid === item.author.firebaseUid || isAdmin);
             return (
-              <div key={item.id} className={`bg-[var(--surface)] border rounded-xl p-4 flex gap-3 ${isHot ? "border-orange-400/30" : "border-[var(--border)]"}`}>
+              <div key={item.id} className={`bg-[var(--surface)] border rounded-xl p-4 ${isHot ? "border-orange-400/30" : "border-[var(--border)]"}`}>
+                {/* Delete confirmation */}
+                {confirmingDeleteId === item.id && (
+                  <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <span className="text-sm text-red-400 flex-1">Delete this hot take?</span>
+                    <button
+                      onClick={() => deleteItem(item.id)}
+                      disabled={deletingId === item.id}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold rounded transition-colors"
+                    >
+                      {deletingId === item.id ? "Deleting..." : "Delete"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDeleteId(null)}
+                      className="px-3 py-1 bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white text-xs font-semibold rounded transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-3">
                 <div className="shrink-0 mt-0.5">
                   {item.author.avatarUrl ? (
                     <Image src={item.author.avatarUrl} alt={item.author.name} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
@@ -231,10 +282,20 @@ export default function HotTakesPage() {
                         <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>
                       )}
                     </button>
+                    {canDelete && confirmingDeleteId !== item.id && (
+                      <button
+                        onClick={() => setConfirmingDeleteId(item.id)}
+                        className="p-1.5 text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                   {expandedComments === item.id && (
-                    <CommentSection targetType="hottake" targetId={item.id} />
+                    <CommentSection targetType="hottake" targetId={item.id} isAdmin={isAdmin} />
                   )}
+                </div>
                 </div>
               </div>
             );

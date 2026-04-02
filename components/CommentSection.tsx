@@ -28,6 +28,7 @@ interface Props {
   targetType: string;
   targetId: string;
   disabled?: boolean;
+  isAdmin?: boolean;
 }
 
 function timeAgo(dateStr: string) {
@@ -42,7 +43,7 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo`;
 }
 
-export default function CommentSection({ targetType, targetId, disabled }: Props) {
+export default function CommentSection({ targetType, targetId, disabled, isAdmin = false }: Props) {
   const { user } = useAuth();
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,6 +173,7 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
 
   function renderComment(comment: CommentData, depth: number = 0) {
     const isOwn = user?.uid === comment.user.firebaseUid;
+    const canDeleteComment = isOwn || isAdmin;
     const isExpanded = expandedThreads.has(comment.id);
     const maxIndent = Math.min(depth, 4);
 
@@ -221,7 +223,7 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
                   >
                     <Reply className="w-3 h-3" /> Reply
                   </button>
-                  {isOwn && (
+                  {canDeleteComment && (
                     confirmingDelete === comment.id ? (
                       <span className="flex items-center gap-1.5 text-xs">
                         <button onClick={() => { deleteComment(comment.id); setConfirmingDelete(null); }} className="text-red-400 hover:text-red-300 font-medium">Delete</button>

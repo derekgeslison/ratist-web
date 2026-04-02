@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const items = await prisma.recast.findMany({
       include: {
-        creator: { select: { name: true } },
+        creator: { select: { name: true, firebaseUid: true } },
         votes: { select: { value: true, user: { select: { firebaseUid: true } } } },
       },
       orderBy: { createdAt: "desc" },
