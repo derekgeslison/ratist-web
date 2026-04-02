@@ -17,5 +17,23 @@ export async function GET() {
     orderBy: { year: "desc" },
   });
 
-  return NextResponse.json({ years });
+  const categoryIds = years.flatMap((y) => y.categories.map((c) => c.id));
+  const commentCounts = categoryIds.length > 0
+    ? await prisma.comment.groupBy({
+        by: ["targetId"],
+        where: { targetType: "oscar_category", targetId: { in: categoryIds } },
+        _count: { id: true },
+      })
+    : [];
+  const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
+
+  const yearsWithCounts = years.map((y) => ({
+    ...y,
+    categories: y.categories.map((cat) => ({
+      ...cat,
+      commentCount: commentMap[cat.id] ?? 0,
+    })),
+  }));
+
+  return NextResponse.json({ years: yearsWithCounts });
 }

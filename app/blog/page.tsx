@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Blog" };
 export const dynamic = "force-dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, Calendar, Eye } from "lucide-react";
+import { BookOpen, Calendar, Eye, MessageCircle } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 
@@ -23,6 +23,17 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
     select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
+
+  const postIds = posts.map((p) => p.id);
+  const commentCounts = postIds.length > 0
+    ? await prisma.comment.groupBy({
+        by: ["targetId"],
+        where: { targetType: "blog", targetId: { in: postIds } },
+        _count: { id: true },
+      })
+    : [];
+  const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
+  const postsWithComments = posts.map((p) => ({ ...p, commentCount: commentMap[p.id] ?? 0 }));
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -43,7 +54,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-6">
-          {posts.map((post) => (
+          {postsWithComments.map((post) => (
             <Link
               key={post.id}
               href={`/blog/${post.slug}`}
@@ -75,6 +86,12 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
                       <span className="flex items-center gap-1">
                         <Eye className="w-3 h-3" />
                         {post.viewCount.toLocaleString()}
+                      </span>
+                    )}
+                    {post.commentCount > 0 && (
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />
+                        {post.commentCount}
                       </span>
                     )}
                   </div>

@@ -241,18 +241,20 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
             {/* Reply input */}
             {replyingTo === comment.id && (
               <div className="flex gap-2 mt-2">
-                <input
+                <textarea
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder={`Reply to ${comment.user.name}...`}
-                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                  rows={1}
+                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
+                  onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(comment.id); } }}
                   autoFocus
                 />
                 <button
                   onClick={() => submitComment(comment.id)}
                   disabled={!replyText.trim() || submitting}
-                  className="p-1.5 text-[var(--ratist-red)] hover:text-white disabled:opacity-30 transition-colors"
+                  className="p-1.5 text-[var(--ratist-red)] hover:text-white disabled:opacity-30 transition-colors self-end"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -294,12 +296,14 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
           )}
 
           {user && !disabled ? (
-            <div className="flex gap-2 mt-3">
-              <input
+            <div className="flex gap-2 mt-3 items-end">
+              <textarea
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
                 placeholder="Add a comment..."
-                className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                rows={1}
+                className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
+                onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
               />
               <button

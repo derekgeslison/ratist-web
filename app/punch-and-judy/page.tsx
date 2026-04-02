@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Punch & Judy" };
 import Link from "next/link";
 import Image from "next/image";
-import { Swords, Eye } from "lucide-react";
+import { Swords, Eye, MessageCircle } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 
@@ -21,6 +21,17 @@ export default async function PunchAndJudyPage({ searchParams }: { searchParams:
     select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
+
+  const postIds = posts.map((p) => p.id);
+  const commentCounts = postIds.length > 0
+    ? await prisma.comment.groupBy({
+        by: ["targetId"],
+        where: { targetType: "blog", targetId: { in: postIds } },
+        _count: { id: true },
+      })
+    : [];
+  const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
+  const postsWithComments = posts.map((p) => ({ ...p, commentCount: commentMap[p.id] ?? 0 }));
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -40,7 +51,7 @@ export default async function PunchAndJudyPage({ searchParams }: { searchParams:
         <p className="text-[var(--foreground-muted)] text-center py-20">No posts yet.</p>
       ) : (
         <div className="grid md:grid-cols-2 gap-6">
-          {posts.map((post) => (
+          {postsWithComments.map((post) => (
             <Link key={post.id} href={`/punch-and-judy/${post.slug}`} className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)] transition-colors">
               {post.coverImage && (
                 <div className="relative h-44 bg-[var(--surface-2)]">
@@ -54,6 +65,9 @@ export default async function PunchAndJudyPage({ searchParams }: { searchParams:
                   <span>By {post.author.name} · {new Date(post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</span>
                   {post.viewCount > 0 && (
                     <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{post.viewCount.toLocaleString()}</span>
+                  )}
+                  {post.commentCount > 0 && (
+                    <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{post.commentCount}</span>
                   )}
                 </div>
               </div>

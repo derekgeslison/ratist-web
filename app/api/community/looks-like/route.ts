@@ -23,10 +23,18 @@ export async function GET() {
       take: 100,
     });
 
+    const itemIds = items.map((i) => i.id);
+    const commentCounts = await prisma.comment.groupBy({
+      by: ["targetId"],
+      where: { targetType: "lookslike", targetId: { in: itemIds } },
+      _count: { id: true },
+    });
+    const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
+
     const result = items.map((item) => {
       const score = item.votes.reduce((sum, v) => sum + v.value, 0);
       const { votes, ...rest } = item;
-      return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.userId, value: v.value })) };
+      return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.userId, value: v.value })), commentCount: commentMap[item.id] ?? 0 };
     }).sort((a, b) => b.score - a.score);
 
     return NextResponse.json({ items: result });

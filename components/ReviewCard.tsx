@@ -192,7 +192,9 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
 
       {/* Comments section — shown on full page and non-compact views */}
       {!compact && !review.commentsDisabled && (
-        <CommentSection targetType="review" targetId={review.id} disabled={review.commentsDisabled} />
+        <div className="pl-4 border-l border-[var(--border)]/20">
+          <CommentSection targetType="review" targetId={review.id} disabled={review.commentsDisabled} />
+        </div>
       )}
     </div>
   );

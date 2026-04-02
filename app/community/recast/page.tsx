@@ -20,6 +20,7 @@ interface RecastItem {
   suggestedActorName: string;
   suggestedActorProfile: string | null;
   score: number;
+  commentCount: number;
   createdAt: string;
   voterIds: { userId: string; value: number }[];
   creator: { name: string };
@@ -390,6 +391,9 @@ export default function RecastPage() {
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     {expandedComments === item.id ? "Hide Comments" : "Comments"}
+                    {item.commentCount > 0 && (
+                      <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>
+                    )}
                   </button>
                   {expandedComments === item.id && (
                     <CommentSection targetType="recast" targetId={item.id} />

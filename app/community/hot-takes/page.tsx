@@ -12,6 +12,7 @@ interface HotTakeItem {
   content: string;
   createdAt: string;
   score: number;
+  commentCount: number;
   voterIds: { userId: string; value: number }[];
   author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
 }
@@ -226,6 +227,9 @@ export default function HotTakesPage() {
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
                       {expandedComments === item.id ? "Hide" : "Comments"}
+                      {item.commentCount > 0 && (
+                        <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>
+                      )}
                     </button>
                   </div>
                   {expandedComments === item.id && (

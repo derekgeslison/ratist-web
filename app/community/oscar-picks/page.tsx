@@ -28,6 +28,7 @@ interface Category {
   name: string;
   nominees: Nominee[];
   votes: { nomineeId: string; userId: string }[];
+  commentCount: number;
 }
 
 interface OscarYear {
@@ -280,6 +281,9 @@ export default function OscarPicksPage() {
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
                           {expandedComments === cat.id ? "Hide Comments" : "Comments"}
+                          {cat.commentCount > 0 && (
+                            <span className="text-xs text-[var(--foreground-muted)]">({cat.commentCount})</span>
+                          )}
                         </button>
                         {expandedComments === cat.id && (
                           <CommentSection targetType="oscar_category" targetId={cat.id} />

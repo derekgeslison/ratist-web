@@ -18,6 +18,7 @@ interface LooksLikeItem {
   name2: string;
   profilePath2: string | null;
   score: number;
+  commentCount: number;
   createdAt: string;
   voterIds: { userId: string; value: number }[];
   creator: { name: string };
@@ -340,6 +341,9 @@ export default function LooksLikePage() {
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     {expandedComments === item.id ? "Hide Comments" : "Comments"}
+                    {item.commentCount > 0 && (
+                      <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>
+                    )}
                   </button>
                   {expandedComments === item.id && (
                     <CommentSection targetType="lookslike" targetId={item.id} />
