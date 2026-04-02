@@ -43,10 +43,11 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo`;
 }
 
-export default function CommentSection({ targetType, targetId, disabled, isAdmin = false }: Props) {
+export default function CommentSection({ targetType, targetId, disabled, isAdmin: isAdminProp }: Props) {
   const { user } = useAuth();
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminStatus, setAdminStatus] = useState(false);
   const [newText, setNewText] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -55,6 +56,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const isAdmin = isAdminProp ?? adminStatus;
 
   const getToken = useCallback(async () => {
     if (!user) return null;
@@ -67,6 +69,12 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
       if (user) {
         const token = await user.getIdToken();
         headers.Authorization = `Bearer ${token}`;
+        // Check admin status if not provided via prop
+        if (isAdminProp === undefined) {
+          fetch("/api/auth/admin-check", { headers }).then((r) => r.json()).then((d) => {
+            if (d.isAdmin) setAdminStatus(true);
+          }).catch(() => {});
+        }
       }
       const res = await fetch(`/api/comments?targetType=${targetType}&targetId=${targetId}`, { headers });
       const data = await res.json();
