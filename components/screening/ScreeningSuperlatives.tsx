@@ -143,16 +143,17 @@ export default function ScreeningSuperlatives({ participants, predictions, ratin
     }
   }
 
-  // The Quiet One — fewest messages
+  // The Quiet One — fewest messages (only when we have reliable per-user counts)
   if (chatCounts.size > 0 && participants.length > 1) {
-    // Include participants with 0 messages
     let minId = "";
     let minCount = Infinity;
     for (const p of participants) {
       const count = chatCounts.get(p.userId) ?? 0;
       if (count < minCount) { minCount = count; minId = p.userId; }
     }
-    if (minId) {
+    // Only show if there's a meaningful difference (someone has 0 or notably fewer)
+    const maxCount = Math.max(...chatCounts.values(), 0);
+    if (minId && maxCount > minCount) {
       awards.push({
         title: "The Quiet One",
         emoji: "🤫",
