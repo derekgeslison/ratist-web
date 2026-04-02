@@ -232,6 +232,23 @@ export default function AnalyticsPage() {
                 </section>
               )}
 
+              {/* Decades */}
+              {data.decades.length > 0 && (
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3">By Decade</h3>
+                  <div className="space-y-2">
+                    {data.decades.map((d) => (
+                      <div key={d.decade} className="flex items-center gap-3">
+                        <span className="text-xs text-[var(--foreground-muted)] w-16 shrink-0">{d.decade}</span>
+                        <Bar value={d.count} max={data.decades[0]?.count ?? 1} color={d.avgRating ? scoreColor(d.avgRating) : "#555"} />
+                        <span className="text-xs text-white w-8 text-right">{d.count}</span>
+                        {d.avgRating && <span className="text-xs font-bold w-8 text-right" style={{ color: scoreColor(d.avgRating) }}>{d.avgRating}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* Top genres quick view */}
               {data.genres.length > 0 && (
                 <section>
@@ -252,12 +269,29 @@ export default function AnalyticsPage() {
           )}
 
           {/* ── GENRES ── */}
-          {tab === "genres" && (
+          {tab === "genres" && (() => {
+            const totalGenreMovies = data.genres.reduce((s, g) => s + g.count, 0);
+            const genresWithRatings = data.genres.filter((g) => g.avgRating != null);
+            const highestRatedGenre = genresWithRatings.length > 0 ? genresWithRatings.reduce((best, g) => (g.avgRating! > (best.avgRating ?? 0) ? g : best)) : null;
+            const lowestRatedGenre = genresWithRatings.length > 0 ? genresWithRatings.reduce((worst, g) => (g.avgRating! < (worst.avgRating ?? 10) ? g : worst)) : null;
+            return (
             <div className="space-y-8">
-              {/* Genre radar — simplified as horizontal bars */}
+              {/* Genre insight cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="Genres Explored" value={String(data.genres.length)} sub={`of ${data.genres.length + data.blindSpots.length} total`} />
+                <StatCard label="Total Genre Tags" value={String(totalGenreMovies)} sub="movies × genres" />
+                {highestRatedGenre && (
+                  <StatCard label="Highest Rated Genre" value={highestRatedGenre.name} sub={`avg ${highestRatedGenre.avgRating}`} color={scoreColor(highestRatedGenre.avgRating!)} />
+                )}
+                {lowestRatedGenre && (
+                  <StatCard label="Lowest Rated Genre" value={lowestRatedGenre.name} sub={`avg ${lowestRatedGenre.avgRating}`} color={scoreColor(lowestRatedGenre.avgRating!)} />
+                )}
+              </div>
+
+              {/* Full genre breakdown */}
               <section>
                 <h3 className="text-sm font-semibold text-white mb-3">Genre Breakdown</h3>
-                <p className="text-xs text-[var(--foreground-muted)] mb-4">Count of movies rated per genre, with average rating.</p>
+                <p className="text-xs text-[var(--foreground-muted)] mb-4">All seen movies by genre, with average rating where available.</p>
                 <div className="space-y-2">
                   {data.genres.map((g) => (
                     <div key={g.name} className="flex items-center gap-3">
@@ -265,21 +299,6 @@ export default function AnalyticsPage() {
                       <Bar value={g.count} max={data.genres[0]?.count ?? 1} color={g.avgRating ? scoreColor(g.avgRating) : "#555"} />
                       <span className="text-xs text-white w-8 text-right">{g.count}</span>
                       {g.avgRating && <span className="text-xs font-bold w-8 text-right" style={{ color: scoreColor(g.avgRating) }}>{g.avgRating}</span>}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* Decades */}
-              <section>
-                <h3 className="text-sm font-semibold text-white mb-3">By Decade</h3>
-                <div className="space-y-2">
-                  {data.decades.map((d) => (
-                    <div key={d.decade} className="flex items-center gap-3">
-                      <span className="text-xs text-[var(--foreground-muted)] w-16 shrink-0">{d.decade}</span>
-                      <Bar value={d.count} max={data.decades[0]?.count ?? 1} color={d.avgRating ? scoreColor(d.avgRating) : "#555"} />
-                      <span className="text-xs text-white w-8 text-right">{d.count}</span>
-                      {d.avgRating && <span className="text-xs font-bold w-8 text-right" style={{ color: scoreColor(d.avgRating) }}>{d.avgRating}</span>}
                     </div>
                   ))}
                 </div>
@@ -300,7 +319,8 @@ export default function AnalyticsPage() {
                 </section>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* ── DIRECTORS & ACTORS ── */}
           {tab === "people" && (
