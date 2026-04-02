@@ -135,6 +135,11 @@ export default function ScreeningSessionPage() {
 
   // Post-watch sub-phase: "rate" | "compare"
   const [postWatchPhase, setPostWatchPhase] = useState<"rate" | "compare">("rate");
+
+  // Auto-set to compare when loading a completed session
+  useEffect(() => {
+    if (session?.status === "COMPLETE") setPostWatchPhase("compare");
+  }, [session?.status]);
   const [pingOnMessage, setPingOnMessage] = useState(false);
   const pingOnMessageRef = useRef(false);
   const justCreatedPollRef = useRef(false);
