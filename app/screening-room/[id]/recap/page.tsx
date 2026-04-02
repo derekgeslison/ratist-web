@@ -25,7 +25,7 @@ interface RecapData {
   polls: { id: string; question: string; options: string[]; votes: Record<string, number>; creator: { name: string } }[];
   bookmarks: { id: string; timestamp: string; note: string | null; user: { name: string } }[];
   ratings: { id: string; userId: string; reviewType: string; overallRating: number | null; ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null; reviewText: string | null; user: { id: string; name: string; avatarUrl: string | null } }[];
-  chatHighlights: { id: string; text: string; emoji: string | null; reactCount: number; timestamp: string; user: { name: string } }[];
+  chatHighlights: { id: string; text: string; emoji: string | null; reactCount: number; windowGroup: number; timestamp: string; user: { name: string } }[];
 }
 
 export default function ScreeningRecapPage() {
@@ -182,31 +182,47 @@ export default function ScreeningRecapPage() {
         )}
 
         {/* Chat Highlights */}
-        {data.chatHighlights && data.chatHighlights.length > 0 && (
-          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat Highlights
-            </h2>
-            <p className="text-xs text-[var(--foreground-muted)] mb-3">The most active moments from your watch session.</p>
-            <div className="space-y-2">
-              {data.chatHighlights.map((h) => (
-                <div key={h.id} className="bg-[var(--surface-2)] rounded-lg px-4 py-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] text-[var(--foreground-muted)]">{h.user.name}</span>
-                    <span className="text-[9px] text-[var(--foreground-muted)]">
-                      {new Date(h.timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                    </span>
-                  </div>
-                  {h.emoji ? (
-                    <span className="text-xl">{h.emoji}</span>
-                  ) : (
-                    <p className="text-sm text-white">{h.text}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+        {data.chatHighlights && data.chatHighlights.length > 0 && (() => {
+          const groups = new Map<number, typeof data.chatHighlights>();
+          for (const h of data.chatHighlights) {
+            const list = groups.get(h.windowGroup) ?? [];
+            list.push(h);
+            groups.set(h.windowGroup, list);
+          }
+          const sortedGroups = [...groups.entries()].sort(([a], [b]) => a - b);
+          return (
+            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat Highlights
+              </h2>
+              <p className="text-xs text-[var(--foreground-muted)] mb-4">The most active moments from your watch session.</p>
+              <div className="space-y-4">
+                {sortedGroups.map(([groupIdx, msgs]) => {
+                  const firstTime = new Date(msgs[0].timestamp);
+                  const lastTime = new Date(msgs[msgs.length - 1].timestamp);
+                  const startStr = firstTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                  const endStr = lastTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                  return (
+                    <div key={groupIdx} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
+                        <span className="text-[10px] text-[var(--ratist-red)] font-medium">Burst #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
+                        <span className="text-[10px] text-[var(--foreground-muted)]">{startStr} — {endStr}</span>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto p-3 space-y-1.5 resize-y" style={{ minHeight: "80px" }}>
+                        {msgs.map((h) => (
+                          <div key={h.id} className="flex items-start gap-2">
+                            <span className="text-[10px] text-[var(--foreground-muted)] w-16 flex-shrink-0 pt-0.5">{h.user.name}</span>
+                            {h.emoji ? <span className="text-lg">{h.emoji}</span> : <p className="text-xs text-white">{h.text}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Link back */}
         <div className="text-center pt-4">

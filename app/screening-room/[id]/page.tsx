@@ -55,7 +55,7 @@ interface SessionData {
   polls: Poll[];
   bookmarks: { id: string; userId: string; timestamp: string; note: string | null; user: { id: string; name: string } }[];
   ratings: { id: string; userId: string; reviewType: string; overallRating: number | null; ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null; reviewText: string | null; user: { id: string; name: string; avatarUrl: string | null } }[];
-  chatHighlights: { id: string; text: string; emoji: string | null; reactCount: number; timestamp: string; user: { id: string; name: string } }[];
+  chatHighlights: { id: string; text: string; emoji: string | null; reactCount: number; windowGroup: number; timestamp: string; user: { id: string; name: string } }[];
 }
 
 interface MovieResult { id: number; title: string; posterPath: string | null; releaseDate: string }
@@ -134,6 +134,7 @@ export default function ScreeningSessionPage() {
   const [postWatchPhase, setPostWatchPhase] = useState<"rate" | "compare">("rate");
   const [pingOnMessage, setPingOnMessage] = useState(false);
   const pingOnMessageRef = useRef(false);
+  const justCreatedPollRef = useRef(false);
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
   // Running timer
@@ -237,14 +238,14 @@ export default function ScreeningSessionPage() {
       const msg = snap.val() as RTDBChatMessage;
       setChatMessages((prev) => [...prev, { ...msg, key: snap.key! }]);
       if (!isInitialLoad) {
-        // Ding for poll system messages (skip if the userName matches current user — they created it)
-        if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:") && msg.userName !== user?.displayName) {
+        // Ding for poll system messages (skip if we just created a poll)
+        if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:") && !justCreatedPollRef.current) {
           playDing(880, 0.15);
-        }
-        // Ding on regular messages if ping toggle is on
-        else if (pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
+        } else if (pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
+          // Ding on regular messages if ping toggle is on
           playDing(600, 0.08);
         }
+        justCreatedPollRef.current = false;
       }
     });
     // After initial batch, mark as loaded
@@ -379,10 +380,10 @@ export default function ScreeningSessionPage() {
     return () => { clearTimeout(dingTimer); clearTimeout(expireTimer); };
   }, [activePause?.requestedAt, isPaused]);
 
-  // Auto-scroll chat
+  // Auto-scroll chat (on new messages and new polls)
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  }, [chatMessages, session?.polls?.length]);
 
   // Countdown logic (with sound)
   useEffect(() => {
@@ -607,7 +608,7 @@ export default function ScreeningSessionPage() {
     const sysMsg: Record<string, unknown> = {
       userId: "system",
       userName: user?.displayName ?? "Anonymous",
-      text: `Bookmarked at ${timestamp}${bookmarkNote ? `: ${bookmarkNote}` : ""}`,
+      text: `Bookmarked${bookmarkNote ? `: ${bookmarkNote}` : ""}`,
       timestamp: Date.now(),
       system: true,
     };
@@ -629,6 +630,7 @@ export default function ScreeningSessionPage() {
       body: JSON.stringify({ question: pollQuestion, options: validOptions }),
     });
     // Post poll notification to chat
+    justCreatedPollRef.current = true;
     if (rtdb) {
       await push(ref(rtdb, rtdbPaths.chat(id)), {
         userId: "system", userName: user?.displayName ?? "Someone",
@@ -1241,24 +1243,53 @@ export default function ScreeningSessionPage() {
               )}
 
               {/* Chat Highlights */}
-              {session.chatHighlights && session.chatHighlights.length > 0 && (
-                <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat Highlights
-                  </h2>
-                  <p className="text-xs text-[var(--foreground-muted)] mb-3">The most active moments from your watch session.</p>
-                  <div className="space-y-2">
-                    {session.chatHighlights.map((h) => (
-                      <div key={h.id} className="bg-[var(--surface-2)] rounded-lg px-4 py-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] text-[var(--foreground-muted)]">{h.user.name}</span>
-                        </div>
-                        {h.emoji ? <span className="text-xl">{h.emoji}</span> : <p className="text-sm text-white">{h.text}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+              {session.chatHighlights && session.chatHighlights.length > 0 && (() => {
+                // Group by windowGroup
+                const groups = new Map<number, typeof session.chatHighlights>();
+                for (const h of session.chatHighlights) {
+                  const list = groups.get(h.windowGroup) ?? [];
+                  list.push(h);
+                  groups.set(h.windowGroup, list);
+                }
+                const sortedGroups = [...groups.entries()].sort(([a], [b]) => a - b);
+
+                return (
+                  <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                    <h2 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat Highlights
+                    </h2>
+                    <p className="text-xs text-[var(--foreground-muted)] mb-4">The most active moments from your watch session.</p>
+                    <div className="space-y-4">
+                      {sortedGroups.map(([groupIdx, msgs]) => {
+                        const firstTime = new Date(msgs[0].timestamp);
+                        const lastTime = new Date(msgs[msgs.length - 1].timestamp);
+                        const startStr = firstTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                        const endStr = lastTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                        return (
+                          <div key={groupIdx} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
+                              <span className="text-[10px] text-[var(--ratist-red)] font-medium">Burst #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
+                              <span className="text-[10px] text-[var(--foreground-muted)]">{startStr} — {endStr}</span>
+                            </div>
+                            <div className="max-h-48 overflow-y-auto p-3 space-y-1.5 resize-y" style={{ minHeight: "80px" }}>
+                              {msgs.map((h) => (
+                                <div key={h.id} className="flex items-start gap-2">
+                                  <span className="text-[10px] text-[var(--foreground-muted)] w-16 flex-shrink-0 pt-0.5">{h.user.name}</span>
+                                  {h.emoji ? (
+                                    <span className="text-lg">{h.emoji}</span>
+                                  ) : (
+                                    <p className="text-xs text-white">{h.text}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })()}
 
               {/* Footer */}
               <div className="text-center pt-4">

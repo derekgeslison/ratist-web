@@ -13,7 +13,7 @@ interface ChatMessage {
   system?: boolean;
 }
 
-/** POST — Analyze chat and persist highlights (host only, called when entering compare phase) */
+/** POST — Analyze chat and persist highlight bursts (host only) */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getAuthedUser(req);
@@ -39,53 +39,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const userMessages = messages.filter((m) => !m.system && m.userId !== "system");
     if (userMessages.length < 3) return NextResponse.json({ ok: true, message: "Not enough messages" });
 
-    // Find peak activity windows (3-minute windows)
-    const WINDOW_MS = 3 * 60 * 1000;
-    const windows: { start: number; count: number; messages: ChatMessage[] }[] = [];
+    // Find peak activity windows (5-minute windows for production, works for testing too)
+    const WINDOW_MS = 5 * 60 * 1000;
+    const MAX_PER_WINDOW = 25;
 
     const firstTs = userMessages[0].timestamp;
     const lastTs = userMessages[userMessages.length - 1].timestamp;
     const span = lastTs - firstTs;
 
+    interface Window { start: number; end: number; count: number; messages: ChatMessage[] }
+    const windows: Window[] = [];
+
     if (span < WINDOW_MS) {
-      // All messages fit in one window — just use them all
-      windows.push({ start: firstTs, count: userMessages.length, messages: userMessages });
+      // All messages fit in one window
+      windows.push({ start: firstTs, end: lastTs, count: userMessages.length, messages: userMessages });
     } else {
-      // Slide through messages in 30-second steps
+      // Slide through in 30-second steps
       for (let start = firstTs; start <= lastTs; start += 30000) {
         const end = start + WINDOW_MS;
         const windowMsgs = userMessages.filter((m) => m.timestamp >= start && m.timestamp < end);
         if (windowMsgs.length >= 2) {
-          windows.push({ start, count: windowMsgs.length, messages: windowMsgs });
+          const windowEnd = windowMsgs[windowMsgs.length - 1].timestamp;
+          windows.push({ start, end: windowEnd, count: windowMsgs.length, messages: windowMsgs });
         }
       }
     }
 
     // Sort by activity (most messages first), take top 3 non-overlapping
     windows.sort((a, b) => b.count - a.count);
-    const selected: typeof windows = [];
+    const selected: Window[] = [];
     for (const w of windows) {
       if (selected.length >= 3) break;
-      // Check overlap with already selected
       const overlaps = selected.some((s) => Math.abs(s.start - w.start) < WINDOW_MS);
       if (!overlaps) selected.push(w);
     }
 
-    // Persist top messages from each window
+    // Persist ALL messages from each window (capped at MAX_PER_WINDOW)
     const highlights = [];
-    for (const window of selected) {
-      // Pick up to 3 most interesting messages (text messages preferred over emojis)
-      const sorted = window.messages
-        .sort((a, b) => (b.text?.length ?? 0) - (a.text?.length ?? 0))
-        .slice(0, 3);
-
-      for (const msg of sorted) {
+    for (let groupIdx = 0; groupIdx < selected.length; groupIdx++) {
+      const window = selected[groupIdx];
+      const msgs = window.messages.slice(0, MAX_PER_WINDOW);
+      for (const msg of msgs) {
         highlights.push({
           sessionId: id,
           userId: msg.userId,
           text: msg.text || "",
           emoji: msg.emoji || null,
           reactCount: window.count,
+          windowGroup: groupIdx,
           timestamp: new Date(msg.timestamp),
         });
       }
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await prisma.screeningChatHighlight.createMany({ data: highlights });
     }
 
-    return NextResponse.json({ ok: true, count: highlights.length });
+    return NextResponse.json({ ok: true, windows: selected.length, messages: highlights.length });
   } catch (err) {
     console.error("Generate highlights error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Star, Swords, Film } from "lucide-react";
+import { Users, Sparkles, Swords, Film } from "lucide-react";
 import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies } from "@/lib/tmdb";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
@@ -28,10 +28,10 @@ const TOOLS = [
     href: "/tools/actor-lookup",
   },
   {
-    icon: Star,
-    title: "Personal Rankings",
-    description: "Build your definitive ranked list of everything you've seen. Drag, sort, and filter by year.",
-    href: "/tools/rankings",
+    icon: Sparkles,
+    title: "What Should I Watch?",
+    description: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized recommendations.",
+    href: "/tools/recommend",
   },
 ];
 

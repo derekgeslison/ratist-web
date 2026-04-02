@@ -794,14 +794,15 @@ model ScreeningBookmark {
 }
 
 model ScreeningChatHighlight {
-  id         String   @id @default(cuid())
-  sessionId  String   @map("session_id")
-  userId     String   @map("user_id")
-  text       String
-  emoji      String?
-  reactCount Int      @default(0) @map("react_count")
-  timestamp  DateTime
-  createdAt  DateTime @default(now()) @map("created_at")
+  id           String   @id @default(cuid())
+  sessionId    String   @map("session_id")
+  userId       String   @map("user_id")
+  text         String
+  emoji        String?
+  reactCount   Int      @default(0) @map("react_count")  // total messages in this window
+  windowGroup  Int      @default(0) @map("window_group") // which burst this belongs to (0, 1, 2)
+  timestamp    DateTime
+  createdAt    DateTime @default(now()) @map("created_at")
 
   session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
