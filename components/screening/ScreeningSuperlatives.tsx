@@ -16,6 +16,7 @@ interface Rating {
   userId: string;
   ratistRating: number | null;
   overallRating: number | null;
+  reviewText: string | null;
 }
 
 interface Poll {
@@ -83,7 +84,7 @@ export default function ScreeningSuperlatives({ participants, predictions, ratin
       title: "Closest Call",
       emoji: "🎯",
       winner: getName(winner.userId),
-      detail: `Only ${winner.gap.toFixed(1)} off`,
+      detail: winner.gap === 0 ? "Nailed it!" : `Only ${winner.gap.toFixed(1)} off`,
     });
   }
 
@@ -140,6 +141,21 @@ export default function ScreeningSuperlatives({ participants, predictions, ratin
         detail: `${count} pause requests`,
       });
     }
+  }
+
+  // The Critic — longest review text
+  const reviewLengths = ratings
+    .filter((r) => r.reviewText && r.reviewText.length > 10)
+    .map((r) => ({ userId: r.userId, length: r.reviewText!.length }))
+    .sort((a, b) => b.length - a.length);
+  if (reviewLengths.length > 0) {
+    const winner = reviewLengths[0];
+    awards.push({
+      title: "The Critic",
+      emoji: "✍️",
+      winner: getName(winner.userId),
+      detail: `${winner.length} character review`,
+    });
   }
 
   if (awards.length === 0) return null;

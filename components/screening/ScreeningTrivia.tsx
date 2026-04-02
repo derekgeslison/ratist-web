@@ -38,31 +38,28 @@ export default function ScreeningTrivia({ tmdbId }: Props) {
         const data: MovieDetails = await res.json();
         const trivia: string[] = [];
 
-        if (data.tagline) trivia.push(`"${data.tagline}"`);
-        if (data.budget && data.budget > 0) trivia.push(`Budget: ${formatMoney(data.budget)}`);
-        if (data.revenue && data.revenue > 0) trivia.push(`Box office: ${formatMoney(data.revenue)}`);
+        // Budget & box office — the most interesting facts
+        if (data.budget && data.budget > 0) trivia.push(`This film had a budget of ${formatMoney(data.budget)}`);
+        if (data.revenue && data.revenue > 0) trivia.push(`It earned ${formatMoney(data.revenue)} at the box office`);
         if (data.budget && data.revenue && data.budget > 0) {
           const roi = ((data.revenue - data.budget) / data.budget * 100).toFixed(0);
-          if (Number(roi) > 0) trivia.push(`Return on investment: ${roi}%`);
-        }
-        if (data.runtime) {
-          const h = Math.floor(data.runtime / 60);
-          const m = data.runtime % 60;
-          trivia.push(`Runtime: ${h > 0 ? `${h}h ${m}m` : `${m} minutes`}`);
-        }
-        if (data.vote_average && data.vote_count) {
-          trivia.push(`TMDB rating: ${data.vote_average.toFixed(1)}/10 (${data.vote_count.toLocaleString()} votes)`);
+          if (Number(roi) > 100) trivia.push(`It made ${roi}% return on its budget`);
+          else if (Number(roi) < 0) trivia.push(`It lost money at the box office — only earned back ${Math.round(data.revenue / data.budget * 100)}% of its budget`);
         }
         if (data.release_date) {
           const year = new Date(data.release_date).getFullYear();
           const age = new Date().getFullYear() - year;
-          if (age > 0) trivia.push(`Released ${age} year${age !== 1 ? "s" : ""} ago (${year})`);
+          if (age >= 2) trivia.push(`This movie came out ${age} years ago (${year})`);
+          else if (age === 1) trivia.push(`Released just last year (${year})`);
         }
         if (data.production_companies && data.production_companies.length > 0) {
           trivia.push(`Produced by ${data.production_companies.slice(0, 2).map((c) => c.name).join(" & ")}`);
         }
+        if (data.vote_count && data.vote_count > 10000) {
+          trivia.push(`Over ${Math.round(data.vote_count / 1000)}k people have rated this on TMDB`);
+        }
 
-        // Shuffle and take 3
+        // Shuffle and take up to 3
         const shuffled = trivia.sort(() => Math.random() - 0.5).slice(0, 3);
         setFacts(shuffled);
       } catch { /* ignore */ }

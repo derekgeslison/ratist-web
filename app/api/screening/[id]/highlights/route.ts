@@ -28,9 +28,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Host only" }, { status: 403 });
     }
 
-    // Check if highlights already exist
-    const existing = await prisma.screeningChatHighlight.count({ where: { sessionId: id } });
-    if (existing > 0) return NextResponse.json({ ok: true, message: "Already generated" });
+    // Delete any old highlights and regenerate (supports re-testing and schema changes)
+    await prisma.screeningChatHighlight.deleteMany({ where: { sessionId: id } });
 
     const { messages, polls } = await req.json() as { messages: ChatMessage[]; polls?: { question: string; options: string[]; votes: Record<string, number>; createdAt: string; creator: { name: string } }[] };
     if (!messages || messages.length === 0) return NextResponse.json({ ok: true, message: "No messages" });
