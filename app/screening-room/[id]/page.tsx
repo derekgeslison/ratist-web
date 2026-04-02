@@ -8,6 +8,8 @@ import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off } from "firebase/database";
 import { rtdbPaths, type RTDBChatMessage } from "@/lib/screening";
+import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
+import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 const TMDB_SM = "https://image.tmdb.org/t/p/w92";
@@ -50,6 +52,7 @@ interface SessionData {
   predictions: Prediction[];
   polls: Poll[];
   bookmarks: { id: string; userId: string; timestamp: string; note: string | null; user: { id: string; name: string } }[];
+  ratings: { id: string; userId: string; reviewType: string; overallRating: number | null; ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null; reviewText: string | null; user: { id: string; name: string; avatarUrl: string | null } }[];
 }
 
 interface MovieResult { id: number; title: string; posterPath: string | null; releaseDate: string }
@@ -107,6 +110,10 @@ export default function ScreeningSessionPage() {
   // Pause request — track mount time to ignore old requests
   const [pauseAlert, setPauseAlert] = useState<string | null>(null);
   const mountedAt = useRef(Date.now());
+
+  // Post-watch sub-phase: "rate" | "compare"
+  const [postWatchPhase, setPostWatchPhase] = useState<"rate" | "compare">("rate");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
   // Running timer
   const [elapsedDisplay, setElapsedDisplay] = useState("0:00");
@@ -358,6 +365,19 @@ export default function ScreeningSessionPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ forceAll }),
     });
+    fetchSession();
+  }
+
+  async function submitRating(data: Record<string, unknown>) {
+    setRatingSubmitting(true);
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/screening/${id}/rate`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    setRatingSubmitting(false);
     fetchSession();
   }
 
@@ -801,104 +821,167 @@ export default function ScreeningSessionPage() {
       )}
 
       {/* ── POST WATCH ── */}
-      {session.status === "POST_WATCH" && (
+      {session.status === "POST_WATCH" && (() => {
+        const myRating = session.ratings.find((r) => r.userId === myUserId);
+        const ratedCount = session.ratings.length;
+        const totalParticipants = session.participants.length;
+        const allRated = ratedCount === totalParticipants;
+
+        return (
         <div className="space-y-6">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 text-center">
-            <h2 className="text-lg font-bold text-white mb-2">Movie&apos;s Over!</h2>
-            <p className="text-sm text-[var(--foreground-muted)]">Time to see how everyone&apos;s predictions held up and rate the film.</p>
+          {/* Phase indicator */}
+          <div className="flex items-center gap-2 justify-center">
+            <button onClick={() => setPostWatchPhase("rate")}
+              className={`text-xs px-4 py-1.5 rounded-full font-medium transition-colors ${postWatchPhase === "rate" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface-2)] text-[var(--foreground-muted)]"}`}>
+              1. Rate
+            </button>
+            <div className="w-8 h-px bg-[var(--border)]" />
+            <button onClick={() => setPostWatchPhase("compare")}
+              className={`text-xs px-4 py-1.5 rounded-full font-medium transition-colors ${postWatchPhase === "compare" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface-2)] text-[var(--foreground-muted)]"}`}>
+              2. Compare
+            </button>
           </div>
 
-          {/* Predictions reveal */}
-          {session.predictions.length > 0 && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-white mb-4">Prediction Reveal</h2>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {session.predictions.map((pred) => {
-                  const pUser = session.participants.find((p) => p.userId === pred.userId)?.user;
-                  return (
-                    <div key={pred.userId} className="bg-[var(--surface-2)] rounded-lg p-4">
-                      <p className="text-sm font-semibold text-white mb-1">{pUser?.name ?? "Unknown"}</p>
-                      {pred.ratingGuess != null && (
-                        <p className="text-xs text-[var(--foreground-muted)]">Predicted rating: <span className="text-[var(--ratist-red)] font-bold">{pred.ratingGuess}/10</span></p>
-                      )}
-                      {pred.plotGuess && (
-                        <p className="text-xs text-[var(--foreground-muted)] mt-1 italic">&ldquo;{pred.plotGuess}&rdquo;</p>
-                      )}
-                    </div>
-                  );
-                })}
+          {/* ── RATE PHASE ── */}
+          {postWatchPhase === "rate" && (
+            <>
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 text-center">
+                <h2 className="text-lg font-bold text-white mb-2">Rate {session.movieTitle}</h2>
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  {ratedCount}/{totalParticipants} have submitted their rating
+                </p>
               </div>
-            </section>
+
+              {/* Rating form */}
+              <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                <ScreeningRateForm
+                  onSubmit={submitRating}
+                  submitting={ratingSubmitting}
+                  submitted={!!myRating}
+                />
+              </section>
+
+              {/* Progress + proceed */}
+              {allRated && (
+                <div className="text-center">
+                  <p className="text-sm text-green-400 mb-3">Everyone has rated!</p>
+                  <button onClick={() => setPostWatchPhase("compare")}
+                    className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors">
+                    View Comparison
+                  </button>
+                </div>
+              )}
+              {!allRated && myRating && (
+                <div className="text-center">
+                  <p className="text-xs text-[var(--foreground-muted)] mb-2">Waiting for others ({ratedCount}/{totalParticipants})...</p>
+                  {amHost && (
+                    <button onClick={() => setPostWatchPhase("compare")}
+                      className="text-xs text-[var(--ratist-red)] hover:underline">
+                      Skip to comparison (host)
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
-          {/* Polls recap */}
-          {session.polls.length > 0 && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-white mb-4">Poll Results</h2>
-              {session.polls.map((poll) => {
-                const totalVotes = Object.keys(poll.votes).length;
-                return (
-                  <div key={poll.id} className="mb-4 bg-[var(--surface-2)] rounded-lg p-4">
-                    <p className="text-xs text-white font-medium mb-2">{poll.question}</p>
-                    {(poll.options as string[]).map((opt: string, i: number) => {
-                      const voteCount = Object.values(poll.votes).filter((v) => v === i).length;
-                      const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+          {/* ── COMPARE PHASE ── */}
+          {postWatchPhase === "compare" && (
+            <>
+              {/* Rating comparison */}
+              <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                <h2 className="text-sm font-semibold text-white mb-4">Rating Comparison</h2>
+                <ScreeningRatingCompare ratings={session.ratings} tmdbId={session.tmdbId} myUserId={myUserId} />
+              </section>
+
+              {/* Predictions reveal */}
+              {session.predictions.length > 0 && (
+                <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                  <h2 className="text-sm font-semibold text-white mb-4">Prediction Reveal</h2>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {session.predictions.map((pred) => {
+                      const pUser = session.participants.find((p) => p.userId === pred.userId)?.user;
+                      const actualRating = session.ratings.find((r) => r.userId === pred.userId)?.ratistRating;
                       return (
-                        <div key={i} className="mb-1 rounded-lg px-2 py-1.5 text-xs relative overflow-hidden bg-[var(--surface)]">
-                          <div className="absolute inset-0 bg-[var(--ratist-red)]/10 rounded-lg" style={{ width: `${pct}%` }} />
-                          <span className="relative text-white">{opt}</span>
-                          <span className="relative float-right text-[var(--foreground-muted)]">{voteCount} ({pct}%)</span>
+                        <div key={pred.userId} className="bg-[var(--surface-2)] rounded-lg p-4">
+                          <p className="text-sm font-semibold text-white mb-1">{pUser?.name ?? "Unknown"}</p>
+                          {pred.ratingGuess != null && (
+                            <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
+                              <span>Predicted: <span className="text-[var(--ratist-red)] font-bold">{pred.ratingGuess}/10</span></span>
+                              {actualRating != null && (
+                                <span>→ Actual: <span className="text-green-400 font-bold">{actualRating.toFixed(1)}/10</span></span>
+                              )}
+                            </div>
+                          )}
+                          {pred.plotGuess && (
+                            <p className="text-xs text-[var(--foreground-muted)] mt-1 italic">&ldquo;{pred.plotGuess}&rdquo;</p>
+                          )}
                         </div>
                       );
                     })}
                   </div>
-                );
-              })}
-            </section>
-          )}
+                </section>
+              )}
 
-          {/* Bookmarks */}
-          {session.bookmarks.length > 0 && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-white mb-4">Bookmarked Moments</h2>
-              <div className="space-y-2">
-                {session.bookmarks.map((b) => (
-                  <div key={b.id} className="flex items-center gap-3 bg-[var(--surface-2)] rounded-lg px-3 py-2">
-                    <span className="text-xs font-mono text-[var(--ratist-red)]">{b.timestamp}</span>
-                    <span className="text-xs text-white">{b.note ?? "Bookmarked"}</span>
-                    <span className="text-[10px] text-[var(--foreground-muted)] ml-auto">— {b.user.name}</span>
+              {/* Polls recap */}
+              {session.polls.length > 0 && (
+                <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                  <h2 className="text-sm font-semibold text-white mb-4">Poll Results</h2>
+                  {session.polls.map((poll) => {
+                    const totalVotes = Object.keys(poll.votes).length;
+                    return (
+                      <div key={poll.id} className="mb-4 bg-[var(--surface-2)] rounded-lg p-4">
+                        <p className="text-xs text-white font-medium mb-2">{poll.question}</p>
+                        {(poll.options as string[]).map((opt: string, i: number) => {
+                          const voteCount = Object.values(poll.votes).filter((v) => v === i).length;
+                          const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                          return (
+                            <div key={i} className="mb-1 rounded-lg px-2 py-1.5 text-xs relative overflow-hidden bg-[var(--surface)]">
+                              <div className="absolute inset-0 bg-[var(--ratist-red)]/10 rounded-lg" style={{ width: `${pct}%` }} />
+                              <span className="relative text-white">{opt}</span>
+                              <span className="relative float-right text-[var(--foreground-muted)]">{voteCount} ({pct}%)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </section>
+              )}
+
+              {/* Bookmarks */}
+              {session.bookmarks.length > 0 && (
+                <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                  <h2 className="text-sm font-semibold text-white mb-4">Bookmarked Moments</h2>
+                  <div className="space-y-2">
+                    {session.bookmarks.map((b) => (
+                      <div key={b.id} className="flex items-center gap-3 bg-[var(--surface-2)] rounded-lg px-3 py-2">
+                        <span className="text-xs font-mono text-[var(--ratist-red)]">{b.timestamp}</span>
+                        <span className="text-xs text-white">{b.note ?? "Bookmarked"}</span>
+                        <span className="text-[10px] text-[var(--foreground-muted)] ml-auto">— {b.user.name}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
+                </section>
+              )}
 
-          {/* Rate the movie link */}
-          {session.tmdbId && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
-              <h2 className="text-sm font-semibold text-white mb-2">Rate This Movie</h2>
-              <p className="text-xs text-[var(--foreground-muted)] mb-3">Use the Ratist rating system, then come back to compare.</p>
-              <a href={`/movies/${session.tmdbId}`} target="_blank" rel="noopener noreferrer"
-                className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors">
-                Go to Movie Page
-              </a>
-            </section>
-          )}
-
-          {/* Complete session */}
-          {amHost && (
-            <div className="text-center">
-              <button onClick={completeSession}
-                className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-8 py-3 rounded-lg transition-colors">
-                Complete Session & View Recap
-              </button>
-            </div>
-          )}
-          {!amHost && (
-            <p className="text-center text-xs text-[var(--foreground-muted)]">Waiting for the host to complete the session...</p>
+              {/* Complete session */}
+              {amHost && (
+                <div className="text-center">
+                  <button onClick={completeSession}
+                    className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-8 py-3 rounded-lg transition-colors">
+                    Complete Session & View Recap
+                  </button>
+                </div>
+              )}
+              {!amHost && (
+                <p className="text-center text-xs text-[var(--foreground-muted)]">Waiting for the host to complete the session...</p>
+              )}
+            </>
           )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

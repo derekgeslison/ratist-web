@@ -21,6 +21,9 @@ const sessionInclude = {
     orderBy: { timestamp: "asc" as const },
     include: { user: { select: { id: true, name: true } } },
   },
+  ratings: {
+    include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+  },
 };
 
 /** GET — Get session details */

@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { MonitorPlay, Users, Bookmark, BarChart3, Star, MessageCircle } from "lucide-react";
+import { MonitorPlay, Users, Bookmark, BarChart3, Star } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ShareButton from "@/components/ShareButton";
+import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 
@@ -23,6 +24,7 @@ interface RecapData {
   predictions: { userId: string; plotGuess: string | null; ratingGuess: number | null; user?: { name: string } }[];
   polls: { id: string; question: string; options: string[]; votes: Record<string, number>; creator: { name: string } }[];
   bookmarks: { id: string; timestamp: string; note: string | null; user: { name: string } }[];
+  ratings: { id: string; userId: string; reviewType: string; overallRating: number | null; ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null; reviewText: string | null; user: { id: string; name: string; avatarUrl: string | null } }[];
 }
 
 export default function ScreeningRecapPage() {
@@ -87,6 +89,16 @@ export default function ScreeningRecapPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Rating Comparison */}
+        {data.ratings && data.ratings.length > 0 && (
+          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[var(--ratist-red)]" /> Rating Comparison
+            </h2>
+            <ScreeningRatingCompare ratings={data.ratings} tmdbId={data.tmdbId} myUserId="" />
+          </section>
+        )}
+
         {/* Predictions */}
         {data.predictions.length > 0 && (
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">

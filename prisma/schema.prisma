@@ -55,6 +55,7 @@ model User {
   screeningPolls           ScreeningPoll[]
   screeningBookmarks       ScreeningBookmark[]
   screeningChatHighlights  ScreeningChatHighlight[]
+  screeningRatings         ScreeningRating[]
   watchLog       UserWatchLog[]
   rankings       UserMovieRanking[]
   autoDateOnSeen    Boolean  @default(false) @map("auto_date_on_seen")
@@ -727,6 +728,7 @@ model ScreeningSession {
   polls          ScreeningPoll[]
   bookmarks      ScreeningBookmark[]
   chatHighlights ScreeningChatHighlight[]
+  ratings        ScreeningRating[]
 
   @@map("screening_sessions")
 }
@@ -805,4 +807,64 @@ model ScreeningChatHighlight {
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("screening_chat_highlights")
+}
+
+model ScreeningRating {
+  id        String @id @default(cuid())
+  sessionId String @map("session_id")
+  userId    String @map("user_id")
+
+  reviewType String @default("standard") @map("review_type") // "basic" | "standard"
+
+  // Story
+  plot               Float?
+  premiseOriginality Float? @map("premise_originality")
+  storytelling       Float?
+  characterDev       Float? @map("character_dev")
+  pacingClimax       Float? @map("pacing_climax")
+
+  // Production & Style
+  cinematography   Float?
+  locationCost     Float? @map("location_costuming")
+  realism          Float? @map("realism_believability")
+  artisticEffect   Float? @map("artistic_effect")
+  visualEffects    Float? @map("visual_effects")
+  musicSound       Float? @map("music_sound")
+
+  // Emotive Effect
+  overallEmotion Float? @map("overall_emotion")
+  relatability   Float?
+  meaning        Float?
+  movingness     Float?
+
+  // Acting & Casting
+  casting            Float?
+  actingQuality      Float? @map("acting_quality")
+  dialogueScripting  Float? @map("dialogue_scripting")
+  blockingChoreo     Float? @map("blocking_choreography")
+
+  // Pure Entertainment
+  appeal            Float?
+  superficialAllure Float? @map("superficial_allure")
+  choreography      Float?
+
+  // Overall
+  overallRating Float? @map("overall_rating")
+
+  // Computed
+  storyScore     Float? @map("story_score")
+  styleScore     Float? @map("style_score")
+  emotiveScore   Float? @map("emotive_score")
+  actingScore    Float? @map("acting_score")
+  entertainScore Float? @map("entertainment_score")
+  ratistRating   Float? @map("ratist_rating")
+
+  reviewText String? @map("review_text")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("screening_ratings")
 }
