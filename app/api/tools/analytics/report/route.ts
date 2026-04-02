@@ -33,15 +33,26 @@ export async function GET(req: NextRequest) {
           select: {
             title: true, runtime: true, releaseDate: true,
             genres: { select: { genre: { select: { name: true } } } },
-            cast: {
-              where: { OR: [{ creditType: "cast" }, { creditType: "crew", job: "Director" }] },
-              select: { creditType: true, job: true, castOrder: true, celebrity: { select: { name: true } } },
-              take: 10,
-            },
           },
         },
       },
     });
+
+    // Batch fetch cast separately (no per-movie limit) for director/actor grouping
+    const seenMovieIds = allSeen.map((s) => s.movieId);
+    const allCast = seenMovieIds.length > 0 ? await prisma.movieCast.findMany({
+      where: {
+        movieId: { in: seenMovieIds },
+        OR: [{ creditType: "cast" }, { creditType: "crew", job: "Director" }],
+      },
+      select: { movieId: true, creditType: true, job: true, castOrder: true, celebrity: { select: { name: true } } },
+    }) : [];
+    const castByMovie = new Map<string, typeof allCast>();
+    for (const c of allCast) {
+      const list = castByMovie.get(c.movieId) ?? [];
+      list.push(c);
+      castByMovie.set(c.movieId, list);
+    }
 
     // Fetch ratings separately to join in
     const ratings = await prisma.movieRating.findMany({
@@ -97,12 +108,14 @@ export async function GET(req: NextRequest) {
           break;
         }
         case "director": {
-          const dirs = r.movie.cast.filter((c) => c.creditType === "crew" && c.job === "Director");
+          const cast = castByMovie.get(r.movieId) ?? [];
+          const dirs = cast.filter((c) => c.creditType === "crew" && c.job === "Director");
           for (const d of dirs) addToGroup(d.celebrity.name, r);
           break;
         }
         case "actor": {
-          const acts = r.movie.cast.filter((c) => c.creditType === "cast").slice(0, 5);
+          const cast = castByMovie.get(r.movieId) ?? [];
+          const acts = cast.filter((c) => c.creditType === "cast").sort((a, b) => a.castOrder - b.castOrder).slice(0, 5);
           for (const a of acts) addToGroup(a.celebrity.name, r);
           break;
         }
