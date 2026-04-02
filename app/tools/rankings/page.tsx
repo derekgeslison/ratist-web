@@ -109,7 +109,7 @@ function SortableItem({
 export default function RankingsPage() {
   const { user } = useAuth();
   const [movies, setMovies] = useState<RankedMovie[]>([]);
-  const [filter, setFilter] = useState<"all" | string>("all");
+  const [filter, setFilter] = useState<"all" | string>(String(CURRENT_YEAR));
   const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
@@ -186,10 +186,10 @@ export default function RankingsPage() {
       ) : (
         <>
           <div className="flex items-center gap-2 mb-6 flex-wrap">
-            <button onClick={() => setFilter("all")} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${filter === "all" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>All Time</button>
             {PRESET_YEARS.map((year) => (
               <button key={year} onClick={() => setFilter(year)} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${filter === year ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>{year}</button>
             ))}
+            <button onClick={() => setFilter("all")} className={`px-3 py-1.5 rounded-full text-sm transition-colors ${filter === "all" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>All Time</button>
           </div>
 
           {loading ? (
@@ -197,7 +197,7 @@ export default function RankingsPage() {
           ) : movies.length === 0 ? (
             <p className="text-[var(--foreground-muted)] text-center py-10">No movies found for this filter. <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Rate or mark movies as seen.</Link></p>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext key={filter} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={movies.map((m) => m.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {movies.map((movie, index) => (

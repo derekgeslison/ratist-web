@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { scoreColor } from "@/lib/ratings";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
+import OwnerOnly from "@/components/OwnerOnly";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export default async function YearInReviewPage({ params }: Props) {
 
   const user = await prisma.user.findFirst({
     where: { OR: [{ id: userId }, { firebaseUid: userId }] },
-    select: { id: true, name: true, avatarUrl: true, isPrivate: true },
+    select: { id: true, firebaseUid: true, name: true, avatarUrl: true, isPrivate: true },
   });
   if (!user) notFound();
   if (user.isPrivate) {
@@ -231,12 +232,14 @@ export default async function YearInReviewPage({ params }: Props) {
             )}
           </div>
 
-          <ShareButton
-            label={`Share my ${year} in Film`}
-            text={shareText}
-            url={shareUrl}
-            cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(userId)}&year=${year}`}
-          />
+          <OwnerOnly ownerFirebaseUid={user.firebaseUid}>
+            <ShareButton
+              label={`Share my ${year} in Film`}
+              text={shareText}
+              url={shareUrl}
+              cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(userId)}&year=${year}`}
+            />
+          </OwnerOnly>
         </div>
       </div>
 
