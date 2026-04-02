@@ -287,8 +287,8 @@ export default function RatingsPage() {
               <select value={directorFilter} onChange={(e) => setDirectorFilter(e.target.value)}
                 className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
                 <option value="">All directors</option>
-                {availableDirectors.filter((d) => d.count >= 2).map((d) => (
-                  <option key={d.name} value={d.name}>{d.name} ({d.count})</option>
+                {availableDirectors.filter((d) => ratings.length < 20 || d.count >= 2).map((d) => (
+                  <option key={d.name} value={d.name}>{d.name}{d.count > 1 ? ` (${d.count})` : ""}</option>
                 ))}
               </select>
             )}
@@ -297,8 +297,8 @@ export default function RatingsPage() {
               <select value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}
                 className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
                 <option value="">All actors</option>
-                {availableActors.filter((a) => a.count >= 2).map((a) => (
-                  <option key={a.name} value={a.name}>{a.name} ({a.count})</option>
+                {availableActors.filter((a) => ratings.length < 20 || a.count >= 2).map((a) => (
+                  <option key={a.name} value={a.name}>{a.name}{a.count > 1 ? ` (${a.count})` : ""}</option>
                 ))}
               </select>
             )}
