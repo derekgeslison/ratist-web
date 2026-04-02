@@ -93,6 +93,7 @@ export default function ScreeningSessionPage() {
   const [chatMessages, setChatMessages] = useState<(RTDBChatMessage & { key: string })[]>([]);
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   // Bookmarks
   const [bookmarkNote, setBookmarkNote] = useState("");
@@ -277,6 +278,13 @@ export default function ScreeningSessionPage() {
     };
     await push(ref(rtdb, rtdbPaths.chat(id)), msg);
     setChatInput("");
+    if (chatInputRef.current) chatInputRef.current.value = "";
+  }
+
+  function sendTextFromInput() {
+    // Read directly from DOM to avoid React state timing issues
+    const val = chatInputRef.current?.value?.trim() || chatInput.trim();
+    if (val) sendChat(val);
   }
 
   async function sendPauseRequest() {
@@ -684,12 +692,13 @@ export default function ScreeningSessionPage() {
             {/* Input */}
             <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--border)]">
               <input
+                ref={chatInputRef}
                 type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && chatInput.trim()) sendChat(chatInput.trim()); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendTextFromInput(); } }}
                 placeholder="Type a message..."
                 className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
               />
-              <button onClick={() => chatInput.trim() && sendChat(chatInput.trim())}
+              <button onClick={sendTextFromInput}
                 className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white p-2 rounded-lg transition-colors">
                 <Send className="w-4 h-4" />
               </button>
