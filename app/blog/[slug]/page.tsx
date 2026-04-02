@@ -3,10 +3,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
-import CommentForm from "@/components/CommentForm";
+import CommentSection from "@/components/CommentSection";
+import PostLikeButton from "@/components/PostLikeButton";
 
 export const dynamic = "force-dynamic";
-import { Calendar, ArrowLeft, MessageCircle } from "lucide-react";
+import { Calendar, ArrowLeft } from "lucide-react";
 import PageShare from "@/components/PageShare";
 
 interface Props {
@@ -30,10 +31,6 @@ export default async function BlogPostPage({ params }: Props) {
     where: { slug, published: true },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
-      comments: {
-        include: { author: { select: { name: true, avatarUrl: true } } },
-        orderBy: { createdAt: "asc" },
-      },
     },
   });
 
@@ -56,7 +53,10 @@ export default async function BlogPostPage({ params }: Props) {
 
       <div className="flex items-start justify-between gap-2 mb-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{post.title}</h1>
-        <PageShare title={post.title} />
+        <div className="flex items-center gap-3 shrink-0">
+          <PostLikeButton targetType="blog" targetId={post.id} />
+          <PageShare title={post.title} />
+        </div>
       </div>
 
       <div className="flex items-center gap-3 mb-8 pb-8 border-b border-[var(--border)]">
@@ -76,39 +76,7 @@ export default async function BlogPostPage({ params }: Props) {
 
       {/* Comments */}
       <div className="mt-12 pt-8 border-t border-[var(--border)]">
-        <h2 className="text-base font-semibold text-white mb-6 flex items-center gap-2">
-          <MessageCircle className="w-5 h-5 text-[var(--ratist-red)]" />
-          {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
-        </h2>
-
-        <CommentForm slug={slug} />
-
-        {post.comments.length === 0 ? (
-          <p className="text-sm text-[var(--foreground-muted)] mt-6">No comments yet. Be the first.</p>
-        ) : (
-          <div className="space-y-6">
-            {post.comments.map((comment) => (
-              <div key={comment.id} className="flex gap-3">
-                {comment.author.avatarUrl ? (
-                  <Image src={comment.author.avatarUrl} alt="" width={32} height={32} className="rounded-full w-8 h-8 object-cover shrink-0 mt-0.5" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-[var(--surface-2)] border border-[var(--border)] shrink-0 mt-0.5 flex items-center justify-center text-xs text-[var(--foreground-muted)]">
-                    {comment.author.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-white">{comment.author.name}</span>
-                    <span className="text-xs text-[var(--foreground-muted)]">
-                      {comment.createdAt.toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{comment.content}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <CommentSection targetType="blog" targetId={post.id} />
       </div>
     </div>
   );

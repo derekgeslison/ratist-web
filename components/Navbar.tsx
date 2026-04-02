@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Star } from "lucide-react";
+import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Star, Bell } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -18,10 +18,28 @@ export default function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
   const userMenuRef = useRef<HTMLDivElement>(null);
   const readMenuRef = useRef<HTMLDivElement>(null);
+
+  // Poll notification count
+  useEffect(() => {
+    if (!user) { setUnreadCount(0); return; }
+    let cancelled = false;
+    async function check() {
+      const token = await user!.getIdToken();
+      const res = await fetch("/api/notifications?countOnly=1", { headers: { Authorization: `Bearer ${token}` } });
+      if (!cancelled && res.ok) {
+        const data = await res.json();
+        setUnreadCount(data.unreadCount ?? 0);
+      }
+    }
+    check();
+    const interval = setInterval(check, 60000); // check every 60s
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [user]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -120,6 +138,17 @@ export default function Navbar() {
             </form>
 
             {user ? (
+              <div className="flex items-center gap-3">
+                {/* Notification bell */}
+                <Link href="/notifications" className="relative hidden sm:block text-[var(--foreground-muted)] hover:text-white transition-colors">
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </Link>
+
               <div className="relative hidden sm:block" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -163,6 +192,7 @@ export default function Navbar() {
                     </button>
                   </div>
                 )}
+              </div>
               </div>
             ) : (
               <Link
@@ -218,6 +248,9 @@ export default function Navbar() {
                 <Link href="/seen" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Film Diary</Link>
                 <Link href="/ratings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Ratings</Link>
                 <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Watchlists</Link>
+                <Link href="/notifications" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors flex items-center gap-2">
+                  Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+                </Link>
                 <Link href="/settings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Preferences</Link>
                 <Link href="/about" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">About The Ratist</Link>
                 <button onClick={() => { signOut(); setMenuOpen(false); }} className="text-left py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Sign Out</button>

@@ -32,7 +32,11 @@ model User {
   watchlistsOwned  Watchlist[]
   watchlistCollab  WatchlistCollaborator[]
   blogPosts      BlogPost[]
-  blogComments   BlogComment[]
+  comments         Comment[]
+  commentLikes     CommentLike[]
+  postLikes        PostLike[]
+  notifications    Notification[]    @relation("notifications")
+  notificationsOut Notification[]    @relation("notificationActor")
   pjArguments    PunchAndJudyArgument[]
   pjHelpfuls     PunchAndJudyHelpful[]
   pjVotes        PunchAndJudyOverallVote[]
@@ -45,8 +49,6 @@ model User {
   recastVotes    RecastVote[]
   hotTakes       HotTake[]
   hotTakeVotes   HotTakeVote[]
-  reviewLikes    ReviewLike[]
-  reviewComments ReviewComment[]
   watchLog       UserWatchLog[]
   autoDateOnSeen Boolean  @default(false) @map("auto_date_on_seen")
 
@@ -253,8 +255,6 @@ model MovieRating {
   categoryComments Json?    @map("category_comments") // critic mode: { "story": "comment", ... }
   hasSpoilers      Boolean  @default(false) @map("has_spoilers")
   commentsDisabled Boolean  @default(false) @map("comments_disabled")
-  likes            ReviewLike[]
-  comments         ReviewComment[]
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -265,33 +265,66 @@ model MovieRating {
   @@map("movie_ratings")
 }
 
-model ReviewLike {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  ratingId  String   @map("rating_id")
-  createdAt DateTime @default(now()) @map("created_at")
+// ─── Unified Comments & Likes ─────────────────────────────────────────────────
 
-  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rating MovieRating @relation(fields: [ratingId], references: [id], onDelete: Cascade)
+model Comment {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  targetType String    @map("target_type") // "review" | "blog" | "lookslike" | "recast" | "hottake" | "oscar_category"
+  targetId   String    @map("target_id")
+  parentId   String?   @map("parent_id")
+  text       String
+  createdAt  DateTime  @default(now()) @map("created_at")
 
-  @@unique([userId, ratingId])
-  @@map("review_likes")
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?      @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[]     @relation("CommentThread")
+  likes   CommentLike[]
+
+  @@index([targetType, targetId])
+  @@map("comments")
 }
 
-model ReviewComment {
-  id        String   @id @default(cuid())
+model CommentLike {
   userId    String   @map("user_id")
-  ratingId  String   @map("rating_id")
-  parentId  String?  @map("parent_id") // null = top-level, set = reply
-  text      String
+  commentId String   @map("comment_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rating  MovieRating    @relation(fields: [ratingId], references: [id], onDelete: Cascade)
-  parent  ReviewComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies ReviewComment[] @relation("CommentReplies")
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
-  @@map("review_comments")
+  @@id([userId, commentId])
+  @@map("comment_likes")
+}
+
+model PostLike {
+  userId     String   @map("user_id")
+  targetType String   @map("target_type") // "blog"
+  targetId   String   @map("target_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, targetType, targetId])
+  @@map("post_likes")
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  type       String   // "comment" | "reply" | "comment_like" | "post_like" | "watchlist_invite"
+  actorId    String?  @map("actor_id")
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  message    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user  User  @relation("notifications", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("notificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
 }
 
 model UserFavoriteMovie {
@@ -386,23 +419,11 @@ model BlogPost {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments BlogComment[]
 
   @@map("blog_posts")
 }
 
-model BlogComment {
-  id        String   @id @default(cuid())
-  postId    String   @map("post_id")
-  authorId  String   @map("author_id")
-  content   String
-  createdAt DateTime @default(now()) @map("created_at")
-
-  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@map("blog_comments")
-}
+// BlogComment removed — replaced by unified Comment model with targetType="blog"
 
 // Punch & Judy — structured debate per movie
 model PunchAndJudyDebate {

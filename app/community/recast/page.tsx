@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp } from "lucide-react";
+import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle } from "lucide-react";
+import CommentSection from "@/components/CommentSection";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w185";
 const TMDB_POSTER = "https://image.tmdb.org/t/p/w92";
@@ -157,6 +158,8 @@ export default function RecastPage() {
   const [originalActorNameManual, setOriginalActorNameManual] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [votingId, setVotingId] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -179,20 +182,25 @@ export default function RecastPage() {
   const effectiveOriginalActorName = originalActor?.name ?? originalActorNameManual;
 
   async function vote(itemId: string, value: 1 | -1) {
-    if (!user) return;
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/community/recast/${itemId}/vote`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ value }),
-    });
-    if (res.ok) {
-      const { score, userVote } = await res.json();
-      setItems((prev) => prev.map((it) =>
-        it.id === itemId
-          ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
-          : it
-      ));
+    if (!user || votingId) return;
+    setVotingId(itemId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/community/recast/${itemId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ value }),
+      });
+      if (res.ok) {
+        const { score, userVote } = await res.json();
+        setItems((prev) => prev.map((it) =>
+          it.id === itemId
+            ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
+            : it
+        ));
+      }
+    } finally {
+      setVotingId(null);
     }
   }
 
@@ -332,44 +340,60 @@ export default function RecastPage() {
           {sorted.map((item) => {
             const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
             return (
-              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4">
-                {/* Movie poster */}
-                {item.posterPath ? (
-                  <Image src={`${TMDB_POSTER}${item.posterPath}`} alt={item.movieTitle} width={36} height={54} className="rounded shrink-0 object-cover" style={{ width: 36, height: 54 }} />
-                ) : (
-                  <div className="w-9 h-14 rounded bg-[var(--surface-2)] shrink-0" />
-                )}
+              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <div className="flex items-center gap-4">
+                  {/* Movie poster */}
+                  {item.posterPath ? (
+                    <Image src={`${TMDB_POSTER}${item.posterPath}`} alt={item.movieTitle} width={36} height={54} className="rounded shrink-0 object-cover" style={{ width: 36, height: 54 }} />
+                  ) : (
+                    <div className="w-9 h-14 rounded bg-[var(--surface-2)] shrink-0" />
+                  )}
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[var(--foreground-muted)] mb-0.5">{item.movieTitle} · <span className="italic">{item.characterName}</span></p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm text-[var(--foreground-muted)] line-through">{item.originalActorName}</span>
-                    <span className="text-blue-400 text-sm">→</span>
-                    <div className="flex items-center gap-1.5">
-                      {item.suggestedActorProfile && (
-                        <Image src={`${TMDB_IMG}${item.suggestedActorProfile}`} alt={item.suggestedActorName} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
-                      )}
-                      <span className="text-sm font-semibold text-white">{item.suggestedActorName}</span>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-[var(--foreground-muted)] mb-0.5">{item.movieTitle} · <span className="italic">{item.characterName}</span></p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-[var(--foreground-muted)] line-through">{item.originalActorName}</span>
+                      <span className="text-blue-400 text-sm">→</span>
+                      <div className="flex items-center gap-1.5">
+                        {item.suggestedActorProfile && (
+                          <Image src={`${TMDB_IMG}${item.suggestedActorProfile}`} alt={item.suggestedActorName} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                        )}
+                        <span className="text-sm font-semibold text-white">{item.suggestedActorName}</span>
+                      </div>
                     </div>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-1">by {item.creator.name}</p>
                   </div>
-                  <p className="text-xs text-[var(--foreground-muted)] mt-1">by {item.creator.name}</p>
+
+                  {/* Vote controls */}
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <button onClick={() => vote(item.id, 1)} disabled={!user || votingId === item.id}
+                      className={`p-1.5 rounded transition-colors ${userVote === 1 ? "text-green-400 bg-green-500/20" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}>
+                      <ThumbsUp className="w-4 h-4" />
+                    </button>
+                    <span className={`text-sm font-semibold ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+                      {item.score > 0 ? "+" : ""}{item.score}
+                    </span>
+                    <button onClick={() => vote(item.id, -1)} disabled={!user || votingId === item.id}
+                      className={`p-1.5 rounded transition-colors ${userVote === -1 ? "text-red-400 bg-red-500/20" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}>
+                      <ThumbsDown className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
+                  </div>
                 </div>
 
-                {/* Vote controls */}
-                <div className="flex flex-col items-center gap-1 shrink-0">
-                  <button onClick={() => vote(item.id, 1)} disabled={!user}
-                    className={`p-1.5 rounded transition-colors ${userVote === 1 ? "text-green-400 bg-green-500/20" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}>
-                    <ThumbsUp className="w-4 h-4" />
+                {/* Comment toggle */}
+                <div className="border-t border-[var(--border)] mt-3 pt-2">
+                  <button
+                    onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
+                    className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {expandedComments === item.id ? "Hide Comments" : "Comments"}
                   </button>
-                  <span className={`text-sm font-semibold ${item.score > 0 ? "text-green-400" : item.score < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
-                    {item.score > 0 ? "+" : ""}{item.score}
-                  </span>
-                  <button onClick={() => vote(item.id, -1)} disabled={!user}
-                    className={`p-1.5 rounded transition-colors ${userVote === -1 ? "text-red-400 bg-red-500/20" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}>
-                    <ThumbsDown className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
+                  {expandedComments === item.id && (
+                    <CommentSection targetType="recast" targetId={item.id} />
+                  )}
                 </div>
               </div>
             );

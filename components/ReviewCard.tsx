@@ -3,10 +3,10 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ChevronDown, ChevronUp, AlertTriangle, MessageCircle } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { scoreColor } from "@/lib/ratings";
-import ReviewComments from "./ReviewComments";
+import CommentSection from "./CommentSection";
+import PostLikeButton from "./PostLikeButton";
 
 interface ReviewData {
   id: string;
@@ -45,12 +45,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function ReviewCard({ review, movieTmdbId, compact = false, isFullPage = false }: Props) {
-  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [spoilerRevealed, setSpoilerRevealed] = useState(false);
-  const [liked, setLiked] = useState(review.likedByMe);
-  const [likeCount, setLikeCount] = useState(review.likeCount);
-  const [liking, setLiking] = useState(false);
 
   const score = review.ratistRating ?? review.overallRating;
   const hasBreakdown = review.storyScore != null || review.styleScore != null;
@@ -58,22 +54,6 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
     ((review.fieldComments && Object.keys(review.fieldComments).length > 0) ||
      (review.categoryComments && Object.keys(review.categoryComments).length > 0));
   const isLongReview = (review.reviewText?.length ?? 0) > 300;
-
-  async function toggleLike() {
-    if (!user || liking) return;
-    setLiking(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/reviews/${review.id}/like`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setLiked(data.liked);
-      setLikeCount(data.count);
-    }
-    setLiking(false);
-  }
 
   const showFullText = expanded || !isLongReview;
 
@@ -187,23 +167,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
       {/* Footer: like button + comment count + links */}
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)]/30">
         <div className="flex items-center gap-4">
-          <button
-            onClick={toggleLike}
-            disabled={!user || liking}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${
-              liked ? "text-[var(--ratist-red)]" : "text-[var(--foreground-muted)] hover:text-[var(--ratist-red)]"
-            } disabled:opacity-40`}
-          >
-            <Heart className={`w-3.5 h-3.5 ${liked ? "fill-current" : ""}`} />
-            {likeCount > 0 && <span>{likeCount}</span>}
-            {likeCount === 0 && !liked && <span>Like</span>}
-          </button>
-          {!review.commentsDisabled && (
-            <span className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]">
-              <MessageCircle className="w-3.5 h-3.5" />
-              {review.commentCount > 0 ? review.commentCount : ""}
-            </span>
-          )}
+          <PostLikeButton targetType="review" targetId={review.id} />
         </div>
 
         <div className="flex items-center gap-3">
@@ -228,7 +192,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
 
       {/* Comments section — shown on full page and non-compact views */}
       {!compact && !review.commentsDisabled && (
-        <ReviewComments reviewId={review.id} />
+        <CommentSection targetType="review" targetId={review.id} disabled={review.commentsDisabled} />
       )}
     </div>
   );

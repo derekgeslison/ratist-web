@@ -86,7 +86,8 @@ export default async function MovieDetailPage({ params }: Props) {
     commentsDisabled: boolean;
     user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
     createdAt: Date;
-    _count: { likes: number; comments: number };
+    likeCount: number;
+    commentCount: number;
   }[] = [];
   try {
     const dbMovie = await prisma.movie.findUnique({
@@ -94,7 +95,7 @@ export default async function MovieDetailPage({ params }: Props) {
       select: { id: true },
     });
     if (dbMovie) {
-      reviews = await prisma.movieRating.findMany({
+      const rawReviews = await prisma.movieRating.findMany({
         where: {
           movieId: dbMovie.id,
           reviewText: { not: null },
@@ -109,11 +110,33 @@ export default async function MovieDetailPage({ params }: Props) {
           commentsDisabled: true,
           createdAt: true,
           user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-          _count: { select: { likes: true, comments: true } },
         },
         orderBy: { createdAt: "desc" },
         take: 20,
-      }) as typeof reviews;
+      });
+
+      // Fetch comment + like counts from unified models
+      const reviewIds = rawReviews.map((r) => r.id);
+      const [commentCounts, likeCounts] = await Promise.all([
+        prisma.comment.groupBy({
+          by: ["targetId"],
+          where: { targetType: "review", targetId: { in: reviewIds } },
+          _count: { id: true },
+        }),
+        prisma.postLike.groupBy({
+          by: ["targetId"],
+          where: { targetType: "review", targetId: { in: reviewIds } },
+          _count: { targetId: true },
+        }),
+      ]);
+      const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
+      const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
+
+      reviews = rawReviews.map((r) => ({
+        ...r,
+        commentCount: commentMap.get(r.id) ?? 0,
+        likeCount: likeMap.get(r.id) ?? 0,
+      }));
     }
   } catch {
     // DB not ready yet
@@ -234,8 +257,8 @@ export default async function MovieDetailPage({ params }: Props) {
             reviewType: r.reviewType,
             hasSpoilers: r.hasSpoilers,
             commentsDisabled: r.commentsDisabled,
-            commentCount: r._count.comments,
-            likeCount: r._count.likes,
+            commentCount: r.commentCount,
+            likeCount: r.likeCount,
             user: r.user,
             createdAt: r.createdAt.toISOString(),
           }))}

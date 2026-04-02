@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X, Clock, TrendingUp } from "lucide-react";
+import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X, Clock, TrendingUp, MessageCircle } from "lucide-react";
+import CommentSection from "@/components/CommentSection";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w185";
 
@@ -117,6 +118,8 @@ export default function LooksLikePage() {
   const [person2, setPerson2] = useState<PersonResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [votingId, setVotingId] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -137,20 +140,25 @@ export default function LooksLikePage() {
   });
 
   async function vote(itemId: string, value: 1 | -1) {
-    if (!user) return;
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/community/looks-like/${itemId}/vote`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ value }),
-    });
-    if (res.ok) {
-      const { score, userVote } = await res.json();
-      setItems((prev) => prev.map((it) =>
-        it.id === itemId
-          ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
-          : it
-      ));
+    if (!user || votingId) return;
+    setVotingId(itemId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/community/looks-like/${itemId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ value }),
+      });
+      if (res.ok) {
+        const { score, userVote } = await res.json();
+        setItems((prev) => prev.map((it) =>
+          it.id === itemId
+            ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
+            : it
+        ));
+      }
+    } finally {
+      setVotingId(null);
     }
   }
 
@@ -302,7 +310,7 @@ export default function LooksLikePage() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => vote(item.id, 1)}
-                        disabled={!user}
+                        disabled={!user || votingId === item.id}
                         title="Twins!"
                         className={`p-1.5 rounded transition-colors ${userVote === 1 ? "bg-green-500/20 text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400 disabled:cursor-not-allowed"}`}
                       >
@@ -313,7 +321,7 @@ export default function LooksLikePage() {
                       </span>
                       <button
                         onClick={() => vote(item.id, -1)}
-                        disabled={!user}
+                        disabled={!user || votingId === item.id}
                         title="Nah"
                         className={`p-1.5 rounded transition-colors ${userVote === -1 ? "bg-red-500/20 text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400 disabled:cursor-not-allowed"}`}
                       >
@@ -322,6 +330,20 @@ export default function LooksLikePage() {
                     </div>
                     <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                   </div>
+                </div>
+
+                {/* Comment toggle */}
+                <div className="border-t border-[var(--border)] mt-3 pt-2">
+                  <button
+                    onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
+                    className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {expandedComments === item.id ? "Hide Comments" : "Comments"}
+                  </button>
+                  {expandedComments === item.id && (
+                    <CommentSection targetType="lookslike" targetId={item.id} />
+                  )}
                 </div>
               </div>
             );

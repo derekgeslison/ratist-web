@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp } from "lucide-react";
+import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle } from "lucide-react";
+import CommentSection from "@/components/CommentSection";
 
 interface HotTakeItem {
   id: string;
@@ -26,6 +27,8 @@ export default function HotTakesPage() {
   const [newTake, setNewTake] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [votingId, setVotingId] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -46,20 +49,25 @@ export default function HotTakesPage() {
   });
 
   async function vote(itemId: string, value: 1 | -1) {
-    if (!user) return;
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/community/hot-takes/${itemId}/vote`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ value }),
-    });
-    if (res.ok) {
-      const { score, userVote } = await res.json();
-      setItems((prev) => prev.map((it) =>
-        it.id === itemId
-          ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
-          : it
-      ));
+    if (!user || votingId) return;
+    setVotingId(itemId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/community/hot-takes/${itemId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ value }),
+      });
+      if (res.ok) {
+        const { score, userVote } = await res.json();
+        setItems((prev) => prev.map((it) =>
+          it.id === itemId
+            ? { ...it, score, voterIds: [...it.voterIds.filter((v) => v.userId !== user.uid), { userId: user.uid, value: userVote }] }
+            : it
+        ));
+      }
+    } finally {
+      setVotingId(null);
     }
   }
 
@@ -194,7 +202,7 @@ export default function HotTakesPage() {
                   <div className="flex items-center gap-3 mt-3">
                     <button
                       onClick={() => vote(item.id, 1)}
-                      disabled={!user}
+                      disabled={!user || votingId === item.id}
                       className={`flex items-center gap-1 text-xs transition-colors ${userVote === 1 ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}
                     >
                       <ThumbsUp className="w-3.5 h-3.5" /> Hot
@@ -204,7 +212,7 @@ export default function HotTakesPage() {
                     </span>
                     <button
                       onClick={() => vote(item.id, -1)}
-                      disabled={!user}
+                      disabled={!user || votingId === item.id}
                       className={`flex items-center gap-1 text-xs transition-colors ${userVote === -1 ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
                     >
                       <ThumbsDown className="w-3.5 h-3.5" /> Not
@@ -212,7 +220,17 @@ export default function HotTakesPage() {
                     {item.voterIds.length > 0 && (
                       <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                     )}
+                    <button
+                      onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
+                      className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors ml-auto"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      {expandedComments === item.id ? "Hide" : "Comments"}
+                    </button>
                   </div>
+                  {expandedComments === item.id && (
+                    <CommentSection targetType="hottake" targetId={item.id} />
+                  )}
                 </div>
               </div>
             );

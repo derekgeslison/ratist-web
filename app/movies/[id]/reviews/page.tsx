@@ -46,7 +46,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
       ? [{ createdAt: "desc" as const }] // we'll sort by like count in JS
       : [{ createdAt: "desc" as const }];
 
-  const reviews = await prisma.movieRating.findMany({
+  const rawReviews = await prisma.movieRating.findMany({
     where: {
       movieId: dbMovie.id,
       OR: [
@@ -71,14 +71,35 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
       commentsDisabled: true,
       createdAt: true,
       user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-      _count: { select: { likes: true, comments: true } },
     },
     orderBy,
   });
 
+  // Fetch comment + like counts from unified models
+  const reviewIds = rawReviews.map((r) => r.id);
+  const [commentCounts, likeCounts] = await Promise.all([
+    prisma.comment.groupBy({
+      by: ["targetId"],
+      where: { targetType: "review", targetId: { in: reviewIds } },
+      _count: { id: true },
+    }),
+    prisma.postLike.groupBy({
+      by: ["targetId"],
+      where: { targetType: "review", targetId: { in: reviewIds } },
+      _count: { targetId: true },
+    }),
+  ]);
+  const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
+  const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
+  const reviews = rawReviews.map((r) => ({
+    ...r,
+    commentCount: commentMap.get(r.id) ?? 0,
+    likeCount: likeMap.get(r.id) ?? 0,
+  }));
+
   // For "most liked" sort, re-sort by like count
   const sortedReviews = sort === "liked"
-    ? [...reviews].sort((a, b) => b._count.likes - a._count.likes)
+    ? [...reviews].sort((a, b) => b.likeCount - a.likeCount)
     : reviews;
 
   return (
@@ -141,8 +162,8 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
                 hasSpoilers: r.hasSpoilers,
                 commentsDisabled: r.commentsDisabled,
                 createdAt: r.createdAt.toISOString(),
-                commentCount: r._count.comments,
-                likeCount: r._count.likes,
+                commentCount: r.commentCount,
+                likeCount: r.likeCount,
                 likedByMe: false,
                 user: r.user,
               }}

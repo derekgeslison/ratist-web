@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Trophy, CheckCircle2, Lock } from "lucide-react";
+import { ArrowLeft, Trophy, CheckCircle2, Lock, MessageCircle } from "lucide-react";
+import CommentSection from "@/components/CommentSection";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w92";
 
@@ -46,6 +47,8 @@ export default function OscarPicksPage() {
   const [voteCounts, setVoteCounts] = useState<Record<string, CategoryVote[]>>({});
   // categoryId -> my vote nomineeId
   const [myVotes, setMyVotes] = useState<Record<string, string>>({});
+  const [votingCategoryId, setVotingCategoryId] = useState<string | null>(null);
+  const [expandedComments, setExpandedComments] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/community/oscar-picks")
@@ -86,9 +89,11 @@ export default function OscarPicksPage() {
   }, [user, years]);
 
   async function castVote(categoryId: string, nomineeId: string, yearComplete: boolean) {
-    if (!user || yearComplete) return;
+    if (!user || yearComplete || votingCategoryId) return;
     const prevVote = myVotes[categoryId];
     if (prevVote === nomineeId) return; // already voted for this
+
+    setVotingCategoryId(categoryId);
 
     // Optimistic update
     setMyVotes((prev) => ({ ...prev, [categoryId]: nomineeId }));
@@ -102,15 +107,19 @@ export default function OscarPicksPage() {
       return { ...prev, [categoryId]: updated };
     });
 
-    const token = await user.getIdToken();
-    const res = await fetch("/api/community/oscar-picks/vote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ categoryId, nomineeId }),
-    });
-    if (res.ok) {
-      const { votes } = await res.json();
-      setVoteCounts((prev) => ({ ...prev, [categoryId]: votes }));
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/community/oscar-picks/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ categoryId, nomineeId }),
+      });
+      if (res.ok) {
+        const { votes } = await res.json();
+        setVoteCounts((prev) => ({ ...prev, [categoryId]: votes }));
+      }
+    } finally {
+      setVotingCategoryId(null);
     }
   }
 
@@ -200,7 +209,7 @@ export default function OscarPicksPage() {
                             <button
                               key={nominee.id}
                               onClick={() => castVote(cat.id, nominee.id, activeYearData.isComplete)}
-                              disabled={activeYearData.isComplete || !user}
+                              disabled={activeYearData.isComplete || !user || votingCategoryId === cat.id}
                               className={`relative w-full text-left rounded-lg overflow-hidden border transition-all ${
                                 isWinner
                                   ? "border-yellow-400 bg-yellow-500/10"
@@ -262,6 +271,20 @@ export default function OscarPicksPage() {
                           {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
                         </div>
                       )}
+
+                      {/* Comment toggle */}
+                      <div className="px-5 py-2 border-t border-[var(--border)]">
+                        <button
+                          onClick={() => setExpandedComments(expandedComments === cat.id ? null : cat.id)}
+                          className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          {expandedComments === cat.id ? "Hide Comments" : "Comments"}
+                        </button>
+                        {expandedComments === cat.id && (
+                          <CommentSection targetType="oscar_category" targetId={cat.id} />
+                        )}
+                      </div>
                     </div>
                   );
                 })}

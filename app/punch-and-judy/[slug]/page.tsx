@@ -3,8 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
-import CommentForm from "@/components/CommentForm";
-import { ArrowLeft, Calendar, Swords, MessageCircle } from "lucide-react";
+import CommentSection from "@/components/CommentSection";
+import PostLikeButton from "@/components/PostLikeButton";
+import { ArrowLeft, Calendar, Swords } from "lucide-react";
 import PageShare from "@/components/PageShare";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,6 @@ export default async function PunchAndJudyPostPage({ params }: Props) {
     where: { slug, published: true, type: "PUNCH_AND_JUDY" },
     include: {
       author: { select: { name: true, avatarUrl: true } },
-      comments: {
-        include: { author: { select: { name: true, avatarUrl: true } } },
-        orderBy: { createdAt: "asc" },
-      },
     },
   });
   if (!post) notFound();
@@ -52,7 +49,10 @@ export default async function PunchAndJudyPostPage({ params }: Props) {
       )}
       <div className="flex items-start justify-between gap-2 mb-4">
         <h1 className="text-2xl sm:text-3xl font-bold text-white">{post.title}</h1>
-        <PageShare title={post.title} />
+        <div className="flex items-center gap-3 shrink-0">
+          <PostLikeButton targetType="blog" targetId={post.id} />
+          <PageShare title={post.title} />
+        </div>
       </div>
       <div className="flex items-center gap-3 mb-8 pb-8 border-b border-[var(--border)]">
         {post.author.avatarUrl && (
@@ -66,38 +66,9 @@ export default async function PunchAndJudyPostPage({ params }: Props) {
         </div>
       </div>
       <RichTextRenderer content={post.content} />
+      {/* Discussion */}
       <div className="mt-12 pt-8 border-t border-[var(--border)]">
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-          <MessageCircle className="w-4 h-4" />
-          {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
-        </h2>
-        {post.comments.length === 0 ? (
-          <p className="text-sm text-[var(--foreground-muted)] mb-6">No comments yet. Be the first.</p>
-        ) : (
-          <div className="space-y-4 mb-6">
-            {post.comments.map((comment) => (
-              <div key={comment.id} className="flex gap-3">
-                {comment.author.avatarUrl ? (
-                  <Image src={comment.author.avatarUrl} alt="" width={32} height={32} className="rounded-full w-8 h-8 object-cover shrink-0 mt-0.5" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
-                    {comment.author.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium text-white">{comment.author.name}</span>
-                    <span className="text-xs text-[var(--foreground-muted)]">
-                      {comment.createdAt.toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{comment.content}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <CommentForm slug={slug} />
+        <CommentSection targetType="blog" targetId={post.id} />
       </div>
     </div>
   );

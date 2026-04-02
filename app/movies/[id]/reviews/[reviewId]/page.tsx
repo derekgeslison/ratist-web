@@ -62,7 +62,6 @@ export default async function SingleReviewPage({ params }: Props) {
     include: {
       user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
       movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
-      likes: { select: { userId: true } },
     },
   });
 
@@ -114,8 +113,8 @@ export default async function SingleReviewPage({ params }: Props) {
           hasSpoilers: rating.hasSpoilers,
           commentsDisabled: rating.commentsDisabled,
           createdAt: rating.createdAt.toISOString(),
-          commentCount: 0, // loaded client-side by ReviewComments
-          likeCount: rating.likes.length,
+          commentCount: 0, // loaded client-side by CommentSection
+          likeCount: 0, // loaded client-side by PostLikeButton
           likedByMe: false,
           user: rating.user,
         }}

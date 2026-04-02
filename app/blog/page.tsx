@@ -20,7 +20,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
 
   const posts = await prisma.blogPost.findMany({
     where: { type: "BLOG", published: true },
-    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } }, _count: { select: { comments: true } } },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
 
