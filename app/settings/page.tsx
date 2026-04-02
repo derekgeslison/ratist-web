@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Check, Save, Upload, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { updateProfile } from "firebase/auth";
 
 const GENRES = [
   { key: "genreAction", label: "Action / Adventure" },
@@ -179,6 +180,11 @@ export default function SettingsPage() {
       });
 
       if (res.ok) {
+        // Sync display name and avatar to Firebase Auth so it persists on refresh
+        await updateProfile(user, {
+          displayName: displayName.trim(),
+          ...(finalAvatarUrl ? { photoURL: finalAvatarUrl } : {}),
+        });
         setSavedAccount(true);
         setTimeout(() => setSavedAccount(false), 2500);
       } else {
