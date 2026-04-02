@@ -50,7 +50,8 @@ export default function RecommendPage() {
   const [runtime, setRuntime] = useState(saved?.runtime ?? "");
   const [era, setEra] = useState(saved?.era ?? "");
   const [excludeGenres, setExcludeGenres] = useState<Set<string>>(new Set(saved?.excludeGenres ?? []));
-  const [mpaaFilter, setMpaaFilter] = useState(saved?.mpaaFilter ?? "");
+  const ALL_MPAA = ["G", "PG", "PG-13", "R", "NR"] as const;
+  const [mpaaSelected, setMpaaSelected] = useState<Set<string>>(new Set(saved?.mpaaSelected ?? ALL_MPAA));
 
   const [results, setResults] = useState<MovieResult[]>(saved?.results ?? []);
   const [visibleCount, setVisibleCount] = useState(saved?.visibleCount ?? 5);
@@ -67,11 +68,11 @@ export default function RecommendPage() {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
         step, selectedGenres: [...selectedGenres], experience, runtime, era,
-        excludeGenres: [...excludeGenres], mpaaFilter, results, visibleCount,
+        excludeGenres: [...excludeGenres], mpaaSelected: [...mpaaSelected], results, visibleCount,
         hasSearched, currentPage, totalPages, sortMode, watchlisted: [...watchlisted],
       }));
     } catch {}
-  }, [step, selectedGenres, experience, runtime, era, excludeGenres, mpaaFilter, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted]);
+  }, [step, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted]);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
@@ -111,7 +112,7 @@ export default function RecommendPage() {
 
   function handleStartOver() {
     setStep(0); setSelectedGenres(new Set()); setExperience(""); setRuntime("");
-    setEra(""); setExcludeGenres(new Set()); setMpaaFilter(""); setResults([]);
+    setEra(""); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
     setHasSearched(false); setVisibleCount(5); setSortMode("");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
@@ -135,9 +136,13 @@ export default function RecommendPage() {
   function toggleGenre(g: string) { setSelectedGenres((p) => { const s = new Set(p); s.has(g) ? s.delete(g) : s.add(g); return s; }); }
   function toggleExclude(g: string) { setExcludeGenres((p) => { const s = new Set(p); s.has(g) ? s.delete(g) : s.add(g); return s; }); }
 
-  const filtered = mpaaFilter
-    ? results.filter((r) => mpaaFilter === "NR" ? !r.mpaaRating : r.mpaaRating === mpaaFilter)
-    : results;
+  const allMpaaSelected = mpaaSelected.size === ALL_MPAA.length;
+  const filtered = allMpaaSelected
+    ? results
+    : results.filter((r) => {
+        const rating = r.mpaaRating || "NR";
+        return mpaaSelected.has(rating);
+      });
   const sorted = sortMode === "rating" ? [...filtered].sort((a, b) => b.voteAverage - a.voteAverage)
     : sortMode === "match" ? [...filtered].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
     : filtered;
@@ -298,18 +303,26 @@ export default function RecommendPage() {
                   </button>
                 ))}
               </div>
-              <select
-                value={mpaaFilter}
-                onChange={(e) => setMpaaFilter(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-              >
-                <option value="">All ratings</option>
-                <option value="G">G</option>
-                <option value="PG">PG</option>
-                <option value="PG-13">PG-13</option>
-                <option value="R">R</option>
-                <option value="NR">Not Rated</option>
-              </select>
+              <div className="flex items-center gap-1">
+                <span className="text-[var(--foreground-muted)] mr-1">Rating:</span>
+                {ALL_MPAA.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setMpaaSelected((prev) => {
+                      const s = new Set(prev);
+                      if (s.has(r)) s.delete(r); else s.add(r);
+                      return s;
+                    })}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                      mpaaSelected.has(r)
+                        ? "bg-[var(--ratist-red)]/15 border-[var(--ratist-red)]/30 text-white"
+                        : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] line-through opacity-50"
+                    }`}
+                  >
+                    {r === "NR" ? "NR" : r}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
