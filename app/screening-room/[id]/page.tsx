@@ -14,6 +14,7 @@ import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompar
 import ScreeningSuperlatives from "@/components/screening/ScreeningSuperlatives";
 import ScreeningHeatmap from "@/components/screening/ScreeningHeatmap";
 import ScreeningTrivia from "@/components/screening/ScreeningTrivia";
+import ScreeningMovieSuggestions from "@/components/screening/ScreeningMovieSuggestions";
 import ShareButton from "@/components/ShareButton";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
@@ -117,6 +118,9 @@ export default function ScreeningSessionPage() {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [showPollForm, setShowPollForm] = useState(false);
+
+  // Movie suggestions
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   // Pause system
   const [pauseAlert, setPauseAlert] = useState<string | null>(null);
@@ -230,6 +234,16 @@ export default function ScreeningSessionPage() {
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [session?.startedAt, session?.status, isPaused, totalPausedMsForRender]);
+
+  // RTDB listener for suggestions toggle
+  useEffect(() => {
+    if (!rtdb || !session || session.status !== "LOBBY") return;
+    const sugOpenRef = ref(rtdb, rtdbPaths.suggestionsOpen(id));
+    const unsub = onValue(sugOpenRef, (snap) => {
+      setSuggestionsOpen(snap.val() === true);
+    });
+    return () => off(sugOpenRef, "value", unsub);
+  }, [id, session?.status]);
 
   // RTDB listeners for ready-up
   useEffect(() => {
@@ -481,6 +495,11 @@ export default function ScreeningSessionPage() {
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function toggleSuggestions() {
+    if (!rtdb) return;
+    await set(ref(rtdb, rtdbPaths.suggestionsOpen(id)), !suggestionsOpen);
   }
 
   async function toggleReady() {
@@ -825,7 +844,16 @@ export default function ScreeningSessionPage() {
         <div className="space-y-5">
           {/* Movie selection */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-white mb-3">Movie</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-white">Movie</h2>
+              {amHost && !session.movieTitle && (
+                <button onClick={toggleSuggestions}
+                  className={`text-[10px] px-3 py-1 rounded-full transition-colors ${suggestionsOpen ? "bg-green-500/20 text-green-400" : "bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                  {suggestionsOpen ? "Suggestions Open" : "Open Suggestions"}
+                </button>
+              )}
+            </div>
+
             {session.movieTitle ? (
               <div className="flex items-center gap-4">
                 {session.posterPath && (
@@ -838,6 +866,14 @@ export default function ScreeningSessionPage() {
                   {amHost && <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-1">Change movie</button>}
                 </div>
               </div>
+            ) : suggestionsOpen ? (
+              <ScreeningMovieSuggestions
+                sessionId={id}
+                myUserId={myUserId}
+                myName={user?.displayName ?? "Anonymous"}
+                isHost={amHost}
+                onSelectMovie={(m) => selectMovie({ id: m.id, title: m.title, posterPath: m.posterPath, releaseDate: "" })}
+              />
             ) : amHost ? (
               <div className="relative">
                 <div className="flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2">

@@ -19,6 +19,9 @@ export const rtdbPaths = {
   pauseRequests: (id: string) => `screening-rooms/${id}/pauseRequests`,
   finishedWatching: (id: string) => `screening-rooms/${id}/finishedWatching`,
   userFinished: (id: string, userId: string) => `screening-rooms/${id}/finishedWatching/${userId}`,
+  // Movie suggestions
+  suggestions: (id: string) => `screening-rooms/${id}/suggestions`,
+  suggestionsOpen: (id: string) => `screening-rooms/${id}/suggestionsOpen`,
   // Pause system
   activePause: (id: string) => `screening-rooms/${id}/activePause`,
   pauseAccepted: (id: string) => `screening-rooms/${id}/activePause/accepted`,
