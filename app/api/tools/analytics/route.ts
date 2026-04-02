@@ -16,8 +16,11 @@ export async function GET(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const yearFrom = req.nextUrl.searchParams.get("yearFrom") ?? "";
+    const yearTo = req.nextUrl.searchParams.get("yearTo") ?? "";
+
     // Fetch all ratings with movie data in one query
-    const ratings = await prisma.movieRating.findMany({
+    const allRatings = await prisma.movieRating.findMany({
       where: { userId: user.id },
       select: {
         id: true, ratistRating: true, overallRating: true, createdAt: true, movieId: true,
@@ -36,10 +39,23 @@ export async function GET(req: NextRequest) {
     });
 
     // Fetch seen movies for watch dates
-    const seen = await prisma.userFavoriteMovie.findMany({
+    const allSeen = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
-      select: { movieId: true, watchedDate: true, createdAt: true, movie: { select: { runtime: true } } },
+      select: { movieId: true, watchedDate: true, createdAt: true, movie: { select: { runtime: true, releaseDate: true } } },
     });
+
+    // Apply year range filter on movie release date
+    function inYearRange(releaseDate: string | null): boolean {
+      if (!yearFrom && !yearTo) return true;
+      const year = releaseDate?.slice(0, 4) ?? "";
+      if (!year) return true;
+      if (yearFrom && year < yearFrom) return false;
+      if (yearTo && year > yearTo) return false;
+      return true;
+    }
+
+    const ratings = allRatings.filter((r) => inYearRange(r.movie.releaseDate));
+    const seen = allSeen.filter((s) => inYearRange(s.movie.releaseDate));
 
     // ── Compute all analytics ──
 

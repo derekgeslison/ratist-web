@@ -59,6 +59,8 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("overview");
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
 
   // Custom report state
   const [reportGroupBy, setReportGroupBy] = useState("genre");
@@ -75,14 +77,19 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
+    setLoading(true);
     (async () => {
       const token = await getToken();
       if (!token) return;
-      const res = await fetch("/api/tools/analytics", { headers: { Authorization: `Bearer ${token}` } });
+      const params = new URLSearchParams();
+      if (yearFrom) params.set("yearFrom", yearFrom);
+      if (yearTo) params.set("yearTo", yearTo);
+      const qs = params.toString();
+      const res = await fetch(`/api/tools/analytics${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setData(await res.json());
       setLoading(false);
     })();
-  }, [user, getToken]);
+  }, [user, getToken, yearFrom, yearTo]);
 
   async function runReport() {
     setReportLoading(true);
@@ -121,7 +128,39 @@ export default function AnalyticsPage() {
         <BarChart3 className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">My Analytics</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-6">Insights into your movie watching and rating habits.</p>
+      <p className="text-[var(--foreground-muted)] mb-4">Insights into your movie watching and rating habits.</p>
+
+      {/* Global year range filter */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <span className="text-xs text-[var(--foreground-muted)]">Release year</span>
+        <input
+          type="number"
+          value={yearFrom}
+          onChange={(e) => setYearFrom(e.target.value)}
+          placeholder="From"
+          min={1900} max={2030}
+          className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+        />
+        <span className="text-xs text-[var(--foreground-muted)]">to</span>
+        <input
+          type="number"
+          value={yearTo}
+          onChange={(e) => setYearTo(e.target.value)}
+          placeholder="To"
+          min={1900} max={2030}
+          className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+        />
+        {(yearFrom || yearTo) && (
+          <button onClick={() => { setYearFrom(""); setYearTo(""); }} className="text-xs text-[var(--ratist-red)] hover:underline">
+            Clear
+          </button>
+        )}
+        {(yearFrom || yearTo) && (
+          <span className="text-xs text-[var(--foreground-muted)]">
+            Showing {yearFrom || "all"} – {yearTo || "present"}
+          </span>
+        )}
+      </div>
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Crunching your data...</p>
