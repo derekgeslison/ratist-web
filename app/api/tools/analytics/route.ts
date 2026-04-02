@@ -38,10 +38,18 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Fetch seen movies for watch dates
+    // Fetch seen movies for watch dates + genre data
     const allSeen = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
-      select: { movieId: true, watchedDate: true, createdAt: true, movie: { select: { runtime: true, releaseDate: true } } },
+      select: {
+        movieId: true, watchedDate: true, createdAt: true,
+        movie: {
+          select: {
+            runtime: true, releaseDate: true,
+            genres: { select: { genre: { select: { name: true } } } },
+          },
+        },
+      },
     });
 
     // Apply year range filter on movie release date
@@ -79,11 +87,13 @@ export async function GET(req: NextRequest) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, count]) => ({ month, count }));
 
-    // ── Genre breakdown ──
+    // ── Genre breakdown (all seen movies, with avg from rated) ──
+    // Build a rating lookup by movieId
+    const ratingByMovieId = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
     const genreMap = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
-    for (const r of ratings) {
-      const score = r.ratistRating;
-      for (const g of r.movie.genres) {
+    for (const s of seen) {
+      const score = ratingByMovieId.get(s.movieId) ?? null;
+      for (const g of s.movie.genres) {
         const name = g.genre.name;
         const entry = genreMap.get(name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
         entry.count++;
@@ -95,15 +105,16 @@ export async function GET(req: NextRequest) {
       .map(([name, d]) => ({ name, count: d.count, avgRating: d.ratedCount > 0 ? Math.round((d.totalScore / d.ratedCount) * 10) / 10 : null }))
       .sort((a, b) => b.count - a.count);
 
-    // ── Decade breakdown ──
+    // ── Decade breakdown (all seen movies, with avg from rated) ──
     const decadeMap = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
-    for (const r of ratings) {
-      const year = r.movie.releaseDate?.slice(0, 4);
+    for (const s of seen) {
+      const year = s.movie.releaseDate?.slice(0, 4);
       if (!year) continue;
       const decade = year.slice(0, 3) + "0s";
+      const score = ratingByMovieId.get(s.movieId) ?? null;
       const entry = decadeMap.get(decade) ?? { count: 0, totalScore: 0, ratedCount: 0 };
       entry.count++;
-      if (r.ratistRating != null) { entry.totalScore += r.ratistRating; entry.ratedCount++; }
+      if (score != null) { entry.totalScore += score; entry.ratedCount++; }
       decadeMap.set(decade, entry);
     }
     const decades = [...decadeMap.entries()]
