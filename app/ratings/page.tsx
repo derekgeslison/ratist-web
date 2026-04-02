@@ -270,6 +270,7 @@ export default function RatingsPage() {
             </select>
 
             <div className="flex items-center gap-1.5">
+              <span className="text-xs text-[var(--foreground-muted)] shrink-0">Year</span>
               <input
                 type="number"
                 value={yearFrom}
