@@ -189,18 +189,23 @@ export default function ScreeningSessionPage() {
   useEffect(() => {
     if (postWatchPhase === "compare" && amHost) {
       if (session?.status === "POST_WATCH") completeSession();
-      // Generate chat highlights from RTDB messages (delay to ensure messages are loaded)
-      setTimeout(async () => {
+      // Generate chat highlights from RTDB messages (with retry)
+      const generateHighlights = async (attempt: number) => {
         const token = await getToken();
         const msgs = chatMessagesRef.current;
-        if (!token || msgs.length === 0) return;
+        if (!token) return;
+        if (msgs.length === 0) {
+          if (attempt < 3) setTimeout(() => generateHighlights(attempt + 1), 1000);
+          return;
+        }
         await fetch(`/api/screening/${id}/highlights`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ messages: msgs, polls: session?.polls }),
         });
-        fetchSession(); // Refresh to show highlights
-      }, 500);
+        fetchSession();
+      };
+      setTimeout(() => generateHighlights(0), 500);
     }
   }, [postWatchPhase]);
 
@@ -1205,19 +1210,27 @@ export default function ScreeningSessionPage() {
                 <ScreeningRatingCompare ratings={session.ratings} tmdbId={session.tmdbId} myUserId={myUserId} />
               </section>
 
-              {/* Superlatives */}
-              <ScreeningSuperlatives
-                participants={session.participants}
-                predictions={session.predictions}
-                ratings={session.ratings}
-                polls={session.polls}
-                bookmarks={session.bookmarks}
-                chatMessages={chatMessages}
-                pauseRequestCounts={pauseCounts}
-              />
+              {/* Superlatives — use chatHighlights as fallback for chat counts when RTDB data is gone */}
+              {(() => {
+                const chatMsgsForSuperlatives = chatMessages.length > 0 ? chatMessages
+                  : (session.chatHighlights ?? []).filter((h) => h.user.id && h.user.id !== "system").map((h) => ({ userId: h.user.id, timestamp: 0 }));
+                return (
+                  <ScreeningSuperlatives
+                    participants={session.participants}
+                    predictions={session.predictions}
+                    ratings={session.ratings}
+                    polls={session.polls}
+                    bookmarks={session.bookmarks}
+                    chatMessages={chatMsgsForSuperlatives}
+                    pauseRequestCounts={pauseCounts}
+                  />
+                );
+              })()}
 
-              {/* Reaction heatmap */}
-              <ScreeningHeatmap chatMessages={chatMessages} startedAt={session.startedAt} />
+              {/* Reaction heatmap — only shows when RTDB chat data is available */}
+              {chatMessages.length > 0 && (
+                <ScreeningHeatmap chatMessages={chatMessages} startedAt={session.startedAt} />
+              )}
 
               {/* Predictions reveal */}
               {session.predictions.length > 0 && (
