@@ -56,7 +56,8 @@ export default function RatingsPage() {
   const [tab, setTab] = useState<TabMode>("rated");
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
-  const [decadeFilter, setDecadeFilter] = useState("");
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
   const [directorFilter, setDirectorFilter] = useState("");
   const [actorFilter, setActorFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
@@ -113,14 +114,6 @@ export default function RatingsPage() {
     return [...genres].sort();
   }, [ratings, unrated]);
 
-  const availableDecades = useMemo(() => {
-    const decades = new Set<string>();
-    for (const r of ratings) {
-      if (r.year) decades.add(r.year.slice(0, 3) + "0s");
-    }
-    return [...decades].sort().reverse();
-  }, [ratings]);
-
   const availableDirectors = useMemo(() => {
     const dirs = new Map<string, number>();
     for (const r of ratings) r.directors.forEach((d) => dirs.set(d, (dirs.get(d) ?? 0) + 1));
@@ -150,7 +143,8 @@ export default function RatingsPage() {
     return ratings.filter((r) => {
       if (query && !r.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (genreFilter && !r.genres.includes(genreFilter)) return false;
-      if (decadeFilter && !(r.year && r.year.slice(0, 3) + "0s" === decadeFilter)) return false;
+      if (yearFrom && r.year && r.year < yearFrom) return false;
+      if (yearTo && r.year && r.year > yearTo) return false;
       if (directorFilter && !r.directors.includes(directorFilter)) return false;
       if (actorFilter && !r.actors.includes(actorFilter)) return false;
       if (statusFilter === "complete" && r.ratingStatus !== "complete") return false;
@@ -162,7 +156,7 @@ export default function RatingsPage() {
       if (ratingRange === "4-" && (score == null || score >= 4)) return false;
       return true;
     });
-  }, [ratings, query, genreFilter, decadeFilter, directorFilter, actorFilter, statusFilter, ratingRange]);
+  }, [ratings, query, genreFilter, yearFrom, yearTo, directorFilter, actorFilter, statusFilter, ratingRange]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -177,7 +171,7 @@ export default function RatingsPage() {
   const complete = ratings.filter((r) => r.ratingStatus === "complete").length;
   const incomplete = ratings.filter((r) => r.ratingStatus === "incomplete").length;
   const imported = ratings.filter((r) => r.ratingStatus === "imported").length;
-  const isFiltered = query || genreFilter || decadeFilter || directorFilter || actorFilter || statusFilter || ratingRange;
+  const isFiltered = query || genreFilter || yearFrom || yearTo || directorFilter || actorFilter || statusFilter || ratingRange;
   const filteredWithScores = filtered.filter((r) => r.ratistRating != null);
   const filteredAvg = filteredWithScores.length > 0
     ? filteredWithScores.reduce((s, r) => s + r.ratistRating!, 0) / filteredWithScores.length
@@ -275,13 +269,25 @@ export default function RatingsPage() {
               {availableGenres.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
 
-            {availableDecades.length > 1 && (
-              <select value={decadeFilter} onChange={(e) => setDecadeFilter(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
-                <option value="">All decades</option>
-                {availableDecades.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
-            )}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                value={yearFrom}
+                onChange={(e) => setYearFrom(e.target.value)}
+                placeholder="From"
+                min={1900} max={2030}
+                className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+              />
+              <span className="text-xs text-[var(--foreground-muted)]">to</span>
+              <input
+                type="number"
+                value={yearTo}
+                onChange={(e) => setYearTo(e.target.value)}
+                placeholder="To"
+                min={1900} max={2030}
+                className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+              />
+            </div>
 
             {availableDirectors.length > 0 && (
               <select value={directorFilter} onChange={(e) => setDirectorFilter(e.target.value)}
@@ -313,7 +319,7 @@ export default function RatingsPage() {
 
             {isFiltered && (
               <button
-                onClick={() => { setQuery(""); setGenreFilter(""); setDecadeFilter(""); setDirectorFilter(""); setActorFilter(""); setStatusFilter(""); setRatingRange(""); }}
+                onClick={() => { setQuery(""); setGenreFilter(""); setYearFrom(""); setYearTo(""); setDirectorFilter(""); setActorFilter(""); setStatusFilter(""); setRatingRange(""); }}
                 className="text-xs text-[var(--ratist-red)] hover:underline"
               >
                 Clear filters
