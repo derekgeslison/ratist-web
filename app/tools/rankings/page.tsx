@@ -129,19 +129,36 @@ export default function RankingsPage() {
     });
   }, [user, filter]);
 
+  async function saveRankings(newMovies: RankedMovie[]) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const listKey = filter === "all" ? "all-time" : filter;
+    fetch("/api/tools/rankings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ listKey, movieIds: newMovies.map((m) => m.id) }),
+    }).catch(() => {});
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (over && active.id !== over.id) {
       setMovies((items) => {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
+        const reordered = arrayMove(items, oldIndex, newIndex);
+        saveRankings(reordered);
+        return reordered;
       });
     }
   }
 
   function handleMoveTo(fromIndex: number, toIndex: number) {
-    setMovies((items) => arrayMove(items, fromIndex, toIndex));
+    setMovies((items) => {
+      const reordered = arrayMove(items, fromIndex, toIndex);
+      saveRankings(reordered);
+      return reordered;
+    });
   }
 
   return (

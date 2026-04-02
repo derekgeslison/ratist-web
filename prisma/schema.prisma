@@ -50,6 +50,7 @@ model User {
   hotTakes       HotTake[]
   hotTakeVotes   HotTakeVote[]
   watchLog       UserWatchLog[]
+  rankings       UserMovieRanking[]
   autoDateOnSeen    Boolean  @default(false) @map("auto_date_on_seen")
   notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
 
@@ -122,6 +123,7 @@ model Movie {
   favoritedBy UserFavoriteMovie[]
   watchLog    UserWatchLog[]
   watchlistEntries WatchlistMovie[]
+  rankings         UserMovieRanking[]
 
   @@map("movies")
 }
@@ -356,6 +358,19 @@ model UserWatchLog {
   movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   @@map("user_watch_log")
+}
+
+model UserMovieRanking {
+  userId    String @map("user_id")
+  movieId   String @map("movie_id")
+  listKey   String @default("all-time") @map("list_key") // "all-time" | "2024" | "2025" etc.
+  sortOrder Int    @map("sort_order")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@id([userId, movieId, listKey])
+  @@map("user_movie_rankings")
 }
 
 model Watchlist {
