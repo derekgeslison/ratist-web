@@ -267,24 +267,28 @@ export default function ScreeningSessionPage() {
   }
 
   async function sendChat(text: string, emoji?: string) {
-    if (!rtdb || !user || !myUserId) return;
-    const msg: RTDBChatMessage = {
+    if (!rtdb || !user || !myUserId) { console.warn("[ScreeningRoom] sendChat blocked:", { rtdb: !!rtdb, user: !!user, myUserId }); return; }
+    const msg: Record<string, unknown> = {
       userId: myUserId,
       userName: user.displayName ?? "Anonymous",
-      avatarUrl: user.photoURL ?? undefined,
-      text,
-      emoji,
+      text: text || "",
       timestamp: Date.now(),
     };
-    await push(ref(rtdb, rtdbPaths.chat(id)), msg);
-    setChatInput("");
+    if (user.photoURL) msg.avatarUrl = user.photoURL;
+    if (emoji) msg.emoji = emoji;
+    try {
+      await push(ref(rtdb, rtdbPaths.chat(id)), msg);
+      console.log("[ScreeningRoom] chat sent:", text || emoji);
+    } catch (err) {
+      console.error("[ScreeningRoom] chat send failed:", err);
+    }
     if (chatInputRef.current) chatInputRef.current.value = "";
   }
 
   function sendTextFromInput() {
-    // Read directly from DOM to avoid React state timing issues
-    const val = chatInputRef.current?.value?.trim() || chatInput.trim();
-    if (val) sendChat(val);
+    const val = chatInputRef.current?.value?.trim();
+    if (!val) return;
+    sendChat(val);
   }
 
   async function sendPauseRequest() {
@@ -693,7 +697,8 @@ export default function ScreeningSessionPage() {
             <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--border)]">
               <input
                 ref={chatInputRef}
-                type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                type="text"
+                defaultValue=""
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendTextFromInput(); } }}
                 placeholder="Type a message..."
                 className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
