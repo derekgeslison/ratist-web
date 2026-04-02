@@ -44,15 +44,45 @@ function ScoreBar({ score, maxWidth = 100 }: { score: number | null; maxWidth?: 
   );
 }
 
+function avg(values: (number | null)[]): number | null {
+  const valid = values.filter((v): v is number => v != null);
+  return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+}
+
 export default function ScreeningRatingCompare({ ratings, tmdbId, myUserId }: Props) {
   if (ratings.length === 0) {
     return <p className="text-sm text-[var(--foreground-muted)] text-center">No ratings submitted yet.</p>;
   }
 
+  // Group averages
+  const avgOverall = avg(ratings.map((r) => r.ratistRating ?? r.overallRating));
+  const avgStory = avg(ratings.map((r) => r.storyScore));
+  const avgStyle = avg(ratings.map((r) => r.styleScore));
+  const avgEmotion = avg(ratings.map((r) => r.emotiveScore));
+  const avgActing = avg(ratings.map((r) => r.actingScore));
+  const avgEntertain = avg(ratings.map((r) => r.entertainScore));
+  const groupAvgs = [
+    { label: "Story", score: avgStory },
+    { label: "Style", score: avgStyle },
+    { label: "Emotion", score: avgEmotion },
+    { label: "Acting", score: avgActing },
+    { label: "Entertainment", score: avgEntertain },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Overall scores side by side */}
+      {/* Group average + individual scores */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {/* Group average card */}
+        {ratings.length > 1 && avgOverall != null && (
+          <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 rounded-lg p-4 text-center">
+            <p className="text-xs text-[var(--ratist-red)] mb-1 font-medium">Group Average</p>
+            <p className="text-2xl font-bold" style={{ color: scoreColor(avgOverall) }}>
+              {avgOverall.toFixed(1)}
+            </p>
+          </div>
+        )}
+        {/* Individual scores */}
         {ratings.map((r) => (
           <div key={r.userId} className="bg-[var(--surface-2)] rounded-lg p-4 text-center">
             <p className="text-xs text-[var(--foreground-muted)] mb-1 truncate">{r.user.name}</p>
@@ -63,6 +93,23 @@ export default function ScreeningRatingCompare({ ratings, tmdbId, myUserId }: Pr
           </div>
         ))}
       </div>
+
+      {/* Group category averages */}
+      {groupAvgs.some((g) => g.score != null) && (
+        <div className="bg-[var(--ratist-red)]/5 border border-[var(--ratist-red)]/20 rounded-lg p-4">
+          <h3 className="text-xs font-semibold text-[var(--ratist-red)] mb-3">Group Category Averages</h3>
+          <div className="grid grid-cols-5 gap-3">
+            {groupAvgs.map((g) => (
+              <div key={g.label} className="text-center">
+                <p className="text-[10px] text-[var(--foreground-muted)] mb-1">{g.label}</p>
+                <p className="text-sm font-bold" style={{ color: g.score ? scoreColor(g.score) : "#555" }}>
+                  {g.score?.toFixed(1) ?? "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Category breakdown comparison */}
       {ratings.some((r) => r.reviewType === "standard") && (

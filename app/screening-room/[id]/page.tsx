@@ -11,6 +11,7 @@ import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/dat
 import { rtdbPaths, type RTDBChatMessage, playDing, playDoubleDing, playCountdownBeep, warmUpAudio } from "@/lib/screening";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
+import ShareButton from "@/components/ShareButton";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 const TMDB_SM = "https://image.tmdb.org/t/p/w92";
@@ -120,8 +121,13 @@ export default function ScreeningSessionPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [resumeReadyUsers, setResumeReadyUsers] = useState<Record<string, boolean>>({});
   const [resumeCountdown, setResumeCountdown] = useState<number | null>(null);
-  const [totalPausedMs, setTotalPausedMs] = useState(0);
+  const totalPausedMsRef = useRef(0);
+  const [totalPausedMsForRender, setTotalPausedMsForRender] = useState(0);
   const pauseStartedAt = useRef<number | null>(null);
+  function addPausedTime(ms: number) {
+    totalPausedMsRef.current += ms;
+    setTotalPausedMsForRender(totalPausedMsRef.current);
+  }
 
   // Post-watch sub-phase: "rate" | "compare"
   const [postWatchPhase, setPostWatchPhase] = useState<"rate" | "compare">("rate");
@@ -195,14 +201,14 @@ export default function ScreeningSessionPage() {
     if (isPaused) {
       // Frozen — show the time when we paused
       const currentPauseExtra = pauseStartedAt.current ? Date.now() - pauseStartedAt.current : 0;
-      setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMs + currentPauseExtra));
+      setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMsRef.current + currentPauseExtra));
       return;
     }
-    const update = () => setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMs));
+    const update = () => setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMsRef.current));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [session?.startedAt, session?.status, isPaused, totalPausedMs]);
+  }, [session?.startedAt, session?.status, isPaused, totalPausedMsForRender]);
 
   // RTDB listeners for ready-up
   useEffect(() => {
@@ -268,7 +274,7 @@ export default function ScreeningSessionPage() {
       } else {
         // Only add paused time if we haven't already (pauseStartedAt still set)
         if (pauseStartedAt.current) {
-          setTotalPausedMs((prev) => prev + (Date.now() - pauseStartedAt.current!));
+          addPausedTime(Date.now() - pauseStartedAt.current!);
           pauseStartedAt.current = null;
         }
         setIsPaused(false);
@@ -310,7 +316,7 @@ export default function ScreeningSessionPage() {
     if (resumeCountdown <= 0) {
       // Calculate paused duration BEFORE clearing state
       if (pauseStartedAt.current) {
-        setTotalPausedMs((prev) => prev + (Date.now() - pauseStartedAt.current!));
+        addPausedTime(Date.now() - pauseStartedAt.current!);
         pauseStartedAt.current = null;
       }
       // Resume — clear RTDB nodes
@@ -578,7 +584,7 @@ export default function ScreeningSessionPage() {
     const token = await getToken();
     if (!token) return;
     const currentPauseExtra = isPaused && pauseStartedAt.current ? Date.now() - pauseStartedAt.current : 0;
-    const timestamp = formatElapsed(session?.startedAt ?? null, totalPausedMs + currentPauseExtra);
+    const timestamp = formatElapsed(session?.startedAt ?? null, totalPausedMsRef.current + currentPauseExtra);
     await fetch(`/api/screening/${id}/bookmarks`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -1010,7 +1016,7 @@ export default function ScreeningSessionPage() {
                 const msg = item.data as RTDBChatMessage & { key: string; system?: boolean };
                 const isMine = msg.userId === myUserId;
                 const isSystem = msg.userId === "system" || (msg as any).system;
-                const elapsed = session?.startedAt ? Math.max(0, Math.floor((msg.timestamp - new Date(session.startedAt).getTime() - totalPausedMs) / 1000)) : 0;
+                const elapsed = session?.startedAt ? Math.max(0, Math.floor((msg.timestamp - new Date(session.startedAt).getTime() - totalPausedMsRef.current) / 1000)) : 0;
                 const elapsedStr = elapsed > 0 ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
 
                 if (isSystem) {
@@ -1139,7 +1145,14 @@ export default function ScreeningSessionPage() {
             <>
               {/* Rating comparison */}
               <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-                <h2 className="text-sm font-semibold text-white mb-4">Rating Comparison</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-semibold text-white">Rating Comparison</h2>
+                  <ShareButton
+                    text={`Check out our Screening Room recap for ${session.movieTitle ?? "a movie"}!`}
+                    url={typeof window !== "undefined" ? `${window.location.origin}/screening-room/${id}/recap` : ""}
+                    cardImageUrl={`/api/og/screening?id=${id}`}
+                  />
+                </div>
                 <ScreeningRatingCompare ratings={session.ratings} tmdbId={session.tmdbId} myUserId={myUserId} />
               </section>
 
@@ -1214,17 +1227,11 @@ export default function ScreeningSessionPage() {
                 </section>
               )}
 
-              {/* Footer: share + back */}
-              <div className="text-center pt-4 space-y-3">
-                <p className="text-xs text-[var(--foreground-muted)]">This session is saved. You can revisit the recap anytime from your Screening Rooms.</p>
-                <div className="flex items-center justify-center gap-4">
-                  <Link href="/screening-room" className="text-sm text-[var(--ratist-red)] hover:underline">
-                    ← Back to Screening Rooms
-                  </Link>
-                  <Link href={`/screening-room/${id}/recap`} className="text-sm text-[var(--foreground-muted)] hover:text-white">
-                    View Shareable Recap
-                  </Link>
-                </div>
+              {/* Footer */}
+              <div className="text-center pt-4">
+                <Link href="/screening-room" className="text-sm text-[var(--ratist-red)] hover:underline">
+                  ← Back to Screening Rooms
+                </Link>
               </div>
             </>
           )}

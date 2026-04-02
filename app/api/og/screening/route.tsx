@@ -21,7 +21,7 @@ export async function GET(request: Request) {
           select: { user: { select: { name: true, avatarUrl: true } } },
         },
         ratings: {
-          select: { ratistRating: true, user: { select: { name: true } } },
+          select: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true, user: { select: { name: true } } },
         },
       },
     });
@@ -81,18 +81,46 @@ export async function GET(request: Request) {
             </div>
 
             {/* Ratings */}
-            {session.ratings.length > 0 && (
-              <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", margin: "20px 0" }}>
-                {session.ratings.map((r, i) => (
-                  <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#222", borderRadius: "12px", padding: "16px 24px", minWidth: "120px" }}>
-                    <span style={{ color: "#888", fontSize: "14px", marginBottom: "4px" }}>{r.user.name}</span>
-                    <span style={{ color: r.ratistRating ? scoreHex(r.ratistRating) : "white", fontSize: "36px", fontWeight: "bold" }}>
-                      {r.ratistRating?.toFixed(1) ?? "—"}
-                    </span>
+            {session.ratings.length > 0 && (() => {
+              const scores = session.ratings.map((r) => r.ratistRating).filter((v): v is number => v != null);
+              const groupAvg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+              const cats = [
+                { label: "Story", vals: session.ratings.map((r) => r.storyScore) },
+                { label: "Style", vals: session.ratings.map((r) => r.styleScore) },
+                { label: "Emotion", vals: session.ratings.map((r) => r.emotiveScore) },
+                { label: "Acting", vals: session.ratings.map((r) => r.actingScore) },
+                { label: "Fun", vals: session.ratings.map((r) => r.entertainScore) },
+              ].map((c) => {
+                const valid = c.vals.filter((v): v is number => v != null);
+                return { label: c.label, avg: valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null };
+              });
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", margin: "16px 0" }}>
+                  <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                    {groupAvg != null && (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a0a0a", border: "1px solid #CC0033", borderRadius: "12px", padding: "14px 24px", minWidth: "100px" }}>
+                        <span style={{ color: "#CC0033", fontSize: "12px", marginBottom: "2px" }}>Group Avg</span>
+                        <span style={{ color: scoreHex(groupAvg), fontSize: "32px", fontWeight: "bold" }}>{groupAvg.toFixed(1)}</span>
+                      </div>
+                    )}
+                    {session.ratings.map((r, i) => (
+                      <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#222", borderRadius: "12px", padding: "14px 24px", minWidth: "100px" }}>
+                        <span style={{ color: "#888", fontSize: "12px", marginBottom: "2px" }}>{r.user.name}</span>
+                        <span style={{ color: r.ratistRating ? scoreHex(r.ratistRating) : "white", fontSize: "32px", fontWeight: "bold" }}>{r.ratistRating?.toFixed(1) ?? "—"}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    {cats.map((c, i) => (
+                      <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+                        <span style={{ color: "#666", fontSize: "11px" }}>{c.label}</span>
+                        <span style={{ color: c.avg ? scoreHex(c.avg) : "#444", fontSize: "18px", fontWeight: "bold" }}>{c.avg?.toFixed(1) ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Participants */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
