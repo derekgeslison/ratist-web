@@ -49,8 +49,8 @@ export default function HotTakesPage() {
   useEffect(() => {
     if (!user) return;
     user.getIdToken().then((token) => {
-      fetch("/api/admin/stats", { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => { if (r.ok) setIsAdmin(true); })
+      fetch("/api/auth/admin-check", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json()).then((d) => { if (d.isAdmin) setIsAdmin(true); })
         .catch(() => {});
     });
   }, [user]);
