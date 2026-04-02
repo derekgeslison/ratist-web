@@ -6,8 +6,8 @@ import Image from "next/image";
 import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
-import { ref, push, onChildAdded, onValue, set, off } from "firebase/database";
-import { rtdbPaths, type RTDBChatMessage } from "@/lib/screening";
+import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
+import { rtdbPaths, type RTDBChatMessage, playDing, playDoubleDing, playCountdownBeep } from "@/lib/screening";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
 
@@ -59,15 +59,20 @@ interface MovieResult { id: number; title: string; posterPath: string | null; re
 
 const QUICK_EMOJIS = ["👍", "👎", "😂", "😱", "🔥", "😭", "🤯", "👏", "💀", "❤️"];
 
-/** Format elapsed time since session start */
-function formatElapsed(startedAt: string | null): string {
-  if (!startedAt) return "0:00";
-  const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-  const h = Math.floor(elapsed / 3600);
-  const m = Math.floor((elapsed % 3600) / 60);
-  const s = elapsed % 60;
+/** Format seconds into h:mm:ss or m:ss */
+function formatSeconds(totalSec: number): string {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Format elapsed time since session start, minus paused time */
+function formatElapsed(startedAt: string | null, pausedMs = 0): string {
+  if (!startedAt) return "0:00";
+  const elapsed = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime() - pausedMs) / 1000));
+  return formatSeconds(elapsed);
 }
 
 export default function ScreeningSessionPage() {
@@ -107,9 +112,15 @@ export default function ScreeningSessionPage() {
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [showPollForm, setShowPollForm] = useState(false);
 
-  // Pause request — track mount time to ignore old requests
+  // Pause system
   const [pauseAlert, setPauseAlert] = useState<string | null>(null);
   const mountedAt = useRef(Date.now());
+  const [activePause, setActivePause] = useState<{ requestedBy: string; requestedAt: number; accepted: Record<string, boolean> } | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [resumeReadyUsers, setResumeReadyUsers] = useState<Record<string, boolean>>({});
+  const [resumeCountdown, setResumeCountdown] = useState<number | null>(null);
+  const [totalPausedMs, setTotalPausedMs] = useState(0);
+  const pauseStartedAt = useRef<number | null>(null);
 
   // Post-watch sub-phase: "rate" | "compare"
   const [postWatchPhase, setPostWatchPhase] = useState<"rate" | "compare">("rate");
@@ -165,14 +176,20 @@ export default function ScreeningSessionPage() {
     return () => clearInterval(interval);
   }, [user, session?.status, fetchSession]);
 
-  // Running elapsed timer during watching
+  // Running elapsed timer during watching (freezes when paused)
   useEffect(() => {
     if (!session?.startedAt || session.status !== "WATCHING") return;
-    const update = () => setElapsedDisplay(formatElapsed(session.startedAt));
+    if (isPaused) {
+      // Frozen — show the time when we paused
+      const currentPauseExtra = pauseStartedAt.current ? Date.now() - pauseStartedAt.current : 0;
+      setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMs + currentPauseExtra));
+      return;
+    }
+    const update = () => setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMs));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [session?.startedAt, session?.status]);
+  }, [session?.startedAt, session?.status, isPaused, totalPausedMs]);
 
   // RTDB listeners for ready-up
   useEffect(() => {
@@ -196,29 +213,127 @@ export default function ScreeningSessionPage() {
     return () => off(chatRef, "child_added", unsub);
   }, [id, session?.status]);
 
-  // RTDB listener for pause requests — only alert for NEW requests after mount
+  // RTDB listener for active pause request
   useEffect(() => {
     if (!rtdb || !session || session.status !== "WATCHING") return;
-    const pauseRef = ref(rtdb, rtdbPaths.pauseRequests(id));
-    const unsub = onChildAdded(pauseRef, (snap) => {
-      const req = snap.val();
-      // Only show alert for requests that happened after this component mounted
-      if (req.timestamp > mountedAt.current) {
-        setPauseAlert(req.userName);
-        setTimeout(() => setPauseAlert(null), 10000);
+    const pauseRef = ref(rtdb, rtdbPaths.activePause(id));
+    const unsub = onValue(pauseRef, (snap) => {
+      const val = snap.val();
+      if (val && val.requestedAt > mountedAt.current - 30000) {
+        setActivePause(val);
+        if (val.requestedAt > mountedAt.current) {
+          playDing();
+        }
+      } else {
+        setActivePause(null);
       }
     });
-    return () => off(pauseRef, "child_added", unsub);
+    return () => off(pauseRef, "value", unsub);
   }, [id, session?.status]);
+
+  // RTDB listener for paused state
+  useEffect(() => {
+    if (!rtdb || !session || session.status !== "WATCHING") return;
+    const pauseActiveRef = ref(rtdb, rtdbPaths.pauseActive(id));
+    const unsub = onValue(pauseActiveRef, (snap) => {
+      const val = snap.val();
+      if (val && val.paused) {
+        if (!isPaused) {
+          pauseStartedAt.current = val.pausedAt || Date.now();
+        }
+        setIsPaused(true);
+      } else {
+        if (isPaused && pauseStartedAt.current) {
+          setTotalPausedMs((prev) => prev + (Date.now() - pauseStartedAt.current!));
+          pauseStartedAt.current = null;
+        }
+        setIsPaused(false);
+      }
+    });
+    return () => off(pauseActiveRef, "value", unsub);
+  }, [id, session?.status, isPaused]);
+
+  // RTDB listener for resume ready-up
+  useEffect(() => {
+    if (!rtdb || !isPaused) return;
+    const resumeRef = ref(rtdb, rtdbPaths.resumeReady(id));
+    const unsub = onValue(resumeRef, (snap) => {
+      setResumeReadyUsers(snap.val() ?? {});
+    });
+    return () => off(resumeRef, "value", unsub);
+  }, [id, isPaused]);
+
+  // Auto-start resume countdown when all ready during pause
+  useEffect(() => {
+    if (!isPaused || !session) return;
+    const resumeCount = Object.values(resumeReadyUsers).filter(Boolean).length;
+    const allResumeReady = resumeCount === session.participants.length && session.participants.length > 0;
+    if (allResumeReady && resumeCountdown === null) {
+      playDoubleDing();
+      setResumeCountdown(5);
+    }
+  }, [resumeReadyUsers, isPaused, session?.participants.length]);
+
+  // Resume countdown timer
+  useEffect(() => {
+    if (resumeCountdown === null) return;
+    if (resumeCountdown <= 0) {
+      // Resume!
+      if (rtdb) {
+        remove(ref(rtdb, rtdbPaths.pauseActive(id)));
+        remove(ref(rtdb, rtdbPaths.resumeReady(id)));
+        remove(ref(rtdb, rtdbPaths.activePause(id)));
+      }
+      setResumeCountdown(null);
+      setIsPaused(false);
+      // Post resume message to chat
+      if (rtdb) {
+        push(ref(rtdb, rtdbPaths.chat(id)), {
+          userId: "system", userName: "System",
+          text: "Movie resumed! Press play.",
+          timestamp: Date.now(), system: true,
+        });
+      }
+      return;
+    }
+    playCountdownBeep();
+    const timer = setTimeout(() => setResumeCountdown((prev) => prev !== null ? prev - 1 : null), 1000);
+    return () => clearTimeout(timer);
+  }, [resumeCountdown]);
+
+  // Pause request timeout: second ding at 10s, expire at 20s
+  useEffect(() => {
+    if (!activePause || isPaused) return;
+    const elapsed = Date.now() - activePause.requestedAt;
+    const secondDingDelay = Math.max(0, 10000 - elapsed);
+    const expireDelay = Math.max(0, 20000 - elapsed);
+
+    const dingTimer = setTimeout(() => playDing(660, 0.2), secondDingDelay);
+    const expireTimer = setTimeout(() => {
+      if (rtdb) remove(ref(rtdb, rtdbPaths.activePause(id)));
+      setActivePause(null);
+      // Post expiry to chat
+      if (rtdb) {
+        push(ref(rtdb, rtdbPaths.chat(id)), {
+          userId: "system", userName: "System",
+          text: "Pause request expired — not everyone accepted.",
+          timestamp: Date.now(), system: true,
+        });
+      }
+    }, expireDelay);
+
+    return () => { clearTimeout(dingTimer); clearTimeout(expireTimer); };
+  }, [activePause?.requestedAt, isPaused]);
 
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  // Countdown logic
+  // Countdown logic (with sound)
   useEffect(() => {
     if (session?.status !== "COUNTDOWN") { setCountdown(null); return; }
+    playDoubleDing();
     setCountdown(5);
     const interval = setInterval(() => {
       setCountdown((prev) => {
@@ -237,6 +352,7 @@ export default function ScreeningSessionPage() {
           }
           return 0;
         }
+        playCountdownBeep();
         return prev - 1;
       });
     }, 1000);
@@ -337,24 +453,48 @@ export default function ScreeningSessionPage() {
   }
 
   async function sendPauseRequest() {
-    if (!rtdb || !user || !myUserId) return;
-    // Write to RTDB for real-time alert
-    await push(ref(rtdb, rtdbPaths.pauseRequests(id)), {
-      userId: myUserId,
-      userName: user.displayName ?? "Anonymous",
-      timestamp: Date.now(),
+    if (!rtdb || !user || !myUserId || activePause || isPaused) return;
+    // Create active pause request in RTDB
+    await set(ref(rtdb, rtdbPaths.activePause(id)), {
+      requestedBy: user.displayName ?? "Anonymous",
+      requestedAt: Date.now(),
+      accepted: { [myUserId]: true }, // requester auto-accepts
     });
-    // Also post as a chat message so it shows in timeline
-    await sendChat("", undefined);
-    // Push a special system message to chat
-    const sysMsg: Record<string, unknown> = {
-      userId: "system",
-      userName: user.displayName ?? "Anonymous",
+    // Post system message to chat
+    await push(ref(rtdb, rtdbPaths.chat(id)), {
+      userId: "system", userName: user.displayName ?? "Anonymous",
       text: `${user.displayName ?? "Someone"} is requesting a pause!`,
-      timestamp: Date.now(),
-      system: true,
-    };
-    await push(ref(rtdb, rtdbPaths.chat(id)), sysMsg);
+      timestamp: Date.now(), system: true,
+    });
+  }
+
+  async function acceptPause() {
+    if (!rtdb || !myUserId || !activePause) return;
+    await set(ref(rtdb, rtdbPaths.userPauseAccept(id, myUserId)), true);
+    // Check if all accepted
+    const newAccepted = { ...activePause.accepted, [myUserId]: true };
+    const allAccepted = session?.participants.every((p) => newAccepted[p.userId]);
+    if (allAccepted) {
+      // Activate pause
+      await set(ref(rtdb, rtdbPaths.pauseActive(id)), { paused: true, pausedAt: Date.now() });
+      await push(ref(rtdb, rtdbPaths.chat(id)), {
+        userId: "system", userName: "System",
+        text: "Everyone accepted — movie is paused!",
+        timestamp: Date.now(), system: true,
+      });
+    }
+  }
+
+  async function toggleResumeReady() {
+    if (!rtdb || !myUserId) return;
+    const current = resumeReadyUsers[myUserId] ?? false;
+    await set(ref(rtdb, rtdbPaths.userResumeReady(id, myUserId)), !current || null);
+  }
+
+  async function forceResume() {
+    if (!rtdb) return;
+    playDoubleDing();
+    setResumeCountdown(5);
   }
 
   async function markFinished(forceAll = false) {
@@ -420,6 +560,14 @@ export default function ScreeningSessionPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ question: pollQuestion, options: validOptions }),
     });
+    // Post poll notification to chat
+    if (rtdb) {
+      await push(ref(rtdb, rtdbPaths.chat(id)), {
+        userId: "system", userName: user?.displayName ?? "Someone",
+        text: `New poll: "${pollQuestion}"`,
+        timestamp: Date.now(), system: true,
+      });
+    }
     setPollQuestion("");
     setPollOptions(["", ""]);
     setShowPollForm(false);
@@ -502,11 +650,57 @@ export default function ScreeningSessionPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Pause alert overlay */}
-      {pauseAlert && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/90 text-black px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-pulse">
-          <PauseCircle className="w-6 h-6" />
-          <span className="font-semibold">{pauseAlert} is requesting a pause!</span>
+      {/* Pause accept/reject overlay */}
+      {activePause && !isPaused && !activePause.accepted[myUserId] && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/95 text-black px-6 py-4 rounded-xl shadow-2xl max-w-sm w-full mx-4">
+          <div className="flex items-center gap-3 mb-3">
+            <PauseCircle className="w-6 h-6 flex-shrink-0" />
+            <span className="font-semibold">{activePause.requestedBy} wants to pause!</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={acceptPause}
+              className="flex-1 bg-black/20 hover:bg-black/30 text-black font-semibold py-2 rounded-lg transition-colors">
+              Accept Pause
+            </button>
+          </div>
+          <p className="text-[10px] text-black/60 mt-2 text-center">
+            {Object.values(activePause.accepted).filter(Boolean).length}/{session?.participants.length ?? 0} accepted
+          </p>
+        </div>
+      )}
+
+      {/* Paused overlay with resume ready-up */}
+      {isPaused && resumeCountdown === null && (
+        <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 max-w-sm w-full mx-4 text-center">
+            <PauseCircle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-white mb-2">Movie Paused</h2>
+            <p className="text-sm text-[var(--foreground-muted)] mb-6">Ready up when you&apos;re ready to resume</p>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">
+              {Object.values(resumeReadyUsers).filter(Boolean).length}/{session?.participants.length ?? 0} ready to resume
+            </p>
+            <button onClick={toggleResumeReady}
+              className={`w-full text-sm font-semibold py-3 rounded-lg transition-colors ${resumeReadyUsers[myUserId] ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white"}`}>
+              {resumeReadyUsers[myUserId] ? "Ready to Resume ✓" : "Ready to Resume"}
+            </button>
+            {amHost && (
+              <button onClick={forceResume}
+                className="w-full mt-2 text-xs text-[var(--ratist-red)] hover:underline py-2">
+                Force Resume (Host)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Resume countdown overlay */}
+      {resumeCountdown !== null && resumeCountdown > 0 && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg text-[var(--foreground-muted)] mb-4">Resuming in...</p>
+            <div className="text-8xl font-bold text-[var(--ratist-red)] animate-pulse">{resumeCountdown}</div>
+            <p className="text-sm text-[var(--foreground-muted)] mt-4">Get ready to press play!</p>
+          </div>
         </div>
       )}
 
@@ -723,7 +917,7 @@ export default function ScreeningSessionPage() {
                 <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat
               </h2>
               <div className="flex items-center gap-3">
-                <button onClick={sendPauseRequest} className="flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors">
+                <button onClick={sendPauseRequest} disabled={!!activePause || isPaused} className="flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors disabled:opacity-30">
                   <PauseCircle className="w-3 h-3" /> Pause
                 </button>
                 <button onClick={() => setShowPollForm(!showPollForm)} className="flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline">
