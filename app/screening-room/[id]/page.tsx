@@ -255,6 +255,28 @@ export default function ScreeningSessionPage() {
     setMovieResults([]);
   }
 
+  async function leaveSession() {
+    if (!confirm("Leave this screening room?")) return;
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/screening/${id}/leave`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    router.push("/screening-room");
+  }
+
+  async function cancelSession() {
+    if (!confirm("Cancel this screening room? This will delete it for everyone.")) return;
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/screening/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    router.push("/screening-room");
+  }
+
   function copyInviteCode() {
     if (!session) return;
     navigator.clipboard.writeText(session.inviteCode);
@@ -600,6 +622,19 @@ export default function ScreeningSessionPage() {
               </div>
             </div>
           </section>
+
+          {/* Leave / Cancel */}
+          <div className="text-center">
+            {amHost ? (
+              <button onClick={cancelSession} className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                Cancel Session
+              </button>
+            ) : (
+              <button onClick={leaveSession} className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                Leave Session
+              </button>
+            )}
+          </div>
         </div>
       )}
 
