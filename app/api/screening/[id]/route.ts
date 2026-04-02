@@ -24,6 +24,10 @@ const sessionInclude = {
   ratings: {
     include: { user: { select: { id: true, name: true, avatarUrl: true } } },
   },
+  chatHighlights: {
+    orderBy: { timestamp: "asc" as const },
+    include: { user: { select: { id: true, name: true } } },
+  },
 };
 
 /** GET — Get session details */

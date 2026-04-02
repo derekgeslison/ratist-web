@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { MonitorPlay, Users, Bookmark, BarChart3, Star } from "lucide-react";
+import { MonitorPlay, Users, Bookmark, BarChart3, Star, MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ShareButton from "@/components/ShareButton";
 import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
@@ -25,6 +25,7 @@ interface RecapData {
   polls: { id: string; question: string; options: string[]; votes: Record<string, number>; creator: { name: string } }[];
   bookmarks: { id: string; timestamp: string; note: string | null; user: { name: string } }[];
   ratings: { id: string; userId: string; reviewType: string; overallRating: number | null; ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null; reviewText: string | null; user: { id: string; name: string; avatarUrl: string | null } }[];
+  chatHighlights: { id: string; text: string; emoji: string | null; reactCount: number; timestamp: string; user: { name: string } }[];
 }
 
 export default function ScreeningRecapPage() {
@@ -84,7 +85,11 @@ export default function ScreeningRecapPage() {
               ))}
             </div>
           </div>
-          <ShareButton text={`Check out our Screening Room recap for ${data.movieTitle ?? "a movie"}!`} url={typeof window !== "undefined" ? window.location.href : ""} />
+          <ShareButton
+            text={`Check out our Screening Room recap for ${data.movieTitle ?? "a movie"}!`}
+            url={typeof window !== "undefined" ? window.location.href : ""}
+            cardImageUrl={`/api/og/screening?id=${data.id}`}
+          />
         </div>
       </div>
 
@@ -170,6 +175,33 @@ export default function ScreeningRecapPage() {
                   <span className="text-sm font-mono text-[var(--ratist-red)] font-bold">{b.timestamp}</span>
                   <span className="text-sm text-white flex-1">{b.note ?? "Bookmarked moment"}</span>
                   <span className="text-xs text-[var(--foreground-muted)]">{b.user.name}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Chat Highlights */}
+        {data.chatHighlights && data.chatHighlights.length > 0 && (
+          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat Highlights
+            </h2>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">The most active moments from your watch session.</p>
+            <div className="space-y-2">
+              {data.chatHighlights.map((h) => (
+                <div key={h.id} className="bg-[var(--surface-2)] rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] text-[var(--foreground-muted)]">{h.user.name}</span>
+                    <span className="text-[9px] text-[var(--foreground-muted)]">
+                      {new Date(h.timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  {h.emoji ? (
+                    <span className="text-xl">{h.emoji}</span>
+                  ) : (
+                    <p className="text-sm text-white">{h.text}</p>
+                  )}
                 </div>
               ))}
             </div>

@@ -162,10 +162,20 @@ export default function ScreeningSessionPage() {
 
   useEffect(() => { if (user) fetchSession(); else setLoading(false); }, [user, fetchSession]);
 
-  // Auto-complete session when entering compare phase (host only, saves the session)
+  // Auto-complete session and generate highlights when entering compare phase (host only)
   useEffect(() => {
-    if (postWatchPhase === "compare" && session?.status === "POST_WATCH" && amHost) {
-      completeSession();
+    if (postWatchPhase === "compare" && amHost) {
+      if (session?.status === "POST_WATCH") completeSession();
+      // Generate chat highlights from RTDB messages
+      (async () => {
+        const token = await getToken();
+        if (!token || chatMessages.length === 0) return;
+        await fetch(`/api/screening/${id}/highlights`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: chatMessages }),
+        });
+      })();
     }
   }, [postWatchPhase]);
 
