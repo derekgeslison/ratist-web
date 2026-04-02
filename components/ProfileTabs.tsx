@@ -94,6 +94,8 @@ interface Props {
   isPrivate: boolean;
   publicTabs?: Record<string, boolean>;
   siteUrl?: string;
+  savedRankings?: { tmdbId: number; title: string; posterPath: string | null; year: string; ratistRating: number | null }[];
+  rankingsYear?: string;
 }
 
 const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Stats", "Rankings"] as const;
@@ -116,6 +118,8 @@ export default function ProfileTabs({
   isPrivate,
   publicTabs = {},
   siteUrl = "https://theratist.com",
+  savedRankings = [],
+  rankingsYear,
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
@@ -741,12 +745,20 @@ export default function ProfileTabs({
       )}
 
       {/* ── RANKINGS TAB ── */}
-      {activeTab === "Rankings" && (
+      {activeTab === "Rankings" && (() => {
+        // Use saved rankings if available, otherwise fall back to rating-sorted
+        const displayRankings = savedRankings.length > 0
+          ? savedRankings
+          : rankedMovies.map((r) => ({ tmdbId: r.tmdbId, title: r.title, posterPath: r.posterPath, year: new Date(r.createdAt).getFullYear().toString(), ratistRating: r.ratistRating }));
+        const listLabel = savedRankings.length > 0 && rankingsYear ? `${rankingsYear} Rankings` : "Rankings";
+        const listKey = savedRankings.length > 0 && rankingsYear ? rankingsYear : "all-time";
+        const rankingsUrl = `${siteUrl}/profile/${profileFirebaseUid}/rankings/${listKey}`;
+        return (
         <div>
-          {rankedMovies.length === 0 ? (
+          {displayRankings.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-[var(--foreground-muted)] mb-3">
-                {isOwnProfile ? "Rate some movies to build your rankings." : "No rated movies yet."}
+                {isOwnProfile ? "Rate some movies to build your rankings." : "No ranked movies yet."}
               </p>
               {isOwnProfile && (
                 <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
@@ -756,8 +768,9 @@ export default function ProfileTabs({
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-4 gap-4">
                 <p className="text-xs text-[var(--foreground-muted)]">
-                  {isOwnProfile ? "Sorted by your rating." : `${profileUserName}'s all-time rankings.`}
-                  {isOwnProfile && " Use the Rankings tool to drag-and-drop reorder."}
+                  {savedRankings.length > 0
+                    ? `${isOwnProfile ? "Your" : `${profileUserName}'s`} ${listLabel}`
+                    : isOwnProfile ? "Sorted by your rating. Use the Rankings tool to customize." : `${profileUserName}'s top rated.`}
                 </p>
                 <div className="flex items-center gap-3 shrink-0">
                   {isOwnProfile && (
@@ -765,19 +778,19 @@ export default function ProfileTabs({
                       Reorder →
                     </Link>
                   )}
-                  {rankedMovies.length >= 1 && (
+                  {displayRankings.length >= 1 && (
                     <ShareButton
-                      label="Share top 10"
-                      text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} top 10 movies on The Ratist!\n\nTop picks: ${rankedMovies.slice(0, 3).map((r) => r.title).join(", ")}${rankedMovies.length > 3 ? "..." : ""}`}
-                      url={profileUrl}
-                      cardImageUrl={`/api/og/rankings?userId=${encodeURIComponent(profileUserId)}`}
+                      label={`Share ${listLabel.toLowerCase()}`}
+                      text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} ${listLabel.toLowerCase()} on The Ratist!\n\nTop picks: ${displayRankings.slice(0, 3).map((r) => r.title).join(", ")}${displayRankings.length > 3 ? "..." : ""}`}
+                      url={rankingsUrl}
+                      cardImageUrl={`/api/og/rankings?userId=${encodeURIComponent(profileFirebaseUid)}${listKey !== "all-time" ? `&year=${listKey}` : ""}`}
                     />
                   )}
                 </div>
               </div>
-              {rankedMovies.map((r, index) => (
+              {displayRankings.map((r, index) => (
                 <Link
-                  key={r.id}
+                  key={`${r.tmdbId}-${index}`}
                   href={`/movies/${r.tmdbId}`}
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--surface)] transition-colors group"
                 >
@@ -791,17 +804,20 @@ export default function ProfileTabs({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{r.title}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]/60">{new Date(r.createdAt).getFullYear()}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]/60">{r.year}</p>
                   </div>
-                  <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(r.ratistRating!) }}>
-                    {r.ratistRating!.toFixed(1)}
-                  </span>
+                  {r.ratistRating != null && (
+                    <span className="text-sm font-bold shrink-0" style={{ color: scoreColor(r.ratistRating) }}>
+                      {r.ratistRating.toFixed(1)}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       </>)}
     </div>

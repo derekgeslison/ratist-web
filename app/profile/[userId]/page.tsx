@@ -53,6 +53,7 @@ export default async function ProfilePage({ params }: Props) {
   if (!user) notFound();
 
   // Fetch all profile data in parallel
+  const currentYear = new Date().getFullYear().toString();
   const [
     ratingCount,
     avgRating,
@@ -62,6 +63,7 @@ export default async function ProfilePage({ params }: Props) {
     seenMovies,
     watchlistMovies,
     userWatchlists,
+    savedRankings,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
     prisma.movieRating.aggregate({
@@ -123,6 +125,13 @@ export default async function ProfilePage({ params }: Props) {
       where: { userId: user.id, isDefault: false },
       include: { _count: { select: { movies: true } } },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.userMovieRanking.findMany({
+      where: { userId: user.id, listKey: currentYear },
+      include: {
+        movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
+      },
+      orderBy: { sortOrder: "asc" },
     }),
   ]);
 
@@ -280,6 +289,17 @@ export default async function ProfilePage({ params }: Props) {
         isPrivate={user.isPrivate}
         publicTabs={user.publicTabs as Record<string, boolean> ?? {}}
         siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}
+        savedRankings={savedRankings.map((r) => {
+          const rating = allRatings.find((ar) => ar.movieId === r.movieId);
+          return {
+            tmdbId: r.movie.tmdbId,
+            title: r.movie.title,
+            posterPath: r.movie.posterPath,
+            year: r.movie.releaseDate?.slice(0, 4) ?? "",
+            ratistRating: rating?.ratistRating ?? null,
+          };
+        })}
+        rankingsYear={currentYear}
       />
     </div>
   );

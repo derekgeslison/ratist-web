@@ -18,41 +18,47 @@ export async function GET(request: Request) {
     });
     if (!user) return new Response("Not found", { status: 404 });
 
-    // Mirror the rankings API: rated movies first (sorted by score), then seen-only
-    const ratings = await prisma.movieRating.findMany({
-      where: { userId: user.id },
-      include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } } },
-    });
-
-    const ratedMovieIds = new Set(ratings.map((r) => r.movieId));
-    const seenOnly = await prisma.userFavoriteMovie.findMany({
-      where: { userId: user.id, movieId: { notIn: Array.from(ratedMovieIds) } },
-      include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } } },
-    });
-
-    const ratedSorted = ratings.slice().sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0));
-
+    // Check for saved custom rankings first
+    const listKey = year ?? "all-time";
     type RankedItem = { title: string; posterPath: string | null; year: string; ratistRating: number | null };
-    let allMovies: RankedItem[] = [
-      ...ratedSorted.map((r) => ({
+    let top10: RankedItem[] = [];
+
+    const savedRankings = await prisma.userMovieRanking.findMany({
+      where: { userId: user.id, listKey },
+      include: { movie: { select: { id: true, title: true, posterPath: true, releaseDate: true } } },
+      orderBy: { sortOrder: "asc" },
+      take: 10,
+    });
+
+    if (savedRankings.length > 0) {
+      const movieIds = savedRankings.map((r) => r.movieId);
+      const ratings = await prisma.movieRating.findMany({
+        where: { userId: user.id, movieId: { in: movieIds } },
+        select: { movieId: true, ratistRating: true },
+      });
+      const ratingMap = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
+      top10 = savedRankings.map((r) => ({
+        title: r.movie.title,
+        posterPath: r.movie.posterPath,
+        year: r.movie.releaseDate?.slice(0, 4) ?? "",
+        ratistRating: ratingMap.get(r.movieId) ?? null,
+      }));
+    } else {
+      // Fallback: rating-sorted
+      const ratings = await prisma.movieRating.findMany({
+        where: { userId: user.id },
+        include: { movie: { select: { title: true, posterPath: true, releaseDate: true } } },
+      });
+      const sorted = ratings.slice().sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0));
+      let allMovies = sorted.map((r) => ({
         title: r.movie.title,
         posterPath: r.movie.posterPath,
         year: r.movie.releaseDate?.slice(0, 4) ?? "",
         ratistRating: r.ratistRating,
-      })),
-      ...seenOnly.map((s) => ({
-        title: s.movie.title,
-        posterPath: s.movie.posterPath,
-        year: s.movie.releaseDate?.slice(0, 4) ?? "",
-        ratistRating: null,
-      })),
-    ];
-
-    if (year) {
-      allMovies = allMovies.filter((m) => m.year === year);
+      }));
+      if (year) allMovies = allMovies.filter((m) => m.year === year);
+      top10 = allMovies.slice(0, 10);
     }
-
-    const top10 = allMovies.slice(0, 10);
     if (top10.length === 0) return new Response("No movies", { status: 404 });
 
     const avatarSrc = user.avatarUrl;
