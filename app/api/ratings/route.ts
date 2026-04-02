@@ -25,8 +25,14 @@ export async function GET(req: NextRequest) {
       include: {
         movie: {
           select: {
-            tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true,
+            id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true,
             genres: { include: { genre: { select: { name: true } } } },
+            cast: {
+              where: { OR: [{ creditType: "cast" }, { creditType: "crew", job: "Director" }] },
+              select: { creditType: true, job: true, castOrder: true, celebrity: { select: { name: true } } },
+              orderBy: { castOrder: "asc" },
+              take: 15,
+            },
           },
         },
       },
@@ -52,22 +58,34 @@ export async function GET(req: NextRequest) {
     });
     const watchedDateMap = new Map(favorites.map((f) => [f.movieId, f.watchedDate]));
 
-    const ratings = pageRatings.map((r) => ({
-      id: r.id,
-      tmdbId: r.movie.tmdbId,
-      title: r.movie.title,
-      posterPath: r.movie.posterPath,
-      year: r.movie.releaseDate?.slice(0, 4) ?? "",
-      genres: r.movie.genres.map((g) => g.genre.name),
-      voteAverage: r.movie.voteAverage ?? null,
-      ratistRating: r.ratistRating,
-      overallRating: r.overallRating,
-      reviewText: r.reviewText,
-      reviewType: r.reviewType,
-      ratingStatus: getRatingStatus(r as unknown as Record<string, unknown>),
-      watchedDate: watchedDateMap.get(r.movieId)?.toISOString() ?? null,
-      ratedAt: r.createdAt.toISOString(),
-    }));
+    const ratings = pageRatings.map((r) => {
+      const directors = r.movie.cast
+        .filter((c) => c.creditType === "crew" && c.job === "Director")
+        .map((c) => c.celebrity.name);
+      const actors = r.movie.cast
+        .filter((c) => c.creditType === "cast")
+        .sort((a, b) => a.castOrder - b.castOrder)
+        .slice(0, 5)
+        .map((c) => c.celebrity.name);
+      return {
+        id: r.id,
+        tmdbId: r.movie.tmdbId,
+        title: r.movie.title,
+        posterPath: r.movie.posterPath,
+        year: r.movie.releaseDate?.slice(0, 4) ?? "",
+        genres: r.movie.genres.map((g) => g.genre.name),
+        directors,
+        actors,
+        voteAverage: r.movie.voteAverage ?? null,
+        ratistRating: r.ratistRating,
+        overallRating: r.overallRating,
+        reviewText: r.reviewText,
+        reviewType: r.reviewType,
+        ratingStatus: getRatingStatus(r as unknown as Record<string, unknown>),
+        watchedDate: watchedDateMap.get(r.movieId)?.toISOString() ?? null,
+        ratedAt: r.createdAt.toISOString(),
+      };
+    });
 
     // Unrated seen movies (only on first page load, not paginated loads)
     let unrated: unknown[] = [];

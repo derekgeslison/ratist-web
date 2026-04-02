@@ -16,6 +16,8 @@ interface UserRating {
   posterPath: string | null;
   year: string;
   genres: string[];
+  directors: string[];
+  actors: string[];
   voteAverage: number | null;
   ratistRating: number | null;
   overallRating: number | null;
@@ -54,6 +56,9 @@ export default function RatingsPage() {
   const [tab, setTab] = useState<TabMode>("rated");
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
+  const [decadeFilter, setDecadeFilter] = useState("");
+  const [directorFilter, setDirectorFilter] = useState("");
+  const [actorFilter, setActorFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [ratingRange, setRatingRange] = useState<"" | "8+" | "6+" | "4-">("");
   const [sort, setSort] = useState<SortBy>("rated");
@@ -108,6 +113,26 @@ export default function RatingsPage() {
     return [...genres].sort();
   }, [ratings, unrated]);
 
+  const availableDecades = useMemo(() => {
+    const decades = new Set<string>();
+    for (const r of ratings) {
+      if (r.year) decades.add(r.year.slice(0, 3) + "0s");
+    }
+    return [...decades].sort().reverse();
+  }, [ratings]);
+
+  const availableDirectors = useMemo(() => {
+    const dirs = new Map<string, number>();
+    for (const r of ratings) r.directors.forEach((d) => dirs.set(d, (dirs.get(d) ?? 0) + 1));
+    return [...dirs.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+  }, [ratings]);
+
+  const availableActors = useMemo(() => {
+    const acts = new Map<string, number>();
+    for (const r of ratings) r.actors.forEach((a) => acts.set(a, (acts.get(a) ?? 0) + 1));
+    return [...acts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+  }, [ratings]);
+
   // Filtered/sorted unrated movies
   const filteredUnrated = useMemo(() => {
     let arr = unrated.filter((m) => {
@@ -125,6 +150,9 @@ export default function RatingsPage() {
     return ratings.filter((r) => {
       if (query && !r.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (genreFilter && !r.genres.includes(genreFilter)) return false;
+      if (decadeFilter && !(r.year && r.year.slice(0, 3) + "0s" === decadeFilter)) return false;
+      if (directorFilter && !r.directors.includes(directorFilter)) return false;
+      if (actorFilter && !r.actors.includes(actorFilter)) return false;
       if (statusFilter === "complete" && r.ratingStatus !== "complete") return false;
       if (statusFilter === "incomplete" && r.ratingStatus !== "incomplete") return false;
       if (statusFilter === "imported" && r.ratingStatus !== "imported") return false;
@@ -134,7 +162,7 @@ export default function RatingsPage() {
       if (ratingRange === "4-" && (score == null || score >= 4)) return false;
       return true;
     });
-  }, [ratings, query, genreFilter, statusFilter, ratingRange]);
+  }, [ratings, query, genreFilter, decadeFilter, directorFilter, actorFilter, statusFilter, ratingRange]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -149,7 +177,7 @@ export default function RatingsPage() {
   const complete = ratings.filter((r) => r.ratingStatus === "complete").length;
   const incomplete = ratings.filter((r) => r.ratingStatus === "incomplete").length;
   const imported = ratings.filter((r) => r.ratingStatus === "imported").length;
-  const isFiltered = query || genreFilter || statusFilter || ratingRange;
+  const isFiltered = query || genreFilter || decadeFilter || directorFilter || actorFilter || statusFilter || ratingRange;
   const filteredWithScores = filtered.filter((r) => r.ratistRating != null);
   const filteredAvg = filteredWithScores.length > 0
     ? filteredWithScores.reduce((s, r) => s + r.ratistRating!, 0) / filteredWithScores.length
@@ -247,6 +275,34 @@ export default function RatingsPage() {
               {availableGenres.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
 
+            {availableDecades.length > 1 && (
+              <select value={decadeFilter} onChange={(e) => setDecadeFilter(e.target.value)}
+                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
+                <option value="">All decades</option>
+                {availableDecades.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            )}
+
+            {availableDirectors.length > 0 && (
+              <select value={directorFilter} onChange={(e) => setDirectorFilter(e.target.value)}
+                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
+                <option value="">All directors</option>
+                {availableDirectors.filter((d) => d.count >= 2).map((d) => (
+                  <option key={d.name} value={d.name}>{d.name} ({d.count})</option>
+                ))}
+              </select>
+            )}
+
+            {availableActors.length > 0 && (
+              <select value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}
+                className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
+                <option value="">All actors</option>
+                {availableActors.filter((a) => a.count >= 2).map((a) => (
+                  <option key={a.name} value={a.name}>{a.name} ({a.count})</option>
+                ))}
+              </select>
+            )}
+
             <select value={ratingRange} onChange={(e) => setRatingRange(e.target.value as typeof ratingRange)}
               className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
               <option value="">All scores</option>
@@ -254,6 +310,15 @@ export default function RatingsPage() {
               <option value="6+">6+ rated</option>
               <option value="4-">Below 4</option>
             </select>
+
+            {isFiltered && (
+              <button
+                onClick={() => { setQuery(""); setGenreFilter(""); setDecadeFilter(""); setDirectorFilter(""); setActorFilter(""); setStatusFilter(""); setRatingRange(""); }}
+                className="text-xs text-[var(--ratist-red)] hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
 
             <div className="flex items-center gap-1 text-xs">
               <ArrowUpDown className="w-3 h-3 text-[var(--foreground-muted)]" />
