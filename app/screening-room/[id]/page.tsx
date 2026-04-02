@@ -162,12 +162,12 @@ export default function ScreeningSessionPage() {
 
   useEffect(() => { if (user) fetchSession(); else setLoading(false); }, [user, fetchSession]);
 
-  // Redirect to recap when session completes
+  // Auto-complete session when entering compare phase (host only, saves the session)
   useEffect(() => {
-    if (session?.status === "COMPLETE") {
-      router.replace(`/screening-room/${id}/recap`);
+    if (postWatchPhase === "compare" && session?.status === "POST_WATCH" && amHost) {
+      completeSession();
     }
-  }, [session?.status, id, router]);
+  }, [postWatchPhase]);
 
   // Poll for session updates
   useEffect(() => {
@@ -286,8 +286,8 @@ export default function ScreeningSessionPage() {
       }
       setResumeCountdown(null);
       setIsPaused(false);
-      // Post resume message to chat
-      if (rtdb) {
+      // Only host posts system messages to avoid duplicates
+      if (rtdb && isHost) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
           text: "Movie resumed! Press play.",
@@ -312,8 +312,8 @@ export default function ScreeningSessionPage() {
     const expireTimer = setTimeout(() => {
       if (rtdb) remove(ref(rtdb, rtdbPaths.activePause(id)));
       setActivePause(null);
-      // Post expiry to chat
-      if (rtdb) {
+      // Only host posts expiry message to avoid duplicates
+      if (rtdb && isHost) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
           text: "Pause request expired — not everyone accepted.",
@@ -476,8 +476,10 @@ export default function ScreeningSessionPage() {
     const newAccepted = { ...activePause.accepted, [myUserId]: true };
     const allAccepted = session?.participants.every((p) => newAccepted[p.userId]);
     if (allAccepted) {
-      // Activate pause
+      // Activate pause and clear the request node (prevents expiry from firing)
       await set(ref(rtdb, rtdbPaths.pauseActive(id)), { paused: true, pausedAt: Date.now() });
+      await remove(ref(rtdb, rtdbPaths.activePause(id)));
+      // Only the accepting user posts the message (last to accept)
       await push(ref(rtdb, rtdbPaths.chat(id)), {
         userId: "system", userName: "System",
         text: "Everyone accepted — movie is paused!",
@@ -524,13 +526,13 @@ export default function ScreeningSessionPage() {
 
   async function completeSession() {
     await apiPatch({ status: "COMPLETE" });
-    router.push(`/screening-room/${id}/recap`);
   }
 
   async function saveBookmark() {
     const token = await getToken();
     if (!token) return;
-    const timestamp = formatElapsed(session?.startedAt ?? null);
+    const currentPauseExtra = isPaused && pauseStartedAt.current ? Date.now() - pauseStartedAt.current : 0;
+    const timestamp = formatElapsed(session?.startedAt ?? null, totalPausedMs + currentPauseExtra);
     await fetch(`/api/screening/${id}/bookmarks`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -816,6 +818,7 @@ export default function ScreeningSessionPage() {
 
           {/* Ready up + Start */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+            <p className="text-[10px] text-yellow-400/70 mb-3">If you&apos;re watching on a service with ads, let any pre-roll ads play before readying up.</p>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-white mb-1">Ready Up</h2>
@@ -898,7 +901,7 @@ export default function ScreeningSessionPage() {
             <span className="text-xs text-[var(--foreground-muted)] flex-shrink-0">{session.participants.filter((p) => p.hasFinished).length}/{session.participants.length} done</span>
             {!me?.hasFinished ? (
               <button onClick={() => markFinished()} className="text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-white hover:border-[var(--ratist-red)] flex-shrink-0">
-                I&apos;m Done
+                Done Watching
               </button>
             ) : (
               <span className="text-xs text-green-400 flex-shrink-0">Done ✓</span>
@@ -956,7 +959,7 @@ export default function ScreeningSessionPage() {
                 const msg = item.data as RTDBChatMessage & { key: string; system?: boolean };
                 const isMine = msg.userId === myUserId;
                 const isSystem = msg.userId === "system" || (msg as any).system;
-                const elapsed = session?.startedAt ? Math.floor((msg.timestamp - new Date(session.startedAt).getTime()) / 1000) : 0;
+                const elapsed = session?.startedAt ? Math.max(0, Math.floor((msg.timestamp - new Date(session.startedAt).getTime() - totalPausedMs) / 1000)) : 0;
                 const elapsedStr = elapsed > 0 ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
 
                 if (isSystem) {
@@ -1016,7 +1019,7 @@ export default function ScreeningSessionPage() {
       )}
 
       {/* ── POST WATCH ── */}
-      {session.status === "POST_WATCH" && (() => {
+      {(session.status === "POST_WATCH" || session.status === "COMPLETE") && (() => {
         const myRating = session.ratings.find((r) => r.userId === myUserId);
         const ratedCount = session.ratings.length;
         const totalParticipants = session.participants.length;
@@ -1160,18 +1163,10 @@ export default function ScreeningSessionPage() {
                 </section>
               )}
 
-              {/* Complete session */}
-              {amHost && (
-                <div className="text-center">
-                  <button onClick={completeSession}
-                    className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-8 py-3 rounded-lg transition-colors">
-                    Complete Session & View Recap
-                  </button>
-                </div>
-              )}
-              {!amHost && (
-                <p className="text-center text-xs text-[var(--foreground-muted)]">Waiting for the host to complete the session...</p>
-              )}
+              {/* Share recap link */}
+              <div className="text-center pt-2">
+                <p className="text-xs text-[var(--foreground-muted)]">This session is saved. You can revisit this recap anytime from your Screening Rooms.</p>
+              </div>
             </>
           )}
         </div>

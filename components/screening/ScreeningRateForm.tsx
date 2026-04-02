@@ -166,6 +166,7 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted }: P
         className="w-full bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold py-3 rounded-lg transition-colors disabled:opacity-50">
         {submitting ? "Submitting..." : "Submit Rating"}
       </button>
+      <p className="text-[10px] text-[var(--foreground-muted)] text-center">This rating stays in the screening room and won&apos;t be posted as your official review.</p>
     </div>
   );
 }
