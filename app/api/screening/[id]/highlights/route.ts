@@ -124,6 +124,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const capped = allItems.slice(0, MAX_PER_WINDOW);
 
       for (const item of capped) {
+        // Skip system entries (polls) — they'd violate the foreign key constraint
+        // Poll data is already visible in the session's polls section
+        if (item.userId === "system") continue;
         highlights.push({
           sessionId: id,
           userId: item.userId,
