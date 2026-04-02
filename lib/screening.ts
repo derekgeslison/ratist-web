@@ -28,10 +28,30 @@ export const rtdbPaths = {
   userResumeReady: (id: string, userId: string) => `screening-rooms/${id}/resumeReady/${userId}`,
 };
 
+/** Shared AudioContext — created lazily on first user interaction */
+let _audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  try {
+    if (!_audioCtx || _audioCtx.state === "closed") {
+      _audioCtx = new AudioContext();
+    }
+    if (_audioCtx.state === "suspended") {
+      _audioCtx.resume();
+    }
+    return _audioCtx;
+  } catch { return null; }
+}
+
+/** Warm up audio on first user interaction (call from any click handler) */
+export function warmUpAudio() {
+  getAudioCtx();
+}
+
 /** Play a notification sound using Web Audio API */
 export function playDing(frequency = 880, duration = 0.15) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
   try {
-    const ctx = new AudioContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);

@@ -7,7 +7,7 @@ import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarCh
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
-import { rtdbPaths, type RTDBChatMessage, playDing, playDoubleDing, playCountdownBeep } from "@/lib/screening";
+import { rtdbPaths, type RTDBChatMessage, playDing, playDoubleDing, playCountdownBeep, warmUpAudio } from "@/lib/screening";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
 
@@ -408,6 +408,7 @@ export default function ScreeningSessionPage() {
   }
 
   async function toggleReady() {
+    warmUpAudio(); // Unlock audio on first user interaction
     if (!rtdb || !myUserId) return;
     const current = readyUsers[myUserId] ?? false;
     await set(ref(rtdb, rtdbPaths.userReady(id, myUserId)), !current || null);
