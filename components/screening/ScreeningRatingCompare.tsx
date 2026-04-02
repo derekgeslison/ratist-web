@@ -102,15 +102,24 @@ export default function ScreeningRatingCompare({ ratings, tmdbId, myUserId }: Pr
       )}
 
       {/* Post as review button */}
-      {tmdbId && (
-        <div className="text-center pt-2">
-          <a href={`/movies/${tmdbId}/rate`} target="_blank" rel="noopener noreferrer"
-            className="inline-block bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-xs font-medium px-5 py-2.5 rounded-lg transition-colors">
-            Post as My Official Review
-          </a>
-          <p className="text-[10px] text-[var(--foreground-muted)] mt-1">Your screening room ratings won&apos;t be posted unless you choose to</p>
-        </div>
-      )}
+      {tmdbId && (() => {
+        const myRating = ratings.find((r) => r.userId === myUserId);
+        if (!myRating) return null;
+        return (
+          <div className="text-center pt-2">
+            <button
+              onClick={() => {
+                // Store rating data in sessionStorage for prefill
+                sessionStorage.setItem(`screening-prefill-${tmdbId}`, JSON.stringify(myRating));
+                window.open(`/movies/${tmdbId}/rate`, "_blank");
+              }}
+              className="inline-block bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-xs font-medium px-5 py-2.5 rounded-lg transition-colors">
+              Post as My Official Review
+            </button>
+            <p className="text-[10px] text-[var(--foreground-muted)] mt-1">Your screening room ratings won&apos;t be posted unless you choose to</p>
+          </div>
+        );
+      })()}
     </div>
   );
 }

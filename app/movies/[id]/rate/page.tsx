@@ -109,6 +109,28 @@ export default function RateMoviePage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/auth/signin"); return; }
+
+    // Check for screening room pre-fill data
+    const prefillKey = `screening-prefill-${id}`;
+    const prefillRaw = typeof window !== "undefined" ? sessionStorage.getItem(prefillKey) : null;
+    if (prefillRaw) {
+      try {
+        const prefill = JSON.parse(prefillRaw);
+        const loaded: Record<string, number | null> = {};
+        for (const cat of Object.values(CRITERIA)) {
+          for (const field of cat.fields) {
+            loaded[field.key] = prefill[field.key] ?? null;
+          }
+        }
+        setValues(loaded);
+        setOverallRating(prefill.overallRating ?? null);
+        setReviewText(prefill.reviewText ?? "");
+        if (prefill.reviewType) setMode(prefill.reviewType);
+        sessionStorage.removeItem(prefillKey);
+        return; // Skip loading existing rating — prefill takes priority
+      } catch { /* ignore parse errors */ }
+    }
+
     user.getIdToken().then((token) => {
       fetch(`/api/movies/${id}/rate`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
