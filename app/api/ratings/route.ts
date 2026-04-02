@@ -5,15 +5,21 @@ import { getRatingStatus } from "@/lib/rating-status";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 100;
+
 export async function GET(req: NextRequest) {
   try {
     const authorization = req.headers.get("authorization");
-    if (!authorization?.startsWith("Bearer ")) return NextResponse.json({ ratings: [] });
+    if (!authorization?.startsWith("Bearer ")) return NextResponse.json({ ratings: [], unrated: [] });
 
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
     const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
-    if (!user) return NextResponse.json({ ratings: [] });
+    if (!user) return NextResponse.json({ ratings: [], unrated: [] });
 
+    const cursor = req.nextUrl.searchParams.get("cursor") ?? undefined;
+    const loadAll = req.nextUrl.searchParams.get("all") === "1";
+
+    // Fetch ratings with pagination (or all if requested)
     const allRatings = await prisma.movieRating.findMany({
       where: { userId: user.id },
       include: {
@@ -25,24 +31,28 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { createdAt: "desc" },
+      ...(loadAll ? {} : {
+        take: PAGE_SIZE + 1,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      }),
     });
 
-    // Also get watched dates and find unrated seen movies
+    const hasMore = !loadAll && allRatings.length > PAGE_SIZE;
+    const pageRatings = hasMore ? allRatings.slice(0, PAGE_SIZE) : allRatings;
+    const nextCursor = hasMore ? pageRatings[pageRatings.length - 1].id : null;
+
+    // Get watched dates
     const favorites = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
-      include: {
-        movie: {
-          select: {
-            id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true,
-            genres: { include: { genre: { select: { name: true } } } },
-          },
+      select: { movieId: true, watchedDate: true, createdAt: true, movie: {
+        select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true,
+          genres: { include: { genre: { select: { name: true } } } },
         },
-      },
+      }},
     });
     const watchedDateMap = new Map(favorites.map((f) => [f.movieId, f.watchedDate]));
-    const ratedMovieIds = new Set(allRatings.map((r) => r.movieId));
 
-    const ratings = allRatings.map((r) => ({
+    const ratings = pageRatings.map((r) => ({
       id: r.id,
       tmdbId: r.movie.tmdbId,
       title: r.movie.title,
@@ -59,23 +69,47 @@ export async function GET(req: NextRequest) {
       ratedAt: r.createdAt.toISOString(),
     }));
 
-    // Seen movies with no rating record at all
-    const unrated = favorites
-      .filter((f) => !ratedMovieIds.has(f.movieId))
-      .map((f) => ({
-        tmdbId: f.movie.tmdbId,
-        title: f.movie.title,
-        posterPath: f.movie.posterPath,
-        year: f.movie.releaseDate?.slice(0, 4) ?? "",
-        genres: f.movie.genres.map((g) => g.genre.name),
-        voteAverage: f.movie.voteAverage ?? null,
-        watchedDate: f.watchedDate?.toISOString() ?? null,
-        seenAt: f.createdAt.toISOString(),
-      }));
+    // Unrated seen movies (only on first page load, not paginated loads)
+    let unrated: unknown[] = [];
+    if (!cursor) {
+      const ratedMovieIds = new Set(
+        await prisma.movieRating.findMany({
+          where: { userId: user.id },
+          select: { movieId: true },
+        }).then((rows) => rows.map((r) => r.movieId))
+      );
 
-    return NextResponse.json({ ratings, unrated });
+      unrated = favorites
+        .filter((f) => !ratedMovieIds.has(f.movieId))
+        .map((f) => ({
+          tmdbId: f.movie.tmdbId,
+          title: f.movie.title,
+          posterPath: f.movie.posterPath,
+          year: f.movie.releaseDate?.slice(0, 4) ?? "",
+          genres: f.movie.genres.map((g) => g.genre.name),
+          voteAverage: f.movie.voteAverage ?? null,
+          watchedDate: f.watchedDate?.toISOString() ?? null,
+          seenAt: f.createdAt.toISOString(),
+        }));
+    }
+
+    // Total count for stats (always return this)
+    const totalCount = await prisma.movieRating.count({ where: { userId: user.id } });
+    const avgAgg = await prisma.movieRating.aggregate({
+      where: { userId: user.id, ratistRating: { not: null } },
+      _avg: { ratistRating: true },
+    });
+
+    return NextResponse.json({
+      ratings,
+      unrated,
+      nextCursor,
+      hasMore,
+      totalCount,
+      avgRating: avgAgg._avg.ratistRating ?? null,
+    });
   } catch (err) {
     console.error("Ratings list error:", err);
-    return NextResponse.json({ ratings: [] });
+    return NextResponse.json({ ratings: [], unrated: [] });
   }
 }

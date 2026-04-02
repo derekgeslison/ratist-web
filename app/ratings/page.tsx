@@ -46,6 +46,11 @@ export default function RatingsPage() {
   const [ratings, setRatings] = useState<UserRating[]>([]);
   const [unrated, setUnrated] = useState<UnratedMovie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [serverAvg, setServerAvg] = useState<number | null>(null);
   const [tab, setTab] = useState<TabMode>("rated");
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
@@ -59,10 +64,42 @@ export default function RatingsPage() {
     user.getIdToken().then((token) => {
       fetch("/api/ratings", { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then((data) => { setRatings(data.ratings ?? []); setUnrated(data.unrated ?? []); setLoading(false); })
+        .then((data) => {
+          setRatings(data.ratings ?? []);
+          setUnrated(data.unrated ?? []);
+          setNextCursor(data.nextCursor ?? null);
+          setHasMore(data.hasMore ?? false);
+          setTotalCount(data.totalCount ?? 0);
+          setServerAvg(data.avgRating ?? null);
+          setLoading(false);
+        })
         .catch(() => setLoading(false));
     });
   }, [user]);
+
+  async function loadMore() {
+    if (!user || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/ratings?cursor=${nextCursor}`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    setRatings((prev) => [...prev, ...(data.ratings ?? [])]);
+    setNextCursor(data.nextCursor ?? null);
+    setHasMore(data.hasMore ?? false);
+    setLoadingMore(false);
+  }
+
+  async function loadAll() {
+    if (!user || loadingMore) return;
+    setLoadingMore(true);
+    const token = await user.getIdToken();
+    const res = await fetch("/api/ratings?all=1", { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    setRatings(data.ratings ?? []);
+    setNextCursor(null);
+    setHasMore(false);
+    setLoadingMore(false);
+  }
 
   const availableGenres = useMemo(() => {
     const genres = new Set<string>();
@@ -112,9 +149,12 @@ export default function RatingsPage() {
   const complete = ratings.filter((r) => r.ratingStatus === "complete").length;
   const incomplete = ratings.filter((r) => r.ratingStatus === "incomplete").length;
   const imported = ratings.filter((r) => r.ratingStatus === "imported").length;
-  const avgScore = ratings.filter((r) => r.ratistRating != null).length > 0
-    ? ratings.filter((r) => r.ratistRating != null).reduce((s, r) => s + r.ratistRating!, 0) / ratings.filter((r) => r.ratistRating != null).length
+  const isFiltered = query || genreFilter || statusFilter || ratingRange;
+  const filteredWithScores = filtered.filter((r) => r.ratistRating != null);
+  const filteredAvg = filteredWithScores.length > 0
+    ? filteredWithScores.reduce((s, r) => s + r.ratistRating!, 0) / filteredWithScores.length
     : null;
+  const avgScore = isFiltered ? filteredAvg : serverAvg;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -170,14 +210,17 @@ export default function RatingsPage() {
 
           {/* Stats */}
           <div className="flex flex-wrap items-center gap-4 mb-4 text-sm">
-            <span><span className="text-white font-bold">{ratings.length}</span> <span className="text-[var(--foreground-muted)]">total</span></span>
+            <span><span className="text-white font-bold">{totalCount}</span> <span className="text-[var(--foreground-muted)]">total</span></span>
             <span><span className="text-white font-bold">{complete}</span> <span className="text-[var(--foreground-muted)]">complete</span></span>
             {incomplete > 0 && <span><span className="text-orange-400 font-bold">{incomplete}</span> <span className="text-[var(--foreground-muted)]">incomplete</span></span>}
             {imported > 0 && <span><span className="text-blue-400 font-bold">{imported}</span> <span className="text-[var(--foreground-muted)]">quick/imported</span></span>}
             {avgScore != null && (
               <span>
-                <span className="text-[var(--foreground-muted)]">avg </span>
+                <span className="text-[var(--foreground-muted)]">{isFiltered ? "filtered avg " : "avg "}</span>
                 <span className="font-bold" style={{ color: scoreColor(avgScore) }}>{avgScore.toFixed(1)}</span>
+                {isFiltered && filteredWithScores.length > 0 && (
+                  <span className="text-[var(--foreground-muted)]"> ({filteredWithScores.length})</span>
+                )}
               </span>
             )}
           </div>
@@ -274,10 +317,31 @@ export default function RatingsPage() {
             </div>
           )}
 
-          {filtered.length > 0 && (
-            <p className="text-xs text-[var(--foreground-muted)] text-center mt-4">
-              Showing {sorted.length} of {ratings.length} ratings
-            </p>
+          {(filtered.length > 0 || hasMore) && (
+            <div className="text-center mt-4 space-y-2">
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Showing {sorted.length} of {totalCount} ratings
+                {hasMore && <span> · {totalCount - ratings.length} more not loaded</span>}
+              </p>
+              {hasMore && (
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="text-sm text-[var(--ratist-red)] hover:underline disabled:opacity-50"
+                  >
+                    {loadingMore ? "Loading..." : "Load more"}
+                  </button>
+                  <button
+                    onClick={loadAll}
+                    disabled={loadingMore}
+                    className="text-sm text-[var(--foreground-muted)] hover:text-white disabled:opacity-50"
+                  >
+                    Load all
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           </>)}
