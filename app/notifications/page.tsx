@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Bell, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -12,6 +13,7 @@ interface NotificationItem {
   message: string;
   targetType: string | null;
   targetId: string | null;
+  link: string | null;
   actor: { name: string; avatarUrl: string | null; firebaseUid: string } | null;
   read: boolean;
   createdAt: string;
@@ -45,6 +47,8 @@ export default function NotificationsPage() {
     })();
   }, [user]);
 
+  const router = useRouter();
+
   async function markAllRead() {
     if (!user) return;
     const token = await user.getIdToken();
@@ -54,6 +58,20 @@ export default function NotificationsPage() {
       body: JSON.stringify({ markAll: true }),
     });
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }
+
+  async function handleClick(n: NotificationItem) {
+    if (!user) return;
+    if (!n.read) {
+      const token = await user.getIdToken();
+      fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [n.id] }),
+      }).catch(() => {});
+      setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
+    }
+    if (n.link) router.push(n.link);
   }
 
   const unread = notifications.filter((n) => !n.read).length;
@@ -89,7 +107,13 @@ export default function NotificationsPage() {
       ) : (
         <div className="divide-y divide-[var(--border)]/20">
           {notifications.map((n) => (
-            <div key={n.id} className={`flex items-start gap-3 py-3 ${n.read ? "opacity-60" : ""}`}>
+            <button
+              key={n.id}
+              onClick={() => handleClick(n)}
+              className={`flex items-start gap-3 py-3 w-full text-left transition-colors rounded-lg px-2 -mx-2 ${
+                n.read ? "opacity-60" : "hover:bg-[var(--surface)]"
+              } ${n.link ? "cursor-pointer" : "cursor-default"}`}
+            >
               {n.actor?.avatarUrl ? (
                 <Image src={n.actor.avatarUrl} alt={n.actor.name} width={32} height={32} className="rounded-full shrink-0" />
               ) : (
@@ -102,7 +126,7 @@ export default function NotificationsPage() {
                 <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{timeAgo(n.createdAt)}</p>
               </div>
               {!n.read && <div className="w-2 h-2 rounded-full bg-[var(--ratist-red)] shrink-0 mt-2" />}
-            </div>
+            </button>
           ))}
         </div>
       )}

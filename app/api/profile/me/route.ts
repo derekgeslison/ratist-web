@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
-      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, publicTabs: true },
+      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, publicTabs: true, notificationPrefs: true },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
     return NextResponse.json({ user });
@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest) {
     const dbUser = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
     if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    const { name, avatarUrl, bio, isPrivate, autoDateOnSeen, publicTabs } = await req.json();
+    const { name, avatarUrl, bio, isPrivate, autoDateOnSeen, publicTabs, notificationPrefs } = await req.json();
     const update: Record<string, unknown> = {};
     if (typeof name === "string" && name.trim()) update.name = name.trim();
     if (typeof avatarUrl === "string") update.avatarUrl = avatarUrl.trim() || null;
@@ -39,11 +39,12 @@ export async function PATCH(req: NextRequest) {
     if (typeof isPrivate === "boolean") update.isPrivate = isPrivate;
     if (typeof autoDateOnSeen === "boolean") update.autoDateOnSeen = autoDateOnSeen;
     if (publicTabs && typeof publicTabs === "object") update.publicTabs = publicTabs;
+    if (typeof notificationPrefs === "object" && notificationPrefs !== null) update.notificationPrefs = notificationPrefs;
 
     const updated = await prisma.user.update({
       where: { id: dbUser.id },
       data: update,
-      select: { id: true, name: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, publicTabs: true },
+      select: { id: true, name: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, publicTabs: true, notificationPrefs: true },
     });
 
     return NextResponse.json({ user: updated });

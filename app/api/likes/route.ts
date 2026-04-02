@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildPunchAndJudyLink, buildMovieMapLink } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,56 @@ export async function POST(req: NextRequest) {
         data: { userId: user.id, targetType, targetId },
       });
       const count = await prisma.postLike.count({ where: { targetType, targetId } });
+
+      // Notify content owner and check milestones
+      let recipientId: string | undefined;
+      let link: string | undefined;
+
+      if (targetType === "review") {
+        const rating = await prisma.movieRating.findUnique({
+          where: { id: targetId },
+          select: { userId: true, movie: { select: { tmdbId: true } } },
+        });
+        if (rating) {
+          recipientId = rating.userId;
+          link = buildReviewLink(rating.movie.tmdbId, targetId);
+        }
+      } else if (targetType === "blog") {
+        const post = await prisma.blogPost.findUnique({
+          where: { id: targetId },
+          select: { authorId: true, slug: true, type: true },
+        });
+        if (post) {
+          recipientId = post.authorId;
+          if (post.type === "PUNCH_AND_JUDY") link = buildPunchAndJudyLink(post.slug);
+          else if (post.type === "MOVIE_MAP") link = buildMovieMapLink(post.slug);
+          else link = buildBlogLink(post.slug);
+        }
+      }
+
+      if (recipientId) {
+        notify({
+          recipientId,
+          actorId: user.id,
+          type: "post_like",
+          targetType,
+          targetId,
+          message: `${user.name} liked your ${targetType === "review" ? "review" : "post"}`,
+          link,
+        });
+
+        checkMilestone({
+          contentOwnerId: recipientId,
+          actorId: user.id,
+          targetType,
+          targetId,
+          currentCount: count,
+          countLabel: "likes",
+          contentLabel: targetType === "review" ? "Your review" : "Your post",
+          link,
+        });
+      }
+
       return NextResponse.json({ liked: true, likeCount: count });
     }
   } catch (err) {

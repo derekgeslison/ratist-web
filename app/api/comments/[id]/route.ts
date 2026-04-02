@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
+import { notify, checkMilestone } from "@/lib/notifications";
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -46,18 +47,27 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.commentLike.create({
         data: { userId: user.id, commentId: id },
       });
-      if (comment.userId !== user.id) {
-        await prisma.notification.create({
-          data: {
-            userId: comment.userId,
-            type: "comment_like",
-            actorId: user.id,
-            targetType: comment.targetType,
-            targetId: comment.targetId,
-            message: `${user.name} liked your comment`,
-          },
-        }).catch(() => {});
-      }
+
+      notify({
+        recipientId: comment.userId,
+        actorId: user.id,
+        type: "comment_like",
+        targetType: comment.targetType,
+        targetId: comment.targetId,
+        message: `${user.name} liked your comment`,
+      });
+
+      const likeCount = await prisma.commentLike.count({ where: { commentId: id } });
+      checkMilestone({
+        contentOwnerId: comment.userId,
+        actorId: user.id,
+        targetType: comment.targetType,
+        targetId: comment.targetId,
+        currentCount: likeCount,
+        countLabel: "likes",
+        contentLabel: "Your comment",
+      });
+
       return NextResponse.json({ liked: true });
     }
   } catch (err) {

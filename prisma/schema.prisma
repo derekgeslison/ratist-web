@@ -50,7 +50,8 @@ model User {
   hotTakes       HotTake[]
   hotTakeVotes   HotTakeVote[]
   watchLog       UserWatchLog[]
-  autoDateOnSeen Boolean  @default(false) @map("auto_date_on_seen")
+  autoDateOnSeen    Boolean  @default(false) @map("auto_date_on_seen")
+  notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
 
   @@map("users")
 }
@@ -312,10 +313,11 @@ model PostLike {
 model Notification {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
-  type       String   // "comment" | "reply" | "comment_like" | "post_like" | "watchlist_invite"
+  type       String   // "comment" | "reply" | "comment_like" | "post_like" | "milestone" | "watchlist_invite" | "invite_accepted"
   actorId    String?  @map("actor_id")
   targetType String?  @map("target_type")
   targetId   String?  @map("target_id")
+  link       String?  // URL to navigate to when clicked
   message    String
   read       Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")
@@ -324,6 +326,7 @@ model Notification {
   actor User? @relation("notificationActor", fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+  @@index([userId, type, targetType, targetId])
   @@map("notifications")
 }
 

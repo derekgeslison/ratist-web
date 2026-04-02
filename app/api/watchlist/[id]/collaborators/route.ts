@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { notify } from "@/lib/notifications";
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -118,6 +119,16 @@ export async function PATCH(req: NextRequest, { params }: Props) {
         where: { watchlistId_userId: { watchlistId: id, userId: user.id } },
         data: { status: "accepted" },
       });
+
+      notify({
+        recipientId: watchlist.userId,
+        actorId: user.id,
+        type: "invite_accepted",
+        targetType: "watchlist",
+        targetId: id,
+        message: `${user.name} accepted your invite to ${watchlist.name}`,
+      });
+
       return NextResponse.json({ accepted: true });
     }
 

@@ -47,6 +47,12 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [autoDateOnSeen, setAutoDateOnSeen] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState({
+    commentOnContent: true, likeOnContent: true, commentReplies: true,
+    commentLikes: true, milestones: true, watchlistInvites: true,
+  });
+  const [savingNotif, setSavingNotif] = useState(false);
+  const [savedNotif, setSavedNotif] = useState(false);
   const [publicTabs, setPublicTabs] = useState<Record<string, boolean>>({
     overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true,
   });
@@ -80,6 +86,9 @@ export default function SettingsPage() {
         setAutoDateOnSeen(meData.user.autoDateOnSeen ?? false);
         if (meData.user.publicTabs) {
           setPublicTabs((prev) => ({ ...prev, ...meData.user.publicTabs }));
+        }
+        if (meData.user.notificationPrefs) {
+          setNotifPrefs((prev) => ({ ...prev, ...meData.user.notificationPrefs }));
         }
       }
       const p = prefData.profile;
@@ -492,6 +501,63 @@ export default function SettingsPage() {
           </span>
         )}
       </div>
+
+      {/* ── Notification Preferences ── */}
+      <section className="mb-10">
+        <h2 className="text-lg font-bold text-white mb-1">Notification Preferences</h2>
+        <p className="text-sm text-[var(--foreground-muted)] mb-6">Choose which notifications you want to receive.</p>
+        <div className="space-y-3">
+          {[
+            { key: "commentOnContent" as const, label: "Comments on your content", desc: "When someone comments on your reviews, posts, or community submissions" },
+            { key: "likeOnContent" as const, label: "Likes on your content", desc: "When someone likes your reviews or posts" },
+            { key: "commentReplies" as const, label: "Replies to your comments", desc: "When someone replies to a comment you made" },
+            { key: "commentLikes" as const, label: "Likes on your comments", desc: "When someone likes a comment you made" },
+            { key: "milestones" as const, label: "Milestone alerts", desc: "When your content reaches like/comment milestones (50, 100, 500, etc.)" },
+            { key: "watchlistInvites" as const, label: "Watchlist invites", desc: "When someone invites you to collaborate on a watchlist" },
+          ].map((pref) => (
+            <label key={pref.key} className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={notifPrefs[pref.key]}
+                onChange={(e) => setNotifPrefs((prev) => ({ ...prev, [pref.key]: e.target.checked }))}
+                className="mt-1 accent-[var(--ratist-red)]"
+              />
+              <div>
+                <p className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors">{pref.label}</p>
+                <p className="text-xs text-[var(--foreground-muted)]">{pref.desc}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 mt-6">
+          <button
+            onClick={async () => {
+              if (!user) return;
+              setSavingNotif(true);
+              setSavedNotif(false);
+              const token = await user.getIdToken();
+              await fetch("/api/profile/me", {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ notificationPrefs: notifPrefs }),
+              });
+              setSavingNotif(false);
+              setSavedNotif(true);
+              setTimeout(() => setSavedNotif(false), 3000);
+            }}
+            disabled={savingNotif}
+            className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-colors disabled:opacity-60"
+          >
+            <Save className="w-4 h-4" />
+            {savingNotif ? "Saving…" : "Save Notifications"}
+          </button>
+          {savedNotif && (
+            <span className="flex items-center gap-1.5 text-sm text-green-400">
+              <Check className="w-4 h-4" /> Saved
+            </span>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

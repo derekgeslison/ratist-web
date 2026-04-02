@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
         message: n.message,
         targetType: n.targetType,
         targetId: n.targetId,
+        link: n.link,
         actor: n.actor ? { name: n.actor.name, avatarUrl: n.actor.avatarUrl, firebaseUid: n.actor.firebaseUid } : null,
         read: n.read,
         createdAt: n.createdAt,
