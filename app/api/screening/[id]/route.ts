@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const sessionInclude = {
-  host: { select: { id: true, name: true, avatarUrl: true } },
+  host: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } },
   participants: {
-    include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+    include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } },
     orderBy: { joinedAt: "asc" as const },
   },
   predictions: {

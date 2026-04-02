@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         },
       },
       include: {
-        participants: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+        participants: { include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } } },
       },
     });
 
@@ -61,8 +61,8 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
-        host: { select: { id: true, name: true, avatarUrl: true } },
-        participants: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+        host: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } },
+        participants: { include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } } },
       },
     });
 

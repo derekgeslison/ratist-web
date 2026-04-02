@@ -16,7 +16,7 @@ interface Participant {
   userId: string;
   hasAds: boolean;
   hasFinished: boolean;
-  user: { id: string; name: string; avatarUrl: string | null };
+  user: { id: string; name: string; avatarUrl: string | null; firebaseUid: string };
 }
 
 interface Prediction {
@@ -92,8 +92,8 @@ export default function ScreeningSessionPage() {
   const [showPollForm, setShowPollForm] = useState(false);
 
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
-  const isHost = session?.hostId === user?.uid || session?.host?.id === session?.hostId;
-  const myUserId = session?.participants.find((p) => p.user.name === user?.displayName)?.userId ?? "";
+  const myUserId = session?.participants.find((p) => p.user.firebaseUid === user?.uid)?.userId ?? "";
+  const isHost = session?.host?.id === myUserId;
 
   // Fetch session data
   const fetchSession = useCallback(async () => {
