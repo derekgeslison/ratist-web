@@ -43,14 +43,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const WINDOW_MS = 3 * 60 * 1000;
     const windows: { start: number; count: number; messages: ChatMessage[] }[] = [];
 
-    // Slide through messages in 30-second steps
     const firstTs = userMessages[0].timestamp;
     const lastTs = userMessages[userMessages.length - 1].timestamp;
-    for (let start = firstTs; start < lastTs - WINDOW_MS / 2; start += 30000) {
-      const end = start + WINDOW_MS;
-      const windowMsgs = userMessages.filter((m) => m.timestamp >= start && m.timestamp < end);
-      if (windowMsgs.length >= 2) {
-        windows.push({ start, count: windowMsgs.length, messages: windowMsgs });
+    const span = lastTs - firstTs;
+
+    if (span < WINDOW_MS) {
+      // All messages fit in one window — just use them all
+      windows.push({ start: firstTs, count: userMessages.length, messages: userMessages });
+    } else {
+      // Slide through messages in 30-second steps
+      for (let start = firstTs; start <= lastTs; start += 30000) {
+        const end = start + WINDOW_MS;
+        const windowMsgs = userMessages.filter((m) => m.timestamp >= start && m.timestamp < end);
+        if (windowMsgs.length >= 2) {
+          windows.push({ start, count: windowMsgs.length, messages: windowMsgs });
+        }
       }
     }
 

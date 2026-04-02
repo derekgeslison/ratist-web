@@ -55,6 +55,7 @@ interface SessionData {
   polls: Poll[];
   bookmarks: { id: string; userId: string; timestamp: string; note: string | null; user: { id: string; name: string } }[];
   ratings: { id: string; userId: string; reviewType: string; overallRating: number | null; ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null; reviewText: string | null; user: { id: string; name: string; avatarUrl: string | null } }[];
+  chatHighlights: { id: string; text: string; emoji: string | null; reactCount: number; timestamp: string; user: { id: string; name: string } }[];
 }
 
 interface MovieResult { id: number; title: string; posterPath: string | null; releaseDate: string }
@@ -171,20 +172,26 @@ export default function ScreeningSessionPage() {
 
   useEffect(() => { if (user) fetchSession(); else setLoading(false); }, [user, fetchSession]);
 
+  // Store chat messages in a ref so highlights can access them reliably
+  const chatMessagesRef = useRef(chatMessages);
+  useEffect(() => { chatMessagesRef.current = chatMessages; }, [chatMessages]);
+
   // Auto-complete session and generate highlights when entering compare phase (host only)
   useEffect(() => {
     if (postWatchPhase === "compare" && amHost) {
       if (session?.status === "POST_WATCH") completeSession();
-      // Generate chat highlights from RTDB messages
-      (async () => {
+      // Generate chat highlights from RTDB messages (delay to ensure messages are loaded)
+      setTimeout(async () => {
         const token = await getToken();
-        if (!token || chatMessages.length === 0) return;
+        const msgs = chatMessagesRef.current;
+        if (!token || msgs.length === 0) return;
         await fetch(`/api/screening/${id}/highlights`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: chatMessages }),
+          body: JSON.stringify({ messages: msgs }),
         });
-      })();
+        fetchSession(); // Refresh to show highlights
+      }, 500);
     }
   }, [postWatchPhase]);
 
@@ -230,8 +237,8 @@ export default function ScreeningSessionPage() {
       const msg = snap.val() as RTDBChatMessage;
       setChatMessages((prev) => [...prev, { ...msg, key: snap.key! }]);
       if (!isInitialLoad) {
-        // Always ding for poll/pause system messages (from others)
-        if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:")) {
+        // Ding for poll system messages (skip if the userName matches current user — they created it)
+        if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:") && msg.userName !== user?.displayName) {
           playDing(880, 0.15);
         }
         // Ding on regular messages if ping toggle is on
@@ -1227,6 +1234,26 @@ export default function ScreeningSessionPage() {
                         <span className="text-xs font-mono text-[var(--ratist-red)]">{b.timestamp}</span>
                         <span className="text-xs text-white">{b.note ?? "Bookmarked"}</span>
                         <span className="text-[10px] text-[var(--foreground-muted)] ml-auto">— {b.user.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Chat Highlights */}
+              {session.chatHighlights && session.chatHighlights.length > 0 && (
+                <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+                  <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat Highlights
+                  </h2>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">The most active moments from your watch session.</p>
+                  <div className="space-y-2">
+                    {session.chatHighlights.map((h) => (
+                      <div key={h.id} className="bg-[var(--surface-2)] rounded-lg px-4 py-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] text-[var(--foreground-muted)]">{h.user.name}</span>
+                        </div>
+                        {h.emoji ? <span className="text-xl">{h.emoji}</span> : <p className="text-sm text-white">{h.text}</p>}
                       </div>
                     ))}
                   </div>
