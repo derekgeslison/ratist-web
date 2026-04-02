@@ -205,16 +205,25 @@ export default function ScreeningRecapPage() {
                   return (
                     <div key={groupIdx} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
-                        <span className="text-[10px] text-[var(--ratist-red)] font-medium">Highlight Reel #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
+                        <span className="text-[10px] text-[var(--ratist-red)] font-medium">Peak Moment #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
                         <span className="text-[10px] text-[var(--foreground-muted)]">{fmtElapsed(startElapsed)} — {fmtElapsed(endElapsed)}</span>
                       </div>
                       <div className="max-h-48 overflow-y-auto p-3 space-y-1.5 resize-y" style={{ minHeight: "80px" }}>
-                        {msgs.map((h) => (
-                          <div key={h.id} className="flex items-start gap-2">
-                            <span className="text-[10px] text-[var(--foreground-muted)] w-16 flex-shrink-0 pt-0.5">{h.user.name}</span>
-                            {h.emoji ? <span className="text-lg">{h.emoji}</span> : <p className="text-xs text-white">{h.text}</p>}
-                          </div>
-                        ))}
+                        {msgs.map((h) => {
+                          const isPoll = h.text?.startsWith("[Poll]");
+                          return (
+                            <div key={h.id} className={`flex items-start gap-2 ${isPoll ? "bg-[var(--surface)]/50 rounded-lg px-2 py-1.5 -mx-1" : ""}`}>
+                              <span className="text-[10px] text-[var(--foreground-muted)] w-16 flex-shrink-0 pt-0.5">{isPoll ? "Poll" : h.user.name}</span>
+                              {h.emoji ? (
+                                <span className="text-lg">{h.emoji}</span>
+                              ) : isPoll ? (
+                                <p className="text-xs text-[var(--ratist-red)]">{h.text.replace("[Poll] ", "")}</p>
+                              ) : (
+                                <p className="text-xs text-white">{h.text}</p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );

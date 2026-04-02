@@ -32,8 +32,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const existing = await prisma.screeningChatHighlight.count({ where: { sessionId: id } });
     if (existing > 0) return NextResponse.json({ ok: true, message: "Already generated" });
 
-    const { messages } = await req.json() as { messages: ChatMessage[] };
+    const { messages, polls } = await req.json() as { messages: ChatMessage[]; polls?: { question: string; options: string[]; votes: Record<string, number>; createdAt: string; creator: { name: string } }[] };
     if (!messages || messages.length === 0) return NextResponse.json({ ok: true, message: "No messages" });
+
+    // Build poll lookup by approximate timestamp for interleaving
+    const pollsByTime = new Map<number, { question: string; options: string[]; votes: Record<string, number>; creator: string }>();
+    if (polls) {
+      for (const p of polls) {
+        const ts = new Date(p.createdAt).getTime();
+        pollsByTime.set(ts, { question: p.question, options: p.options, votes: p.votes, creator: p.creator.name });
+      }
+    }
 
     // Filter out system messages
     const userMessages = messages.filter((m) => !m.system && m.userId !== "system");
@@ -74,20 +83,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!overlaps) selected.push(w);
     }
 
-    // Persist ALL messages from each window (capped at MAX_PER_WINDOW)
+    // Persist ALL messages + polls from each window (capped at MAX_PER_WINDOW)
     const highlights = [];
     for (let groupIdx = 0; groupIdx < selected.length; groupIdx++) {
       const window = selected[groupIdx];
-      const msgs = window.messages.slice(0, MAX_PER_WINDOW);
-      for (const msg of msgs) {
+
+      // Find polls that fall within this window's time range
+      const windowStart = window.start;
+      const windowEnd = window.end;
+      const windowPolls: { timestamp: number; text: string }[] = [];
+      for (const [ts, poll] of pollsByTime.entries()) {
+        if (ts >= windowStart && ts <= windowEnd) {
+          const totalVotes = Object.keys(poll.votes).length;
+          const optionResults = (poll.options as string[]).map((opt, i) => {
+            const count = Object.values(poll.votes).filter((v) => v === i).length;
+            return `${opt}: ${count}`;
+          }).join(", ");
+          windowPolls.push({
+            timestamp: ts,
+            text: `[Poll] ${poll.question} (${optionResults}) — ${totalVotes} votes`,
+          });
+        }
+      }
+
+      // Combine messages and polls, sort by timestamp, cap
+      const allItems: { userId: string; text: string; emoji: string | null; timestamp: number }[] = [];
+      for (const msg of window.messages) {
+        allItems.push({ userId: msg.userId, text: msg.text || "", emoji: msg.emoji || null, timestamp: msg.timestamp });
+      }
+      for (const poll of windowPolls) {
+        allItems.push({ userId: "system", text: poll.text, emoji: null, timestamp: poll.timestamp });
+      }
+      allItems.sort((a, b) => a.timestamp - b.timestamp);
+      const capped = allItems.slice(0, MAX_PER_WINDOW);
+
+      for (const item of capped) {
         highlights.push({
           sessionId: id,
-          userId: msg.userId,
-          text: msg.text || "",
-          emoji: msg.emoji || null,
+          userId: item.userId,
+          text: item.text,
+          emoji: item.emoji || null,
           reactCount: window.count,
           windowGroup: groupIdx,
-          timestamp: new Date(msg.timestamp),
+          timestamp: new Date(item.timestamp),
         });
       }
     }
