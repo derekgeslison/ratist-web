@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Filter out system messages
     const userMessages = messages.filter((m) => !m.system && m.userId !== "system");
-    if (userMessages.length < 5) return NextResponse.json({ ok: true, message: "Not enough messages" });
+    if (userMessages.length < 3) return NextResponse.json({ ok: true, message: "Not enough messages" });
 
     // Find peak activity windows (3-minute windows)
     const WINDOW_MS = 3 * 60 * 1000;
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     for (let start = firstTs; start < lastTs - WINDOW_MS / 2; start += 30000) {
       const end = start + WINDOW_MS;
       const windowMsgs = userMessages.filter((m) => m.timestamp >= start && m.timestamp < end);
-      if (windowMsgs.length >= 3) {
+      if (windowMsgs.length >= 2) {
         windows.push({ start, count: windowMsgs.length, messages: windowMsgs });
       }
     }

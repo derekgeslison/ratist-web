@@ -229,9 +229,15 @@ export default function ScreeningSessionPage() {
     const unsub = onChildAdded(chatRef, (snap) => {
       const msg = snap.val() as RTDBChatMessage;
       setChatMessages((prev) => [...prev, { ...msg, key: snap.key! }]);
-      // Ding on new messages from others (not initial load, not system, not self)
-      if (!isInitialLoad && pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
-        playDing(600, 0.08);
+      if (!isInitialLoad) {
+        // Always ding for poll/pause system messages (from others)
+        if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:")) {
+          playDing(880, 0.15);
+        }
+        // Ding on regular messages if ping toggle is on
+        else if (pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
+          playDing(600, 0.08);
+        }
       }
     });
     // After initial batch, mark as loaded
