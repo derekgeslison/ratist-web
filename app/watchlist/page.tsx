@@ -107,6 +107,7 @@ export default function WatchlistPage() {
   const [inviteError, setInviteError] = useState("");
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [showInvites, setShowInvites] = useState(false);
   const [listPickerMovie, setListPickerMovie] = useState<WatchlistMovie | null>(null);
   const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
@@ -433,53 +434,6 @@ export default function WatchlistPage() {
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading&hellip;</p>
       ) : (
         <>
-        {/* Pending invites banner */}
-        {pendingInvites.length > 0 && (
-          <div className="mb-6 space-y-2">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-[var(--ratist-red)]" />
-              Pending Invites ({pendingInvites.length})
-            </h3>
-            {pendingInvites.map((inv) => (
-              <div key={inv.watchlistId} className="flex items-center justify-between gap-4 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl">
-                <div className="flex items-center gap-3 min-w-0">
-                  {inv.ownerAvatar ? (
-                    <Image src={inv.ownerAvatar} alt={inv.ownerName} width={32} height={32} className="rounded-full shrink-0" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)] shrink-0">
-                      {inv.ownerName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm text-white font-medium truncate">
-                      {inv.ownerName} invited you to <span className="text-[var(--ratist-red)]">{inv.listName}</span>
-                    </p>
-                    <p className="text-xs text-[var(--foreground-muted)]">
-                      {inv.movieCount} movie{inv.movieCount !== 1 ? "s" : ""} · as {inv.role}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => respondToInvite(inv.watchlistId, "accept")}
-                    disabled={respondingTo === inv.watchlistId}
-                    className="px-3 py-1.5 text-xs font-semibold bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => respondToInvite(inv.watchlistId, "decline")}
-                    disabled={respondingTo === inv.watchlistId}
-                    className="px-3 py-1.5 text-xs font-semibold border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    Decline
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="flex flex-col lg:flex-row gap-6">
           {/* ── Sidebar: list switcher ── */}
           <div className="lg:w-56 shrink-0">
@@ -514,6 +468,52 @@ export default function WatchlistPage() {
                 </button>
               ))}
             </div>
+
+            {/* Pending invites — collapsible in sidebar */}
+            {pendingInvites.length > 0 && (
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowInvites(!showInvites)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/20 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Invites
+                  </span>
+                  <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {pendingInvites.length}
+                  </span>
+                </button>
+                {showInvites && (
+                  <div className="mt-2 space-y-2">
+                    {pendingInvites.map((inv) => (
+                      <div key={inv.watchlistId} className="p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg">
+                        <p className="text-xs text-white font-medium truncate">{inv.listName}</p>
+                        <p className="text-[10px] text-[var(--foreground-muted)] mb-2">
+                          from {inv.ownerName} · {inv.movieCount} movie{inv.movieCount !== 1 ? "s" : ""} · {inv.role}
+                        </p>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => respondToInvite(inv.watchlistId, "accept")}
+                            disabled={respondingTo === inv.watchlistId}
+                            className="flex-1 px-2 py-1 text-[10px] font-semibold bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-md transition-colors disabled:opacity-50"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => respondToInvite(inv.watchlistId, "decline")}
+                            disabled={respondingTo === inv.watchlistId}
+                            className="flex-1 px-2 py-1 text-[10px] font-semibold border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-md transition-colors disabled:opacity-50"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Create new list modal */}
             {showCreate && (
