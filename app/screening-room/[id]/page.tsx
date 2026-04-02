@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle } from "lucide-react";
+import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off } from "firebase/database";
@@ -31,6 +31,7 @@ interface Poll {
   options: string[];
   votes: Record<string, number>;
   revealAt: string;
+  createdAt: string;
   creator: { id: string; name: string };
 }
 
@@ -54,6 +55,17 @@ interface SessionData {
 interface MovieResult { id: number; title: string; posterPath: string | null; releaseDate: string }
 
 const QUICK_EMOJIS = ["😂", "😱", "🔥", "😭", "🤯", "👏", "💀", "❤️"];
+
+/** Format elapsed time since session start */
+function formatElapsed(startedAt: string | null): string {
+  if (!startedAt) return "0:00";
+  const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 export default function ScreeningSessionPage() {
   const { user } = useAuth();
@@ -83,17 +95,31 @@ export default function ScreeningSessionPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Bookmarks
-  const [bookmarkTime, setBookmarkTime] = useState("");
   const [bookmarkNote, setBookmarkNote] = useState("");
+  const [bookmarkSaved, setBookmarkSaved] = useState(false);
 
   // Polls
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [showPollForm, setShowPollForm] = useState(false);
 
+  // Pause request
+  const [pauseAlert, setPauseAlert] = useState<string | null>(null);
+
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
   const myUserId = session?.participants.find((p) => p.user.firebaseUid === user?.uid)?.userId ?? "";
   const isHost = session?.host?.id === myUserId;
+
+  // Pre-populate prediction fields when session loads
+  useEffect(() => {
+    if (!session || !myUserId) return;
+    const myPred = session.predictions.find((p) => p.userId === myUserId);
+    if (myPred) {
+      if (myPred.plotGuess) setPlotGuess(myPred.plotGuess);
+      if (myPred.ratingGuess != null) setRatingGuess(String(myPred.ratingGuess));
+      setPredictionSaved(true);
+    }
+  }, [session?.id, myUserId]);
 
   // Fetch session data
   const fetchSession = useCallback(async () => {
@@ -141,6 +167,18 @@ export default function ScreeningSessionPage() {
     return () => off(chatRef, "child_added", unsub);
   }, [id, session?.status]);
 
+  // RTDB listener for pause requests
+  useEffect(() => {
+    if (!rtdb || !session || session.status !== "WATCHING") return;
+    const pauseRef = ref(rtdb, rtdbPaths.pauseRequests(id));
+    const unsub = onChildAdded(pauseRef, (snap) => {
+      const req = snap.val();
+      setPauseAlert(req.userName);
+      setTimeout(() => setPauseAlert(null), 5000);
+    });
+    return () => off(pauseRef, "child_added", unsub);
+  }, [id, session?.status]);
+
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -154,7 +192,6 @@ export default function ScreeningSessionPage() {
       setCountdown((prev) => {
         if (prev === null || prev <= 1) {
           clearInterval(interval);
-          // Host transitions to WATCHING
           if (isHost) {
             getToken().then((token) => {
               if (token) {
@@ -217,16 +254,19 @@ export default function ScreeningSessionPage() {
   async function savePrediction() {
     const token = await getToken();
     if (!token) return;
-    await fetch(`/api/screening/${id}/predictions`, {
+    const res = await fetch(`/api/screening/${id}/predictions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ plotGuess: plotGuess || null, ratingGuess: ratingGuess || null }),
     });
-    setPredictionSaved(true);
+    if (res.ok) {
+      setPredictionSaved(true);
+      setTimeout(() => setPredictionSaved(false), 3000);
+    }
   }
 
   async function sendChat(text: string, emoji?: string) {
-    if (!rtdb || !user) return;
+    if (!rtdb || !user || !myUserId) return;
     const msg: RTDBChatMessage = {
       userId: myUserId,
       userName: user.displayName ?? "Anonymous",
@@ -240,7 +280,7 @@ export default function ScreeningSessionPage() {
   }
 
   async function sendPauseRequest() {
-    if (!rtdb || !user) return;
+    if (!rtdb || !user || !myUserId) return;
     await push(ref(rtdb, rtdbPaths.pauseRequests(id)), {
       userId: myUserId,
       userName: user.displayName ?? "Anonymous",
@@ -265,16 +305,17 @@ export default function ScreeningSessionPage() {
   }
 
   async function saveBookmark() {
-    if (!bookmarkTime) return;
     const token = await getToken();
     if (!token) return;
+    const timestamp = formatElapsed(session?.startedAt ?? null);
     await fetch(`/api/screening/${id}/bookmarks`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ timestamp: bookmarkTime, note: bookmarkNote || null }),
+      body: JSON.stringify({ timestamp, note: bookmarkNote || null }),
     });
-    setBookmarkTime("");
     setBookmarkNote("");
+    setBookmarkSaved(true);
+    setTimeout(() => setBookmarkSaved(false), 2000);
     fetchSession();
   }
 
@@ -325,13 +366,58 @@ export default function ScreeningSessionPage() {
   if (error) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-red-400">{error}</div>;
   if (!session) return null;
 
-  const me = session.participants.find((p) => p.user.id === myUserId);
+  const me = session.participants.find((p) => p.userId === myUserId);
   const amHost = session.host.id === myUserId;
   const readyCount = Object.values(readyUsers).filter(Boolean).length;
   const allReady = readyCount === session.participants.length && session.participants.length > 0;
 
+  /** Render a poll inline (used in both chat and post-watch) */
+  function renderPoll(poll: Poll, compact = false) {
+    const totalVotes = Object.keys(poll.votes).length;
+    const myVote = poll.votes[myUserId];
+    return (
+      <div className={`bg-[var(--surface-2)] rounded-lg p-3 ${compact ? "" : "my-2"}`}>
+        <p className="text-xs text-white font-medium mb-2">{poll.question}</p>
+        {(poll.options as string[]).map((opt: string, i: number) => {
+          const voteCount = Object.values(poll.votes).filter((v) => v === i).length;
+          const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+          return (
+            <button key={i} onClick={() => votePoll(poll.id, i)}
+              className={`w-full text-left mb-1 rounded-lg px-2 py-1.5 text-xs relative overflow-hidden ${myVote === i ? "border border-[var(--ratist-red)]" : "border border-transparent hover:border-[var(--border)]"}`}>
+              <div className="absolute inset-0 bg-[var(--ratist-red)]/10 rounded-lg" style={{ width: `${pct}%` }} />
+              <span className="relative text-white">{opt}</span>
+              {totalVotes > 0 && <span className="relative float-right text-[var(--foreground-muted)]">{pct}%</span>}
+            </button>
+          );
+        })}
+        <p className="text-[10px] text-[var(--foreground-muted)] mt-1">{totalVotes} vote{totalVotes !== 1 ? "s" : ""} · by {poll.creator.name}</p>
+      </div>
+    );
+  }
+
+  /** Build a combined timeline of chat messages and polls for the watching view */
+  function buildChatTimeline() {
+    const items: { type: "msg" | "poll"; key: string; timestamp: number; data: any }[] = [];
+    for (const msg of chatMessages) {
+      items.push({ type: "msg", key: msg.key, timestamp: msg.timestamp, data: msg });
+    }
+    for (const poll of session!.polls) {
+      items.push({ type: "poll", key: poll.id, timestamp: new Date(poll.createdAt).getTime(), data: poll });
+    }
+    items.sort((a, b) => a.timestamp - b.timestamp);
+    return items;
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Pause alert overlay */}
+      {pauseAlert && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/90 text-black px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-pulse">
+          <PauseCircle className="w-6 h-6" />
+          <span className="font-semibold">{pauseAlert} is requesting a pause!</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -352,7 +438,7 @@ export default function ScreeningSessionPage() {
       {/* ── LOBBY ── */}
       {session.status === "LOBBY" && (
         <div className="space-y-6">
-          {/* Movie selection */}
+          {/* Movie selection — host only can search/change */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <h2 className="text-sm font-semibold text-white mb-3">Movie</h2>
             {session.movieTitle ? (
@@ -364,10 +450,12 @@ export default function ScreeningSessionPage() {
                 )}
                 <div>
                   <p className="text-white font-semibold">{session.movieTitle}</p>
-                  <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-1">Change movie</button>
+                  {amHost && (
+                    <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-1">Change movie</button>
+                  )}
                 </div>
               </div>
-            ) : (
+            ) : amHost ? (
               <div className="relative">
                 <div className="flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2">
                   <Search className="w-4 h-4 text-[var(--foreground-muted)]" />
@@ -394,6 +482,8 @@ export default function ScreeningSessionPage() {
                   </div>
                 )}
               </div>
+            ) : (
+              <p className="text-sm text-[var(--foreground-muted)]">Waiting for the host to pick a movie...</p>
             )}
           </section>
 
@@ -420,7 +510,7 @@ export default function ScreeningSessionPage() {
             <p className="text-xs text-[var(--foreground-muted)] mb-3">Your predictions will be hidden until after the movie.</p>
             <div className="space-y-3">
               <textarea
-                value={plotGuess} onChange={(e) => setPlotGuess(e.target.value)}
+                value={plotGuess} onChange={(e) => { setPlotGuess(e.target.value); setPredictionSaved(false); }}
                 placeholder="What do you think will happen? Any plot predictions?"
                 rows={2}
                 className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none"
@@ -428,12 +518,13 @@ export default function ScreeningSessionPage() {
               <div className="flex items-center gap-3">
                 <label className="text-xs text-[var(--foreground-muted)]">Rating prediction (1-10):</label>
                 <input
-                  type="number" value={ratingGuess} onChange={(e) => setRatingGuess(e.target.value)}
+                  type="number" value={ratingGuess} onChange={(e) => { setRatingGuess(e.target.value); setPredictionSaved(false); }}
                   min={1} max={10} step={0.5} placeholder="7.5"
                   className="w-20 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-[var(--ratist-red)]"
                 />
-                <button onClick={savePrediction} className="text-sm text-[var(--ratist-red)] hover:underline">
-                  {predictionSaved ? "Saved!" : "Save prediction"}
+                <button onClick={savePrediction} disabled={predictionSaved}
+                  className={`text-sm font-medium px-4 py-1.5 rounded-lg transition-colors ${predictionSaved ? "bg-green-500/20 text-green-400" : "bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white"}`}>
+                  {predictionSaved ? "Saved ✓" : "Save Prediction"}
                 </button>
               </div>
             </div>
@@ -475,32 +566,111 @@ export default function ScreeningSessionPage() {
 
       {/* ── WATCHING ── */}
       {session.status === "WATCHING" && (
-        <div className="grid lg:grid-cols-3 gap-4">
-          {/* Chat (2 cols) */}
-          <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col" style={{ height: "500px" }}>
+        <div className="space-y-4">
+          {/* Movie info bar */}
+          <div className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              {session.posterPath && (
+                <div className="w-10 h-14 rounded-lg overflow-hidden flex-shrink-0">
+                  <Image src={`${TMDB_SM}${session.posterPath}`} alt="" width={40} height={56} className="object-cover w-full h-full" />
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-semibold text-white">{session.movieTitle}</p>
+                <p className="text-xs text-[var(--foreground-muted)]">Now watching</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Bookmark */}
+              <div className="flex items-center gap-2">
+                <input type="text" value={bookmarkNote} onChange={(e) => setBookmarkNote(e.target.value)}
+                  placeholder="Bookmark note..."
+                  className="w-40 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none hidden sm:block" />
+                <button onClick={saveBookmark}
+                  className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-colors ${bookmarkSaved ? "bg-green-500/20 text-green-400" : "bg-[var(--surface-2)] border border-[var(--border)] text-white hover:border-[var(--ratist-red)]"}`}>
+                  <Bookmark className="w-3 h-3" /> {bookmarkSaved ? "Saved!" : "Bookmark"}
+                </button>
+              </div>
+              {/* Pause */}
+              <button onClick={sendPauseRequest} className="flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg">
+                <PauseCircle className="w-3 h-3" /> Pause
+              </button>
+              {/* Finished */}
+              <div className="text-xs text-[var(--foreground-muted)]">
+                {session.participants.filter((p) => p.hasFinished).length}/{session.participants.length} done
+              </div>
+              {!me?.hasFinished ? (
+                <button onClick={() => markFinished()} className="text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-white hover:border-[var(--ratist-red)]">
+                  I&apos;m Done
+                </button>
+              ) : (
+                <span className="text-xs text-green-400">Done ✓</span>
+              )}
+              {amHost && (
+                <button onClick={() => markFinished(true)} className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30">
+                  Force End
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Chat + polls stream */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col" style={{ height: "460px" }}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat
               </h2>
-              <button onClick={sendPauseRequest} className="flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors">
-                <PauseCircle className="w-4 h-4" /> Pause Request
+              <button onClick={() => setShowPollForm(!showPollForm)} className="flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline">
+                <BarChart3 className="w-3 h-3" /> {showPollForm ? "Cancel" : "Create Poll"}
               </button>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
-              {chatMessages.map((msg) => (
-                <div key={msg.key} className={`flex items-start gap-2 ${msg.userId === myUserId ? "flex-row-reverse" : ""}`}>
-                  <div className={`max-w-[75%] rounded-xl px-3 py-2 ${msg.userId === myUserId ? "bg-[var(--ratist-red)]/20" : "bg-[var(--surface-2)]"}`}>
-                    {msg.userId !== myUserId && <p className="text-[10px] text-[var(--foreground-muted)] mb-0.5">{msg.userName}</p>}
-                    {msg.emoji ? (
-                      <span className="text-2xl">{msg.emoji}</span>
-                    ) : (
-                      <p className="text-sm text-white">{msg.text}</p>
-                    )}
-                  </div>
+            {/* Poll creation form (collapsible) */}
+            {showPollForm && (
+              <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]/50 space-y-2">
+                <input type="text" value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)}
+                  placeholder="Poll question..."
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
+                <div className="flex flex-wrap gap-2">
+                  {pollOptions.map((opt, i) => (
+                    <input key={i} type="text" value={opt} onChange={(e) => { const opts = [...pollOptions]; opts[i] = e.target.value; setPollOptions(opts); }}
+                      placeholder={`Option ${i + 1}`}
+                      className="flex-1 min-w-[100px] bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
+                  ))}
                 </div>
-              ))}
+                <div className="flex items-center gap-2">
+                  {pollOptions.length < 6 && <button onClick={() => setPollOptions([...pollOptions, ""])} className="text-[10px] text-[var(--ratist-red)]">+ Option</button>}
+                  <button onClick={createPoll} className="ml-auto text-xs bg-[var(--ratist-red)] text-white rounded-lg px-4 py-1.5">Submit Poll</button>
+                </div>
+              </div>
+            )}
+
+            {/* Messages + polls timeline */}
+            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+              {buildChatTimeline().map((item) => {
+                if (item.type === "poll") {
+                  return <div key={item.key}>{renderPoll(item.data, true)}</div>;
+                }
+                const msg = item.data as RTDBChatMessage & { key: string };
+                const isMine = msg.userId === myUserId;
+                const elapsed = session?.startedAt ? Math.floor((msg.timestamp - new Date(session.startedAt).getTime()) / 1000) : 0;
+                const elapsedStr = elapsed > 0 ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
+                return (
+                  <div key={msg.key} className={`flex items-start gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                    <div className={`max-w-[75%] rounded-xl px-3 py-2 ${isMine ? "bg-[var(--ratist-red)]/20" : "bg-[var(--surface-2)]"}`}>
+                      <div className={`flex items-center gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                        {!isMine && <p className="text-[10px] text-[var(--foreground-muted)]">{msg.userName}</p>}
+                        {elapsedStr && <p className="text-[9px] text-[var(--foreground-muted)]">{elapsedStr}</p>}
+                      </div>
+                      {msg.emoji ? (
+                        <span className="text-2xl">{msg.emoji}</span>
+                      ) : (
+                        <p className="text-sm text-white">{msg.text}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
               <div ref={chatEndRef} />
             </div>
 
@@ -525,107 +695,6 @@ export default function ScreeningSessionPage() {
               </button>
             </div>
           </div>
-
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Movie info */}
-            {session.posterPath && (
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
-                <div className="w-12 h-16 rounded-lg overflow-hidden flex-shrink-0">
-                  <Image src={`${TMDB_SM}${session.posterPath}`} alt="" width={48} height={64} className="object-cover w-full h-full" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">{session.movieTitle}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">Now watching</p>
-                </div>
-              </div>
-            )}
-
-            {/* Bookmark */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-white mb-2 flex items-center gap-1"><Bookmark className="w-3 h-3 text-[var(--ratist-red)]" /> Bookmark a Moment</h3>
-              <div className="space-y-2">
-                <input type="text" value={bookmarkTime} onChange={(e) => setBookmarkTime(e.target.value)}
-                  placeholder="Timestamp (e.g. 1:23:45)"
-                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
-                <input type="text" value={bookmarkNote} onChange={(e) => setBookmarkNote(e.target.value)}
-                  placeholder="Note (optional)"
-                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
-                <button onClick={saveBookmark} disabled={!bookmarkTime}
-                  className="w-full text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg py-1.5 text-white hover:border-[var(--ratist-red)] disabled:opacity-30">Save Bookmark</button>
-              </div>
-            </div>
-
-            {/* Quick Poll */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-white mb-2 flex items-center gap-1"><BarChart3 className="w-3 h-3 text-[var(--ratist-red)]" /> Polls</h3>
-              {!showPollForm ? (
-                <button onClick={() => setShowPollForm(true)} className="w-full text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg py-1.5 text-white hover:border-[var(--ratist-red)]">
-                  Create Poll
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <input type="text" value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)}
-                    placeholder="Question..."
-                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
-                  {pollOptions.map((opt, i) => (
-                    <input key={i} type="text" value={opt} onChange={(e) => { const opts = [...pollOptions]; opts[i] = e.target.value; setPollOptions(opts); }}
-                      placeholder={`Option ${i + 1}`}
-                      className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
-                  ))}
-                  <div className="flex gap-2">
-                    {pollOptions.length < 6 && <button onClick={() => setPollOptions([...pollOptions, ""])} className="text-[10px] text-[var(--ratist-red)]">+ Option</button>}
-                    <button onClick={createPoll} className="flex-1 text-xs bg-[var(--ratist-red)] text-white rounded-lg py-1.5">Submit</button>
-                    <button onClick={() => setShowPollForm(false)} className="text-xs text-[var(--foreground-muted)]">Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Active polls */}
-              {session.polls.map((poll) => {
-                const totalVotes = Object.keys(poll.votes).length;
-                const myVote = poll.votes[myUserId];
-                return (
-                  <div key={poll.id} className="mt-3 bg-[var(--surface-2)] rounded-lg p-3">
-                    <p className="text-xs text-white font-medium mb-2">{poll.question}</p>
-                    {(poll.options as string[]).map((opt: string, i: number) => {
-                      const voteCount = Object.values(poll.votes).filter((v) => v === i).length;
-                      const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
-                      return (
-                        <button key={i} onClick={() => votePoll(poll.id, i)}
-                          className={`w-full text-left mb-1 rounded-lg px-2 py-1.5 text-xs relative overflow-hidden ${myVote === i ? "border border-[var(--ratist-red)]" : "border border-transparent hover:border-[var(--border)]"}`}>
-                          <div className="absolute inset-0 bg-[var(--ratist-red)]/10 rounded-lg" style={{ width: `${pct}%` }} />
-                          <span className="relative text-white">{opt}</span>
-                          {totalVotes > 0 && <span className="relative float-right text-[var(--foreground-muted)]">{pct}%</span>}
-                        </button>
-                      );
-                    })}
-                    <p className="text-[10px] text-[var(--foreground-muted)] mt-1">{totalVotes} vote{totalVotes !== 1 ? "s" : ""} · by {poll.creator.name}</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Finished watching */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-white mb-2">Finished Watching?</h3>
-              <p className="text-[10px] text-[var(--foreground-muted)] mb-2">
-                {session.participants.filter((p) => p.hasFinished).length}/{session.participants.length} done
-              </p>
-              {!me?.hasFinished ? (
-                <button onClick={() => markFinished()} className="w-full text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg py-2 text-white hover:border-[var(--ratist-red)]">
-                  I&apos;m Done
-                </button>
-              ) : (
-                <p className="text-xs text-green-400">You&apos;ve marked as done ✓</p>
-              )}
-              {amHost && (
-                <button onClick={() => markFinished(true)} className="w-full mt-2 text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg py-2 hover:bg-[var(--ratist-red)]/30">
-                  Force End (Host)
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       )}
 
@@ -641,7 +710,7 @@ export default function ScreeningSessionPage() {
           {session.predictions.length > 0 && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
               <h2 className="text-sm font-semibold text-white mb-4">Prediction Reveal</h2>
-              <div className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-3">
                 {session.predictions.map((pred) => {
                   const pUser = session.participants.find((p) => p.userId === pred.userId)?.user;
                   return (
@@ -703,7 +772,7 @@ export default function ScreeningSessionPage() {
           )}
 
           {/* Rate the movie link */}
-          {session.movieId && (
+          {session.tmdbId && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
               <h2 className="text-sm font-semibold text-white mb-2">Rate This Movie</h2>
               <p className="text-xs text-[var(--foreground-muted)] mb-3">Use the Ratist rating system, then come back to compare.</p>
