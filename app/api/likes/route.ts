@@ -63,7 +63,8 @@ export async function POST(req: NextRequest) {
       // Notify content owner and check milestones
       let recipientId: string | undefined;
       let link: string | undefined;
-      let contentTitle = "";
+      let message = "";
+      let milestoneLabel = "";
 
       if (targetType === "review") {
         const rating = await prisma.movieRating.findUnique({
@@ -72,33 +73,21 @@ export async function POST(req: NextRequest) {
         });
         if (rating) {
           recipientId = rating.userId;
-          contentTitle = rating.movie.title;
           link = buildReviewLink(rating.movie.tmdbId, targetId);
-        }
-      } else if (targetType === "blog") {
-        const post = await prisma.blogPost.findUnique({
-          where: { id: targetId },
-          select: { authorId: true, slug: true, type: true, title: true },
-        });
-        if (post) {
-          recipientId = post.authorId;
-          contentTitle = post.title;
-          if (post.type === "PUNCH_AND_JUDY") link = buildPunchAndJudyLink(post.slug);
-          else if (post.type === "MOVIE_MAP") link = buildMovieMapLink(post.slug);
-          else link = buildBlogLink(post.slug);
+          message = `${user.name} liked your "${rating.movie.title}" review`;
+          milestoneLabel = `Your "${rating.movie.title}" review`;
         }
       }
+      // Skip notifications for blog/P&J/movie-map post likes — authors are admins
 
-      if (recipientId) {
-        const label = targetType === "review" ? "review" : "post";
-        const titlePart = contentTitle ? ` "${contentTitle}"` : "";
+      if (recipientId && message) {
         notify({
           recipientId,
           actorId: user.id,
           type: "post_like",
           targetType,
           targetId,
-          message: `${user.name} liked your ${label}${titlePart}`,
+          message,
           link,
         });
 
@@ -109,7 +98,7 @@ export async function POST(req: NextRequest) {
           targetId,
           currentCount: count,
           countLabel: "likes",
-          contentLabel: contentTitle ? `Your ${label} "${contentTitle}"` : `Your ${label}`,
+          contentLabel: milestoneLabel || "Your content",
           link,
         });
       }

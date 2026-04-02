@@ -24,7 +24,7 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const readMenuRef = useRef<HTMLDivElement>(null);
 
-  // Poll notification count
+  // Poll notification count + listen for instant updates
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
     let cancelled = false;
@@ -36,9 +36,15 @@ export default function Navbar() {
         setUnreadCount(data.unreadCount ?? 0);
       }
     }
+    function onNotifUpdate(e: Event) {
+      const count = (e as CustomEvent).detail?.unreadCount;
+      if (typeof count === "number") setUnreadCount(count);
+      else check();
+    }
+    window.addEventListener("ratist:notif-update", onNotifUpdate);
     check();
-    const interval = setInterval(check, 60000); // check every 60s
-    return () => { cancelled = true; clearInterval(interval); };
+    const interval = setInterval(check, 60000);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener("ratist:notif-update", onNotifUpdate); };
   }, [user]);
 
   useEffect(() => {

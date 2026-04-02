@@ -97,10 +97,12 @@ export async function POST(req: NextRequest) {
       include: { user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
     });
 
-    // Resolve content owner, title, and link for notifications
+    // Resolve content owner, title, label, and link for notifications
     let contentOwnerId: string | undefined;
-    let contentTitle = "";
+    let notifMessage = "";
+    let replyMessage = "";
     let link: string | undefined;
+    let skipOwnerNotify = false; // blog/P&J/movie-map authors don't need notifications
 
     if (targetType === "review") {
       const rating = await prisma.movieRating.findUnique({
@@ -109,8 +111,9 @@ export async function POST(req: NextRequest) {
       });
       if (rating) {
         contentOwnerId = rating.userId;
-        contentTitle = rating.movie.title;
         link = buildReviewLink(rating.movie.tmdbId, targetId);
+        notifMessage = `${user.name} commented on your "${rating.movie.title}" review`;
+        replyMessage = `${user.name} replied to your comment on the "${rating.movie.title}" review`;
       }
     } else if (targetType === "blog") {
       const post = await prisma.blogPost.findUnique({
@@ -119,57 +122,63 @@ export async function POST(req: NextRequest) {
       });
       if (post) {
         contentOwnerId = post.authorId;
-        contentTitle = post.title;
+        skipOwnerNotify = true; // admins don't need comment notifications on their posts
         if (post.type === "PUNCH_AND_JUDY") link = buildPunchAndJudyLink(post.slug);
         else if (post.type === "MOVIE_MAP") link = buildMovieMapLink(post.slug);
         else link = buildBlogLink(post.slug);
+        replyMessage = `${user.name} replied to your comment on "${post.title}"`;
       }
     } else if (targetType === "lookslike") {
       const entry = await prisma.looksLike.findUnique({ where: { id: targetId }, select: { creatorId: true, name1: true, name2: true } });
       if (entry) {
         contentOwnerId = entry.creatorId;
-        contentTitle = `${entry.name1} & ${entry.name2}`;
         link = "/community/looks-like";
+        notifMessage = `${user.name} commented on your "${entry.name1} & ${entry.name2}" Looks Like submission`;
+        replyMessage = `${user.name} replied to your comment on the "${entry.name1} & ${entry.name2}" Looks Like submission`;
       }
     } else if (targetType === "recast") {
-      const entry = await prisma.recast.findUnique({ where: { id: targetId }, select: { creatorId: true, movieTitle: true, characterName: true } });
+      const entry = await prisma.recast.findUnique({ where: { id: targetId }, select: { creatorId: true, movieTitle: true, characterName: true, suggestedActorName: true } });
       if (entry) {
         contentOwnerId = entry.creatorId;
-        contentTitle = `${entry.characterName} in ${entry.movieTitle}`;
         link = "/community/recast";
+        notifMessage = `${user.name} commented on your "${entry.characterName} in ${entry.movieTitle}" Recast submission`;
+        replyMessage = `${user.name} replied to your comment on the "${entry.characterName} in ${entry.movieTitle}" Recast`;
       }
     } else if (targetType === "hottake") {
       const entry = await prisma.hotTake.findUnique({ where: { id: targetId }, select: { authorId: true, content: true } });
       if (entry) {
         contentOwnerId = entry.authorId;
-        contentTitle = entry.content.length > 40 ? entry.content.slice(0, 40) + "…" : entry.content;
         link = "/community/hot-takes";
+        const snippet = entry.content.length > 50 ? entry.content.slice(0, 50) + "…" : entry.content;
+        notifMessage = `${user.name} commented on your "${snippet}" Hot Take`;
+        replyMessage = `${user.name} replied to your comment on the "${snippet}" Hot Take`;
       }
+    } else if (targetType === "oscar_category") {
+      replyMessage = `${user.name} replied to your comment in Oscar Picks`;
+      link = "/community/oscar-picks";
     }
-
-    const titleSuffix = contentTitle ? ` on "${contentTitle}"` : "";
 
     if (parentId) {
       const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { userId: true } });
-      if (parent) {
+      if (parent && replyMessage) {
         notify({
           recipientId: parent.userId,
           actorId: user.id,
           type: "reply",
           targetType,
           targetId,
-          message: `${user.name} replied to your comment${titleSuffix}`,
+          message: replyMessage,
           link,
         });
       }
-    } else if (contentOwnerId) {
+    } else if (contentOwnerId && notifMessage && !skipOwnerNotify) {
       notify({
         recipientId: contentOwnerId,
         actorId: user.id,
         type: "comment",
         targetType,
         targetId,
-        message: `${user.name} commented${titleSuffix}`,
+        message: notifMessage,
         link,
       });
     }

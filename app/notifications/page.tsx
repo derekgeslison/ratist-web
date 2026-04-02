@@ -58,6 +58,7 @@ export default function NotificationsPage() {
       body: JSON.stringify({ markAll: true }),
     });
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: 0 } }));
   }
 
   async function handleClick(n: NotificationItem) {
@@ -70,6 +71,8 @@ export default function NotificationsPage() {
         body: JSON.stringify({ ids: [n.id] }),
       }).catch(() => {});
       setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
+      const newUnread = notifications.filter((x) => !x.read && x.id !== n.id).length;
+      window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: newUnread } }));
     }
     if (n.link) router.push(n.link);
   }
