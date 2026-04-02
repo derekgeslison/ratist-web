@@ -24,10 +24,11 @@ export async function GET(req: NextRequest) {
     const minRating = parseFloat(req.nextUrl.searchParams.get("minRating") ?? "0");
     const maxRating = parseFloat(req.nextUrl.searchParams.get("maxRating") ?? "10");
 
-    const ratings = await prisma.movieRating.findMany({
+    // Fetch ALL seen movies (not just rated) as the base dataset
+    const allSeen = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
       select: {
-        ratistRating: true, movieId: true,
+        movieId: true,
         movie: {
           select: {
             title: true, runtime: true, releaseDate: true,
@@ -42,8 +43,21 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // Fetch ratings separately to join in
+    const ratings = await prisma.movieRating.findMany({
+      where: { userId: user.id },
+      select: { movieId: true, ratistRating: true },
+    });
+    const ratingByMovieId = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
+
+    // Combine seen movies with their ratings (if any)
+    const combined = allSeen.map((s) => ({
+      ...s,
+      ratistRating: ratingByMovieId.get(s.movieId) ?? null,
+    }));
+
     // Apply filters
-    let filtered = ratings;
+    let filtered = combined;
     if (genreFilter) filtered = filtered.filter((r) => r.movie.genres.some((g) => g.genre.name === genreFilter));
     if (decadeFilter) filtered = filtered.filter((r) => {
       const y = r.movie.releaseDate?.slice(0, 3);
