@@ -480,7 +480,7 @@ export default function RateMoviePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => { if (window.history.length <= 1) { window.close(); } else { router.back(); } }}
               disabled={submitting}
               className="px-6 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-xl transition-colors disabled:opacity-50"
             >

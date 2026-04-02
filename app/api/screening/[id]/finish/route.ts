@@ -23,6 +23,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const body = await req.json().catch(() => ({}));
 
+    // Undo finish
+    if (body.undo) {
+      await prisma.screeningParticipant.update({
+        where: { sessionId_userId: { sessionId: id, userId: user.id } },
+        data: { hasFinished: false },
+      });
+      return NextResponse.json({ ok: true, allFinished: false });
+    }
+
     // Host can force-finish everyone
     if (body.forceAll && session.hostId === user.id) {
       await prisma.screeningParticipant.updateMany({

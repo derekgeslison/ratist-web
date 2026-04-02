@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
-import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle } from "lucide-react";
+import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
@@ -124,6 +125,8 @@ export default function ScreeningSessionPage() {
 
   // Post-watch sub-phase: "rate" | "compare"
   const [postWatchPhase, setPostWatchPhase] = useState<"rate" | "compare">("rate");
+  const [pingOnMessage, setPingOnMessage] = useState(false);
+  const pingOnMessageRef = useRef(false);
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
   // Running timer
@@ -216,10 +219,17 @@ export default function ScreeningSessionPage() {
     if (!rtdb || !session || (session.status !== "WATCHING" && session.status !== "POST_WATCH")) return;
     const chatRef = ref(rtdb, rtdbPaths.chat(id));
     setChatMessages([]);
+    let isInitialLoad = true;
     const unsub = onChildAdded(chatRef, (snap) => {
       const msg = snap.val() as RTDBChatMessage;
       setChatMessages((prev) => [...prev, { ...msg, key: snap.key! }]);
+      // Ding on new messages from others (not initial load, not system, not self)
+      if (!isInitialLoad && pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
+        playDing(600, 0.08);
+      }
     });
+    // After initial batch, mark as loaded
+    setTimeout(() => { isInitialLoad = false; }, 1000);
     return () => off(chatRef, "child_added", unsub);
   }, [id, session?.status]);
 
@@ -273,10 +283,16 @@ export default function ScreeningSessionPage() {
     return () => off(resumeRef, "value", unsub);
   }, [id, isPaused]);
 
-  // Auto-start resume countdown when all ready during pause
+  // Auto-start resume countdown when all ready during pause (or force resume)
   useEffect(() => {
     if (!isPaused || !session) return;
-    const resumeCount = Object.values(resumeReadyUsers).filter(Boolean).length;
+    // Force resume flag
+    if (resumeReadyUsers._forceResume && resumeCountdown === null) {
+      playDoubleDing();
+      setResumeCountdown(5);
+      return;
+    }
+    const resumeCount = Object.values(resumeReadyUsers).filter((v) => v === true).length;
     const allResumeReady = resumeCount === session.participants.length && session.participants.length > 0;
     if (allResumeReady && resumeCountdown === null) {
       playDoubleDing();
@@ -506,8 +522,8 @@ export default function ScreeningSessionPage() {
 
   async function forceResume() {
     if (!rtdb) return;
-    playDoubleDing();
-    setResumeCountdown(5);
+    // Write to RTDB so all participants see the countdown
+    await set(ref(rtdb, rtdbPaths.resumeReady(id)), { _forceResume: true });
   }
 
   async function markFinished(forceAll = false) {
@@ -517,6 +533,17 @@ export default function ScreeningSessionPage() {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ forceAll }),
+    });
+    fetchSession();
+  }
+
+  async function undoFinished() {
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`/api/screening/${id}/finish`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ undo: true }),
     });
     fetchSession();
   }
@@ -688,7 +715,8 @@ export default function ScreeningSessionPage() {
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 max-w-sm w-full mx-4 text-center">
             <PauseCircle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
             <h2 className="text-xl font-bold text-white mb-2">Movie Paused</h2>
-            <p className="text-sm text-[var(--foreground-muted)] mb-6">Ready up when you&apos;re ready to resume</p>
+            <p className="text-sm text-[var(--foreground-muted)] mb-2">Ready up when you&apos;re ready to resume</p>
+            <p className="text-[10px] text-[var(--foreground-muted)] mb-6">A 5-second countdown will begin when everyone is ready</p>
             <p className="text-xs text-[var(--foreground-muted)] mb-3">
               {Object.values(resumeReadyUsers).filter(Boolean).length}/{session?.participants.length ?? 0} ready to resume
             </p>
@@ -914,7 +942,7 @@ export default function ScreeningSessionPage() {
                 Done Watching
               </button>
             ) : (
-              <span className="text-xs text-green-400 flex-shrink-0">Done ✓</span>
+              <button onClick={undoFinished} className="text-xs text-green-400 hover:text-yellow-400 flex-shrink-0 transition-colors" title="Undo">Done ✓ (undo)</button>
             )}
             {amHost && (
               <button onClick={() => markFinished(true)} className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30 flex-shrink-0">
@@ -931,6 +959,10 @@ export default function ScreeningSessionPage() {
                 <MessageCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Chat
               </h2>
               <div className="flex items-center gap-3">
+                <button onClick={() => { setPingOnMessage(!pingOnMessage); pingOnMessageRef.current = !pingOnMessage; }}
+                  className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors" title={pingOnMessage ? "Mute message pings" : "Ping on new messages"}>
+                  {pingOnMessage ? <Bell className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> : <BellOff className="w-3.5 h-3.5" />}
+                </button>
                 <button onClick={sendPauseRequest} disabled={!!activePause || isPaused} className="flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 transition-colors disabled:opacity-30">
                   <PauseCircle className="w-3 h-3" /> Pause
                 </button>
@@ -1173,9 +1205,17 @@ export default function ScreeningSessionPage() {
                 </section>
               )}
 
-              {/* Share recap link */}
-              <div className="text-center pt-2">
-                <p className="text-xs text-[var(--foreground-muted)]">This session is saved. You can revisit this recap anytime from your Screening Rooms.</p>
+              {/* Footer: share + back */}
+              <div className="text-center pt-4 space-y-3">
+                <p className="text-xs text-[var(--foreground-muted)]">This session is saved. You can revisit the recap anytime from your Screening Rooms.</p>
+                <div className="flex items-center justify-center gap-4">
+                  <Link href="/screening-room" className="text-sm text-[var(--ratist-red)] hover:underline">
+                    ← Back to Screening Rooms
+                  </Link>
+                  <Link href={`/screening-room/${id}/recap`} className="text-sm text-[var(--foreground-muted)] hover:text-white">
+                    View Shareable Recap
+                  </Link>
+                </div>
               </div>
             </>
           )}
