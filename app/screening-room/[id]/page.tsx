@@ -188,15 +188,7 @@ export default function ScreeningSessionPage() {
   }
 
   async function selectMovie(m: MovieResult) {
-    // First ensure the movie is cached in our DB
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/tmdb/movie/${m.id}`);
-    // Then look up the internal movie ID
-    const movieRes = await fetch(`/api/tmdb/movie/${m.id}`);
-    const movieData = await movieRes.json();
     await apiPatch({
-      movieId: movieData.id,
       tmdbId: m.id,
       movieTitle: m.title,
       posterPath: m.posterPath,

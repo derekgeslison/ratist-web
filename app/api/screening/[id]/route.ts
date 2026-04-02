@@ -76,11 +76,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const data: Record<string, unknown> = {};
 
     // Setting the movie (host or anyone in lobby)
-    if (body.movieId !== undefined && session.status === "LOBBY") {
-      data.movieId = body.movieId;
-      data.tmdbId = body.tmdbId ?? null;
-      data.movieTitle = body.movieTitle ?? null;
-      data.posterPath = body.posterPath ?? null;
+    if ((body.movieId !== undefined || body.tmdbId !== undefined || body.movieTitle !== undefined) && session.status === "LOBBY") {
+      if (body.movieId !== undefined) data.movieId = body.movieId || null;
+      if (body.tmdbId !== undefined) data.tmdbId = body.tmdbId ?? null;
+      if (body.movieTitle !== undefined) data.movieTitle = body.movieTitle ?? null;
+      if (body.posterPath !== undefined) data.posterPath = body.posterPath ?? null;
     }
 
     // Status transitions
