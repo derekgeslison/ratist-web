@@ -111,6 +111,7 @@ export default function RankingsPage() {
   const [movies, setMovies] = useState<RankedMovie[]>([]);
   const [filter, setFilter] = useState<"all" | string>(String(CURRENT_YEAR));
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(50);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -124,7 +125,7 @@ export default function RankingsPage() {
     user.getIdToken().then((token) => {
       fetch(`/api/tools/rankings?filter=${filter}`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then((data) => { setMovies(data.movies ?? []); setLoading(false); })
+        .then((data) => { setMovies(data.movies ?? []); setVisibleCount(50); setLoading(false); })
         .catch(() => setLoading(false));
     });
   }, [user, filter]);
@@ -196,23 +197,40 @@ export default function RankingsPage() {
             <p className="text-[var(--foreground-muted)] text-center py-10">Loading your movies...</p>
           ) : movies.length === 0 ? (
             <p className="text-[var(--foreground-muted)] text-center py-10">No movies found for this filter. <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Rate or mark movies as seen.</Link></p>
-          ) : (
-            <DndContext key={filter} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={movies.map((m) => m.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-2">
-                  {movies.map((movie, index) => (
-                    <SortableItem
-                      key={movie.id}
-                      movie={movie}
-                      index={index}
-                      total={movies.length}
-                      onMoveTo={handleMoveTo}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
+          ) : (() => {
+            const visible = movies.slice(0, visibleCount);
+            const hasMore = movies.length > visibleCount;
+            return (
+              <>
+                <DndContext key={filter} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={visible.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {visible.map((movie, index) => (
+                        <SortableItem
+                          key={movie.id}
+                          movie={movie}
+                          index={index}
+                          total={movies.length}
+                          onMoveTo={handleMoveTo}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+                {hasMore && (
+                  <div className="text-center mt-4 space-y-1">
+                    <p className="text-xs text-[var(--foreground-muted)]">Showing {visibleCount} of {movies.length} movies</p>
+                    <button
+                      onClick={() => setVisibleCount((v) => v + 50)}
+                      className="text-sm text-[var(--ratist-red)] hover:underline"
+                    >
+                      Show more
+                    </button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
     </div>

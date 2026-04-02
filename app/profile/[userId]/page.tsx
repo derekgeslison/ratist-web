@@ -76,7 +76,14 @@ export default async function ProfilePage({ params }: Props) {
     }),
     prisma.movieRating.findMany({
       where: { userId: user.id },
-      include: {
+      select: {
+        id: true,
+        movieId: true,
+        ratistRating: true,
+        overallRating: true,
+        reviewText: true,
+        reviewType: true,
+        createdAt: true,
         movie: {
           select: {
             tmdbId: true,
