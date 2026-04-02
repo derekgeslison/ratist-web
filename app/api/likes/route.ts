@@ -63,23 +63,26 @@ export async function POST(req: NextRequest) {
       // Notify content owner and check milestones
       let recipientId: string | undefined;
       let link: string | undefined;
+      let contentTitle = "";
 
       if (targetType === "review") {
         const rating = await prisma.movieRating.findUnique({
           where: { id: targetId },
-          select: { userId: true, movie: { select: { tmdbId: true } } },
+          select: { userId: true, movie: { select: { tmdbId: true, title: true } } },
         });
         if (rating) {
           recipientId = rating.userId;
+          contentTitle = rating.movie.title;
           link = buildReviewLink(rating.movie.tmdbId, targetId);
         }
       } else if (targetType === "blog") {
         const post = await prisma.blogPost.findUnique({
           where: { id: targetId },
-          select: { authorId: true, slug: true, type: true },
+          select: { authorId: true, slug: true, type: true, title: true },
         });
         if (post) {
           recipientId = post.authorId;
+          contentTitle = post.title;
           if (post.type === "PUNCH_AND_JUDY") link = buildPunchAndJudyLink(post.slug);
           else if (post.type === "MOVIE_MAP") link = buildMovieMapLink(post.slug);
           else link = buildBlogLink(post.slug);
@@ -87,13 +90,15 @@ export async function POST(req: NextRequest) {
       }
 
       if (recipientId) {
+        const label = targetType === "review" ? "review" : "post";
+        const titlePart = contentTitle ? ` "${contentTitle}"` : "";
         notify({
           recipientId,
           actorId: user.id,
           type: "post_like",
           targetType,
           targetId,
-          message: `${user.name} liked your ${targetType === "review" ? "review" : "post"}`,
+          message: `${user.name} liked your ${label}${titlePart}`,
           link,
         });
 
@@ -104,7 +109,7 @@ export async function POST(req: NextRequest) {
           targetId,
           currentCount: count,
           countLabel: "likes",
-          contentLabel: targetType === "review" ? "Your review" : "Your post",
+          contentLabel: contentTitle ? `Your ${label} "${contentTitle}"` : `Your ${label}`,
           link,
         });
       }

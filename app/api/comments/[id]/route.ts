@@ -48,13 +48,14 @@ export async function POST(req: NextRequest, { params }: Props) {
         data: { userId: user.id, commentId: id },
       });
 
+      const snippet = comment.text.length > 50 ? comment.text.slice(0, 50) + "…" : comment.text;
       notify({
         recipientId: comment.userId,
         actorId: user.id,
         type: "comment_like",
         targetType: comment.targetType,
         targetId: comment.targetId,
-        message: `${user.name} liked your comment`,
+        message: `${user.name} liked your comment: "${snippet}"`,
       });
 
       const likeCount = await prisma.commentLike.count({ where: { commentId: id } });

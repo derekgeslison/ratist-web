@@ -97,28 +97,59 @@ export async function POST(req: NextRequest) {
       include: { user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
     });
 
-    // Build link based on target type
+    // Resolve content owner, title, and link for notifications
+    let contentOwnerId: string | undefined;
+    let contentTitle = "";
     let link: string | undefined;
+
     if (targetType === "review") {
       const rating = await prisma.movieRating.findUnique({
         where: { id: targetId },
-        select: { userId: true, movie: { select: { tmdbId: true } } },
+        select: { userId: true, movie: { select: { tmdbId: true, title: true } } },
       });
-      if (rating) link = buildReviewLink(rating.movie.tmdbId, targetId);
+      if (rating) {
+        contentOwnerId = rating.userId;
+        contentTitle = rating.movie.title;
+        link = buildReviewLink(rating.movie.tmdbId, targetId);
+      }
     } else if (targetType === "blog") {
       const post = await prisma.blogPost.findUnique({
         where: { id: targetId },
-        select: { authorId: true, slug: true, type: true },
+        select: { authorId: true, slug: true, type: true, title: true },
       });
       if (post) {
+        contentOwnerId = post.authorId;
+        contentTitle = post.title;
         if (post.type === "PUNCH_AND_JUDY") link = buildPunchAndJudyLink(post.slug);
         else if (post.type === "MOVIE_MAP") link = buildMovieMapLink(post.slug);
         else link = buildBlogLink(post.slug);
       }
+    } else if (targetType === "lookslike") {
+      const entry = await prisma.looksLike.findUnique({ where: { id: targetId }, select: { creatorId: true, name1: true, name2: true } });
+      if (entry) {
+        contentOwnerId = entry.creatorId;
+        contentTitle = `${entry.name1} & ${entry.name2}`;
+        link = "/community/looks-like";
+      }
+    } else if (targetType === "recast") {
+      const entry = await prisma.recast.findUnique({ where: { id: targetId }, select: { creatorId: true, movieTitle: true, characterName: true } });
+      if (entry) {
+        contentOwnerId = entry.creatorId;
+        contentTitle = `${entry.characterName} in ${entry.movieTitle}`;
+        link = "/community/recast";
+      }
+    } else if (targetType === "hottake") {
+      const entry = await prisma.hotTake.findUnique({ where: { id: targetId }, select: { authorId: true, content: true } });
+      if (entry) {
+        contentOwnerId = entry.authorId;
+        contentTitle = entry.content.length > 40 ? entry.content.slice(0, 40) + "…" : entry.content;
+        link = "/community/hot-takes";
+      }
     }
 
+    const titleSuffix = contentTitle ? ` on "${contentTitle}"` : "";
+
     if (parentId) {
-      // Reply: notify the parent comment author
       const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { userId: true } });
       if (parent) {
         notify({
@@ -127,85 +158,20 @@ export async function POST(req: NextRequest) {
           type: "reply",
           targetType,
           targetId,
-          message: `${user.name} replied to your comment`,
+          message: `${user.name} replied to your comment${titleSuffix}`,
           link,
         });
       }
-    } else {
-      // Top-level comment: notify the content owner
-      if (targetType === "review") {
-        const rating = await prisma.movieRating.findUnique({
-          where: { id: targetId },
-          select: { userId: true, movie: { select: { tmdbId: true } } },
-        });
-        if (rating) {
-          notify({
-            recipientId: rating.userId,
-            actorId: user.id,
-            type: "comment",
-            targetType,
-            targetId,
-            message: `${user.name} commented on your review`,
-            link: link ?? buildReviewLink(rating.movie.tmdbId, targetId),
-          });
-        }
-      } else if (targetType === "blog") {
-        const post = await prisma.blogPost.findUnique({
-          where: { id: targetId },
-          select: { authorId: true, slug: true, type: true },
-        });
-        if (post) {
-          let postLink: string;
-          if (post.type === "PUNCH_AND_JUDY") postLink = buildPunchAndJudyLink(post.slug);
-          else if (post.type === "MOVIE_MAP") postLink = buildMovieMapLink(post.slug);
-          else postLink = buildBlogLink(post.slug);
-          notify({
-            recipientId: post.authorId,
-            actorId: user.id,
-            type: "comment",
-            targetType,
-            targetId,
-            message: `${user.name} commented on your post`,
-            link: postLink,
-          });
-        }
-      } else if (targetType === "lookslike") {
-        const entry = await prisma.looksLike.findUnique({ where: { id: targetId }, select: { creatorId: true } });
-        if (entry) {
-          notify({
-            recipientId: entry.creatorId,
-            actorId: user.id,
-            type: "comment",
-            targetType,
-            targetId,
-            message: `${user.name} commented on your Looks Like submission`,
-          });
-        }
-      } else if (targetType === "recast") {
-        const entry = await prisma.recast.findUnique({ where: { id: targetId }, select: { creatorId: true } });
-        if (entry) {
-          notify({
-            recipientId: entry.creatorId,
-            actorId: user.id,
-            type: "comment",
-            targetType,
-            targetId,
-            message: `${user.name} commented on your Recast submission`,
-          });
-        }
-      } else if (targetType === "hottake") {
-        const entry = await prisma.hotTake.findUnique({ where: { id: targetId }, select: { authorId: true } });
-        if (entry) {
-          notify({
-            recipientId: entry.authorId,
-            actorId: user.id,
-            type: "comment",
-            targetType,
-            targetId,
-            message: `${user.name} commented on your Hot Take`,
-          });
-        }
-      }
+    } else if (contentOwnerId) {
+      notify({
+        recipientId: contentOwnerId,
+        actorId: user.id,
+        type: "comment",
+        targetType,
+        targetId,
+        message: `${user.name} commented${titleSuffix}`,
+        link,
+      });
     }
 
     return NextResponse.json({

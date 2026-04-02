@@ -72,6 +72,16 @@ export async function POST(req: NextRequest, { params }: Props) {
       data: { watchlistId: id, userId: target.id, role: cleanRole, status: "pending" },
     });
 
+    notify({
+      recipientId: target.id,
+      actorId: user.id,
+      type: "watchlist_invite",
+      targetType: "watchlist",
+      targetId: id,
+      message: `${user.name} invited you to collaborate on "${watchlist.name}"`,
+      link: "/watchlist",
+    });
+
     return NextResponse.json({
       collaborator: {
         userId: target.id,
