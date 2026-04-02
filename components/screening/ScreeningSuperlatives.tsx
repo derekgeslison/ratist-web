@@ -143,19 +143,23 @@ export default function ScreeningSuperlatives({ participants, predictions, ratin
     }
   }
 
-  // The Critic — longest review text
-  const reviewLengths = ratings
-    .filter((r) => r.reviewText && r.reviewText.length > 10)
-    .map((r) => ({ userId: r.userId, length: r.reviewText!.length }))
-    .sort((a, b) => b.length - a.length);
-  if (reviewLengths.length > 0) {
-    const winner = reviewLengths[0];
-    awards.push({
-      title: "The Critic",
-      emoji: "✍️",
-      winner: getName(winner.userId),
-      detail: `${winner.length} character review`,
-    });
+  // The Quiet One — fewest messages
+  if (chatCounts.size > 0 && participants.length > 1) {
+    // Include participants with 0 messages
+    let minId = "";
+    let minCount = Infinity;
+    for (const p of participants) {
+      const count = chatCounts.get(p.userId) ?? 0;
+      if (count < minCount) { minCount = count; minId = p.userId; }
+    }
+    if (minId) {
+      awards.push({
+        title: "The Quiet One",
+        emoji: "🤫",
+        winner: getName(minId),
+        detail: minCount === 0 ? "Zero messages" : `Only ${minCount} message${minCount !== 1 ? "s" : ""}`,
+      });
+    }
   }
 
   if (awards.length === 0) return null;

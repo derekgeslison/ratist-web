@@ -209,7 +209,7 @@ export default function ScreeningRoomDashboard() {
         <div className="space-y-3">
           {completedSessions.map((s) => (
             <div key={s.id} className="flex items-center gap-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors">
-              <Link href={`/screening-room/${s.id}/recap`} className="flex items-center gap-4 flex-1 min-w-0">
+              <Link href={`/screening-room/${s.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="w-12 h-16 rounded-lg overflow-hidden bg-[var(--surface-2)] flex-shrink-0">
                   {s.posterPath ? (
                     <Image src={`${TMDB_IMG}${s.posterPath}`} alt={s.movieTitle ?? ""} width={48} height={64} className="object-cover w-full h-full" />
