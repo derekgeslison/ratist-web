@@ -778,7 +778,7 @@ export default function ProfileTabs({
                       Reorder →
                     </Link>
                   )}
-                  {displayRankings.length >= 1 && (
+                  {isOwnProfile && displayRankings.length >= 1 && (
                     <ShareButton
                       label={`Share ${listLabel.toLowerCase()}`}
                       text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} ${listLabel.toLowerCase()} on The Ratist!\n\nTop picks: ${displayRankings.slice(0, 3).map((r) => r.title).join(", ")}${displayRankings.length > 3 ? "..." : ""}`}

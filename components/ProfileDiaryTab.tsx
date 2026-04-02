@@ -83,7 +83,7 @@ export default function ProfileDiaryTab({
           <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">View full diary →</Link>
         ) : <div />}
         <div className="flex items-center gap-3">
-          {seenThisYear > 0 && (
+          {isOwnProfile && seenThisYear > 0 && (
             <>
               <Link href={`/profile/${profileFirebaseUid}/year-in-review/${activeYear}`}
                 className="text-xs text-[var(--ratist-red)] hover:underline shrink-0">

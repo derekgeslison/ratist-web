@@ -65,8 +65,11 @@ export default async function PublicRankingsPage({ params }: Props) {
     }));
   } else {
     const allRatings = await prisma.movieRating.findMany({
-      where: { userId: user.id },
-      include: { movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } } },
+      where: { userId: user.id, ratistRating: { not: null } },
+      select: {
+        ratistRating: true,
+        movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
+      },
       orderBy: { ratistRating: "desc" },
     });
     let filtered = allRatings.map((r) => ({
