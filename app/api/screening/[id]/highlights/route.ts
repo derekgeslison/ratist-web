@@ -48,40 +48,47 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const userMessages = messages.filter((m) => !m.system && m.userId !== "system");
     if (userMessages.length < 3) return NextResponse.json({ ok: true, message: "Not enough messages" });
 
-    // Find peak activity windows (5-minute windows for production, works for testing too)
-    const WINDOW_MS = 5 * 60 * 1000;
     const MAX_PER_WINDOW = 25;
+    const GAP_THRESHOLD_MS = 60 * 1000; // 60 seconds of silence = new conversation
 
-    const firstTs = userMessages[0].timestamp;
-    const lastTs = userMessages[userMessages.length - 1].timestamp;
-    const span = lastTs - firstTs;
-
+    // Gap-based detection: split messages into conversation bursts
+    // A new burst starts when there's a 60+ second gap between messages
     interface Window { start: number; end: number; count: number; messages: ChatMessage[] }
-    const windows: Window[] = [];
+    const bursts: Window[] = [];
+    let currentBurst: ChatMessage[] = [userMessages[0]];
 
-    if (span < WINDOW_MS) {
-      // All messages fit in one window
-      windows.push({ start: firstTs, end: lastTs, count: userMessages.length, messages: userMessages });
-    } else {
-      // Slide through in 30-second steps
-      for (let start = firstTs; start <= lastTs; start += 30000) {
-        const end = start + WINDOW_MS;
-        const windowMsgs = userMessages.filter((m) => m.timestamp >= start && m.timestamp < end);
-        if (windowMsgs.length >= 2) {
-          const windowEnd = windowMsgs[windowMsgs.length - 1].timestamp;
-          windows.push({ start, end: windowEnd, count: windowMsgs.length, messages: windowMsgs });
+    for (let i = 1; i < userMessages.length; i++) {
+      const gap = userMessages[i].timestamp - userMessages[i - 1].timestamp;
+      if (gap > GAP_THRESHOLD_MS) {
+        // End current burst, start new one
+        if (currentBurst.length >= 2) {
+          bursts.push({
+            start: currentBurst[0].timestamp,
+            end: currentBurst[currentBurst.length - 1].timestamp,
+            count: currentBurst.length,
+            messages: currentBurst,
+          });
         }
+        currentBurst = [userMessages[i]];
+      } else {
+        currentBurst.push(userMessages[i]);
       }
     }
-
-    // Sort by activity (most messages first), take top 3 non-overlapping
-    windows.sort((a, b) => b.count - a.count);
-    const selected: Window[] = [];
-    for (const w of windows) {
-      if (selected.length >= 3) break;
-      const overlaps = selected.some((s) => Math.abs(s.start - w.start) < WINDOW_MS);
-      if (!overlaps) selected.push(w);
+    // Don't forget the last burst
+    if (currentBurst.length >= 2) {
+      bursts.push({
+        start: currentBurst[0].timestamp,
+        end: currentBurst[currentBurst.length - 1].timestamp,
+        count: currentBurst.length,
+        messages: currentBurst,
+      });
     }
+
+    // Sort by activity (most messages first), take top 3
+    bursts.sort((a, b) => b.count - a.count);
+    const selected = bursts.slice(0, 3);
+    // Re-sort selected by time for display order
+    selected.sort((a, b) => a.start - b.start);
 
     // Persist ALL messages + polls from each window (capped at MAX_PER_WINDOW)
     const highlights = [];

@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function SignInPage() {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const router = useRouter();
+  const redirectTo = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") : null;
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,7 +22,7 @@ export default function SignInPage() {
     setLoading(true);
     try {
       const { isNewUser } = await signInWithGoogle();
-      router.push(isNewUser ? "/onboarding" : "/");
+      router.push(isNewUser ? "/onboarding" : (redirectTo ?? "/"));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Google sign-in failed");
     } finally {
@@ -39,7 +40,7 @@ export default function SignInPage() {
         router.push("/onboarding");
       } else {
         await signInWithEmail(email, password);
-        router.push("/");
+        router.push(redirectTo ?? "/");
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Authentication failed");

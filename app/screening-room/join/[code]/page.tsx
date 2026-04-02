@@ -47,7 +47,7 @@ export default function JoinByLinkPage() {
         <>
           <h1 className="text-xl font-bold text-white mb-2">Join Screening Room</h1>
           <p className="text-sm text-[var(--foreground-muted)] mb-4">Sign in to join with code {code?.toUpperCase()}</p>
-          <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors">
+          <Link href={`/auth/signin?redirect=${encodeURIComponent(`/screening-room/join/${code}`)}`} className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors">
             Sign In
           </Link>
         </>
