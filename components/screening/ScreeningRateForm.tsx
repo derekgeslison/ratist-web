@@ -61,6 +61,7 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted }: P
   const [values, setValues] = useState<Record<string, number | null>>({});
   const [overallRating, setOverallRating] = useState<number | null>(null);
   const [reviewText, setReviewText] = useState("");
+  const [editing, setEditing] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     Object.fromEntries(Object.keys(CRITERIA).map((k) => [k, true]))
   );
@@ -81,13 +82,17 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted }: P
       reviewText: reviewText || null,
       ...values,
     });
+    setEditing(false);
   }
 
-  if (submitted) {
+  if (submitted && !editing) {
     return (
       <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center">
         <p className="text-green-400 font-semibold mb-1">Rating Submitted!</p>
-        <p className="text-xs text-[var(--foreground-muted)]">Waiting for others to finish...</p>
+        <p className="text-xs text-[var(--foreground-muted)] mb-3">Waiting for others to finish...</p>
+        <button onClick={() => setEditing(true)} className="text-xs text-[var(--ratist-red)] hover:underline">
+          Edit my rating
+        </button>
       </div>
     );
   }
