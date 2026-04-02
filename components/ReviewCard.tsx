@@ -167,7 +167,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
       {/* Footer: like button + comment count + links */}
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)]/30">
         <div className="flex items-center gap-4">
-          <PostLikeButton targetType="review" targetId={review.id} />
+          <PostLikeButton targetType="review" targetId={review.id} initialLikeCount={review.likeCount} />
           {review.commentCount > 0 && (
             <span className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]">
               <MessageCircle className="w-3.5 h-3.5" /> {review.commentCount}
@@ -197,7 +197,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
 
       {/* Comments section — only shown on full review page */}
       {isFullPage && !review.commentsDisabled && (
-        <div className="pl-4 border-l border-[var(--border)]/20">
+        <div className="px-4 pb-4">
           <CommentSection targetType="review" targetId={review.id} disabled={review.commentsDisabled} />
         </div>
       )}

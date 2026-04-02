@@ -7,15 +7,20 @@ import { useAuth } from "@/context/AuthContext";
 interface Props {
   targetType: string;
   targetId: string;
+  initialLikeCount?: number;
+  initialLikedByMe?: boolean;
 }
 
-export default function PostLikeButton({ targetType, targetId }: Props) {
+export default function PostLikeButton({ targetType, targetId, initialLikeCount, initialLikedByMe }: Props) {
   const { user } = useAuth();
-  const [likeCount, setLikeCount] = useState(0);
-  const [likedByMe, setLikedByMe] = useState(false);
+  const [likeCount, setLikeCount] = useState(initialLikeCount ?? 0);
+  const [likedByMe, setLikedByMe] = useState(initialLikedByMe ?? false);
   const [toggling, setToggling] = useState(false);
+  const [loaded, setLoaded] = useState(initialLikeCount !== undefined);
 
+  // Only fetch if no initial data provided
   useEffect(() => {
+    if (loaded) return;
     (async () => {
       const headers: Record<string, string> = {};
       if (user) {
@@ -26,8 +31,9 @@ export default function PostLikeButton({ targetType, targetId }: Props) {
       const data = await res.json();
       setLikeCount(data.likeCount ?? 0);
       setLikedByMe(data.likedByMe ?? false);
+      setLoaded(true);
     })();
-  }, [user, targetType, targetId]);
+  }, [user, targetType, targetId, loaded]);
 
   async function toggle() {
     if (!user || toggling) return;

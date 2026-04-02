@@ -52,6 +52,7 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
   const [submitting, setSubmitting] = useState(false);
   const [togglingLike, setTogglingLike] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
 
   const getToken = useCallback(async () => {
@@ -221,13 +222,20 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
                     <Reply className="w-3 h-3" /> Reply
                   </button>
                   {isOwn && (
-                    <button
-                      onClick={() => deleteComment(comment.id)}
-                      disabled={deleting.has(comment.id)}
-                      className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    confirmingDelete === comment.id ? (
+                      <span className="flex items-center gap-1.5 text-xs">
+                        <button onClick={() => { deleteComment(comment.id); setConfirmingDelete(null); }} className="text-red-400 hover:text-red-300 font-medium">Delete</button>
+                        <button onClick={() => setConfirmingDelete(null)} className="text-[var(--foreground-muted)] hover:text-white">Cancel</button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingDelete(comment.id)}
+                        disabled={deleting.has(comment.id)}
+                        className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors opacity-0 group-hover/comment:opacity-100"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )
                   )}
                 </>
               )}
