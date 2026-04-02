@@ -49,6 +49,12 @@ model User {
   recastVotes    RecastVote[]
   hotTakes       HotTake[]
   hotTakeVotes   HotTakeVote[]
+  screeningSessionsHosted  ScreeningSession[]       @relation("screeningHost")
+  screeningParticipations  ScreeningParticipant[]
+  screeningPredictions     ScreeningPrediction[]
+  screeningPolls           ScreeningPoll[]
+  screeningBookmarks       ScreeningBookmark[]
+  screeningChatHighlights  ScreeningChatHighlight[]
   watchLog       UserWatchLog[]
   rankings       UserMovieRanking[]
   autoDateOnSeen    Boolean  @default(false) @map("auto_date_on_seen")
@@ -124,6 +130,7 @@ model Movie {
   watchLog    UserWatchLog[]
   watchlistEntries WatchlistMovie[]
   rankings         UserMovieRanking[]
+  screeningSessions ScreeningSession[]
 
   @@map("movies")
 }
@@ -687,4 +694,115 @@ model HotTakeVote {
 
   @@id([userId, hotTakeId])
   @@map("hot_take_votes")
+}
+
+// ─── Screening Room ───────────────────────────────────────────────────────────
+
+enum ScreeningSessionStatus {
+  LOBBY
+  COUNTDOWN
+  WATCHING
+  POST_WATCH
+  COMPLETE
+}
+
+model ScreeningSession {
+  id          String                  @id @default(cuid())
+  hostId      String                  @map("host_id")
+  movieId     String?                 @map("movie_id")
+  tmdbId      Int?                    @map("tmdb_id")
+  movieTitle  String?                 @map("movie_title")
+  posterPath  String?                 @map("poster_path")
+  status      ScreeningSessionStatus  @default(LOBBY)
+  inviteCode  String                  @unique @map("invite_code")
+  startedAt   DateTime?               @map("started_at")
+  finishedAt  DateTime?               @map("finished_at")
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  host           User                      @relation("screeningHost", fields: [hostId], references: [id], onDelete: Cascade)
+  movie          Movie?                    @relation(fields: [movieId], references: [id])
+  participants   ScreeningParticipant[]
+  predictions    ScreeningPrediction[]
+  polls          ScreeningPoll[]
+  bookmarks      ScreeningBookmark[]
+  chatHighlights ScreeningChatHighlight[]
+
+  @@map("screening_sessions")
+}
+
+model ScreeningParticipant {
+  sessionId   String   @map("session_id")
+  userId      String   @map("user_id")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+  hasAds      Boolean  @default(false) @map("has_ads")
+  hasFinished Boolean  @default(false) @map("has_finished")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@map("screening_participants")
+}
+
+model ScreeningPrediction {
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  userId      String   @map("user_id")
+  plotGuess   String?  @map("plot_guess")
+  ratingGuess Float?   @map("rating_guess")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@map("screening_predictions")
+}
+
+model ScreeningPoll {
+  id        String    @id @default(cuid())
+  sessionId String    @map("session_id")
+  creatorId String    @map("creator_id")
+  question  String
+  options   Json      // string[]
+  votes     Json      @default("{}") // { [userId]: optionIndex }
+  revealAt  String    @default("instant") @map("reveal_at") // "instant" | "end"
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  creator User             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@map("screening_polls")
+}
+
+model ScreeningBookmark {
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  userId    String   @map("user_id")
+  timestamp String   // movie timestamp e.g. "01:23:45"
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("screening_bookmarks")
+}
+
+model ScreeningChatHighlight {
+  id         String   @id @default(cuid())
+  sessionId  String   @map("session_id")
+  userId     String   @map("user_id")
+  text       String
+  emoji      String?
+  reactCount Int      @default(0) @map("react_count")
+  timestamp  DateTime
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("screening_chat_highlights")
 }

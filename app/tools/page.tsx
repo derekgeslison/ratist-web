@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench, Users, Film, Map, Trophy, Swords, Star, BarChart3, Sparkles } from "lucide-react";
+import { Wrench, Users, Film, Map, Trophy, Swords, Star, BarChart3, Sparkles, MonitorPlay } from "lucide-react";
 
 export const metadata: Metadata = { title: "Cinephile Tools" };
 
@@ -52,6 +52,12 @@ const TOOLS = [
     icon: Sparkles,
     title: "What Should I Watch?",
     desc: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized movie recommendations.",
+  },
+  {
+    href: "/screening-room",
+    icon: MonitorPlay,
+    title: "Screening Room",
+    desc: "Watch movies with friends remotely. Predict plots, react in real-time, run polls, and compare ratings when the credits roll.",
   },
 ];
 
