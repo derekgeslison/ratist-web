@@ -17,7 +17,7 @@ export async function GET() {
     const items = await prisma.hotTake.findMany({
       include: {
         author: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-        votes: { select: { value: true, userId: true } },
+        votes: { select: { value: true, user: { select: { firebaseUid: true } } } },
       },
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -34,7 +34,7 @@ export async function GET() {
     const result = items.map((item) => {
       const score = item.votes.reduce((sum, v) => sum + v.value, 0);
       const { votes, ...rest } = item;
-      return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.userId, value: v.value })), commentCount: commentMap[item.id] ?? 0 };
+      return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.user.firebaseUid, value: v.value })), commentCount: commentMap[item.id] ?? 0 };
     }).sort((a, b) => b.score - a.score);
 
     return NextResponse.json({ items: result });

@@ -52,7 +52,7 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
   const [submitting, setSubmitting] = useState(false);
   const [togglingLike, setTogglingLike] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
-  const [collapsedThreads, setCollapsedThreads] = useState<Set<string>>(new Set());
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
 
   const getToken = useCallback(async () => {
     if (!user) return null;
@@ -161,8 +161,8 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
     }));
   }
 
-  function toggleCollapse(id: string) {
-    setCollapsedThreads((prev) => {
+  function toggleExpand(id: string) {
+    setExpandedThreads((prev) => {
       const s = new Set(prev);
       if (s.has(id)) s.delete(id); else s.add(id);
       return s;
@@ -171,7 +171,7 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
 
   function renderComment(comment: CommentData, depth: number = 0) {
     const isOwn = user?.uid === comment.user.firebaseUid;
-    const isCollapsed = collapsedThreads.has(comment.id);
+    const isExpanded = expandedThreads.has(comment.id);
     const maxIndent = Math.min(depth, 4);
 
     return (
@@ -266,11 +266,11 @@ export default function CommentSection({ targetType, targetId, disabled }: Props
         {/* Replies */}
         {comment.replies.length > 0 && (
           <>
-            <button onClick={() => toggleCollapse(comment.id)} className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white ml-10 -mt-1 mb-1 transition-colors">
-              {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-              {isCollapsed ? `Show ${comment.replies.length} repl${comment.replies.length === 1 ? "y" : "ies"}` : "Hide replies"}
+            <button onClick={() => toggleExpand(comment.id)} className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white ml-10 -mt-1 mb-1 transition-colors">
+              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {isExpanded ? "Hide replies" : `Show ${comment.replies.length} repl${comment.replies.length === 1 ? "y" : "ies"}`}
             </button>
-            {!isCollapsed && comment.replies.map((reply) => renderComment(reply, depth + 1))}
+            {isExpanded && comment.replies.map((reply) => renderComment(reply, depth + 1))}
           </>
         )}
       </div>

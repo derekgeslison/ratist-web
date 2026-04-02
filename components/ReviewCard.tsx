@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, MessageCircle } from "lucide-react";
 import { scoreColor } from "@/lib/ratings";
 import CommentSection from "./CommentSection";
 import PostLikeButton from "./PostLikeButton";
@@ -168,6 +168,11 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
       <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border)]/30">
         <div className="flex items-center gap-4">
           <PostLikeButton targetType="review" targetId={review.id} />
+          {review.commentCount > 0 && (
+            <span className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]">
+              <MessageCircle className="w-3.5 h-3.5" /> {review.commentCount}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -190,8 +195,8 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
         </div>
       </div>
 
-      {/* Comments section — shown on full page and non-compact views */}
-      {!compact && !review.commentsDisabled && (
+      {/* Comments section — only shown on full review page */}
+      {isFullPage && !review.commentsDisabled && (
         <div className="pl-4 border-l border-[var(--border)]/20">
           <CommentSection targetType="review" targetId={review.id} disabled={review.commentsDisabled} />
         </div>
