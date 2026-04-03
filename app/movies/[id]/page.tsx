@@ -7,11 +7,13 @@ import {
   getMovieDetails,
   getWatchProviders,
   getMovieRecommendations,
+  getCollectionDetails,
   posterUrl,
   backdropUrl,
   getTrailerKey,
   getMpaaRating,
   type TMDBMovie,
+  type TMDBCollection,
 } from "@/lib/tmdb";
 import UserMoviePanel from "@/components/UserMoviePanel";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
@@ -61,10 +63,13 @@ export default async function MovieDetailPage({ params }: Props) {
     notFound();
   }
 
-  // Parallel fetch: watch providers + recommendations (non-blocking)
-  const [watchProviders, recommendations] = await Promise.all([
+  // Parallel fetch: watch providers + recommendations + collection (non-blocking)
+  const [watchProviders, recommendations, collection] = await Promise.all([
     getWatchProviders(movie.id).catch(() => null),
     getMovieRecommendations(movie.id).catch(() => ({ results: [] })),
+    movie.belongs_to_collection
+      ? getCollectionDetails(movie.belongs_to_collection.id).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   // Cache to local DB — only if not recently synced (fire and forget)
@@ -236,7 +241,62 @@ export default async function MovieDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Ad — between movie panel and tabs */}
+        {/* Collection / Franchise */}
+        {collection && collection.parts.length > 1 && (
+          <section className="mb-6">
+            <h2 className="text-sm font-semibold text-white mb-3">
+              Part of <span className="text-[var(--ratist-red)]">{collection.name}</span>
+            </h2>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+              {collection.parts
+                .sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""))
+                .map((part) => {
+                  const isCurrent = part.id === movie.id;
+                  return (
+                    <Link
+                      key={part.id}
+                      href={`/movies/${part.id}`}
+                      className={`shrink-0 w-28 group ${isCurrent ? "opacity-100" : "opacity-70 hover:opacity-100"} transition-opacity`}
+                    >
+                      <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] ${isCurrent ? "ring-2 ring-[var(--ratist-red)]" : "border border-[var(--border)]"}`}>
+                        {part.poster_path ? (
+                          <Image
+                            src={posterUrl(part.poster_path, "w185")}
+                            alt={part.title}
+                            fill
+                            sizes="112px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)] p-2 text-center">
+                            {part.title}
+                          </div>
+                        )}
+                        {isCurrent && (
+                          <div className="absolute top-1.5 left-1.5 bg-[var(--ratist-red)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                            Current
+                          </div>
+                        )}
+                        {part.vote_average > 0 && part.vote_average < 10 && (
+                          <div className="absolute top-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                            {part.vote_average.toFixed(1)}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-white mt-1.5 line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">
+                        {part.title}
+                      </p>
+                      <p className="text-[10px] text-[var(--foreground-muted)]">
+                        {part.release_date?.slice(0, 4) ?? "TBA"}
+                      </p>
+                    </Link>
+                  );
+                })}
+            </div>
+          </section>
+        )}
+
+        {/* Ad — between collection and tabs */}
         <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIE ?? ""} format="auto" className="mb-4" />
 
         {/* Functional tabs */}
