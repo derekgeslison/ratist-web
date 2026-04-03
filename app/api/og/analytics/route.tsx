@@ -164,10 +164,13 @@ export async function GET(request: Request) {
         </>
       );
     } else if (tab === "insights") {
-      const catAvgs = await prisma.movieRating.aggregate({
-        where: { userId: user.id },
-        _avg: { storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true, ratistRating: true },
-      });
+      const [catAvgs, ratedCount] = await Promise.all([
+        prisma.movieRating.aggregate({
+          where: { userId: user.id },
+          _avg: { storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true, ratistRating: true },
+        }),
+        prisma.movieRating.count({ where: { userId: user.id } }),
+      ]);
       const cats = [
         { label: "Story", score: catAvgs._avg.storyScore },
         { label: "Style", score: catAvgs._avg.styleScore },
@@ -179,7 +182,7 @@ export async function GET(request: Request) {
       content = (
         <>
           <h1 style={{ color: "white", fontSize: 32, fontWeight: "bold", margin: "0 0 8px 0" }}>Rating Insights</h1>
-          <p style={{ color: "#888", fontSize: 14, margin: "0 0 20px 0" }}>Average scores across {await prisma.movieRating.count({ where: { userId: user.id } })} rated movies</p>
+          <p style={{ color: "#888", fontSize: 14, margin: "0 0 20px 0" }}>Average scores across {ratedCount} rated movies</p>
           <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 12, padding: "14px 28px" }}>
               <span style={{ color: "#666", fontSize: 12 }}>Overall Avg</span>
