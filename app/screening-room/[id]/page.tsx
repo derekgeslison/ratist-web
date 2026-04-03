@@ -203,14 +203,17 @@ export default function ScreeningSessionPage() {
         const token = await getToken();
         const msgs = chatMessagesRef.current;
         if (!token) return;
-        if (msgs.length === 0) {
+        // Only include messages from the watching phase (after startedAt)
+        const startedAtMs = session?.startedAt ? new Date(session.startedAt).getTime() : 0;
+        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs);
+        if (watchingMsgs.length === 0) {
           if (attempt < 3) setTimeout(() => generateHighlights(attempt + 1), 1000);
           return;
         }
         await fetch(`/api/screening/${id}/highlights`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: msgs, polls: session?.polls }),
+          body: JSON.stringify({ messages: watchingMsgs, polls: session?.polls }),
         });
         fetchSession();
       };
@@ -1357,27 +1360,29 @@ export default function ScreeningSessionPage() {
                 <ScreeningRatingCompare ratings={session.ratings} tmdbId={session.tmdbId} myUserId={myUserId} />
               </section>
 
-              {/* Superlatives — use chatHighlights as fallback for chat counts when RTDB data is gone */}
+              {/* Superlatives + heatmap use watching-phase messages only */}
               {(() => {
-                const chatMsgsForSuperlatives = chatMessages.length > 0 ? chatMessages
+                const _startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : 0;
+                const watchingChatMsgs = chatMessages.filter((m) => m.timestamp >= _startedAtMs && m.userId !== "system");
+                const chatMsgsForSuperlatives = watchingChatMsgs.length > 0 ? watchingChatMsgs
                   : (session.chatHighlights ?? []).filter((h) => h.user.id && h.user.id !== "system").map((h) => ({ userId: h.user.id, timestamp: 0 }));
                 return (
-                  <ScreeningSuperlatives
-                    participants={session.participants}
-                    predictions={session.predictions}
-                    ratings={session.ratings}
-                    polls={session.polls}
-                    bookmarks={session.bookmarks}
-                    chatMessages={chatMsgsForSuperlatives}
-                    pauseRequestCounts={pauseCounts}
-                  />
+                  <>
+                    <ScreeningSuperlatives
+                      participants={session.participants}
+                      predictions={session.predictions}
+                      ratings={session.ratings}
+                      polls={session.polls}
+                      bookmarks={session.bookmarks}
+                      chatMessages={chatMsgsForSuperlatives}
+                      pauseRequestCounts={pauseCounts}
+                    />
+                    {watchingChatMsgs.length > 0 && (
+                      <ScreeningHeatmap chatMessages={watchingChatMsgs} startedAt={session.startedAt} />
+                    )}
+                  </>
                 );
               })()}
-
-              {/* Reaction heatmap — only shows when RTDB chat data is available */}
-              {chatMessages.length > 0 && (
-                <ScreeningHeatmap chatMessages={chatMessages} startedAt={session.startedAt} />
-              )}
 
               {/* Predictions reveal */}
               {session.predictions.length > 0 && (
