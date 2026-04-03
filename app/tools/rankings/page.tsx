@@ -36,11 +36,13 @@ function SortableItem({
   index,
   total,
   onMoveTo,
+  onRemove,
 }: {
   movie: RankedMovie;
   index: number;
   total: number;
   onMoveTo: (from: number, to: number) => void;
+  onRemove?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: movie.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -95,6 +97,12 @@ function SortableItem({
         <input value={inputVal} onChange={(e) => setInputVal(e.target.value)} placeholder="#"
           className="w-10 bg-[var(--surface-2)] border border-[var(--border)] rounded px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[var(--ratist-red)]" />
       </form>
+
+      {onRemove && (
+        <button onClick={onRemove} className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors shrink-0 p-1" title="Remove from list">
+          <X className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
@@ -249,6 +257,15 @@ export default function RankingsPage() {
     }
   }
 
+  async function removeFromRanking(movieId: string) {
+    if (!user) return;
+    setMovies((prev) => {
+      const updated = prev.filter((m) => m.id !== movieId);
+      saveRankings(updated);
+      return updated;
+    });
+  }
+
   function handleMoveTo(fromIndex: number, toIndex: number) {
     setMovies((items) => {
       const reordered = arrayMove(items, fromIndex, toIndex);
@@ -393,7 +410,8 @@ export default function RankingsPage() {
                   <SortableContext items={visible.map((m) => m.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-2">
                       {visible.map((movie, index) => (
-                        <SortableItem key={movie.id} movie={movie} index={index} total={movies.length} onMoveTo={handleMoveTo} />
+                        <SortableItem key={movie.id} movie={movie} index={index} total={movies.length} onMoveTo={handleMoveTo}
+                          onRemove={isCustomList ? () => removeFromRanking(movie.id) : undefined} />
                       ))}
                     </div>
                   </SortableContext>
