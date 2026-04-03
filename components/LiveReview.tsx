@@ -203,40 +203,42 @@ export default function LiveReview({ movieId }: Props) {
       {expanded && countdown === null && (
         <div className="px-4 pb-4 space-y-4 border-t border-[var(--border)]">
           {/* Timer controls */}
-          <div className="flex items-center gap-3 pt-4">
-            {/* Timer display */}
-            <div className="text-2xl font-mono font-bold text-white min-w-[100px]">
-              {formatTime(elapsedSeconds)}
+          <div className="pt-4 space-y-3">
+            {/* Row 1: Timer + controls */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="text-2xl font-mono font-bold text-white">
+                {formatTime(elapsedSeconds)}
+              </div>
+
+              {!running ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={startTimer}
+                    className="flex items-center gap-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
+                    <Play className="w-3 h-3" /> Start
+                  </button>
+                  <label className="flex items-center gap-1.5 text-[10px] text-[var(--foreground-muted)] cursor-pointer">
+                    <input type="checkbox" checked={useCountdown} onChange={(e) => setUseCountdown(e.target.checked)}
+                      className="rounded border-[var(--border)] accent-[var(--ratist-red)]" />
+                    5s countdown
+                  </label>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={togglePause}
+                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${isPaused ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" : "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"}`}>
+                    {isPaused ? <><Play className="w-3 h-3" /> Resume</> : <><Pause className="w-3 h-3" /> Pause</>}
+                  </button>
+                  <button onClick={resetTimer}
+                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors px-2 py-2" title="Reset timer">
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Controls */}
-            {!running ? (
-              <div className="flex items-center gap-2">
-                <button onClick={startTimer}
-                  className="flex items-center gap-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
-                  <Play className="w-3 h-3" /> Start
-                </button>
-                <label className="flex items-center gap-1.5 text-[10px] text-[var(--foreground-muted)] cursor-pointer">
-                  <input type="checkbox" checked={useCountdown} onChange={(e) => setUseCountdown(e.target.checked)}
-                    className="rounded border-[var(--border)] accent-[var(--ratist-red)]" />
-                  5s countdown
-                </label>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button onClick={togglePause}
-                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg transition-colors ${isPaused ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" : "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"}`}>
-                  {isPaused ? <><Play className="w-3 h-3" /> Resume</> : <><Pause className="w-3 h-3" /> Pause</>}
-                </button>
-                <button onClick={resetTimer}
-                  className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors px-2 py-2" title="Reset timer">
-                  <RotateCcw className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-
-            {/* Go-to */}
-            <div className="flex items-center gap-1 ml-auto">
+            {/* Row 2: Go-to timestamp */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-[var(--foreground-muted)]">Jump to:</span>
               <input type="text" value={goToInput} onChange={(e) => setGoToInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && goToTimestamp()}
                 placeholder="0:00:00"
