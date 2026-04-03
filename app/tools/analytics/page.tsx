@@ -23,6 +23,13 @@ interface AnalyticsData {
   seasonal: { month: string; count: number }[];
   dayOfWeek: { day: string; count: number }[];
   blindSpots: { genre: string; count: number }[];
+  categoryAverages: {
+    story: { score: number | null; fields: Record<string, number | null> };
+    style: { score: number | null; fields: Record<string, number | null> };
+    emotive: { score: number | null; fields: Record<string, number | null> };
+    acting: { score: number | null; fields: Record<string, number | null> };
+    entertainment: { score: number | null; fields: Record<string, number | null> };
+  };
 }
 
 interface ReportRow { label: string; count: number; avgRating: number | null; totalHours: number }
@@ -446,6 +453,53 @@ export default function AnalyticsPage() {
                   );
                 })()}
               </section>
+
+              {/* Category & Field Averages */}
+              {data.categoryAverages && (() => {
+                const CATS = [
+                  { key: "story", label: "Story", fieldLabels: { plot: "Plot", premiseOriginality: "Premise / Originality", storytelling: "Storytelling", characterDev: "Character Development", pacingClimax: "Pacing / Climax" } },
+                  { key: "style", label: "Production & Style", fieldLabels: { cinematography: "Cinematography", locationCost: "Location & Costuming", realism: "Realism / Believability", artisticEffect: "Artistic Effect", visualEffects: "Visual Effects", musicSound: "Music & Sound" } },
+                  { key: "emotive", label: "Emotive Effect", fieldLabels: { overallEmotion: "Overall Emotion", relatability: "Relatability", meaning: "Meaning / Message", movingness: "Movingness" } },
+                  { key: "acting", label: "Acting & Casting", fieldLabels: { casting: "Casting & Subjects", actingQuality: "Performance Quality", dialogueScripting: "Dialogue & Writing", blockingChoreo: "Blocking & Choreography" } },
+                  { key: "entertainment", label: "Pure Entertainment", fieldLabels: { appeal: "Appeal", superficialAllure: "Superficial Allure", choreography: "Choreography" } },
+                ];
+                const catData = data.categoryAverages as Record<string, { score: number | null; fields: Record<string, number | null> }>;
+                const hasCatData = CATS.some((c) => catData[c.key]?.score != null);
+                if (!hasCatData) return null;
+                return (
+                  <section>
+                    <h3 className="text-sm font-semibold text-white mb-3">Your Average Ratings by Category</h3>
+                    <p className="text-xs text-[var(--foreground-muted)] mb-3">How you rate across each scoring category on average. Click to expand.</p>
+                    <div className="space-y-2">
+                      {CATS.map((cat) => {
+                        const cd = catData[cat.key];
+                        if (!cd?.score) return null;
+                        return (
+                          <details key={cat.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden">
+                            <summary className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[var(--surface-2)] transition-colors">
+                              <span className="text-sm text-white font-medium">{cat.label}</span>
+                              <span className="text-sm font-bold" style={{ color: scoreColor(cd.score) }}>{cd.score.toFixed(1)}</span>
+                            </summary>
+                            <div className="px-4 pb-3 space-y-2 border-t border-[var(--border)]">
+                              {Object.entries(cat.fieldLabels).map(([fieldKey, fieldLabel]) => {
+                                const val = cd.fields[fieldKey];
+                                if (val == null) return null;
+                                return (
+                                  <div key={fieldKey} className="flex items-center gap-3 pt-1.5">
+                                    <span className="text-xs text-[var(--foreground-muted)] flex-1">{fieldLabel}</span>
+                                    <Bar value={val} max={10} color={scoreColor(val)} />
+                                    <span className="text-xs font-bold w-8 text-right" style={{ color: scoreColor(val) }}>{val.toFixed(1)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })()}
 
               {/* Rating trend */}
               {data.ratingTrend.length > 1 && (

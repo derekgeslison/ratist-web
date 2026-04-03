@@ -24,6 +24,14 @@ export async function GET(req: NextRequest) {
       where: { userId: user.id },
       select: {
         id: true, ratistRating: true, overallRating: true, createdAt: true, movieId: true,
+        // Category scores
+        storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
+        // Individual field scores
+        plot: true, premiseOriginality: true, storytelling: true, characterDev: true, pacingClimax: true,
+        cinematography: true, locationCost: true, realism: true, artisticEffect: true, visualEffects: true, musicSound: true,
+        overallEmotion: true, relatability: true, meaning: true, movingness: true,
+        casting: true, actingQuality: true, dialogueScripting: true, blockingChoreo: true,
+        appeal: true, superficialAllure: true, choreography: true,
         movie: {
           select: {
             title: true, runtime: true, releaseDate: true, voteAverage: true,
@@ -254,6 +262,19 @@ export async function GET(req: NextRequest) {
     }
     const dayOfWeek = DAY_LABELS.map((day, i) => ({ day, count: dayCounts[i] }));
 
+    // ── Category & field averages ──
+    function fieldAvg(key: string): number | null {
+      const vals = ratings.map((r) => (r as Record<string, unknown>)[key]).filter((v): v is number => v != null && typeof v === "number");
+      return vals.length > 0 ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+    }
+    const categoryAverages = {
+      story: { score: fieldAvg("storyScore"), fields: { plot: fieldAvg("plot"), premiseOriginality: fieldAvg("premiseOriginality"), storytelling: fieldAvg("storytelling"), characterDev: fieldAvg("characterDev"), pacingClimax: fieldAvg("pacingClimax") } },
+      style: { score: fieldAvg("styleScore"), fields: { cinematography: fieldAvg("cinematography"), locationCost: fieldAvg("locationCost"), realism: fieldAvg("realism"), artisticEffect: fieldAvg("artisticEffect"), visualEffects: fieldAvg("visualEffects"), musicSound: fieldAvg("musicSound") } },
+      emotive: { score: fieldAvg("emotiveScore"), fields: { overallEmotion: fieldAvg("overallEmotion"), relatability: fieldAvg("relatability"), meaning: fieldAvg("meaning"), movingness: fieldAvg("movingness") } },
+      acting: { score: fieldAvg("actingScore"), fields: { casting: fieldAvg("casting"), actingQuality: fieldAvg("actingQuality"), dialogueScripting: fieldAvg("dialogueScripting"), blockingChoreo: fieldAvg("blockingChoreo") } },
+      entertainment: { score: fieldAvg("entertainScore"), fields: { appeal: fieldAvg("appeal"), superficialAllure: fieldAvg("superficialAllure"), choreography: fieldAvg("choreography") } },
+    };
+
     // ── Blind spots (genres with < 3 movies or 0) ──
     const allGenres = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "Thriller", "War", "Western"];
     const blindSpots = allGenres
@@ -281,6 +302,7 @@ export async function GET(req: NextRequest) {
       seasonal,
       dayOfWeek,
       blindSpots,
+      categoryAverages,
     });
   } catch (err) {
     console.error("Analytics error:", err);
