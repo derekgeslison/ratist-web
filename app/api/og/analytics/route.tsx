@@ -17,6 +17,15 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
   );
 }
 
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 20px" }}>
+      <span style={{ color: "#666", fontSize: 11 }}>{label}</span>
+      <span style={{ color: color ?? "white", fontSize: 24, fontWeight: "bold" }}>{value}</span>
+    </div>
+  );
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId") ?? "";
@@ -34,27 +43,41 @@ export async function GET(request: Request) {
     const yearTo = searchParams.get("yearTo") ?? "";
     const yearLabel = yearFrom && yearTo ? `${yearFrom}–${yearTo}` : yearFrom ? `From ${yearFrom}` : yearTo ? `Through ${yearTo}` : "All Time";
 
-    // Core stats
-    const [ratingCount, seenCount, avgRating] = await Promise.all([
-      prisma.movieRating.count({ where: { userId: user.id } }),
-      prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
-      prisma.movieRating.aggregate({
-        where: { userId: user.id },
-        _avg: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true },
-      }),
-    ]);
-    const avg = avgRating._avg;
-
     let tabTitle = "My Analytics";
     let chartContent: React.ReactNode = null;
+    let statsContent: React.ReactNode = null;
 
-    // ── Overview: Decade breakdown ──
+    // ── Overview: Decade breakdown + rich stats ──
     if (tab === "overview") {
       tabTitle = "Movie Analytics";
+
+      const [ratingCount, seenCount] = await Promise.all([
+        prisma.movieRating.count({ where: { userId: user.id } }),
+        prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
+      ]);
+
+      // Get seen movies with runtime and release date for decades + hours
       const seenMovies = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
-        select: { movie: { select: { releaseDate: true } } },
+        select: { movie: { select: { releaseDate: true, runtime: true } } },
       });
+      const totalHours = Math.round(seenMovies.reduce((s, m) => s + (m.movie.runtime ?? 0), 0) / 60);
+
+      // Top genre
+      const topGenre = await prisma.movieGenre.groupBy({
+        by: ["genreId"],
+        where: { movie: { favoritedBy: { some: { userId: user.id } } } },
+        _count: { genreId: true },
+        orderBy: { _count: { genreId: "desc" } },
+        take: 1,
+      });
+      let favGenre = "—";
+      if (topGenre.length > 0) {
+        const g = await prisma.genre.findUnique({ where: { id: topGenre[0].genreId }, select: { name: true } });
+        if (g) favGenre = g.name;
+      }
+
+      // Decade breakdown
       const decadeCounts = new Map<string, number>();
       for (const s of seenMovies) {
         const year = s.movie.releaseDate?.slice(0, 4);
@@ -67,6 +90,15 @@ export async function GET(request: Request) {
         .map(([decade, count]) => ({ decade, count }));
       const maxD = Math.max(...decades.map((d) => d.count), 1);
       const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981", "#f43f5e"];
+
+      statsContent = (
+        <div style={{ display: "flex", gap: 12 }}>
+          <Stat label="Seen" value={String(seenCount)} />
+          <Stat label="Rated" value={String(ratingCount)} />
+          <Stat label="Hours" value={String(totalHours)} />
+          <Stat label="Top Genre" value={favGenre} />
+        </div>
+      );
       chartContent = (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <span style={{ color: "#666", fontSize: 12, marginBottom: 2 }}>Movies by Decade</span>
@@ -80,6 +112,7 @@ export async function GET(request: Request) {
     // ── Genres: Genre bar chart ──
     else if (tab === "genres") {
       tabTitle = "Genre Breakdown";
+      const seenCount = await prisma.userFavoriteMovie.count({ where: { userId: user.id } });
       const genres = await prisma.movieGenre.groupBy({
         by: ["genreId"],
         where: { movie: { favoritedBy: { some: { userId: user.id } } } },
@@ -90,6 +123,19 @@ export async function GET(request: Request) {
       const genreNames = await prisma.genre.findMany({ where: { id: { in: genres.map((g) => g.genreId) } } });
       const nameMap = new Map(genreNames.map((g) => [g.id, g.name]));
       const maxG = Math.max(...genres.map((g) => g._count.genreId), 1);
+      const totalGenres = await prisma.movieGenre.groupBy({
+        by: ["genreId"],
+        where: { movie: { favoritedBy: { some: { userId: user.id } } } },
+        _count: { genreId: true },
+      });
+
+      statsContent = (
+        <div style={{ display: "flex", gap: 12 }}>
+          <Stat label="Seen" value={String(seenCount)} />
+          <Stat label="Genres" value={String(totalGenres.length)} />
+          <Stat label="#1 Genre" value={genres.length > 0 ? (nameMap.get(genres[0].genreId) ?? "?") : "—"} />
+        </div>
+      );
       chartContent = (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {genres.map((g) => (
@@ -99,18 +145,21 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── Directors & Actors: Top bars ──
+    // ── Directors & Actors: Based on ALL seen movies ──
     else if (tab === "people") {
       tabTitle = "Directors & Actors";
-      const highRated = await prisma.movieRating.findMany({
-        where: { userId: user.id, ratistRating: { gte: 6 } },
+
+      // Use ALL seen movies, not just rated
+      const seenMovies = await prisma.userFavoriteMovie.findMany({
+        where: { userId: user.id },
         select: { movieId: true },
-        take: 200,
       });
-      const movieIds = highRated.map((r) => r.movieId);
+      const movieIds = seenMovies.map((s) => s.movieId);
 
       let dirBars: React.ReactNode = null;
       let actorBars: React.ReactNode = null;
+      let topDirName = "—";
+      let topActName = "—";
 
       if (movieIds.length > 0) {
         // Directors
@@ -122,20 +171,22 @@ export async function GET(request: Request) {
         for (const dc of dirCredits) {
           dirCounts.set(dc.celebrity.name, (dirCounts.get(dc.celebrity.name) ?? 0) + 1);
         }
-        const topDirs = [...dirCounts.entries()].sort(([, a], [, b]) => b - a).slice(0, 4);
+        const topDirs = [...dirCounts.entries()].sort(([, a], [, b]) => b - a).slice(0, 5);
         const maxDir = Math.max(...topDirs.map(([, c]) => c), 1);
+        if (topDirs.length > 0) topDirName = topDirs[0][0];
 
-        // Actors
+        // Actors (top 3 billed)
         const actCredits = await prisma.movieCast.findMany({
-          where: { movieId: { in: movieIds }, creditType: "cast", castOrder: { lte: 5 } },
+          where: { movieId: { in: movieIds }, creditType: "cast", castOrder: { lte: 3 } },
           select: { celebrity: { select: { name: true } } },
         });
         const actCounts = new Map<string, number>();
         for (const ac of actCredits) {
           actCounts.set(ac.celebrity.name, (actCounts.get(ac.celebrity.name) ?? 0) + 1);
         }
-        const topActs = [...actCounts.entries()].sort(([, a], [, b]) => b - a).slice(0, 4);
+        const topActs = [...actCounts.entries()].sort(([, a], [, b]) => b - a).slice(0, 5);
         const maxAct = Math.max(...topActs.map(([, c]) => c), 1);
+        if (topActs.length > 0) topActName = topActs[0][0];
 
         dirBars = (
           <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
@@ -155,6 +206,13 @@ export async function GET(request: Request) {
         );
       }
 
+      statsContent = (
+        <div style={{ display: "flex", gap: 12 }}>
+          <Stat label="Seen" value={String(movieIds.length)} />
+          <Stat label="Top Director" value={topDirName.length > 14 ? topDirName.slice(0, 13) + "…" : topDirName} />
+          <Stat label="Top Actor" value={topActName.length > 14 ? topActName.slice(0, 13) + "…" : topActName} />
+        </div>
+      );
       chartContent = (
         <div style={{ display: "flex", gap: 24 }}>
           {dirBars}
@@ -166,6 +224,13 @@ export async function GET(request: Request) {
     // ── Rating Insights: Category bars + contrarian + controversial ──
     else if (tab === "insights") {
       tabTitle = "Rating Insights";
+      const avgRating = await prisma.movieRating.aggregate({
+        where: { userId: user.id },
+        _avg: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true },
+      });
+      const avg = avgRating._avg;
+      const ratingCount = await prisma.movieRating.count({ where: { userId: user.id } });
+
       const cats = [
         { label: "Story", score: avg.storyScore },
         { label: "Style", score: avg.styleScore },
@@ -174,51 +239,42 @@ export async function GET(request: Request) {
         { label: "Entertainment", score: avg.entertainScore },
       ];
 
-      // Contrarian score
+      // Contrarian score — compare user's ratistRating to TMDB voteAverage (matching the real analytics API)
       const userRatings = await prisma.movieRating.findMany({
-        where: { userId: user.id },
-        select: { movieId: true, ratistRating: true },
-        take: 200,
+        where: { userId: user.id, ratistRating: { not: null } },
+        select: { movieId: true, ratistRating: true, movie: { select: { title: true, voteAverage: true } } },
       });
-      const movieIdsForContrarian = userRatings.filter((r) => r.ratistRating != null).map((r) => r.movieId);
       let contrarianScore: number | null = null;
       let controversial: { title: string; userScore: number; communityScore: number } | null = null;
 
-      if (movieIdsForContrarian.length > 0) {
-        const communityAvgs = await prisma.movieRating.groupBy({
-          by: ["movieId"],
-          where: { movieId: { in: movieIdsForContrarian } },
-          _avg: { ratistRating: true },
-          _count: { id: true },
-        });
-        const communityMap = new Map(communityAvgs.filter((c) => c._count.id >= 2).map((c) => [c.movieId, c._avg.ratistRating]));
+      let totalDeviation = 0;
+      let deviationCount = 0;
+      let maxDiff = 0;
+      let maxDiffEntry: { title: string; userScore: number; communityScore: number } | null = null;
 
-        const diffs: number[] = [];
-        let maxDiff = 0;
-        let maxDiffMovie: { movieId: string; userScore: number; communityScore: number } | null = null;
-
-        for (const r of userRatings) {
-          const comm = communityMap.get(r.movieId);
-          if (comm != null && r.ratistRating != null) {
-            const d = Math.abs(r.ratistRating - comm);
-            diffs.push(d);
-            if (d > maxDiff) {
-              maxDiff = d;
-              maxDiffMovie = { movieId: r.movieId, userScore: r.ratistRating, communityScore: comm };
-            }
-          }
-        }
-        if (diffs.length > 0) {
-          contrarianScore = Math.round((diffs.reduce((a, b) => a + b, 0) / diffs.length) * 10);
-        }
-        if (maxDiffMovie) {
-          const movie = await prisma.movie.findUnique({ where: { id: maxDiffMovie.movieId }, select: { title: true } });
-          if (movie) {
-            controversial = { title: movie.title, userScore: maxDiffMovie.userScore, communityScore: maxDiffMovie.communityScore };
+      for (const r of userRatings) {
+        if (r.movie.voteAverage != null && r.movie.voteAverage > 0 && r.ratistRating != null) {
+          const diff = Math.abs(r.ratistRating - r.movie.voteAverage);
+          totalDeviation += diff;
+          deviationCount++;
+          if (diff > maxDiff) {
+            maxDiff = diff;
+            maxDiffEntry = { title: r.movie.title, userScore: r.ratistRating, communityScore: r.movie.voteAverage };
           }
         }
       }
+      if (deviationCount > 0) {
+        contrarianScore = Math.round((totalDeviation / deviationCount) * 10) / 10;
+      }
+      if (maxDiffEntry) controversial = maxDiffEntry;
 
+      statsContent = (
+        <div style={{ display: "flex", gap: 12 }}>
+          <Stat label="Rated" value={String(ratingCount)} />
+          {avg.ratistRating != null && <Stat label="Avg Rating" value={avg.ratistRating.toFixed(1)} color={scoreHex(avg.ratistRating)} />}
+          {contrarianScore != null && <Stat label="Contrarian" value={contrarianScore.toFixed(1)} color={contrarianScore >= 2 ? "#ef4444" : contrarianScore >= 1 ? "#eab308" : "#22c55e"} />}
+        </div>
+      );
       chartContent = (
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           {cats.map((c) => (
@@ -230,24 +286,15 @@ export async function GET(request: Request) {
               <span style={{ color: c.score ? scoreHex(c.score) : "#666", fontSize: 15, fontWeight: "bold", width: 35, textAlign: "right" as const, flexShrink: 0 }}>{c.score?.toFixed(1) ?? "—"}</span>
             </div>
           ))}
-          {/* Contrarian + controversial row */}
-          <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
-            {contrarianScore != null && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#1a1a1a", borderRadius: 8, padding: "8px 14px" }}>
-                <span style={{ color: "#888", fontSize: 11 }}>Contrarian Score</span>
-                <span style={{ color: contrarianScore >= 30 ? "#ef4444" : contrarianScore >= 15 ? "#eab308" : "#22c55e", fontSize: 18, fontWeight: "bold" }}>{contrarianScore}</span>
-              </div>
-            )}
-            {controversial && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1a1a1a", borderRadius: 8, padding: "8px 14px", flex: 1 }}>
-                <span style={{ color: "#888", fontSize: 11 }}>Hot Take:</span>
-                <span style={{ color: "#ccc", fontSize: 11 }}>{controversial.title.length > 24 ? controversial.title.slice(0, 23) + "…" : controversial.title}</span>
-                <span style={{ color: scoreHex(controversial.userScore), fontSize: 12, fontWeight: "bold" }}>{controversial.userScore.toFixed(1)}</span>
-                <span style={{ color: "#555", fontSize: 11 }}>vs</span>
-                <span style={{ color: scoreHex(controversial.communityScore), fontSize: 12, fontWeight: "bold" }}>{controversial.communityScore.toFixed(1)}</span>
-              </div>
-            )}
-          </div>
+          {controversial && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1a1a1a", borderRadius: 8, padding: "8px 14px", marginTop: 4 }}>
+              <span style={{ color: "#888", fontSize: 12 }}>Hottest Take:</span>
+              <span style={{ color: "#ccc", fontSize: 12 }}>{controversial.title.length > 28 ? controversial.title.slice(0, 27) + "…" : controversial.title}</span>
+              <span style={{ color: scoreHex(controversial.userScore), fontSize: 13, fontWeight: "bold" }}>{controversial.userScore.toFixed(1)}</span>
+              <span style={{ color: "#555", fontSize: 11 }}>vs</span>
+              <span style={{ color: scoreHex(controversial.communityScore), fontSize: 13, fontWeight: "bold" }}>{controversial.communityScore.toFixed(1)}</span>
+            </div>
+          )}
         </div>
       );
     }
@@ -265,39 +312,50 @@ export async function GET(request: Request) {
         if (s.watchedDate) monthCounts[new Date(s.watchedDate).getMonth()]++;
       }
       const maxM = Math.max(...monthCounts, 1);
+      const totalDated = seenDated.length;
 
-      // Total watch hours
+      // Total watch hours + seen count
+      const seenCount = await prisma.userFavoriteMovie.count({ where: { userId: user.id } });
       const runtimes = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
         select: { movie: { select: { runtime: true } } },
       });
       const hours = Math.round(runtimes.reduce((s, m) => s + (m.movie.runtime ?? 0), 0) / 60);
 
+      // Find peak month
+      let peakIdx = 0;
+      for (let i = 1; i < 12; i++) {
+        if (monthCounts[i] > monthCounts[peakIdx]) peakIdx = i;
+      }
+
+      statsContent = (
+        <div style={{ display: "flex", gap: 12 }}>
+          <Stat label="Seen" value={String(seenCount)} />
+          <Stat label="Hours" value={String(hours)} />
+          <Stat label="Logged" value={String(totalDated)} />
+          <Stat label="Peak Month" value={monthLabels[peakIdx]} />
+        </div>
+      );
       chartContent = (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 150, padding: "0 4px" }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", flex: 1, gap: 8, padding: "0 8px" }}>
             {monthCounts.map((count: number, i: number) => {
-              const barH = count > 0 ? Math.max(Math.round((count / maxM) * 130), 6) : 0;
+              const barH = count > 0 ? Math.max(Math.round((count / maxM) * 100), 4) : 0;
               return (
-                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", flex: 1, height: "100%" }}>
-                  {count > 0 && <span style={{ color: "#aaa", fontSize: 10, marginBottom: 3 }}>{count}</span>}
-                  <div style={{ width: "100%", height: barH, background: count > 0 ? "#3b82f6" : "#1a1a1a", borderRadius: "4px 4px 0 0" }} />
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", flex: 1 }}>
+                  {count > 0 && <span style={{ color: "#aaa", fontSize: 11, marginBottom: 4 }}>{count}</span>}
+                  <div style={{ width: "70%", height: barH, background: count > 0 ? "#3b82f6" : "#1a1a1a", borderRadius: "4px 4px 0 0" }} />
                 </div>
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 6, padding: "0 4px" }}>
+          <div style={{ display: "flex", gap: 8, padding: "6px 8px 0", borderTop: "1px solid #222" }}>
             {monthLabels.map((label, i) => (
               <div key={i} style={{ display: "flex", flex: 1, justifyContent: "center" }}>
                 <span style={{ color: "#666", fontSize: 10 }}>{label}</span>
               </div>
             ))}
           </div>
-          {hours > 0 && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
-              <span style={{ color: "#888", fontSize: 12 }}>{hours} total hours watched</span>
-            </div>
-          )}
         </div>
       );
     }
@@ -325,28 +383,13 @@ export async function GET(request: Request) {
             </div>
           </div>
 
-          {/* Title + stats row */}
+          {/* Title + tab-specific stats */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ color: "white", fontSize: 32, fontWeight: "bold" }}>{tabTitle}</span>
               <span style={{ color: "#666", fontSize: 14, marginTop: 4 }}>{yearLabel}</span>
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 20px" }}>
-                <span style={{ color: "#666", fontSize: 11 }}>Seen</span>
-                <span style={{ color: "white", fontSize: 24, fontWeight: "bold" }}>{seenCount}</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 20px" }}>
-                <span style={{ color: "#666", fontSize: 11 }}>Rated</span>
-                <span style={{ color: "white", fontSize: 24, fontWeight: "bold" }}>{ratingCount}</span>
-              </div>
-              {avg.ratistRating != null && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 20px" }}>
-                  <span style={{ color: "#666", fontSize: 11 }}>Avg</span>
-                  <span style={{ color: scoreHex(avg.ratistRating), fontSize: 24, fontWeight: "bold" }}>{avg.ratistRating.toFixed(1)}</span>
-                </div>
-              )}
-            </div>
+            {statsContent}
           </div>
 
           {/* Chart */}
