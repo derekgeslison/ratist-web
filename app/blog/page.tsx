@@ -54,6 +54,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
           <p>No posts yet. Check back soon.</p>
         </div>
       ) : (
+        <>
         <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG ?? ""} format="auto" className="mb-6" />
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -103,6 +104,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
             </Link>
           ))}
         </div>
+        </>
       )}
     </div>
   );

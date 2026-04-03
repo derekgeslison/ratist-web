@@ -51,6 +51,7 @@ export default async function PunchAndJudyPage({ searchParams }: { searchParams:
       {posts.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No posts yet.</p>
       ) : (
+        <>
         <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG ?? ""} format="auto" className="mb-6" />
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -77,6 +78,7 @@ export default async function PunchAndJudyPage({ searchParams }: { searchParams:
             </Link>
           ))}
         </div>
+        </>
       )}
     </div>
   );
