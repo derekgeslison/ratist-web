@@ -744,6 +744,7 @@ export default function ScreeningSessionPage() {
   const amHost = session.host.id === myUserId;
   const readyCount = Object.values(readyUsers).filter(Boolean).length;
   const allReady = readyCount === session.participants.length && session.participants.length > 0;
+  const isEmptySession = amHost && session.participants.length <= 1 && (session.status === "WATCHING" || session.status === "POST_WATCH");
 
   function renderPoll(poll: Poll) {
     const totalVotes = Object.keys(poll.votes).length;
@@ -878,6 +879,18 @@ export default function ScreeningSessionPage() {
           </div>
         )}
       </div>
+
+      {/* Empty session notice */}
+      {isEmptySession && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-5 mb-4 text-center">
+          <p className="text-sm text-yellow-400 font-medium mb-2">All other participants have left the session.</p>
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">You can end the session or continue on your own.</p>
+          <button onClick={() => { completeSession(); setPostWatchPhase("compare"); }}
+            className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
+            End Session
+          </button>
+        </div>
+      )}
 
       {/* ── LOBBY ── */}
       {session.status === "LOBBY" && (
@@ -1080,7 +1093,8 @@ export default function ScreeningSessionPage() {
               <button onClick={undoFinished} className="text-xs text-green-400 hover:text-yellow-400 flex-shrink-0 transition-colors" title="Undo">Done ✓ (undo)</button>
             )}
             {amHost && (
-              <button onClick={() => markFinished(true)} className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30 flex-shrink-0">
+              <button onClick={() => { if (confirm("End the movie for everyone? This will move all participants to the post-watch phase.")) markFinished(true); }}
+                className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30 flex-shrink-0">
                 Force End
               </button>
             )}
@@ -1265,6 +1279,14 @@ export default function ScreeningSessionPage() {
                   <button onClick={() => setPostWatchPhase("compare")}
                     className="text-xs text-[var(--ratist-red)] hover:underline">
                     Skip to comparison (host)
+                  </button>
+                </div>
+              )}
+              {/* Leave session (non-host) */}
+              {!amHost && (
+                <div className="text-center mt-4">
+                  <button onClick={leaveSession} className="text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                    Leave Session
                   </button>
                 </div>
               )}
