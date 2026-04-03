@@ -263,30 +263,29 @@ export default function ScreeningSessionPage() {
     return () => off(readyRef, "value", unsub);
   }, [id, session?.status]);
 
-  // RTDB listeners for chat (active in all phases)
+  // RTDB listeners for chat (active in all phases — set up once per session ID)
+  const chatListenerSetUp = useRef(false);
   useEffect(() => {
-    if (!rtdb || !session) return;
+    if (!rtdb || chatListenerSetUp.current) return;
+    chatListenerSetUp.current = true;
     const chatRef = ref(rtdb, rtdbPaths.chat(id));
     setChatMessages([]);
     let isInitialLoad = true;
-    const unsub = onChildAdded(chatRef, (snap) => {
+    onChildAdded(chatRef, (snap) => {
       const msg = snap.val() as RTDBChatMessage;
       setChatMessages((prev) => [...prev, { ...msg, key: snap.key! }]);
       if (!isInitialLoad) {
-        // Ding for poll system messages (skip if we just created a poll)
         if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:") && !justCreatedPollRef.current) {
           playDing(880, 0.15);
         } else if (pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
-          // Ding on regular messages if ping toggle is on
           playDing(600, 0.08);
         }
         justCreatedPollRef.current = false;
       }
     });
-    // After initial batch, mark as loaded
     setTimeout(() => { isInitialLoad = false; }, 1000);
-    return () => off(chatRef, "child_added", unsub);
-  }, [id, session?.status]);
+    return () => { off(chatRef, "child_added"); chatListenerSetUp.current = false; };
+  }, [id]);
 
   // RTDB listener for active pause request
   useEffect(() => {
