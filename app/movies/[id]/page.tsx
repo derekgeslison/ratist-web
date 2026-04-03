@@ -247,7 +247,7 @@ export default async function MovieDetailPage({ params }: Props) {
             <h2 className="text-sm font-semibold text-white mb-3">
               Part of <span className="text-[var(--ratist-red)]">{collection.name}</span>
             </h2>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+            <div className="flex gap-3 overflow-x-auto pb-2 pt-1 px-1 -mx-1 scrollbar-thin">
               {collection.parts
                 .sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""))
                 .map((part) => {
