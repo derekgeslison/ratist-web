@@ -328,12 +328,24 @@ export async function GET(request: Request) {
         if (monthCounts[i] > monthCounts[peakIdx]) peakIdx = i;
       }
 
+      // Find most popular day of week
+      const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dayCounts = new Array(7).fill(0);
+      for (const s of seenDated) {
+        if (s.watchedDate) dayCounts[new Date(s.watchedDate).getDay()]++;
+      }
+      let peakDay = 0;
+      for (let i = 1; i < 7; i++) {
+        if (dayCounts[i] > dayCounts[peakDay]) peakDay = i;
+      }
+
       statsContent = (
         <div style={{ display: "flex", gap: 12 }}>
           <Stat label="Seen" value={String(seenCount)} />
           <Stat label="Hours" value={String(hours)} />
           <Stat label="Logged" value={String(totalDated)} />
           <Stat label="Peak Month" value={monthLabels[peakIdx]} />
+          <Stat label="Top Day" value={dayLabels[peakDay]} />
         </div>
       );
       chartContent = (
