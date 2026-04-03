@@ -166,38 +166,42 @@ export async function GET(request: Request) {
         entropy = maxEntropy > 0 ? Math.round((entropy / maxEntropy) * 100) : 0;
       }
 
-      // Guilty pleasure: most watched but lowest rated
+      // Guilty pleasure: most watched but below-average rating (matches analytics API logic)
       let guiltyPleasure: string | null = null;
-      const ratedGenreAvgs = await prisma.movieRating.findMany({
-        where: { userId: user.id, ratistRating: { not: null } },
-        select: { ratistRating: true, movie: { select: { genres: { select: { genre: { select: { name: true } } } } } } },
+      const avgRating = await prisma.movieRating.aggregate({
+        where: { userId: user.id },
+        _avg: { ratistRating: true },
       });
-      if (ratedGenreAvgs.length > 0) {
-        const genreRatings = new Map<string, { total: number; count: number; seenCount: number }>();
-        for (const r of ratedGenreAvgs) {
-          for (const g of r.movie.genres) {
-            const entry = genreRatings.get(g.genre.name) ?? { total: 0, count: 0, seenCount: 0 };
-            entry.total += r.ratistRating!;
+      const overallAvg = avgRating._avg.ratistRating ?? 0;
+      if (overallAvg > 0) {
+        // Get genre avg ratings from seen movies (same as analytics API)
+        const seenWithRatings = await prisma.userFavoriteMovie.findMany({
+          where: { userId: user.id },
+          select: {
+            movieId: true,
+            movie: { select: { genres: { select: { genre: { select: { name: true } } } } } },
+          },
+        });
+        const ratingLookup = await prisma.movieRating.findMany({
+          where: { userId: user.id, ratistRating: { not: null } },
+          select: { movieId: true, ratistRating: true },
+        });
+        const ratingMap = new Map(ratingLookup.map((r) => [r.movieId, r.ratistRating]));
+
+        const genreStats = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
+        for (const s of seenWithRatings) {
+          const score = ratingMap.get(s.movieId) ?? null;
+          for (const g of s.movie.genres) {
+            const entry = genreStats.get(g.genre.name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
             entry.count++;
-            genreRatings.set(g.genre.name, entry);
+            if (score != null) { entry.totalScore += score; entry.ratedCount++; }
+            genreStats.set(g.genre.name, entry);
           }
         }
-        // Cross-reference with seen counts
-        for (const g of allGenres) {
-          const name = nameMap.get(g.genreId);
-          if (name && genreRatings.has(name)) {
-            genreRatings.get(name)!.seenCount = g._count.genreId;
-          }
-        }
-        // Guilty pleasure: high watch count + below-average rating
-        const gpCandidates = [...genreRatings.entries()]
-          .filter(([, d]) => d.count >= 2 && d.seenCount >= 20)
-          .map(([name, d]) => ({ name, avg: d.total / d.count, seenCount: d.seenCount }))
-          .sort((a, b) => b.seenCount - a.seenCount);
-        // Pick the most-watched genre with a below-median rating
-        const overallAvg = ratedGenreAvgs.reduce((s, r) => s + r.ratistRating!, 0) / ratedGenreAvgs.length;
-        const gp = gpCandidates.find((g) => g.avg < overallAvg);
-        if (gp) guiltyPleasure = gp.name;
+        const gp = [...genreStats.entries()]
+          .filter(([, d]) => d.count >= 20 && d.ratedCount > 0 && (d.totalScore / d.ratedCount) < overallAvg)
+          .sort((a, b) => b[1].count - a[1].count)[0];
+        if (gp) guiltyPleasure = gp[0];
       }
 
       statsContent = (
