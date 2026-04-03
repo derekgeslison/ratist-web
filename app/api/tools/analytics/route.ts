@@ -281,12 +281,88 @@ export async function GET(req: NextRequest) {
       .filter((g) => (genreMap.get(g)?.count ?? 0) < 3)
       .map((g) => ({ genre: g, count: genreMap.get(g)?.count ?? 0 }));
 
+    // ── Average movie age ──
+    const currentYear = new Date().getFullYear();
+    let totalAge = 0;
+    let ageCount = 0;
+    for (const s of seen) {
+      const yr = parseInt(s.movie.releaseDate?.slice(0, 4) ?? "");
+      if (!isNaN(yr)) { totalAge += currentYear - yr; ageCount++; }
+    }
+    const avgMovieAge = ageCount > 0 ? Math.round(totalAge / ageCount) : null;
+
+    // ── Profile type (based on decade distribution) ──
+    const recentCount = (decadeMap.get("2020s")?.count ?? 0) + (decadeMap.get("2010s")?.count ?? 0);
+    const classicCount = [...decadeMap.entries()].filter(([d]) => d < "2000s").reduce((s, [, d]) => s + d.count, 0);
+    const profileTotal = totalSeen || 1;
+    let profileType = "Film Explorer";
+    if (recentCount / profileTotal > 0.8) profileType = "Modern Movie Fan";
+    else if (classicCount / profileTotal > 0.3) profileType = "Classic Film Buff";
+    else if (decadeMap.size >= 6) profileType = "Era-Spanning Cinephile";
+
+    // ── Genre diversity score (Shannon entropy normalized 0-100) ──
+    const genreTotal = genres.reduce((s, g) => s + g.count, 0);
+    let genreDiversity = 0;
+    if (genreTotal > 0 && genres.length > 1) {
+      let entropy = 0;
+      for (const g of genres) {
+        const p = g.count / genreTotal;
+        if (p > 0) entropy -= p * Math.log2(p);
+      }
+      const maxEntropy = Math.log2(genres.length);
+      genreDiversity = maxEntropy > 0 ? Math.round((entropy / maxEntropy) * 100) : 0;
+    }
+
+    // ── Guilty pleasure genre (most watched but below-average rating) ──
+    const overallAvgForGP = avgRating ?? 0;
+    const guiltyPleasure = genres
+      .filter((g) => g.count >= 20 && g.avgRating != null && g.avgRating < overallAvgForGP)
+      .sort((a, b) => b.count - a.count)[0]?.name ?? null;
+
+    // ── Unique director/actor counts ──
+    const uniqueDirectors = dirMap.size;
+    const uniqueActors = actorMap.size;
+
+    // ── Rater personality ──
+    let raterType = "Balanced Rater";
+    if (allScores.length >= 3) {
+      const mean = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+      const variance = allScores.reduce((s, v) => s + (v - mean) ** 2, 0) / allScores.length;
+      const stdDev = Math.sqrt(variance);
+      if (mean >= 7.5) raterType = "Generous Rater";
+      else if (mean <= 5) raterType = "Tough Critic";
+      else if (stdDev >= 2) raterType = "Polarized Taste";
+    }
+
+    // ── Harshest / most generous category ──
+    const catScores = [
+      { label: "Story", score: fieldAvg("storyScore") },
+      { label: "Style", score: fieldAvg("styleScore") },
+      { label: "Emotion", score: fieldAvg("emotiveScore") },
+      { label: "Acting", score: fieldAvg("actingScore") },
+      { label: "Entertainment", score: fieldAvg("entertainScore") },
+    ].filter((c) => c.score != null) as { label: string; score: number }[];
+    const harshestCategory = catScores.length > 0 ? catScores.reduce((a, b) => a.score < b.score ? a : b) : null;
+    const generousCategory = catScores.length > 0 ? catScores.reduce((a, b) => a.score > b.score ? a : b) : null;
+
+    // ── Avg movies per month (from dated span) ──
+    let avgPerMonth: number | null = null;
+    if (datedSeen.length >= 2) {
+      const sorted = [...datedSeen].sort((a, b) => a.watchedDate!.getTime() - b.watchedDate!.getTime());
+      const first = sorted[0].watchedDate!;
+      const last = sorted[sorted.length - 1].watchedDate!;
+      const monthSpan = Math.max((last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()), 1);
+      avgPerMonth = Math.round((datedSeen.length / monthSpan) * 10) / 10;
+    }
+
     return NextResponse.json({
       overview: {
         totalRated, totalSeen, totalDated: datedSeen.length,
         avgRating: avgRating ? Math.round(avgRating * 10) / 10 : null,
         totalRuntime, totalHours: Math.round(totalRuntime / 60),
         avgMovieLength: totalSeen > 0 ? Math.round(totalRuntime / totalSeen) : null,
+        avgMovieAge,
+        profileType,
       },
       velocity,
       genres,
@@ -295,12 +371,20 @@ export async function GET(req: NextRequest) {
       actorsTopRated,
       directorsMostWatched,
       actorsMostWatched,
+      uniqueDirectors,
+      uniqueActors,
       distribution,
       ratingTrend,
       contrarianScore,
       mostControversial,
+      raterType,
+      harshestCategory,
+      generousCategory,
+      genreDiversity,
+      guiltyPleasure,
       seasonal,
       dayOfWeek,
+      avgPerMonth,
       blindSpots,
       categoryAverages,
     });

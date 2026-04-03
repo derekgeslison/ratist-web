@@ -17,11 +17,19 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat({ label, value, color, small }: { label: string; value: string; color?: string; small?: boolean }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 18px" }}>
       <span style={{ color: "#666", fontSize: 11 }}>{label}</span>
-      <span style={{ color: color ?? "white", fontSize: 24, fontWeight: "bold" }}>{value}</span>
+      <span style={{ color: color ?? "white", fontSize: small ? 16 : 24, fontWeight: "bold" }}>{value}</span>
+    </div>
+  );
+}
+
+function Badge({ text, color }: { text: string; color: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#1a1a1a", border: `1px solid ${color}`, borderRadius: 8, padding: "6px 12px" }}>
+      <span style={{ color, fontSize: 12, fontWeight: "bold" }}>{text}</span>
     </div>
   );
 }
@@ -46,8 +54,9 @@ export async function GET(request: Request) {
     let tabTitle = "My Analytics";
     let chartContent: React.ReactNode = null;
     let statsContent: React.ReactNode = null;
+    let badgeContent: React.ReactNode = null;
 
-    // ── Overview: Decade breakdown + rich stats ──
+    // ── Overview: Decade breakdown + rich stats + profile type ──
     if (tab === "overview") {
       tabTitle = "Movie Analytics";
 
@@ -56,7 +65,6 @@ export async function GET(request: Request) {
         prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
       ]);
 
-      // Get seen movies with runtime and release date for decades + hours
       const seenMovies = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
         select: { movie: { select: { releaseDate: true, runtime: true } } },
@@ -77,28 +85,46 @@ export async function GET(request: Request) {
         if (g) favGenre = g.name;
       }
 
-      // Decade breakdown
+      // Decade breakdown + average movie age + profile type
       const decadeCounts = new Map<string, number>();
+      const currentYear = new Date().getFullYear();
+      let totalAge = 0;
+      let ageCount = 0;
       for (const s of seenMovies) {
-        const year = s.movie.releaseDate?.slice(0, 4);
-        if (!year) continue;
-        const decade = `${year.slice(0, 3)}0s`;
+        const yearStr = s.movie.releaseDate?.slice(0, 4);
+        if (!yearStr) continue;
+        const yr = parseInt(yearStr);
+        const decade = `${yearStr.slice(0, 3)}0s`;
         decadeCounts.set(decade, (decadeCounts.get(decade) ?? 0) + 1);
+        totalAge += currentYear - yr;
+        ageCount++;
       }
+      const avgAge = ageCount > 0 ? Math.round(totalAge / ageCount) : null;
       const decades = [...decadeCounts.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([decade, count]) => ({ decade, count }));
       const maxD = Math.max(...decades.map((d) => d.count), 1);
       const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4", "#10b981", "#f43f5e"];
 
+      // Profile type based on decade distribution
+      const recentCount = (decadeCounts.get("2020s") ?? 0) + (decadeCounts.get("2010s") ?? 0);
+      const classicCount = [...decadeCounts.entries()].filter(([d]) => d < "2000s").reduce((s, [, c]) => s + c, 0);
+      const total = seenMovies.length || 1;
+      let profileType = "Film Explorer";
+      if (recentCount / total > 0.8) profileType = "Modern Movie Fan";
+      else if (classicCount / total > 0.3) profileType = "Classic Film Buff";
+      else if (decades.length >= 6) profileType = "Era-Spanning Cinephile";
+
       statsContent = (
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <Stat label="Seen" value={String(seenCount)} />
           <Stat label="Rated" value={String(ratingCount)} />
           <Stat label="Hours" value={String(totalHours)} />
-          <Stat label="Top Genre" value={favGenre} />
+          <Stat label="Top Genre" value={favGenre} small />
+          {avgAge != null && <Stat label="Avg Age" value={`${avgAge}yr`} />}
         </div>
       );
+      badgeContent = <Badge text={profileType} color="#8b5cf6" />;
       chartContent = (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <span style={{ color: "#666", fontSize: 12, marginBottom: 2 }}>Movies by Decade</span>
@@ -109,47 +135,95 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── Genres: Genre bar chart ──
+    // ── Genres: Genre bar chart + diversity + guilty pleasure ──
     else if (tab === "genres") {
       tabTitle = "Genre Breakdown";
       const seenCount = await prisma.userFavoriteMovie.count({ where: { userId: user.id } });
-      const genres = await prisma.movieGenre.groupBy({
+
+      // All genres (not just top 8) for diversity calc
+      const allGenres = await prisma.movieGenre.groupBy({
         by: ["genreId"],
         where: { movie: { favoritedBy: { some: { userId: user.id } } } },
         _count: { genreId: true },
         orderBy: { _count: { genreId: "desc" } },
-        take: 8,
       });
-      const genreNames = await prisma.genre.findMany({ where: { id: { in: genres.map((g) => g.genreId) } } });
+      const genreIds = allGenres.map((g) => g.genreId);
+      const genreNames = await prisma.genre.findMany({ where: { id: { in: genreIds } } });
       const nameMap = new Map(genreNames.map((g) => [g.id, g.name]));
-      const maxG = Math.max(...genres.map((g) => g._count.genreId), 1);
-      const totalGenres = await prisma.movieGenre.groupBy({
-        by: ["genreId"],
-        where: { movie: { favoritedBy: { some: { userId: user.id } } } },
-        _count: { genreId: true },
+
+      const top8 = allGenres.slice(0, 8);
+      const maxG = Math.max(...top8.map((g) => g._count.genreId), 1);
+
+      // Genre diversity score (Shannon entropy, normalized 0-100)
+      const totalTags = allGenres.reduce((s, g) => s + g._count.genreId, 0);
+      let entropy = 0;
+      if (totalTags > 0 && allGenres.length > 1) {
+        for (const g of allGenres) {
+          const p = g._count.genreId / totalTags;
+          if (p > 0) entropy -= p * Math.log2(p);
+        }
+        const maxEntropy = Math.log2(allGenres.length);
+        entropy = maxEntropy > 0 ? Math.round((entropy / maxEntropy) * 100) : 0;
+      }
+
+      // Guilty pleasure: most watched but lowest rated
+      let guiltyPleasure: string | null = null;
+      const ratedGenreAvgs = await prisma.movieRating.findMany({
+        where: { userId: user.id, ratistRating: { not: null } },
+        select: { ratistRating: true, movie: { select: { genres: { select: { genre: { select: { name: true } } } } } } },
       });
+      if (ratedGenreAvgs.length > 0) {
+        const genreRatings = new Map<string, { total: number; count: number; seenCount: number }>();
+        for (const r of ratedGenreAvgs) {
+          for (const g of r.movie.genres) {
+            const entry = genreRatings.get(g.genre.name) ?? { total: 0, count: 0, seenCount: 0 };
+            entry.total += r.ratistRating!;
+            entry.count++;
+            genreRatings.set(g.genre.name, entry);
+          }
+        }
+        // Cross-reference with seen counts
+        for (const g of allGenres) {
+          const name = nameMap.get(g.genreId);
+          if (name && genreRatings.has(name)) {
+            genreRatings.get(name)!.seenCount = g._count.genreId;
+          }
+        }
+        // Guilty pleasure: high watch count + below-average rating
+        const gpCandidates = [...genreRatings.entries()]
+          .filter(([, d]) => d.count >= 2 && d.seenCount >= 20)
+          .map(([name, d]) => ({ name, avg: d.total / d.count, seenCount: d.seenCount }))
+          .sort((a, b) => b.seenCount - a.seenCount);
+        // Pick the most-watched genre with a below-median rating
+        const overallAvg = ratedGenreAvgs.reduce((s, r) => s + r.ratistRating!, 0) / ratedGenreAvgs.length;
+        const gp = gpCandidates.find((g) => g.avg < overallAvg);
+        if (gp) guiltyPleasure = gp.name;
+      }
 
       statsContent = (
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <Stat label="Seen" value={String(seenCount)} />
-          <Stat label="Genres" value={String(totalGenres.length)} />
-          <Stat label="#1 Genre" value={genres.length > 0 ? (nameMap.get(genres[0].genreId) ?? "?") : "—"} />
+          <Stat label="Genres" value={String(allGenres.length)} />
+          <Stat label="Diversity" value={`${entropy}%`} color={entropy >= 70 ? "#22c55e" : entropy >= 40 ? "#eab308" : "#ef4444"} />
+          <Stat label="#1 Genre" value={top8.length > 0 ? (nameMap.get(top8[0].genreId) ?? "?") : "—"} small />
         </div>
       );
+      if (guiltyPleasure) {
+        badgeContent = <Badge text={`Guilty Pleasure: ${guiltyPleasure}`} color="#f97316" />;
+      }
       chartContent = (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {genres.map((g) => (
+          {top8.map((g) => (
             <Bar key={g.genreId} label={nameMap.get(g.genreId) ?? "?"} value={g._count.genreId} max={maxG} />
           ))}
         </div>
       );
     }
 
-    // ── Directors & Actors: Based on ALL seen movies ──
+    // ── Directors & Actors: Based on ALL seen movies + unique counts ──
     else if (tab === "people") {
       tabTitle = "Directors & Actors";
 
-      // Use ALL seen movies, not just rated
       const seenMovies = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
         select: { movieId: true },
@@ -160,6 +234,8 @@ export async function GET(request: Request) {
       let actorBars: React.ReactNode = null;
       let topDirName = "—";
       let topActName = "—";
+      let uniqueDirCount = 0;
+      let uniqueActCount = 0;
 
       if (movieIds.length > 0) {
         // Directors
@@ -171,6 +247,7 @@ export async function GET(request: Request) {
         for (const dc of dirCredits) {
           dirCounts.set(dc.celebrity.name, (dirCounts.get(dc.celebrity.name) ?? 0) + 1);
         }
+        uniqueDirCount = dirCounts.size;
         const topDirs = [...dirCounts.entries()].sort(([, a], [, b]) => b - a).slice(0, 5);
         const maxDir = Math.max(...topDirs.map(([, c]) => c), 1);
         if (topDirs.length > 0) topDirName = topDirs[0][0];
@@ -184,6 +261,7 @@ export async function GET(request: Request) {
         for (const ac of actCredits) {
           actCounts.set(ac.celebrity.name, (actCounts.get(ac.celebrity.name) ?? 0) + 1);
         }
+        uniqueActCount = actCounts.size;
         const topActs = [...actCounts.entries()].sort(([, a], [, b]) => b - a).slice(0, 5);
         const maxAct = Math.max(...topActs.map(([, c]) => c), 1);
         if (topActs.length > 0) topActName = topActs[0][0];
@@ -207,10 +285,10 @@ export async function GET(request: Request) {
       }
 
       statsContent = (
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <Stat label="Seen" value={String(movieIds.length)} />
-          <Stat label="Top Director" value={topDirName.length > 14 ? topDirName.slice(0, 13) + "…" : topDirName} />
-          <Stat label="Top Actor" value={topActName.length > 14 ? topActName.slice(0, 13) + "…" : topActName} />
+          <Stat label="Directors" value={String(uniqueDirCount)} />
+          <Stat label="Actors" value={String(uniqueActCount)} />
         </div>
       );
       chartContent = (
@@ -221,7 +299,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── Rating Insights: Category bars + contrarian + controversial ──
+    // ── Rating Insights: Category bars + contrarian + personality + controversial ──
     else if (tab === "insights") {
       tabTitle = "Rating Insights";
       const avgRating = await prisma.movieRating.aggregate({
@@ -239,7 +317,12 @@ export async function GET(request: Request) {
         { label: "Entertainment", score: avg.entertainScore },
       ];
 
-      // Contrarian score — compare user's ratistRating to TMDB voteAverage (matching the real analytics API)
+      // Harshest and most generous category
+      const scoredCats = cats.filter((c) => c.score != null);
+      const harshest = scoredCats.length > 0 ? scoredCats.reduce((a, b) => (a.score! < b.score! ? a : b)) : null;
+      const generous = scoredCats.length > 0 ? scoredCats.reduce((a, b) => (a.score! > b.score! ? a : b)) : null;
+
+      // Contrarian score
       const userRatings = await prisma.movieRating.findMany({
         where: { userId: user.id, ratistRating: { not: null } },
         select: { movieId: true, ratistRating: true, movie: { select: { title: true, voteAverage: true } } },
@@ -268,13 +351,30 @@ export async function GET(request: Request) {
       }
       if (maxDiffEntry) controversial = maxDiffEntry;
 
+      // Rater personality based on distribution shape
+      let raterType = "Balanced Rater";
+      if (userRatings.length >= 3) {
+        const scores = userRatings.map((r) => r.ratistRating!);
+        const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+        const variance = scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length;
+        const stdDev = Math.sqrt(variance);
+        if (mean >= 7.5) raterType = "Generous Rater";
+        else if (mean <= 5) raterType = "Tough Critic";
+        else if (stdDev >= 2) raterType = "Polarized Taste";
+        else raterType = "Balanced Rater";
+      }
+
       statsContent = (
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <Stat label="Rated" value={String(ratingCount)} />
           {avg.ratistRating != null && <Stat label="Avg Rating" value={avg.ratistRating.toFixed(1)} color={scoreHex(avg.ratistRating)} />}
           {contrarianScore != null && <Stat label="Contrarian" value={contrarianScore.toFixed(1)} color={contrarianScore >= 2 ? "#ef4444" : contrarianScore >= 1 ? "#eab308" : "#22c55e"} />}
+          {generous && harshest && generous.label !== harshest.label && (
+            <Stat label="Toughest On" value={harshest.label} small color="#ef4444" />
+          )}
         </div>
       );
+      badgeContent = <Badge text={raterType} color={raterType === "Tough Critic" ? "#ef4444" : raterType === "Generous Rater" ? "#22c55e" : raterType === "Polarized Taste" ? "#f97316" : "#3b82f6"} />;
       chartContent = (
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           {cats.map((c) => (
@@ -299,12 +399,13 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── Habits: Monthly bar chart ──
+    // ── Habits: Monthly bar chart + avg/month + streak ──
     else if (tab === "habits") {
       tabTitle = "Watching Habits";
       const seenDated = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id, watchedDate: { not: null } },
         select: { watchedDate: true },
+        orderBy: { watchedDate: "asc" },
       });
       const monthCounts = new Array(12).fill(0);
       const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -312,7 +413,6 @@ export async function GET(request: Request) {
         if (s.watchedDate) monthCounts[new Date(s.watchedDate).getMonth()]++;
       }
       const maxM = Math.max(...monthCounts, 1);
-      const totalDated = seenDated.length;
 
       // Total watch hours + seen count
       const seenCount = await prisma.userFavoriteMovie.count({ where: { userId: user.id } });
@@ -321,6 +421,15 @@ export async function GET(request: Request) {
         select: { movie: { select: { runtime: true } } },
       });
       const hours = Math.round(runtimes.reduce((s, m) => s + (m.movie.runtime ?? 0), 0) / 60);
+
+      // Avg movies per month (based on span of dated entries)
+      let avgPerMonth = "—";
+      if (seenDated.length >= 2) {
+        const first = new Date(seenDated[0].watchedDate!);
+        const last = new Date(seenDated[seenDated.length - 1].watchedDate!);
+        const monthSpan = Math.max((last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()), 1);
+        avgPerMonth = (seenDated.length / monthSpan).toFixed(1);
+      }
 
       // Find peak month
       let peakIdx = 0;
@@ -340,10 +449,10 @@ export async function GET(request: Request) {
       }
 
       statsContent = (
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <Stat label="Seen" value={String(seenCount)} />
           <Stat label="Hours" value={String(hours)} />
-          <Stat label="Logged" value={String(totalDated)} />
+          <Stat label="Avg/Month" value={avgPerMonth} />
           <Stat label="Peak Month" value={monthLabels[peakIdx]} />
           <Stat label="Top Day" value={dayLabels[peakDay]} />
         </div>
@@ -396,13 +505,20 @@ export async function GET(request: Request) {
           </div>
 
           {/* Title + tab-specific stats */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ color: "white", fontSize: 32, fontWeight: "bold" }}>{tabTitle}</span>
               <span style={{ color: "#666", fontSize: 14, marginTop: 4 }}>{yearLabel}</span>
             </div>
             {statsContent}
           </div>
+
+          {/* Badge row */}
+          {badgeContent && (
+            <div style={{ display: "flex", marginBottom: 14 }}>
+              {badgeContent}
+            </div>
+          )}
 
           {/* Chart */}
           {chartContent && (

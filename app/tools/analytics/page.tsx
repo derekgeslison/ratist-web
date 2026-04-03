@@ -9,7 +9,7 @@ import ShareButton from "@/components/ShareButton";
 
 /* ── Types ── */
 interface AnalyticsData {
-  overview: { totalRated: number; totalSeen: number; totalDated: number; avgRating: number | null; totalRuntime: number; totalHours: number; avgMovieLength: number | null };
+  overview: { totalRated: number; totalSeen: number; totalDated: number; avgRating: number | null; totalRuntime: number; totalHours: number; avgMovieLength: number | null; avgMovieAge: number | null; profileType: string };
   velocity: { month: string; count: number }[];
   genres: { name: string; count: number; avgRating: number | null }[];
   decades: { decade: string; count: number; avgRating: number | null }[];
@@ -17,12 +17,20 @@ interface AnalyticsData {
   actorsTopRated: { name: string; count: number; avgRating: number }[];
   directorsMostWatched: { name: string; count: number; avgRating: number | null }[];
   actorsMostWatched: { name: string; count: number; avgRating: number | null }[];
+  uniqueDirectors: number;
+  uniqueActors: number;
   distribution: { score: number; count: number }[];
   ratingTrend: { month: string; avgRating: number; count: number }[];
   contrarianScore: number | null;
   mostControversial: { title: string; userScore: number; communityScore: number; diff: number }[];
+  raterType: string;
+  harshestCategory: { label: string; score: number } | null;
+  generousCategory: { label: string; score: number } | null;
+  genreDiversity: number;
+  guiltyPleasure: string | null;
   seasonal: { month: string; count: number }[];
   dayOfWeek: { day: string; count: number }[];
+  avgPerMonth: number | null;
   blindSpots: { genre: string; count: number }[];
   categoryAverages: {
     story: { score: number | null; fields: Record<string, number | null> };
@@ -216,6 +224,15 @@ export default function AnalyticsPage() {
           {/* ── OVERVIEW ── */}
           {tab === "overview" && (
             <div className="space-y-8">
+              {/* Profile type badge */}
+              {data.overview.profileType && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-purple-400 bg-purple-400/10 border border-purple-400/30 rounded-full px-3 py-1">{data.overview.profileType}</span>
+                  {data.overview.avgMovieAge != null && (
+                    <span className="text-xs text-[var(--foreground-muted)]">Avg movie age: {data.overview.avgMovieAge} years</span>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <StatCard label="Movies Rated" value={String(data.overview.totalRated)} />
                 <StatCard label="Movies Seen" value={String(data.overview.totalSeen)} />
@@ -300,6 +317,18 @@ export default function AnalyticsPage() {
             const lowestRatedGenre = genresWithRatings.length > 0 ? genresWithRatings.reduce((worst, g) => (g.avgRating! < (worst.avgRating ?? 10) ? g : worst)) : null;
             return (
             <div className="space-y-8">
+              {/* Diversity badge + guilty pleasure */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className={`text-xs font-semibold rounded-full px-3 py-1 border ${data.genreDiversity >= 70 ? "text-green-400 bg-green-400/10 border-green-400/30" : data.genreDiversity >= 40 ? "text-yellow-400 bg-yellow-400/10 border-yellow-400/30" : "text-red-400 bg-red-400/10 border-red-400/30"}`}>
+                  Genre Diversity: {data.genreDiversity}%
+                </span>
+                {data.guiltyPleasure && (
+                  <span className="text-xs font-semibold text-orange-400 bg-orange-400/10 border border-orange-400/30 rounded-full px-3 py-1">
+                    Guilty Pleasure: {data.guiltyPleasure}
+                  </span>
+                )}
+              </div>
+
               {/* Genre insight cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <StatCard label="Genres Explored" value={String(data.genres.length)} sub={`of ${data.genres.length + data.blindSpots.length} total`} />
@@ -349,6 +378,14 @@ export default function AnalyticsPage() {
           {/* ── DIRECTORS & ACTORS ── */}
           {tab === "people" && (
             <div className="space-y-10">
+              {/* Unique counts */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="Unique Directors" value={String(data.uniqueDirectors)} />
+                <StatCard label="Unique Actors" value={String(data.uniqueActors)} />
+                <StatCard label="Movies Seen" value={String(data.overview.totalSeen)} />
+                <StatCard label="Movies Rated" value={String(data.overview.totalRated)} />
+              </div>
+
               {/* Most Watched */}
               <div className="grid md:grid-cols-2 gap-8">
                 <section>
@@ -444,6 +481,29 @@ export default function AnalyticsPage() {
           {/* ── RATING INSIGHTS ── */}
           {tab === "insights" && (
             <div className="space-y-8">
+              {/* Rater personality + category insights */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {data.raterType && (
+                  <span className={`text-xs font-semibold rounded-full px-3 py-1 border ${
+                    data.raterType === "Tough Critic" ? "text-red-400 bg-red-400/10 border-red-400/30" :
+                    data.raterType === "Generous Rater" ? "text-green-400 bg-green-400/10 border-green-400/30" :
+                    data.raterType === "Polarized Taste" ? "text-orange-400 bg-orange-400/10 border-orange-400/30" :
+                    "text-blue-400 bg-blue-400/10 border-blue-400/30"
+                  }`}>{data.raterType}</span>
+                )}
+                {data.harshestCategory && data.generousCategory && data.harshestCategory.label !== data.generousCategory.label && (
+                  <>
+                    <span className="text-xs text-[var(--foreground-muted)]">
+                      Toughest on <span className="text-red-400 font-medium">{data.harshestCategory.label}</span> ({data.harshestCategory.score.toFixed(1)})
+                    </span>
+                    <span className="text-xs text-[var(--foreground-muted)]">·</span>
+                    <span className="text-xs text-[var(--foreground-muted)]">
+                      Most generous with <span className="text-green-400 font-medium">{data.generousCategory.label}</span> ({data.generousCategory.score.toFixed(1)})
+                    </span>
+                  </>
+                )}
+              </div>
+
               {/* Distribution */}
               <section>
                 <h3 className="text-sm font-semibold text-white mb-3">Rating Distribution</h3>
@@ -576,6 +636,14 @@ export default function AnalyticsPage() {
           {/* ── HABITS ── */}
           {tab === "habits" && (
             <div className="space-y-8">
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="Movies Seen" value={String(data.overview.totalSeen)} />
+                <StatCard label="Total Hours" value={`${data.overview.totalHours}h`} />
+                {data.avgPerMonth != null && <StatCard label="Avg per Month" value={String(data.avgPerMonth)} />}
+                <StatCard label="With Watch Date" value={String(data.overview.totalDated)} sub={data.overview.totalSeen > 0 ? `${Math.round((data.overview.totalDated / data.overview.totalSeen) * 100)}% logged` : undefined} />
+              </div>
+
               {/* Seasonal patterns */}
               <section>
                 <h3 className="text-sm font-semibold text-white mb-3">When You Watch</h3>
