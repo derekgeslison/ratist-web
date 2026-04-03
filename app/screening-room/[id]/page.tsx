@@ -712,7 +712,14 @@ export default function ScreeningSessionPage() {
     return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-[var(--foreground-muted)]">Sign in to join this screening room.</div>;
   }
   if (loading) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
-  if (error) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-red-400">{error}</div>;
+  if (error) return (
+    <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+      <MonitorPlay className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
+      <h2 className="text-lg font-bold text-white mb-2">Session Unavailable</h2>
+      <p className="text-sm text-[var(--foreground-muted)] mb-4">This screening room may have been cancelled by the host or is no longer available.</p>
+      <Link href="/screening-room" className="text-sm text-[var(--ratist-red)] hover:underline">← Back to Screening Rooms</Link>
+    </div>
+  );
   if (!session) return null;
 
   const me = session.participants.find((p) => p.userId === myUserId);

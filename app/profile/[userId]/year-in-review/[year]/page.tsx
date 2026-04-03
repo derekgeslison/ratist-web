@@ -134,8 +134,7 @@ export default async function YearInReviewPage({ params }: Props) {
   // Busiest month
   const monthCounts = new Array(12).fill(0);
   for (const s of seenThisYear) {
-    const d = s.watchedDate ?? s.createdAt;
-    if (d) monthCounts[new Date(d).getMonth()]++;
+    if (s.watchedDate) monthCounts[new Date(s.watchedDate).getMonth()]++;
   }
   const busiestMonthIdx = monthCounts.indexOf(Math.max(...monthCounts));
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

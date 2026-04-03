@@ -121,10 +121,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       update: ratingData,
     });
 
-    // Also mark as seen
+    // Also mark as seen (without auto-setting watchedDate — user sets that manually)
     await prisma.userFavoriteMovie.upsert({
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-      create: { userId: user.id, movieId: movie.id, watchedDate: new Date() },
+      create: { userId: user.id, movieId: movie.id },
       update: {},
     }).catch(() => {});
 

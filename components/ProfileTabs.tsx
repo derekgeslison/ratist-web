@@ -218,8 +218,8 @@ export default function ProfileTabs({
 
   // Movies seen in the active display year
   const seenThisYear = seenMovies.filter((m) => {
-    const date = m.watchedDate ?? m.seenAt;
-    return date && new Date(date).getFullYear().toString() === activeYear;
+    // Only count movies with an explicit watchedDate (not createdAt fallback)
+    return m.watchedDate && new Date(m.watchedDate).getFullYear().toString() === activeYear;
   }).length;
 
   return (
