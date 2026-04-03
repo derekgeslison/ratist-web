@@ -9,6 +9,7 @@ import PostLikeButton from "@/components/PostLikeButton";
 export const dynamic = "force-dynamic";
 import { Calendar, ArrowLeft } from "lucide-react";
 import PageShare from "@/components/PageShare";
+import AdUnit from "@/components/AdUnit";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -73,6 +74,8 @@ export default async function BlogPostPage({ params }: Props) {
 
       {/* Content */}
       <RichTextRenderer content={post.content} />
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG_POST ?? ""} format="auto" className="my-8" />
 
       {/* Comments */}
       <div className="mt-12 pt-8 border-t border-[var(--border)]">

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { BookOpen, Calendar, Eye, MessageCircle } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
+import AdUnit from "@/components/AdUnit";
 
 type Sort = "newest" | "oldest" | "popular";
 
@@ -53,6 +54,8 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
           <p>No posts yet. Check back soon.</p>
         </div>
       ) : (
+        <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG ?? ""} format="auto" className="mb-6" />
+
         <div className="grid md:grid-cols-2 gap-6">
           {postsWithComments.map((post) => (
             <Link

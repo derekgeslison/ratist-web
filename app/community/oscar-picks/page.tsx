@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Trophy, CheckCircle2, Lock, MessageCircle } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import AdUnit from "@/components/AdUnit";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w92";
 
@@ -137,6 +138,8 @@ export default function OscarPicksPage() {
         <h1 className="text-2xl font-bold text-white">Oscar Picks</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-8">Vote for your picks before the ceremony. See how the community compares to the real winners.</p>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">Loading…</p>

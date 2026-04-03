@@ -4,6 +4,7 @@ export const metadata: Metadata = { title: "Community Hub" };
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Trophy, RefreshCw, Flame } from "lucide-react";
+import AdUnit from "@/components/AdUnit";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,8 @@ export default async function CommunityPage() {
           </Link>
         ))}
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-8" />
 
       {/* Members */}
       <div>

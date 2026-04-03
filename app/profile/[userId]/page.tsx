@@ -8,6 +8,7 @@ import { getRatingStatus } from "@/lib/rating-status";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
+import AdUnit from "@/components/AdUnit";
 
 interface Props { params: Promise<{ userId: string }> }
 
@@ -244,6 +245,8 @@ export default async function ProfilePage({ params }: Props) {
           />
         </div>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PROFILE ?? ""} format="auto" className="mb-4" />
 
       {/* Tabs */}
       <ProfileTabs

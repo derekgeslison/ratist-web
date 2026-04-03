@@ -7,6 +7,7 @@ import CommentSection from "@/components/CommentSection";
 import PostLikeButton from "@/components/PostLikeButton";
 import { ArrowLeft, Calendar, Swords } from "lucide-react";
 import PageShare from "@/components/PageShare";
+import AdUnit from "@/components/AdUnit";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,9 @@ export default async function PunchAndJudyPostPage({ params }: Props) {
         </div>
       </div>
       <RichTextRenderer content={post.content} />
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG_POST ?? ""} format="auto" className="my-8" />
+
       {/* Discussion */}
       <div className="mt-12 pt-8 border-t border-[var(--border)]">
         <CommentSection targetType="blog" targetId={post.id} />

@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import AdUnit from "@/components/AdUnit";
 
 interface HotTakeItem {
   id: string;
@@ -141,6 +142,8 @@ export default function HotTakesPage() {
         )}
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Share your spiciest movie opinions. The community decides: hot or not.</p>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 
       {/* Submit Form */}
       {showForm && (

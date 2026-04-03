@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay } from "lucide-react";
+import AdUnit from "@/components/AdUnit";
 
 export const metadata: Metadata = { title: "Cinephile Tools" };
 
@@ -69,6 +70,8 @@ export default function ToolsPage() {
         <h1 className="text-2xl font-bold text-white">Cinephile Tools</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-8">Powerful tools for the serious movie fan.</p>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOOLS ?? ""} format="auto" className="mb-6" />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {TOOLS.map((tool) => {

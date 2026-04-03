@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import AdUnit from "@/components/AdUnit";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w185";
 const TMDB_POSTER = "https://image.tmdb.org/t/p/w92";
@@ -297,6 +298,8 @@ export default function RecastPage() {
         )}
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Who should have played that role? Submit your ideal recast and vote on others.</p>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 
       {/* Submit Form */}
       {showForm && (

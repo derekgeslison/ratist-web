@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Swords, Eye, MessageCircle } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
+import AdUnit from "@/components/AdUnit";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,8 @@ export default async function PunchAndJudyPage({ searchParams }: { searchParams:
       {posts.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No posts yet.</p>
       ) : (
+        <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG ?? ""} format="auto" className="mb-6" />
+
         <div className="grid md:grid-cols-2 gap-6">
           {postsWithComments.map((post) => (
             <Link key={post.id} href={`/punch-and-judy/${post.slug}`} className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)] transition-colors">

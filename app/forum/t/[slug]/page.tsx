@@ -6,6 +6,7 @@ import Image from "next/image";
 import { use } from "react";
 import { ArrowLeft, Lock, Pin, Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import AdUnit from "@/components/AdUnit";
 
 interface ForumPost {
   id: string;
@@ -106,6 +107,8 @@ export default function ThreadPage({ params }: Props) {
           {thread.isLocked && <span className="ml-2 text-yellow-600">· Thread locked</span>}
         </p>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 
       {/* Posts */}
       <div className="space-y-4 mb-8">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquare, Users, Clock } from "lucide-react";
+import AdUnit from "@/components/AdUnit";
 
 interface Category {
   id: string;
@@ -45,6 +46,8 @@ export default function ForumPage() {
           + New Thread
         </Link>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading...</p>
