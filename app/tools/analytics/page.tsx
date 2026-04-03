@@ -224,13 +224,24 @@ export default function AnalyticsPage() {
           {/* ── OVERVIEW ── */}
           {tab === "overview" && (
             <div className="space-y-8">
-              {/* Profile type badge */}
+              {/* Profile type badge with explanation */}
               {data.overview.profileType && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-purple-400 bg-purple-400/10 border border-purple-400/30 rounded-full px-3 py-1">{data.overview.profileType}</span>
-                  {data.overview.avgMovieAge != null && (
-                    <span className="text-xs text-[var(--foreground-muted)]">Avg movie age: {data.overview.avgMovieAge} years</span>
-                  )}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-xs font-semibold text-purple-400 bg-purple-400/10 border border-purple-400/30 rounded-full px-3 py-1">{data.overview.profileType}</span>
+                    {data.overview.avgMovieAge != null && (
+                      <span className="text-xs text-[var(--foreground-muted)]">Avg movie age: {data.overview.avgMovieAge} years</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[var(--foreground-muted)]">
+                    {data.overview.profileType === "Modern Movie Fan" && "Over 80% of your movies are from the 2010s–2020s. You stay current with what's new."}
+                    {data.overview.profileType === "Classic Film Buff" && "Over 30% of your movies are pre-2000s. You appreciate the history of cinema."}
+                    {data.overview.profileType === "Era-Spanning Cinephile" && "Your movies span 6+ decades. You explore cinema across all eras."}
+                    {data.overview.profileType === "Film Explorer" && "You have a balanced mix of eras with a modern lean. Keep exploring!"}
+                  </p>
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-1.5 opacity-60">
+                    Types: Modern Movie Fan · Classic Film Buff · Era-Spanning Cinephile · Film Explorer
+                  </p>
                 </div>
               )}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -317,15 +328,26 @@ export default function AnalyticsPage() {
             const lowestRatedGenre = genresWithRatings.length > 0 ? genresWithRatings.reduce((worst, g) => (g.avgRating! < (worst.avgRating ?? 10) ? g : worst)) : null;
             return (
             <div className="space-y-8">
-              {/* Diversity badge + guilty pleasure */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className={`text-xs font-semibold rounded-full px-3 py-1 border ${data.genreDiversity >= 70 ? "text-green-400 bg-green-400/10 border-green-400/30" : data.genreDiversity >= 40 ? "text-yellow-400 bg-yellow-400/10 border-yellow-400/30" : "text-red-400 bg-red-400/10 border-red-400/30"}`}>
-                  Genre Diversity: {data.genreDiversity}%
-                </span>
-                {data.guiltyPleasure && (
-                  <span className="text-xs font-semibold text-orange-400 bg-orange-400/10 border border-orange-400/30 rounded-full px-3 py-1">
-                    Guilty Pleasure: {data.guiltyPleasure}
+              {/* Diversity + guilty pleasure with explanation */}
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <div className="flex items-center gap-3 flex-wrap mb-2">
+                  <span className={`text-xs font-semibold rounded-full px-3 py-1 border ${data.genreDiversity >= 70 ? "text-green-400 bg-green-400/10 border-green-400/30" : data.genreDiversity >= 40 ? "text-yellow-400 bg-yellow-400/10 border-yellow-400/30" : "text-red-400 bg-red-400/10 border-red-400/30"}`}>
+                    Genre Diversity: {data.genreDiversity}%
                   </span>
+                  {data.guiltyPleasure && (
+                    <span className="text-xs font-semibold text-orange-400 bg-orange-400/10 border border-orange-400/30 rounded-full px-3 py-1">
+                      Guilty Pleasure: {data.guiltyPleasure}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Diversity measures how evenly your movies spread across genres. 100% = perfectly even, 0% = all one genre.
+                  {data.genreDiversity >= 70 ? " You have very diverse taste!" : data.genreDiversity >= 40 ? " You have some favorite genres but still explore." : " You tend to stick to a few genres."}
+                </p>
+                {data.guiltyPleasure && (
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-1 opacity-60">
+                    Guilty pleasure = a genre you watch a lot but rate below your average.
+                  </p>
                 )}
               </div>
 
@@ -481,27 +503,38 @@ export default function AnalyticsPage() {
           {/* ── RATING INSIGHTS ── */}
           {tab === "insights" && (
             <div className="space-y-8">
-              {/* Rater personality + category insights */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {data.raterType && (
-                  <span className={`text-xs font-semibold rounded-full px-3 py-1 border ${
-                    data.raterType === "Tough Critic" ? "text-red-400 bg-red-400/10 border-red-400/30" :
-                    data.raterType === "Generous Rater" ? "text-green-400 bg-green-400/10 border-green-400/30" :
-                    data.raterType === "Polarized Taste" ? "text-orange-400 bg-orange-400/10 border-orange-400/30" :
-                    "text-blue-400 bg-blue-400/10 border-blue-400/30"
-                  }`}>{data.raterType}</span>
-                )}
-                {data.harshestCategory && data.generousCategory && data.harshestCategory.label !== data.generousCategory.label && (
-                  <>
-                    <span className="text-xs text-[var(--foreground-muted)]">
-                      Toughest on <span className="text-red-400 font-medium">{data.harshestCategory.label}</span> ({data.harshestCategory.score.toFixed(1)})
-                    </span>
-                    <span className="text-xs text-[var(--foreground-muted)]">·</span>
-                    <span className="text-xs text-[var(--foreground-muted)]">
-                      Most generous with <span className="text-green-400 font-medium">{data.generousCategory.label}</span> ({data.generousCategory.score.toFixed(1)})
-                    </span>
-                  </>
-                )}
+              {/* Rater personality + category insights with explanation */}
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <div className="flex items-center gap-3 flex-wrap mb-2">
+                  {data.raterType && (
+                    <span className={`text-xs font-semibold rounded-full px-3 py-1 border ${
+                      data.raterType === "Tough Critic" ? "text-red-400 bg-red-400/10 border-red-400/30" :
+                      data.raterType === "Generous Rater" ? "text-green-400 bg-green-400/10 border-green-400/30" :
+                      data.raterType === "Polarized Taste" ? "text-orange-400 bg-orange-400/10 border-orange-400/30" :
+                      "text-blue-400 bg-blue-400/10 border-blue-400/30"
+                    }`}>{data.raterType}</span>
+                  )}
+                  {data.harshestCategory && data.generousCategory && data.harshestCategory.label !== data.generousCategory.label && (
+                    <>
+                      <span className="text-xs text-[var(--foreground-muted)]">
+                        Toughest on <span className="text-red-400 font-medium">{data.harshestCategory.label}</span> ({data.harshestCategory.score.toFixed(1)})
+                      </span>
+                      <span className="text-xs text-[var(--foreground-muted)]">·</span>
+                      <span className="text-xs text-[var(--foreground-muted)]">
+                        Most generous with <span className="text-green-400 font-medium">{data.generousCategory.label}</span> ({data.generousCategory.score.toFixed(1)})
+                      </span>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  {data.raterType === "Tough Critic" && "Your average rating is 5 or below. You hold movies to a high standard."}
+                  {data.raterType === "Generous Rater" && "Your average rating is 7.5+. You tend to see the best in movies."}
+                  {data.raterType === "Polarized Taste" && "Your ratings have high variance. You either love it or you don't — no middle ground."}
+                  {data.raterType === "Balanced Rater" && "Your ratings are spread across the spectrum with moderate variance."}
+                </p>
+                <p className="text-[10px] text-[var(--foreground-muted)] mt-1.5 opacity-60">
+                  Types: Tough Critic · Generous Rater · Polarized Taste · Balanced Rater
+                </p>
               </div>
 
               {/* Distribution */}
@@ -636,12 +669,14 @@ export default function AnalyticsPage() {
           {/* ── HABITS ── */}
           {tab === "habits" && (
             <div className="space-y-8">
-              {/* Summary stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Summary stats — all in one place */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 <StatCard label="Movies Seen" value={String(data.overview.totalSeen)} />
-                <StatCard label="Total Hours" value={`${data.overview.totalHours}h`} />
+                <StatCard label="Total Hours" value={`${data.overview.totalHours}h`} sub={`${Math.round(data.overview.totalHours / 24)} full days`} />
                 {data.avgPerMonth != null && <StatCard label="Avg per Month" value={String(data.avgPerMonth)} />}
-                <StatCard label="With Watch Date" value={String(data.overview.totalDated)} sub={data.overview.totalSeen > 0 ? `${Math.round((data.overview.totalDated / data.overview.totalSeen) * 100)}% logged` : undefined} />
+                <StatCard label="Avg Length" value={data.overview.avgMovieLength ? `${data.overview.avgMovieLength}m` : "—"} />
+                <StatCard label="Logged" value={String(data.overview.totalDated)} sub={data.overview.totalSeen > 0 ? `${Math.round((data.overview.totalDated / data.overview.totalSeen) * 100)}% of seen` : undefined} />
+                <StatCard label="Rate Ratio" value={data.overview.totalRated > 0 ? `${Math.round((data.overview.totalRated / data.overview.totalSeen) * 100)}%` : "—"} sub="seen → rated" />
               </div>
 
               {/* Seasonal patterns */}
@@ -694,15 +729,6 @@ export default function AnalyticsPage() {
                 </section>
               )}
 
-              {/* Watch time stats */}
-              <section>
-                <h3 className="text-sm font-semibold text-white mb-3">Watch Time</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <StatCard label="Total Hours" value={`${data.overview.totalHours}`} sub={`${Math.round(data.overview.totalHours / 24)} full days`} />
-                  <StatCard label="Avg Movie Length" value={data.overview.avgMovieLength ? `${data.overview.avgMovieLength}m` : "—"} />
-                  <StatCard label="Seen-to-Rated Ratio" value={data.overview.totalRated > 0 ? `${Math.round((data.overview.totalRated / data.overview.totalSeen) * 100)}%` : "—"} sub="of seen movies rated" />
-                </div>
-              </section>
             </div>
           )}
 
