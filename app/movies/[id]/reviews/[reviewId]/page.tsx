@@ -20,8 +20,8 @@ const FIELD_LABELS: Record<string, string> = {
   visualEffects: "Visual Effects", musicSound: "Music & Sound",
   overallEmotion: "Overall Emotion", relatability: "Relatability",
   meaning: "Meaning / Message", movingness: "Movingness",
-  casting: "Casting", actingQuality: "Acting Quality",
-  dialogueScripting: "Dialogue", blockingChoreo: "Choreography",
+  casting: "Casting & Subjects", actingQuality: "Performance Quality",
+  dialogueScripting: "Dialogue & Writing", blockingChoreo: "Choreography",
   appeal: "Appeal", superficialAllure: "Superficial Allure", choreography: "Choreography",
 };
 

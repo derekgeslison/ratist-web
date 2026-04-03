@@ -17,7 +17,7 @@ const CRITERIA = {
       { key: "plot", label: "Plot", required: true, desc: "Was the movie coherent? Were complexities executed well?" },
       { key: "premiseOriginality", label: "Premise / Originality", required: false, desc: "Was the premise well understood? Did the movie stand out?" },
       { key: "storytelling", label: "Story-telling", required: true, desc: "Did the movie flow well? Was the story in and of itself interesting?" },
-      { key: "characterDev", label: "Character Development", required: false, desc: "Do you know enough about the main characters? Their motivations, fears, desires?" },
+      { key: "characterDev", label: "Character Development", required: false, desc: "Are the main characters or subjects explored well? Do you understand their motivations?" },
       { key: "pacingClimax", label: "Pacing / Climax", required: true, desc: "Was there a continuous rise in excitement? Was the movie well paced?" },
     ],
   },
@@ -27,7 +27,7 @@ const CRITERIA = {
     fields: [
       { key: "cinematography", label: "Cinematography", required: true, desc: "Was the movie visually pleasing? Were there creative or beautiful shots?" },
       { key: "locationCost", label: "Location & Costuming", required: false, desc: "Did the location and costumes match the content and characters?" },
-      { key: "realism", label: "Realism / Believability", required: false, desc: "Did the plot and characters seem feasible within the film's world?" },
+      { key: "realism", label: "Realism / Believability", required: false, desc: "Did everything feel believable within the film's world?" },
       { key: "artisticEffect", label: "Artistic Effect", required: true, desc: "How artistic was the movie? Did it force you to think and interpret?" },
       { key: "visualEffects", label: "Visual Effects", required: false, desc: "(If applicable) Were the VFX high quality? Did they add or detract?" },
       { key: "musicSound", label: "Music & Sound Effects", required: false, desc: "Did the music add to the experience? Were sound effects accurate and good quality?" },
@@ -47,9 +47,9 @@ const CRITERIA = {
     key: "acting",
     weight: 3,
     fields: [
-      { key: "casting", label: "Casting", required: true, desc: "Did they cast the right actors for each role? Was casting based on merit or marketing?" },
-      { key: "actingQuality", label: "Acting Quality", required: true, desc: "Did the actors seem capable and skilled? Did they nail the part?" },
-      { key: "dialogueScripting", label: "Dialogue / Scripting", required: false, desc: "Did the dialogue sound natural? Did it give actors opportunities to shine?" },
+      { key: "casting", label: "Casting & Subjects", required: true, desc: "Were the right people chosen for this film? Consider actors, voice talent, or documentary subjects." },
+      { key: "actingQuality", label: "Performance Quality", required: true, desc: "How compelling were the performances? Consider acting, voice work, or on-screen presence." },
+      { key: "dialogueScripting", label: "Dialogue & Writing", required: false, desc: "Was the writing effective? Consider dialogue, narration, or commentary." },
     ],
   },
   "Pure Entertainment": {

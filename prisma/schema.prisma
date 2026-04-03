@@ -218,7 +218,7 @@ model MovieRating {
   meaning        Float?
   movingness     Float?
 
-  // Acting & Casting (weight 3) — required: casting, actingQuality
+  // Acting & Casting (weight 3) — required: casting (Casting & Subjects), actingQuality (Performance Quality)
   casting            Float?
   actingQuality      Float? @map("acting_quality")
   dialogueScripting  Float? @map("dialogue_scripting")

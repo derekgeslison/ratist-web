@@ -36,9 +36,9 @@ const CRITERIA = {
   },
   "Acting & Casting": {
     fields: [
-      { key: "casting", label: "Casting", required: true },
-      { key: "actingQuality", label: "Acting Quality", required: true },
-      { key: "dialogueScripting", label: "Dialogue / Scripting" },
+      { key: "casting", label: "Casting & Subjects", required: true },
+      { key: "actingQuality", label: "Performance Quality", required: true },
+      { key: "dialogueScripting", label: "Dialogue & Writing" },
     ],
   },
   "Pure Entertainment": {
