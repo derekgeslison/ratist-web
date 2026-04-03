@@ -107,7 +107,7 @@ export default async function ComparePage({ params }: Props) {
       diff: Math.abs(r.ratistRating! - ratings2Map.get(r.movieId)!),
     }));
 
-  const mostAgreed = [...sharedMovies].sort((a, b) => a.diff - b.diff).slice(0, 5);
+  const mostAgreed = [...sharedMovies].filter((m) => m.diff <= 1).sort((a, b) => a.diff - b.diff).slice(0, 5);
   const agreedIds = new Set(mostAgreed.map((m) => m.tmdbId));
   const mostDisagreed = [...sharedMovies].filter((m) => !agreedIds.has(m.tmdbId)).sort((a, b) => b.diff - a.diff).slice(0, 5);
 
