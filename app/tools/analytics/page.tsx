@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BarChart3, Film, Clock, TrendingUp, Star, Users, Target, Zap, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
+import ShareButton from "@/components/ShareButton";
 
 /* ── Types ── */
 interface AnalyticsData {
@@ -199,6 +200,18 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
+
+          {/* Share button for current tab */}
+          {user && tab !== "custom" && (
+            <div className="flex justify-end mb-4 -mt-2">
+              <ShareButton
+                label={`Share ${TABS.find((t) => t.key === tab)?.label ?? "Analytics"}`}
+                text={`Check out my ${TABS.find((t) => t.key === tab)?.label ?? "analytics"}${yearFrom || yearTo ? ` (${yearFrom}${yearTo ? `–${yearTo}` : "+"})` : ""} on The Ratist!`}
+                url={`${typeof window !== "undefined" ? window.location.origin : "https://theratist.com"}/tools/analytics`}
+                cardImageUrl={`/api/og/analytics?userId=${encodeURIComponent(user.uid)}&tab=${tab}${yearFrom ? `&yearFrom=${yearFrom}` : ""}${yearTo ? `&yearTo=${yearTo}` : ""}`}
+              />
+            </div>
+          )}
 
           {/* ── OVERVIEW ── */}
           {tab === "overview" && (
