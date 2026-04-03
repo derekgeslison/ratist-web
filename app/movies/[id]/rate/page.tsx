@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
+import LiveReview from "@/components/LiveReview";
 
 type ReviewMode = "basic" | "standard" | "critic";
 
@@ -269,6 +270,9 @@ export default function RateMoviePage() {
           ))}
         </div>
       </div>
+
+      {/* Live Review tool (critic mode only) */}
+      {mode === "critic" && <LiveReview movieId={id} />}
 
       {/* Controls row (only for standard/critic) */}
       {mode !== "basic" && (
