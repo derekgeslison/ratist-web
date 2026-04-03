@@ -249,7 +249,7 @@ export default async function MovieDetailPage({ params }: Props) {
             </h2>
             <div className="flex gap-3 overflow-x-auto pb-2 pt-1 px-1 -mx-1 scrollbar-thin">
               {collection.parts
-                .sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""))
+                .sort((a, b) => (a.release_date || "9999").localeCompare(b.release_date || "9999"))
                 .map((part) => {
                   const isCurrent = part.id === movie.id;
                   return (
