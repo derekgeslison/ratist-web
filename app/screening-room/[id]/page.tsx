@@ -207,7 +207,7 @@ export default function ScreeningSessionPage() {
         // Only include messages from the watching phase (between startedAt and finishedAt)
         const startedAtMs = session?.startedAt ? new Date(session.startedAt).getTime() : 0;
         const finishedAtMs = session?.finishedAt ? new Date(session.finishedAt).getTime() : Infinity;
-        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs && m.timestamp <= finishedAtMs);
+        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs && m.timestamp <= finishedAtMs && (m as any).phase !== "lobby" && (m as any).phase !== "postwatch");
         if (watchingMsgs.length === 0) {
           if (attempt < 3) setTimeout(() => generateHighlights(attempt + 1), 1000);
           return;
@@ -1044,7 +1044,7 @@ export default function ScreeningSessionPage() {
             myPhotoURL={user?.photoURL ?? undefined}
             chatMessages={chatMessages}
             maxHeight="180px"
-            label="Lobby Chat"
+            label="Lobby Chat" phase="lobby"
           />
 
           {/* Leave / Cancel */}
@@ -1321,7 +1321,7 @@ export default function ScreeningSessionPage() {
                 myPhotoURL={user?.photoURL ?? undefined}
                 chatMessages={chatMessages}
                 maxHeight="200px"
-                label="Post-Watch Chat"
+                label="Post-Watch Chat" phase="postwatch"
               />
 
               {/* Leave session (non-host) */}
@@ -1365,7 +1365,13 @@ export default function ScreeningSessionPage() {
               {(() => {
                 const _startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : 0;
                 const _finishedAtMs = session.finishedAt ? new Date(session.finishedAt).getTime() : Infinity;
-                const watchingChatMsgs = chatMessages.filter((m) => m.timestamp >= _startedAtMs && m.timestamp <= _finishedAtMs && m.userId !== "system");
+                const watchingChatMsgs = chatMessages.filter((m) => {
+                  if (m.userId === "system") return false;
+                  if ((m as any).phase === "lobby" || (m as any).phase === "postwatch") return false;
+                  if (m.timestamp < _startedAtMs) return false;
+                  if (_finishedAtMs < Infinity && m.timestamp > _finishedAtMs) return false;
+                  return true;
+                });
                 const chatMsgsForSuperlatives = watchingChatMsgs.length > 0 ? watchingChatMsgs
                   : (session.chatHighlights ?? []).filter((h) => h.user.id && h.user.id !== "system").map((h) => ({ userId: h.user.id, timestamp: 0 }));
                 return (
@@ -1528,7 +1534,7 @@ export default function ScreeningSessionPage() {
                 myPhotoURL={user?.photoURL ?? undefined}
                 chatMessages={chatMessages}
                 maxHeight="200px"
-                label="Post-Watch Chat"
+                label="Post-Watch Chat" phase="postwatch"
               />
 
               {/* Footer */}

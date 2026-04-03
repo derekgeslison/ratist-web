@@ -100,9 +100,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         data.startedAt = new Date();
       } else if (status === "POST_WATCH" && isHost) {
         data.status = "POST_WATCH";
+        if (!session.finishedAt) data.finishedAt = new Date();
       } else if (status === "COMPLETE" && isHost) {
         data.status = "COMPLETE";
-        data.finishedAt = new Date();
+        if (!session.finishedAt) data.finishedAt = new Date();
       }
     }
 

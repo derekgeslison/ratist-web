@@ -16,9 +16,10 @@ interface Props {
   chatMessages: (RTDBChatMessage & { key: string })[];
   maxHeight?: string;
   label?: string;
+  phase?: "lobby" | "postwatch";
 }
 
-export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat" }: Props) {
+export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase }: Props) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +49,7 @@ export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, c
     };
     if (myPhotoURL) msg.avatarUrl = myPhotoURL;
     if (emoji) msg.emoji = emoji;
+    if (phase) msg.phase = phase;
     try {
       await push(ref(rtdb, rtdbPaths.chat(sessionId)), msg);
     } catch { /* ignore */ }
