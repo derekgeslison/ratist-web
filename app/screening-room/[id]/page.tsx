@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2 } from "lucide-react";
+import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
@@ -15,6 +15,7 @@ import ScreeningSuperlatives from "@/components/screening/ScreeningSuperlatives"
 import ScreeningHeatmap from "@/components/screening/ScreeningHeatmap";
 import ScreeningTrivia from "@/components/screening/ScreeningTrivia";
 import ScreeningMovieSuggestions from "@/components/screening/ScreeningMovieSuggestions";
+import CompactChat from "@/components/screening/CompactChat";
 import ShareButton from "@/components/ShareButton";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
@@ -108,7 +109,9 @@ export default function ScreeningSessionPage() {
   // Chat (RTDB)
   const [chatMessages, setChatMessages] = useState<(RTDBChatMessage & { key: string })[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   // Bookmarks
   const [bookmarkNote, setBookmarkNote] = useState("");
@@ -257,9 +260,9 @@ export default function ScreeningSessionPage() {
     return () => off(readyRef, "value", unsub);
   }, [id, session?.status]);
 
-  // RTDB listeners for chat
+  // RTDB listeners for chat (active in all phases)
   useEffect(() => {
-    if (!rtdb || !session || (session.status !== "WATCHING" && session.status !== "POST_WATCH")) return;
+    if (!rtdb || !session) return;
     const chatRef = ref(rtdb, rtdbPaths.chat(id));
     setChatMessages([]);
     let isInitialLoad = true;
@@ -1029,6 +1032,17 @@ export default function ScreeningSessionPage() {
             </div>
           </section>
 
+          {/* Lobby chat */}
+          <CompactChat
+            sessionId={id}
+            myUserId={myUserId}
+            myName={user?.displayName ?? "Anonymous"}
+            myPhotoURL={user?.photoURL ?? undefined}
+            chatMessages={chatMessages}
+            maxHeight="180px"
+            label="Lobby Chat"
+          />
+
           {/* Leave / Cancel */}
           <div className="text-center">
             {amHost ? (
@@ -1144,7 +1158,11 @@ export default function ScreeningSessionPage() {
             )}
 
             {/* Messages + polls timeline */}
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+            <div ref={chatContainerRef} onScroll={() => {
+              if (!chatContainerRef.current) return;
+              const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+              setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 60);
+            }} className="flex-1 overflow-y-auto px-4 py-2 space-y-2 relative">
               {buildChatTimeline().map((item) => {
                 if (item.type === "poll") {
                   return <div key={item.key}>{renderPoll(item.data)}</div>;
@@ -1152,8 +1170,9 @@ export default function ScreeningSessionPage() {
                 const msg = item.data as RTDBChatMessage & { key: string; system?: boolean };
                 const isMine = msg.userId === myUserId;
                 const isSystem = msg.userId === "system" || (msg as any).system;
-                const elapsed = session?.startedAt ? Math.max(0, Math.floor((msg.timestamp - new Date(session.startedAt).getTime() - totalPausedMsRef.current) / 1000)) : 0;
-                const elapsedStr = elapsed > 0 ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
+                const isPreWatch = session?.startedAt ? msg.timestamp < new Date(session.startedAt).getTime() : true;
+                const elapsed = !isPreWatch && session?.startedAt ? Math.max(0, Math.floor((msg.timestamp - new Date(session.startedAt).getTime() - totalPausedMsRef.current) / 1000)) : 0;
+                const elapsedStr = !isPreWatch && elapsed > 0 ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
 
                 if (isSystem) {
                   return (
@@ -1167,7 +1186,7 @@ export default function ScreeningSessionPage() {
                 }
 
                 return (
-                  <div key={msg.key} className={`flex items-start gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                  <div key={msg.key} data-msg-ts={msg.timestamp} className={`flex items-start gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
                     <div className={`max-w-[75%] rounded-xl px-3 py-2 ${isMine ? "bg-[var(--ratist-red)]/20" : "bg-[var(--surface-2)]"}`}>
                       <div className={`flex items-center gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
                         {!isMine && <p className="text-[10px] text-[var(--foreground-muted)]">{msg.userName}</p>}
@@ -1183,6 +1202,12 @@ export default function ScreeningSessionPage() {
                 );
               })}
               <div ref={chatEndRef} />
+              {showScrollBtn && (
+                <button onClick={() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" })}
+                  className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-[var(--surface-2)] border border-[var(--border)] rounded-full p-2 shadow-lg z-10">
+                  <ChevronDown className="w-3 h-3 text-white" />
+                </button>
+              )}
             </div>
 
             {/* Quick emoji row */}
@@ -1284,6 +1309,17 @@ export default function ScreeningSessionPage() {
                   </button>
                 </div>
               )}
+              {/* Post-watch chat */}
+              <CompactChat
+                sessionId={id}
+                myUserId={myUserId}
+                myName={user?.displayName ?? "Anonymous"}
+                myPhotoURL={user?.photoURL ?? undefined}
+                chatMessages={chatMessages}
+                maxHeight="200px"
+                label="Post-Watch Chat"
+              />
+
               {/* Leave session (non-host) */}
               {!amHost && (
                 <div className="text-center mt-4">
@@ -1441,7 +1477,16 @@ export default function ScreeningSessionPage() {
                           <div key={groupIdx} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
                             <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">
                               <span className="text-[10px] text-[var(--ratist-red)] font-medium">Peak Moment #{groupIdx + 1} · {msgs[0].reactCount} messages</span>
-                              <span className="text-[10px] text-[var(--foreground-muted)]">{fmtElapsed(startElapsed)} — {fmtElapsed(endElapsed)}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-[var(--foreground-muted)]">{fmtElapsed(startElapsed)} — {fmtElapsed(endElapsed)}</span>
+                                {chatMessages.length > 0 && (
+                                  <button onClick={() => {
+                                    const firstTs = new Date(msgs[0].timestamp).getTime();
+                                    const el = document.querySelector(`[data-msg-ts="${firstTs}"]`) as HTMLElement;
+                                    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                  }} className="text-[9px] text-[var(--ratist-red)] hover:underline">Jump to chat</button>
+                                )}
+                              </div>
                             </div>
                             <div className="max-h-48 overflow-y-auto p-3 space-y-1.5 resize-y" style={{ minHeight: "80px" }}>
                               {msgs.map((h) => {
@@ -1467,6 +1512,17 @@ export default function ScreeningSessionPage() {
                   </section>
                 );
               })()}
+
+              {/* Post-watch chat */}
+              <CompactChat
+                sessionId={id}
+                myUserId={myUserId}
+                myName={user?.displayName ?? "Anonymous"}
+                myPhotoURL={user?.photoURL ?? undefined}
+                chatMessages={chatMessages}
+                maxHeight="200px"
+                label="Post-Watch Chat"
+              />
 
               {/* Footer */}
               <div className="text-center pt-4">
