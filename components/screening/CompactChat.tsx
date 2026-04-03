@@ -78,7 +78,7 @@ export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, c
         {userMessages.map((msg) => {
           const isMine = msg.userId === myUserId;
           return (
-            <div key={msg.key} className={`flex items-start gap-1.5 ${isMine ? "flex-row-reverse" : ""}`}>
+            <div key={msg.key} data-msg-ts={msg.timestamp} className={`flex items-start gap-1.5 ${isMine ? "flex-row-reverse" : ""}`}>
               <div className={`max-w-[80%] rounded-lg px-2.5 py-1.5 ${isMine ? "bg-[var(--ratist-red)]/20" : "bg-[var(--surface-2)]"}`}>
                 {!isMine && <p className="text-[9px] text-[var(--foreground-muted)]">{msg.userName}</p>}
                 {msg.emoji ? <span className="text-lg">{msg.emoji}</span> : <p className="text-xs text-white">{msg.text}</p>}

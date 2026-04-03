@@ -1494,9 +1494,17 @@ export default function ScreeningSessionPage() {
                                 <span className="text-[10px] text-[var(--foreground-muted)]">{fmtElapsed(startElapsed)} — {fmtElapsed(endElapsed)}</span>
                                 {chatMessages.length > 0 && (
                                   <button onClick={() => {
-                                    const firstTs = new Date(msgs[0].timestamp).getTime();
-                                    const el = document.querySelector(`[data-msg-ts="${firstTs}"]`) as HTMLElement;
-                                    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                    const targetTs = new Date(msgs[0].timestamp).getTime();
+                                    // Find closest message by timestamp
+                                    const allMsgEls = document.querySelectorAll("[data-msg-ts]");
+                                    let closest: HTMLElement | null = null;
+                                    let closestDiff = Infinity;
+                                    allMsgEls.forEach((el) => {
+                                      const ts = Number(el.getAttribute("data-msg-ts"));
+                                      const diff = Math.abs(ts - targetTs);
+                                      if (diff < closestDiff) { closestDiff = diff; closest = el as HTMLElement; }
+                                    });
+                                    if (closest) (closest as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" });
                                   }} className="text-[9px] text-[var(--ratist-red)] hover:underline">Jump to chat</button>
                                 )}
                               </div>
