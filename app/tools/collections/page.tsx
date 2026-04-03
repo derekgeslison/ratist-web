@@ -44,8 +44,7 @@ export default function CollectionsPage() {
       if (res.ok) {
         const data = await res.json();
         setCollections(data.collections ?? []);
-        // Auto-expand all
-        setExpanded(new Set((data.collections ?? []).map((c: Collection) => c.key)));
+        // Default collapsed
       }
       setLoading(false);
     })();
@@ -131,15 +130,15 @@ export default function CollectionsPage() {
             return (
               <section key={collection.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-2xl">{collection.emoji}</span>
-                    <div className="min-w-0">
-                      <h2 className="text-base font-semibold text-white truncate">{collection.title}</h2>
-                      <p className="text-xs text-[var(--foreground-muted)] truncate">{collection.description}</p>
+                <div className="px-5 py-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl flex-shrink-0">{collection.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-base font-semibold text-white">{collection.title}</h2>
+                      <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{collection.description}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => createWatchlistFromCollection(collection)}
                       disabled={creatingWatchlist === collection.key}
@@ -165,9 +164,9 @@ export default function CollectionsPage() {
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)] p-2 text-center">{movie.title}</div>
                             )}
-                            {movie.voteAverage != null && movie.voteAverage > 0 && (
+                            {movie.voteAverage != null && movie.voteAverage > 0 && movie.voteAverage < 10 && (
                               <div className="absolute top-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                {movie.voteAverage.toFixed(1)}
+                                ★ {movie.voteAverage.toFixed(1)}
                               </div>
                             )}
                           </div>

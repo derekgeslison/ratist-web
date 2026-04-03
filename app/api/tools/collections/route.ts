@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
 
         if (gemIds.length > 0) {
           const gemMovies = await prisma.movie.findMany({
-            where: { id: { in: gemIds }, voteCount: { lt: 10000 } },
+            where: { id: { in: gemIds }, voteCount: { gte: 50, lt: 10000 } },
             select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true, voteCount: true },
             orderBy: { voteAverage: "desc" },
             take: 20,
@@ -179,6 +179,7 @@ export async function GET(req: NextRequest) {
             id: { notIn: Array.from(seenIds) },
             genres: { some: { genreId: { in: genreIds } } },
             voteAverage: { gte: 7 },
+            voteCount: { gte: 100 },
           },
           select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true },
           orderBy: { voteAverage: "desc" },
