@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
-  Bookmark, Search, X, Plus, Check, ChevronDown, Lock,
+  Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -85,6 +85,11 @@ export default function WatchlistPage() {
   const [seenFilter, setSeenFilter] = useState<SeenFilter>("all");
   const [genreFilter, setGenreFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  /* ── Add movie search ── */
+  const [addMovieQuery, setAddMovieQuery] = useState("");
+  const [addMovieResults, setAddMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string }[]>([]);
+  const [addingMovie, setAddingMovie] = useState<number | null>(null);
 
   /* ── UI state ── */
   const [confirmingRemove, setConfirmingRemove] = useState<string | null>(null);
@@ -302,6 +307,23 @@ export default function WatchlistPage() {
     if (def) { setActiveId(def.id); loadList(def.id); }
   }
 
+  /* ── Export to rankings ── */
+  async function exportToRankings() {
+    if (!activeList || !user) return;
+    const name = prompt("Name for your custom rankings list:", activeList.name);
+    if (!name?.trim()) return;
+    const token = await getToken();
+    if (!token) return;
+    const res = await fetch("/api/tools/rankings/lists", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), fromWatchlistId: activeList.id }),
+    });
+    if (res.ok) {
+      alert(`Rankings list "${name}" created! You can find it on the Rankings page.`);
+    }
+  }
+
   /* ── Remove movie ── */
   async function confirmRemove(movie: WatchlistMovie) {
     if (!activeId) return;
@@ -333,6 +355,38 @@ export default function WatchlistPage() {
       const data = await res.json();
       setMovies((prev) => prev.map((m) => m.id === movie.id ? { ...m, isChecked: data.isChecked, checkedAt: data.checkedAt } : m));
     }
+  }
+
+  /* ── Add movie search ── */
+  useEffect(() => {
+    if (addMovieQuery.length < 2) { setAddMovieResults([]); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}`);
+      const data = await res.json();
+      setAddMovieResults(data.results ?? []);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [addMovieQuery]);
+
+  async function addMovieToList(m: { id: number; title: string; posterPath: string | null; releaseDate: string }) {
+    if (!user || !activeList || addingMovie) return;
+    setAddingMovie(m.id);
+    const token = await user.getIdToken();
+    await fetch(`/api/watchlist/${activeList.id}/movies`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate }),
+    });
+    setAddingMovie(null);
+    setAddMovieQuery("");
+    setAddMovieResults([]);
+    // Refresh movies for current list
+    const token2 = await user.getIdToken();
+    const res2 = await fetch(`/api/watchlist/${activeList.id}`, { headers: { Authorization: `Bearer ${token2}` } });
+    const data2 = await res2.json();
+    setMovies(data2.movies ?? []);
+    // Update list count
+    setWatchlists((prev) => prev.map((l) => l.id === activeList.id ? { ...l, movieCount: l.movieCount + 1 } : l));
   }
 
   /* ── List picker for adding movie to other lists ── */
@@ -592,6 +646,13 @@ export default function WatchlistPage() {
                             <Users className="w-4 h-4" />
                           </button>
                           <button
+                            onClick={exportToRankings}
+                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-purple-400 hover:bg-[var(--surface)] transition-colors"
+                            title="Export to Rankings"
+                          >
+                            <Star className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => setShowDeleteConfirm(true)}
                             className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
                             title="Delete list"
@@ -612,6 +673,48 @@ export default function WatchlistPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Add movie search */}
+                {(activeList.isOwner || activeList.myRole === "editor") && (
+                  <div className="relative mb-4">
+                    <div className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2">
+                      <Plus className="w-4 h-4 text-[var(--ratist-red)]" />
+                      <input
+                        value={addMovieQuery}
+                        onChange={(e) => setAddMovieQuery(e.target.value)}
+                        placeholder="Search to add a movie..."
+                        className="flex-1 bg-transparent text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none"
+                      />
+                      {addMovieQuery && (
+                        <button onClick={() => { setAddMovieQuery(""); setAddMovieResults([]); }}>
+                          <X className="w-4 h-4 text-[var(--foreground-muted)]" />
+                        </button>
+                      )}
+                    </div>
+                    {addMovieResults.length > 0 && (
+                      <div className="absolute z-20 mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                        {addMovieResults.map((m) => {
+                          const alreadyIn = movies.some((mv) => mv.tmdbId === m.id);
+                          return (
+                            <button key={m.id} onClick={() => !alreadyIn && addMovieToList(m)}
+                              disabled={alreadyIn || addingMovie === m.id}
+                              className={`flex items-center gap-3 w-full px-3 py-2 text-left ${alreadyIn ? "opacity-40" : "hover:bg-[var(--surface-2)]"}`}>
+                              <div className="w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] flex-shrink-0">
+                                {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} width={32} height={48} className="object-cover w-full h-full" />}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-white">{m.title}</p>
+                                <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
+                              </div>
+                              {alreadyIn && <span className="text-[9px] text-[var(--foreground-muted)]">Already in list</span>}
+                              {addingMovie === m.id && <span className="text-[9px] text-[var(--ratist-red)]">Adding...</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Search + filter bar */}
                 {movies.length > 0 && (
