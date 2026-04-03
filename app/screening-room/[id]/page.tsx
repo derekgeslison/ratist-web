@@ -386,8 +386,24 @@ export default function ScreeningSessionPage() {
   }, [resumeCountdown]);
 
   // Pause request timeout: second ding at 10s, expire at 20s
+  // Use a ref to store the current requestedAt to avoid re-creating timers
+  const pauseTimersRef = useRef<{ dingTimer: ReturnType<typeof setTimeout> | null; expireTimer: ReturnType<typeof setTimeout> | null; requestedAt: number | null }>({ dingTimer: null, expireTimer: null, requestedAt: null });
+
   useEffect(() => {
-    if (!activePause || isPaused) return;
+    if (!activePause || isPaused) {
+      // Clear any existing timers
+      if (pauseTimersRef.current.dingTimer) clearTimeout(pauseTimersRef.current.dingTimer);
+      if (pauseTimersRef.current.expireTimer) clearTimeout(pauseTimersRef.current.expireTimer);
+      pauseTimersRef.current = { dingTimer: null, expireTimer: null, requestedAt: null };
+      return;
+    }
+
+    // Only set timers once per pause request
+    if (pauseTimersRef.current.requestedAt === activePause.requestedAt) return;
+    // Clear old timers
+    if (pauseTimersRef.current.dingTimer) clearTimeout(pauseTimersRef.current.dingTimer);
+    if (pauseTimersRef.current.expireTimer) clearTimeout(pauseTimersRef.current.expireTimer);
+
     const elapsed = Date.now() - activePause.requestedAt;
     const secondDingDelay = Math.max(0, 10000 - elapsed);
     const expireDelay = Math.max(0, 20000 - elapsed);
@@ -396,7 +412,7 @@ export default function ScreeningSessionPage() {
     const expireTimer = setTimeout(() => {
       if (rtdb) remove(ref(rtdb, rtdbPaths.activePause(id)));
       setActivePause(null);
-      // Only host posts expiry message to avoid duplicates
+      // Only host posts expiry message
       if (rtdb && isHostRef.current) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
@@ -406,8 +422,8 @@ export default function ScreeningSessionPage() {
       }
     }, expireDelay);
 
-    return () => { clearTimeout(dingTimer); clearTimeout(expireTimer); };
-  }, [activePause?.requestedAt, isPaused]);
+    pauseTimersRef.current = { dingTimer, expireTimer, requestedAt: activePause.requestedAt };
+  }, [activePause, isPaused]);
 
   // Auto-scroll chat (on new messages and new polls)
   useEffect(() => {
@@ -1176,6 +1192,15 @@ export default function ScreeningSessionPage() {
               </button>
             </div>
           </div>
+
+          {/* Leave session (non-host) */}
+          {!amHost && (
+            <div className="text-center mt-4">
+              <button onClick={leaveSession} className="text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                Leave Session
+              </button>
+            </div>
+          )}
         </div>
       )}
 

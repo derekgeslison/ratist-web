@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     const sessions = await prisma.screeningSession.findMany({
       where: {
-        participants: { some: { userId: user.id } },
+        participants: { some: { userId: user.id, hidden: false } },
       },
       orderBy: { createdAt: "desc" },
       take: 20,

@@ -101,7 +101,7 @@ export default function ScreeningRoomDashboard() {
   async function deleteSession(e: React.MouseEvent, sessionId: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Delete this screening room?")) return;
+    if (!confirm("Remove this screening room from your history?")) return;
     const token = await getToken();
     if (!token) return;
     await fetch(`/api/screening/${sessionId}`, {
@@ -226,12 +226,10 @@ export default function ScreeningRoomDashboard() {
                   </div>
                 </div>
               </Link>
-              {isHost(s) && (
-                <button onClick={(e) => deleteSession(e, s.id)}
-                  className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors p-2 flex-shrink-0" title="Delete">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
+              <button onClick={(e) => deleteSession(e, s.id)}
+                className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors p-2 flex-shrink-0" title="Remove from view">
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))}
         </div>

@@ -753,6 +753,7 @@ model ScreeningParticipant {
   joinedAt    DateTime @default(now()) @map("joined_at")
   hasAds      Boolean  @default(false) @map("has_ads")
   hasFinished Boolean  @default(false) @map("has_finished")
+  hidden      Boolean  @default(false)
 
   session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)

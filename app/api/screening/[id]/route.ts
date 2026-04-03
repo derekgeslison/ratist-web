@@ -123,19 +123,43 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-/** DELETE — Cancel session (host only) */
+/** DELETE — Remove session from view (any participant) or cancel (host, active sessions) */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    const session = await prisma.screeningSession.findUnique({ where: { id } });
+    const session = await prisma.screeningSession.findUnique({
+      where: { id },
+      include: { participants: true },
+    });
 
     if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (session.hostId !== user.id) return NextResponse.json({ error: "Host only" }, { status: 403 });
 
-    await prisma.screeningSession.delete({ where: { id } });
+    // Active sessions: host can cancel (full delete)
+    if (session.status !== "COMPLETE" && session.hostId === user.id) {
+      await prisma.screeningSession.delete({ where: { id } });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Completed sessions: any participant can hide from their view
+    const participant = session.participants.find((p) => p.userId === user.id);
+    if (!participant) return NextResponse.json({ error: "Not a participant" }, { status: 403 });
+
+    await prisma.screeningParticipant.update({
+      where: { sessionId_userId: { sessionId: id, userId: user.id } },
+      data: { hidden: true },
+    });
+
+    // Check if ALL participants have hidden — if so, fully delete
+    const visibleCount = await prisma.screeningParticipant.count({
+      where: { sessionId: id, hidden: false },
+    });
+    if (visibleCount === 0) {
+      await prisma.screeningSession.delete({ where: { id } });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Delete screening error:", err);
