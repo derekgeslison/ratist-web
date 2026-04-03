@@ -117,7 +117,6 @@ export default async function ProfilePage({ params }: Props) {
         },
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
     }),
     prisma.watchlist.findFirst({ where: { userId: user.id, isDefault: true } }).then(async (wl) => {
       if (!wl) return [];
