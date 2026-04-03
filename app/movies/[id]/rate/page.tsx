@@ -309,15 +309,21 @@ export default function RateMoviePage() {
             </span>
           </div>
           <p className="text-xs text-[var(--foreground-muted)] mb-4">Your gut feeling about this movie overall — how much did you enjoy it?</p>
-          <input
-            type="range"
-            min={1}
-            max={10}
-            step={0.5}
-            value={overallRating ?? 5}
-            onChange={(e) => setOverallRating(parseFloat(e.target.value))}
-            className={`w-full ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={0.5}
+              value={overallRating ?? 5}
+              onChange={(e) => setOverallRating(parseFloat(e.target.value))}
+              onPointerDown={() => { if (overallRating == null) setOverallRating(5); }}
+              className={`flex-1 ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
+            />
+            {overallRating != null && (
+              <button type="button" onClick={() => setOverallRating(null)} className="text-[var(--foreground-muted)] hover:text-red-400 text-xs" title="Clear">✕</button>
+            )}
+          </div>
           <div className="flex justify-between text-xs text-[var(--foreground-muted)] mt-1">
             <span>1 — Poor</span><span>10 — Excellent</span>
           </div>
@@ -359,11 +365,15 @@ export default function RateMoviePage() {
                             step={0.5}
                             value={values[field.key] ?? 5}
                             onChange={(e) => setValue(field.key, parseFloat(e.target.value))}
+                            onPointerDown={() => { if (values[field.key] == null) setValue(field.key, 5); }}
                             className={`flex-1 ${values[field.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
                           />
                           <span className={`text-sm font-bold w-8 text-right ${values[field.key] != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>
                             {values[field.key] ?? "—"}
                           </span>
+                          {values[field.key] != null && (
+                            <button type="button" onClick={() => setValues((v) => ({ ...v, [field.key]: null }))} className="text-[var(--foreground-muted)] hover:text-red-400 text-xs" title="Clear">✕</button>
+                          )}
                         </div>
                         <div className="flex justify-between text-xs text-[var(--foreground-muted)] mt-1">
                           <span>1 — Poor</span><span>10 — Excellent</span>
@@ -480,7 +490,7 @@ export default function RateMoviePage() {
               disabled={submitting}
               className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
             >
-              {submitting ? "Saving..." : mode === "basic" ? "Submit Quick Rating" : "Save Rating"}
+              {submitting ? "Saving..." : mode === "basic" ? "Submit Quick Rating" : "Submit Ratings"}
             </button>
             <button
               type="button"
