@@ -125,7 +125,7 @@ export default function ScreeningSessionPage() {
   // Pause system
   const [pauseAlert, setPauseAlert] = useState<string | null>(null);
   const mountedAt = useRef(Date.now());
-  const [activePause, setActivePause] = useState<{ requestedBy: string; requestedAt: number; accepted: Record<string, boolean> } | null>(null);
+  const [activePause, setActivePause] = useState<{ requestedBy: string; requestedByUserId?: string; requestedAt: number; accepted: Record<string, boolean> } | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [resumeReadyUsers, setResumeReadyUsers] = useState<Record<string, boolean>>({});
   const [resumeCountdown, setResumeCountdown] = useState<number | null>(null);
@@ -411,15 +411,16 @@ export default function ScreeningSessionPage() {
     const dingTimer = setTimeout(() => playDing(660, 0.2), secondDingDelay);
     const expireTimer = setTimeout(() => {
       if (rtdb) remove(ref(rtdb, rtdbPaths.activePause(id)));
-      setActivePause(null);
-      // Only host posts expiry message
-      if (rtdb && isHostRef.current) {
+      // The requester posts the expiry message
+      const isRequester = activePause.requestedByUserId === myUserId;
+      if (rtdb && isRequester) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
           text: "Pause request expired — not everyone accepted.",
           timestamp: Date.now(), system: true,
         });
       }
+      setActivePause(null);
     }, expireDelay);
 
     pauseTimersRef.current = { dingTimer, expireTimer, requestedAt: activePause.requestedAt };
@@ -571,6 +572,7 @@ export default function ScreeningSessionPage() {
     // Create active pause request in RTDB
     await set(ref(rtdb, rtdbPaths.activePause(id)), {
       requestedBy: user.displayName ?? "Anonymous",
+      requestedByUserId: myUserId,
       requestedAt: Date.now(),
       accepted: { [myUserId]: true }, // requester auto-accepts
     });

@@ -197,7 +197,7 @@ export default function ScreeningRoomDashboard() {
 
       {/* Completed sessions */}
       <h2 className="text-lg font-semibold text-white mb-3">
-        {activeSessions.length > 0 ? "Past Screening Rooms" : "Your Screening Rooms"}
+        {activeSessions.length > 0 ? "Your Past Screening Rooms" : "Your Past Screening Rooms"}
       </h2>
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-sm">Loading...</p>
