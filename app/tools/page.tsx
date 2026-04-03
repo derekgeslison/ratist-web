@@ -53,6 +53,12 @@ const TOOLS = [
     title: "Screening Room",
     desc: "Watch movies with friends remotely. Predict plots, react in real-time, run polls, and compare ratings when the credits roll.",
   },
+  {
+    href: "/tools/collections",
+    icon: Sparkles,
+    title: "Collections",
+    desc: "Personalized movie recommendations based on your taste. Discover hidden gems, fill blind spots, and find films from directors you love.",
+  },
 ];
 
 export default function ToolsPage() {
