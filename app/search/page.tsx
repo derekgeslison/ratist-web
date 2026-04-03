@@ -97,14 +97,12 @@ export default async function SearchPage({ searchParams }: Props) {
         )}
       </div>
 
-      {q && (
-        <Suspense>
-          <SearchFilters currentType={typeFilter} currentSort={sortMode} currentPerPage={String(perPage)} />
-        </Suspense>
-      )}
+      <Suspense>
+        <SearchFilters currentType={typeFilter} currentSort={sortMode} currentPerPage={String(perPage)} currentQuery={q} />
+      </Suspense>
 
       {!q && (
-        <p className="text-[var(--foreground-muted)]">Enter a search term to find movies and people.</p>
+        <p className="text-[var(--foreground-muted)]">Use the search bar above to find movies and people.</p>
       )}
 
       {q && total === 0 && (
