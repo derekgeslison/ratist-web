@@ -83,7 +83,14 @@ export default async function ProfilePage({ params }: Props) {
         overallRating: true,
         reviewText: true,
         reviewType: true,
+        importSource: true,
         createdAt: true,
+        // Required fields for rating status check
+        plot: true, storytelling: true, pacingClimax: true,
+        cinematography: true, artisticEffect: true,
+        overallEmotion: true, relatability: true,
+        casting: true, actingQuality: true,
+        appeal: true,
         movie: {
           select: {
             tmdbId: true,
