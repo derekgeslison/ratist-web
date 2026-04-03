@@ -27,10 +27,11 @@ export async function GET(req: NextRequest) {
     });
 
     if (savedRankings.length > 0) {
-      // Also fetch ratings for each movie to show the score
-      const movieIds = savedRankings.map((r) => r.movieId);
+      const movieIds = new Set(savedRankings.map((r) => r.movieId));
+
+      // Fetch ratings for saved movies
       const ratings = await prisma.movieRating.findMany({
-        where: { userId: user.id, movieId: { in: movieIds } },
+        where: { userId: user.id, movieId: { in: Array.from(movieIds) } },
         select: { movieId: true, ratistRating: true },
       });
       const ratingMap = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
@@ -45,6 +46,46 @@ export async function GET(req: NextRequest) {
         seen: true,
         rank: idx + 1,
       }));
+
+      // Find new movies not yet in the saved rankings (for non-custom lists)
+      if (!listKey.startsWith("custom-")) {
+        const yearFilter = listKey !== "all-time" ? listKey : null;
+
+        // New rated movies not in saved rankings
+        const newRated = await prisma.movieRating.findMany({
+          where: { userId: user.id, movieId: { notIn: Array.from(movieIds) } },
+          include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } } },
+        });
+        // New seen-only movies not in saved rankings
+        const newSeen = await prisma.userFavoriteMovie.findMany({
+          where: { userId: user.id, movieId: { notIn: Array.from(movieIds) } },
+          include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } } },
+        });
+        const newRatedIds = new Set(newRated.map((r) => r.movieId));
+
+        let newMovies = [
+          ...newRated.map((r) => ({
+            id: r.movieId, tmdbId: r.movie.tmdbId, title: r.movie.title,
+            posterPath: r.movie.posterPath, year: r.movie.releaseDate?.slice(0, 4) ?? "",
+            ratistRating: r.ratistRating, seen: true,
+          })),
+          ...newSeen.filter((s) => !newRatedIds.has(s.movieId)).map((s) => ({
+            id: s.movieId, tmdbId: s.movie.tmdbId, title: s.movie.title,
+            posterPath: s.movie.posterPath, year: s.movie.releaseDate?.slice(0, 4) ?? "",
+            ratistRating: null as number | null, seen: true,
+          })),
+        ];
+
+        if (yearFilter) newMovies = newMovies.filter((m) => m.year === yearFilter);
+
+        // Append new movies at the end
+        const allMovies = [
+          ...movies,
+          ...newMovies.map((m, idx) => ({ ...m, rank: movies.length + idx + 1 })),
+        ];
+
+        return NextResponse.json({ movies: allMovies, hasSavedOrder: true });
+      }
 
       return NextResponse.json({ movies, hasSavedOrder: true });
     }

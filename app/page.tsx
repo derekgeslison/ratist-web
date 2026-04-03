@@ -140,7 +140,7 @@ export default async function HomePage() {
               Your 7.2 isn&apos;t the same as someone else&apos;s. Our algorithm tailors scores to the criteria you care about most, so every rating means something.
             </p>
             <Link
-              href="/movies"
+              href="/about"
               className="text-[var(--ratist-red)] text-sm font-semibold hover:underline"
             >
               Learn how ratings work &rarr;
