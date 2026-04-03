@@ -54,6 +54,7 @@ interface SessionData {
   status: string;
   inviteCode: string;
   startedAt: string | null;
+  finishedAt: string | null;
   host: { id: string; name: string; avatarUrl: string | null };
   participants: Participant[];
   predictions: Prediction[];
@@ -203,9 +204,10 @@ export default function ScreeningSessionPage() {
         const token = await getToken();
         const msgs = chatMessagesRef.current;
         if (!token) return;
-        // Only include messages from the watching phase (after startedAt)
+        // Only include messages from the watching phase (between startedAt and finishedAt)
         const startedAtMs = session?.startedAt ? new Date(session.startedAt).getTime() : 0;
-        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs);
+        const finishedAtMs = session?.finishedAt ? new Date(session.finishedAt).getTime() : Infinity;
+        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs && m.timestamp <= finishedAtMs);
         if (watchingMsgs.length === 0) {
           if (attempt < 3) setTimeout(() => generateHighlights(attempt + 1), 1000);
           return;
@@ -1362,7 +1364,8 @@ export default function ScreeningSessionPage() {
               {/* Superlatives + heatmap use watching-phase messages only */}
               {(() => {
                 const _startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : 0;
-                const watchingChatMsgs = chatMessages.filter((m) => m.timestamp >= _startedAtMs && m.userId !== "system");
+                const _finishedAtMs = session.finishedAt ? new Date(session.finishedAt).getTime() : Infinity;
+                const watchingChatMsgs = chatMessages.filter((m) => m.timestamp >= _startedAtMs && m.timestamp <= _finishedAtMs && m.userId !== "system");
                 const chatMsgsForSuperlatives = watchingChatMsgs.length > 0 ? watchingChatMsgs
                   : (session.chatHighlights ?? []).filter((h) => h.user.id && h.user.id !== "system").map((h) => ({ userId: h.user.id, timestamp: 0 }));
                 return (

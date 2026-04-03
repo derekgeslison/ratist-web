@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
       await prisma.screeningSession.update({
         where: { id },
-        data: { status: "POST_WATCH" },
+        data: { status: "POST_WATCH", finishedAt: new Date() },
       });
       return NextResponse.json({ ok: true, allFinished: true });
     }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (allFinished) {
       await prisma.screeningSession.update({
         where: { id },
-        data: { status: "POST_WATCH" },
+        data: { status: "POST_WATCH", finishedAt: new Date() },
       });
     }
 
