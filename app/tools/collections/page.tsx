@@ -83,11 +83,13 @@ export default function CollectionsPage() {
       body: JSON.stringify({ name: name.trim() }),
     });
     if (!res.ok) { setCreatingWatchlist(null); return; }
-    const wl = await res.json();
+    const data = await res.json();
+    const wlId = data.watchlist?.id ?? data.id;
+    if (!wlId) { setCreatingWatchlist(null); return; }
 
     // Add all movies to it
     for (const movie of collection.movies) {
-      await fetch(`/api/watchlist/${wl.id}/movies`, {
+      await fetch(`/api/watchlist/${wlId}/movies`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ tmdbId: movie.tmdbId, title: movie.title, posterPath: movie.posterPath, releaseDate: movie.releaseDate }),

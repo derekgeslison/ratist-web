@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const userRatings = await prisma.movieRating.findMany({
       where: { userId: user.id },
       select: {
-        movieId: true, ratistRating: true, overallRating: true,
+        movieId: true, ratistRating: true, overallRating: true, createdAt: true,
         storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
         cinematography: true, artisticEffect: true, overallEmotion: true, movingness: true,
         movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true, voteCount: true } },
@@ -204,7 +204,7 @@ export async function GET(req: NextRequest) {
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
       const rewatchable = userRatings
-        .filter((r) => (r.ratistRating ?? 0) >= 8)
+        .filter((r) => (r.ratistRating ?? 0) >= 8 && r.createdAt < oneYearAgo)
         .map((r) => ({
           ...fmt(r.movie, r.ratistRating),
           ratistRating: r.ratistRating,
@@ -216,7 +216,7 @@ export async function GET(req: NextRequest) {
         collections.push({
           key: "rewatch",
           title: "Rewatch Worthy",
-          description: "Movies you rated 8 or above — perfect for a rewatch.",
+          description: "Movies you rated 8+ over a year ago — time for a rewatch?",
           emoji: "🔄",
           movies: rewatchable,
         });
