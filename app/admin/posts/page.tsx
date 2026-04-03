@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { Plus, Edit2, Eye, EyeOff, Clock } from "lucide-react";
+import { Plus, Edit2, Eye, EyeOff, Clock, Trash2 } from "lucide-react";
 
 interface Post {
   id: string;
@@ -47,6 +47,18 @@ function AdminPostsInner() {
       setLoading(false);
     }).catch((e) => { setFetchError(String(e)); setLoading(false); });
   }, [user, type]);
+
+  async function deletePost(post: Post) {
+    if (!user || !confirm(`Delete "${post.title}"? This cannot be undone.`)) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/admin/posts/${post.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      setPosts((prev) => prev.filter((p) => p.id !== post.id));
+    }
+  }
 
   return (
     <div>
@@ -121,12 +133,20 @@ function AdminPostsInner() {
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/posts/${post.id}/edit`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors"
-                    >
-                      <Edit2 className="w-3 h-3" /> Edit
-                    </Link>
+                    <div className="flex items-center gap-2 justify-end">
+                      <Link
+                        href={`/admin/posts/${post.id}/edit`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors"
+                      >
+                        <Edit2 className="w-3 h-3" /> Edit
+                      </Link>
+                      <button
+                        onClick={() => deletePost(post)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--foreground-muted)] hover:text-red-400 hover:border-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
