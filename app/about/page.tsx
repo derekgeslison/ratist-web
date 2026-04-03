@@ -143,7 +143,7 @@ export default function AboutPage() {
       {/* CTA */}
       <div className="text-center py-12 border-t border-[var(--border)]">
         <h2 className="text-2xl font-bold text-white mb-3">Ready to rate movies the right way?</h2>
-        <p className="text-sm text-[var(--foreground-muted)] mb-6">It&apos;s free. No ads. Just better movie data.</p>
+        <p className="text-sm text-[var(--foreground-muted)] mb-6">Free to use. Better movie data. Go Pro for an ad-free experience.</p>
         <div className="flex items-center justify-center gap-4">
           <Link
             href="/auth/signin"
