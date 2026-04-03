@@ -35,6 +35,33 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ l
   }
 }
 
+/** PATCH — Rename a custom ranking list */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ listKey: string }> }) {
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { listKey } = await params;
+    const { name } = await req.json();
+    if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
+
+    const list = await prisma.userRankingList.findUnique({
+      where: { userId_listKey: { userId: user.id, listKey } },
+    });
+    if (!list) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const updated = await prisma.userRankingList.update({
+      where: { userId_listKey: { userId: user.id, listKey } },
+      data: { name: name.trim() },
+    });
+
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("Rename ranking list error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
 /** POST — Add a movie to a custom ranking list */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ listKey: string }> }) {
   try {

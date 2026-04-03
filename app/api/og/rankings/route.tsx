@@ -62,7 +62,12 @@ export async function GET(request: Request) {
     if (top10.length === 0) return new Response("No movies", { status: 404 });
 
     const avatarSrc = user.avatarUrl;
-    const label = year ? `Top ${Math.min(top10.length, 10)} of ${year}` : `Top ${Math.min(top10.length, 10)} All Time`;
+    let listLabel = year ?? "All Time";
+    if (year?.startsWith("custom-")) {
+      const customList = await prisma.userRankingList.findFirst({ where: { userId: user.id, listKey: year }, select: { name: true } });
+      listLabel = customList?.name ?? "Custom List";
+    }
+    const label = `Top ${Math.min(top10.length, 10)} of ${listLabel}`;
 
     return new ImageResponse(
       (

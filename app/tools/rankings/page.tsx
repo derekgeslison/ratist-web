@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { GripVertical, Star, ChevronUp, ChevronDown, Plus, Search, X, Trash2 } from "lucide-react";
+import { GripVertical, Star, ChevronUp, ChevronDown, Plus, Search, X, Trash2, Pencil } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
@@ -234,6 +234,21 @@ export default function RankingsPage() {
     }
   }
 
+  async function renameCustomList() {
+    if (!user || !activeCustomList) return;
+    const newName = prompt("Rename list:", activeCustomList.name);
+    if (!newName?.trim() || newName.trim() === activeCustomList.name) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/tools/rankings/lists/${activeCustomList.listKey}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    if (res.ok) {
+      setCustomLists((prev) => prev.map((l) => l.listKey === activeCustomList.listKey ? { ...l, name: newName.trim() } : l));
+    }
+  }
+
   function handleMoveTo(fromIndex: number, toIndex: number) {
     setMovies((items) => {
       const reordered = arrayMove(items, fromIndex, toIndex);
@@ -281,7 +296,7 @@ export default function RankingsPage() {
               {customLists.map((list) => (
                 <button key={list.listKey} onClick={() => setFilter(list.listKey)}
                   className={`px-3 py-1.5 rounded-full text-sm transition-colors ${filter === list.listKey ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-purple-500/30 text-purple-400 hover:text-white"}`}>
-                  {list.name} ({list.movieCount})
+                  {list.name}
                 </button>
               ))}
             </div>
@@ -308,12 +323,18 @@ export default function RankingsPage() {
               </div>
             )}
 
-            {/* Delete custom list */}
+            {/* Rename + Delete custom list */}
             {isCustomList && activeCustomList && (
-              <button onClick={deleteCustomList}
-                className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors ml-auto">
-                <Trash2 className="w-3 h-3" /> Delete List
-              </button>
+              <div className="flex items-center gap-3 ml-auto">
+                <button onClick={renameCustomList}
+                  className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+                  <Pencil className="w-3 h-3" /> Rename
+                </button>
+                <button onClick={deleteCustomList}
+                  className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                  <Trash2 className="w-3 h-3" /> Delete
+                </button>
+              </div>
             )}
           </div>
 
@@ -350,6 +371,11 @@ export default function RankingsPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Total count */}
+          {!loading && movies.length > 0 && (
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">{movies.length} movie{movies.length !== 1 ? "s" : ""} ranked</p>
           )}
 
           {loading ? (
