@@ -155,6 +155,8 @@ export default function ScreeningSessionPage() {
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
   const myUserId = session?.participants.find((p) => p.user.firebaseUid === user?.uid)?.userId ?? "";
   const isHost = session?.host?.id === myUserId;
+  const isHostRef = useRef(false);
+  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
 
   // Pre-populate prediction fields ONCE when session first loads
   useEffect(() => {
@@ -369,7 +371,7 @@ export default function ScreeningSessionPage() {
       setResumeCountdown(null);
       setIsPaused(false);
       // Only host posts system messages to avoid duplicates
-      if (rtdb && isHost) {
+      if (rtdb && isHostRef.current) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
           text: "Movie resumed! Press play.",
@@ -395,7 +397,7 @@ export default function ScreeningSessionPage() {
       if (rtdb) remove(ref(rtdb, rtdbPaths.activePause(id)));
       setActivePause(null);
       // Only host posts expiry message to avoid duplicates
-      if (rtdb && isHost) {
+      if (rtdb && isHostRef.current) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
           text: "Pause request expired — not everyone accepted.",
@@ -771,7 +773,16 @@ export default function ScreeningSessionPage() {
       {activePause && !isPaused && !activePause.accepted[myUserId] && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/95 text-black px-6 py-4 rounded-xl shadow-2xl max-w-sm w-full mx-4">
           <div className="flex items-center gap-3 mb-3">
-            <PauseCircle className="w-6 h-6 flex-shrink-0" />
+            {/* Circular countdown timer */}
+            <div className="relative w-8 h-8 flex-shrink-0">
+              <svg className="w-8 h-8 -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="3" />
+                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="3"
+                  strokeDasharray="94.2" strokeDashoffset="0" strokeLinecap="round"
+                  style={{ animation: "countdown-wipe 20s linear forwards" }} />
+              </svg>
+              <PauseCircle className="w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            </div>
             <span className="font-semibold">{activePause.requestedBy} wants to pause!</span>
           </div>
           <div className="flex gap-2">
@@ -783,6 +794,12 @@ export default function ScreeningSessionPage() {
           <p className="text-[10px] text-black/60 mt-2 text-center">
             {Object.values(activePause.accepted).filter(Boolean).length}/{session?.participants.length ?? 0} accepted
           </p>
+          <style jsx>{`
+            @keyframes countdown-wipe {
+              from { stroke-dashoffset: 0; }
+              to { stroke-dashoffset: 94.2; }
+            }
+          `}</style>
         </div>
       )}
 
@@ -1216,12 +1233,14 @@ export default function ScreeningSessionPage() {
               {!allRated && myRating && (
                 <div className="text-center">
                   <p className="text-xs text-[var(--foreground-muted)] mb-2">Waiting for others ({ratedCount}/{totalParticipants})...</p>
-                  {amHost && (
-                    <button onClick={() => setPostWatchPhase("compare")}
-                      className="text-xs text-[var(--ratist-red)] hover:underline">
-                      Skip to comparison (host)
-                    </button>
-                  )}
+                </div>
+              )}
+              {!allRated && amHost && (
+                <div className="text-center">
+                  <button onClick={() => setPostWatchPhase("compare")}
+                    className="text-xs text-[var(--ratist-red)] hover:underline">
+                    Skip to comparison (host)
+                  </button>
                 </div>
               )}
             </>

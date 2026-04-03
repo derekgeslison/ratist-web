@@ -211,7 +211,7 @@ export default function ProfileTabs({
   const topRatedThisYear = seenMovies
     .filter((m) => {
       const date = m.watchedDate ?? m.seenAt;
-      return date && new Date(date).getFullYear().toString() === activeYear && m.ratistRating != null;
+      return date && new Date(date).getFullYear().toString() === activeYear && m.ratistRating != null && m.ratistRating >= 6.5;
     })
     .sort((a, b) => (b.ratistRating ?? 0) - (a.ratistRating ?? 0))
     .slice(0, 10);
