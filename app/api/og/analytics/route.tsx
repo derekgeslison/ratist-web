@@ -50,20 +50,18 @@ export async function GET(request: Request) {
         prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
         prisma.movieRating.aggregate({ where: { userId: user.id }, _avg: { ratistRating: true } }),
       ]);
-      // Decade breakdown from seen movies
-      const seenMovies = await prisma.userFavoriteMovie.findMany({
+      // Decade breakdown from rated movies only (smaller dataset)
+      const ratedMovies = await prisma.movieRating.findMany({
         where: { userId: user.id },
         select: { movie: { select: { releaseDate: true } } },
+        take: 200,
       });
       const decadeMap = new Map<string, number>();
-      for (const s of seenMovies) {
-        const year = s.movie.releaseDate?.slice(0, 3);
-        if (year) {
-          const decade = year + "0s";
-          decadeMap.set(decade, (decadeMap.get(decade) ?? 0) + 1);
-        }
+      for (const r of ratedMovies) {
+        const year = r.movie.releaseDate?.slice(0, 3);
+        if (year) decadeMap.set(year + "0s", (decadeMap.get(year + "0s") ?? 0) + 1);
       }
-      const decades = [...decadeMap.entries()].sort(([a], [b]) => b.localeCompare(a)).slice(0, 6);
+      const decades = [...decadeMap.entries()].sort(([a], [b]) => b.localeCompare(a)).slice(0, 5);
       const maxDecade = Math.max(...decades.map(([, c]) => c), 1);
 
       content = (
@@ -131,11 +129,11 @@ export async function GET(request: Request) {
         </>
       );
     } else if (tab === "people") {
-      // Top directors + actors
-      const seenIds = (await prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movieId: true } })).map((s) => s.movieId);
-      const directors = seenIds.length > 0 ? await prisma.movieCast.groupBy({
+      // Top directors from rated movies (lighter query)
+      const ratedIds = (await prisma.movieRating.findMany({ where: { userId: user.id }, select: { movieId: true }, take: 100 })).map((r) => r.movieId);
+      const directors = ratedIds.length > 0 ? await prisma.movieCast.groupBy({
         by: ["celebrityId"],
-        where: { movieId: { in: seenIds }, creditType: "crew", job: "Director" },
+        where: { movieId: { in: ratedIds }, creditType: "crew", job: "Director" },
         _count: { celebrityId: true },
         orderBy: { _count: { celebrityId: "desc" } },
         take: 5,
@@ -268,8 +266,8 @@ export async function GET(request: Request) {
       ),
       { width: 1200, height: 630 }
     );
-  } catch (err) {
-    console.error("OG analytics error:", err);
-    return new Response("Error", { status: 500 });
+  } catch (err: any) {
+    console.error("OG analytics error:", err?.message ?? err, err?.stack);
+    return new Response(`Error: ${err?.message ?? "Unknown"}`, { status: 500 });
   }
 }
