@@ -36,12 +36,6 @@ const TOOLS = [
     desc: "Pick two movies and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
   },
   {
-    href: "/tools/analytics",
-    icon: BarChart3,
-    title: "My Analytics",
-    desc: "Deep insights into your movie habits. Genre breakdowns, director/actor affinities, rating trends, contrarian score, and custom reports.",
-  },
-  {
     href: "/tools/recommend",
     icon: Sparkles,
     title: "What Should I Watch?",
@@ -58,6 +52,12 @@ const TOOLS = [
     icon: Sparkles,
     title: "Collections",
     desc: "Personalized movie recommendations based on your taste. Discover hidden gems, fill blind spots, and find films from directors you love.",
+  },
+  {
+    href: "/tools/analytics",
+    icon: BarChart3,
+    title: "My Analytics",
+    desc: "Deep insights into your movie habits. Genre breakdowns, director/actor affinities, rating trends, contrarian score, and custom reports.",
   },
 ];
 
