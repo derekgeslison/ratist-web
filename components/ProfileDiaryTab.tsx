@@ -32,10 +32,10 @@ interface Props {
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getWatchDate(m: SeenMovie): Date {
-  // Use watchedDate if available, fall back to seenAt (createdAt) for diary display
-  const str = m.watchedDate ?? m.seenAt;
-  if (str && str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
+function getWatchDate(m: SeenMovie): Date | null {
+  const str = m.watchedDate;
+  if (!str) return null;
+  if (str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
   return new Date(str);
 }
 
@@ -47,17 +47,20 @@ export default function ProfileDiaryTab({
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(parseInt(activeYear));
 
+  // Only show movies with explicit watchedDate in the monthly view (matches diary page behavior)
+  const datedMovies = useMemo(() => seenMovies.filter((m) => m.watchedDate != null), [seenMovies]);
+
   const monthMovies = useMemo(() => {
-    return seenMovies.filter((m) => {
-      const d = getWatchDate(m);
+    return datedMovies.filter((m) => {
+      const d = getWatchDate(m)!;
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    }).sort((a, b) => getWatchDate(b).getTime() - getWatchDate(a).getTime());
-  }, [seenMovies, viewYear, viewMonth]);
+    }).sort((a, b) => getWatchDate(b)!.getTime() - getWatchDate(a)!.getTime());
+  }, [datedMovies, viewYear, viewMonth]);
 
   const moviesByDay = useMemo(() => {
     const map = new Map<number, SeenMovie[]>();
     for (const m of monthMovies) {
-      const day = getWatchDate(m).getDate();
+      const day = getWatchDate(m)!.getDate();
       const list = map.get(day) ?? [];
       list.push(m);
       map.set(day, list);
