@@ -256,9 +256,9 @@ export async function GET(request: Request) {
         const maxDir = Math.max(...topDirs.map(([, c]) => c), 1);
         if (topDirs.length > 0) topDirName = topDirs[0][0];
 
-        // Actors (top 3 billed)
+        // Actors (top 5 billed, matching analytics API)
         const actCredits = await prisma.movieCast.findMany({
-          where: { movieId: { in: movieIds }, creditType: "cast", castOrder: { lte: 3 } },
+          where: { movieId: { in: movieIds }, creditType: "cast", castOrder: { lte: 5 } },
           select: { celebrity: { select: { name: true } } },
         });
         const actCounts = new Map<string, number>();
@@ -431,7 +431,7 @@ export async function GET(request: Request) {
       if (seenDated.length >= 2) {
         const first = new Date(seenDated[0].watchedDate!);
         const last = new Date(seenDated[seenDated.length - 1].watchedDate!);
-        const monthSpan = Math.max((last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()), 1);
+        const monthSpan = Math.max((last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()) + 1, 1);
         avgPerMonth = (seenDated.length / monthSpan).toFixed(1);
       }
 

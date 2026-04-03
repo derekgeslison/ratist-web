@@ -351,7 +351,7 @@ export async function GET(req: NextRequest) {
       const sorted = [...datedSeen].sort((a, b) => a.watchedDate!.getTime() - b.watchedDate!.getTime());
       const first = sorted[0].watchedDate!;
       const last = sorted[sorted.length - 1].watchedDate!;
-      const monthSpan = Math.max((last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()), 1);
+      const monthSpan = Math.max((last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()) + 1, 1);
       avgPerMonth = Math.round((datedSeen.length / monthSpan) * 10) / 10;
     }
 
