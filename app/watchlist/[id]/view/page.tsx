@@ -5,6 +5,7 @@ import { Bookmark, Lock, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
+import PosterOverlay from "@/components/PosterOverlay";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -98,15 +99,17 @@ export default async function PublicWatchlistPage({ params }: Props) {
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {watchlist.movies.map((entry) => (
             <Link key={entry.id} href={`/movies/${entry.movie.tmdbId}`} className={`group flex flex-col ${entry.isChecked ? "opacity-60" : ""}`}>
-              <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
-                entry.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
-              }`}>
-                {entry.movie.posterPath ? (
-                  <Image src={posterUrl(entry.movie.posterPath, "w185")} alt={entry.movie.title} fill sizes="120px" className="object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
-                )}
-              </div>
+              <PosterOverlay tmdbId={entry.movie.tmdbId} title={entry.movie.title} posterPath={entry.movie.posterPath} releaseDate={entry.movie.releaseDate}>
+                <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
+                  entry.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
+                }`}>
+                  {entry.movie.posterPath ? (
+                    <Image src={posterUrl(entry.movie.posterPath, "w185")} alt={entry.movie.title} fill sizes="120px" className="object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                  )}
+                </div>
+              </PosterOverlay>
               <p className={`text-xs font-medium line-clamp-1 transition-colors ${
                 entry.isChecked ? "text-[var(--foreground-muted)] line-through" : "text-white group-hover:text-[var(--ratist-red)]"
               }`}>{entry.movie.title}</p>
