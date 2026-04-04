@@ -9,6 +9,7 @@ import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
 import ReviewCard from "./ReviewCard";
 import ParentsGuide from "./ParentsGuide";
+import PosterOverlay from "./PosterOverlay";
 
 interface Review {
   id: string;
@@ -205,15 +206,17 @@ export default function MovieDetailTabs({
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {recommendations.slice(0, 12).map((m) => (
                   <Link key={m.id} href={`/movies/${m.id}`} className="group flex flex-col">
-                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                      <Image
-                        src={posterUrl(m.poster_path, "w185")}
-                        alt={m.title}
-                        fill
-                        sizes="(max-width: 640px) 33vw, 15vw"
-                        className="object-cover"
-                      />
-                    </div>
+                    <PosterOverlay tmdbId={m.id} title={m.title} posterPath={m.poster_path} releaseDate={m.release_date}>
+                      <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
+                        <Image
+                          src={posterUrl(m.poster_path, "w185")}
+                          alt={m.title}
+                          fill
+                          sizes="(max-width: 640px) 33vw, 15vw"
+                          className="object-cover"
+                        />
+                      </div>
+                    </PosterOverlay>
                     <p className="text-xs font-medium text-white line-clamp-1">{m.title}</p>
                     {m.vote_average > 0 && (
                       <span className="flex items-center gap-0.5 text-xs text-yellow-400">
