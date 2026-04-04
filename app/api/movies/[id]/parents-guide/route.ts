@@ -12,8 +12,8 @@ interface TopicDef { id: number; label: string; weight: number }
 const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number] }[] = [
   {
     name: "Violence & Gore",
-    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
-    thresholds: [2, 5, 6],
+    // None: 0 / Mild: 1-3 / Moderate: 4-9 / Severe: 10+
+    thresholds: [3, 9, 10],
     topics: [
       // Heavy (3)
       { id: 267, label: "Excessive gore", weight: 3 },
@@ -39,8 +39,8 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Sexual Content",
-    // None: 0 / Mild: 1-2 / Moderate: 3-4 / Severe: 5+
-    thresholds: [2, 4, 5],
+    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
+    thresholds: [2, 5, 6],
     topics: [
       // Heavy (3)
       { id: 292, label: "Onscreen sexual assault", weight: 3 },
@@ -55,8 +55,8 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Language & Substance",
-    // None: 0 / Mild: 1-2 / Moderate: 3-4 / Severe: 5+
-    thresholds: [2, 4, 5],
+    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
+    thresholds: [2, 5, 6],
     topics: [
       // Heavy (3)
       { id: 193, label: "Drug use", weight: 3 },
@@ -67,8 +67,8 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Scary & Intense",
-    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
-    thresholds: [2, 5, 6],
+    // None: 0 / Mild: 1-3 / Moderate: 4-8 / Severe: 9+
+    thresholds: [3, 8, 9],
     topics: [
       // Heavy (3)
       { id: 206, label: "Seizures", weight: 3 },
@@ -85,8 +85,8 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Sensitive Themes",
-    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
-    thresholds: [2, 5, 6],
+    // None: 0 / Mild: 1-3 / Moderate: 4-9 / Severe: 10+
+    thresholds: [3, 9, 10],
     topics: [
       // Heavy (3)
       { id: 187, label: "Suicide", weight: 3 },
