@@ -96,7 +96,12 @@ export default function ParentsGuide({ tmdbId, title }: { tmdbId: number; title:
             <div className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-white">{cat.category}</span>
-                <span className={`text-xs font-bold ${config.color}`}>{config.label}</span>
+                <div className="flex items-center gap-2">
+                  {cat.totalVotes > 0 && (
+                    <span className="text-[10px] text-[var(--foreground-muted)]">{cat.totalVotes} votes</span>
+                  )}
+                  <span className={`text-xs font-bold ${config.color}`}>{config.label}</span>
+                </div>
               </div>
               <div className="h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden mb-2">
                 <div
