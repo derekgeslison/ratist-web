@@ -64,6 +64,7 @@ model User {
 
   reportsMade      Report[]  @relation("reportsMade")
   reportsResolved  Report[]  @relation("reportsResolved")
+  adminLogs        AdminLog[] @relation("adminLogs")
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -929,4 +930,18 @@ model SiteSpotlight {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("site_spotlights")
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String   @map("admin_id")
+  action    String   // "ban" | "unban" | "softDelete" | "restore" | "permanentDelete" | "toggleAdmin" | "removeContent" | "notify" | "resolveReport"
+  targetId  String?  @map("target_id")   // user or report ID
+  details   String?  // description of what happened
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin User @relation("adminLogs", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_logs")
 }

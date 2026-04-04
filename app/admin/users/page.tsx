@@ -38,6 +38,7 @@ export default function AdminUsersPage() {
   const [banDialog, setBanDialog] = useState<string | null>(null);
   const [banReason, setBanReason] = useState("");
   const [banDays, setBanDays] = useState("");
+  const [banRemoveContent, setBanRemoveContent] = useState(false);
 
   async function fetchUsers() {
     if (!user) return;
@@ -72,10 +73,11 @@ export default function AdminUsersPage() {
 
   function submitBan(userId: string) {
     const expiresAt = banDays ? new Date(Date.now() + Number(banDays) * 86400000).toISOString() : undefined;
-    doAction(userId, "ban", { reason: banReason || undefined, expiresAt });
+    doAction(userId, "ban", { reason: banReason || undefined, expiresAt, removeContent: banRemoveContent });
     setBanDialog(null);
     setBanReason("");
     setBanDays("");
+    setBanRemoveContent(false);
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -171,6 +173,10 @@ export default function AdminUsersPage() {
                 className="w-32 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-orange-400 [color-scheme:dark]"
               />
             </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={banRemoveContent} onChange={(e) => setBanRemoveContent(e.target.checked)} className="rounded border-[var(--border)]" />
+              <span className="text-xs text-[var(--foreground-muted)]">Also remove all their content (reviews, comments, posts)</span>
+            </label>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => submitBan(banDialog)}

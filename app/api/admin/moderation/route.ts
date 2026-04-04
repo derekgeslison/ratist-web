@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { logAdminAction } from "@/lib/admin-log";
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -97,7 +98,7 @@ export async function PATCH(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { reportId, action, banReason, banDays } = await req.json();
+  const { reportId, action, banReason, banDays, removeContent } = await req.json();
   if (!reportId || !action) return NextResponse.json({ error: "reportId and action required" }, { status: 400 });
 
   const report = await prisma.report.findUnique({ where: { id: reportId } });
@@ -130,6 +131,17 @@ export async function PATCH(req: NextRequest) {
           banReason: banReason || "Violation of community guidelines",
         },
       });
+      if (removeContent) {
+        // Bulk remove all content from this user
+        await Promise.all([
+          prisma.movieRating.updateMany({ where: { userId: authorId, reviewText: { not: null } }, data: { reviewText: null } }),
+          prisma.comment.deleteMany({ where: { userId: authorId } }),
+          prisma.forumPost.deleteMany({ where: { authorId } }),
+          prisma.hotTake.deleteMany({ where: { authorId } }),
+          prisma.recast.deleteMany({ where: { creatorId: authorId } }),
+          prisma.looksLike.deleteMany({ where: { creatorId: authorId } }),
+        ]);
+      }
     }
   }
 
@@ -144,6 +156,8 @@ export async function PATCH(req: NextRequest) {
     where: { targetType: report.targetType, targetId: report.targetId, status: "pending", id: { not: reportId } },
     data: { status: newStatus, resolvedBy: admin.id, resolvedAt: new Date() },
   });
+
+  await logAdminAction(admin.id, "resolveReport", reportId, `${action} report on ${report.targetType}/${report.targetId}`);
 
   return NextResponse.json({ ok: true });
 }

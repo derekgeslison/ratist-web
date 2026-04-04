@@ -60,6 +60,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [data, setData] = useState<{ user: UserDetail; reportsAgainst: number; recentRatings: RecentRating[]; recentComments: RecentComment[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState("");
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifySent, setNotifySent] = useState(false);
 
   async function fetchUser() {
     if (!authUser) return;
@@ -82,6 +85,23 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     });
     await fetchUser();
     setActionLoading(false);
+  }
+
+  async function sendNotification() {
+    if (!authUser || !notifyMsg.trim()) return;
+    setNotifySending(true);
+    const token = await authUser.getIdToken();
+    const res = await fetch("/api/admin/notify", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: id, message: notifyMsg.trim() }),
+    });
+    if (res.ok) {
+      setNotifySent(true);
+      setNotifyMsg("");
+      setTimeout(() => setNotifySent(false), 3000);
+    }
+    setNotifySending(false);
   }
 
   if (loading) return <p className="text-[var(--foreground-muted)] py-8 text-center">Loading…</p>;
@@ -269,6 +289,27 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </>
           )}
         </div>
+      </div>
+
+      {/* Send notification */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-white mb-3">Send Notification</h3>
+        <div className="flex gap-2">
+          <input
+            value={notifyMsg}
+            onChange={(e) => setNotifyMsg(e.target.value)}
+            placeholder="Message to user…"
+            className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+          <button
+            onClick={sendNotification}
+            disabled={notifySending || !notifyMsg.trim()}
+            className="px-4 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            {notifySending ? "Sending…" : "Send"}
+          </button>
+        </div>
+        {notifySent && <p className="text-xs text-green-400 mt-2">Notification sent.</p>}
       </div>
     </div>
   );

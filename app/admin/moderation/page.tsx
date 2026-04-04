@@ -49,6 +49,7 @@ export default function ModerationPage() {
   const [banDialogId, setBanDialogId] = useState<string | null>(null);
   const [banReason, setBanReason] = useState("");
   const [banDays, setBanDays] = useState("");
+  const [banRemoveContent, setBanRemoveContent] = useState(true);
 
   async function fetchReports() {
     if (!user) return;
@@ -132,11 +133,15 @@ export default function ModerationPage() {
                 className="w-32 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-orange-400 [color-scheme:dark]"
               />
             </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={banRemoveContent} onChange={(e) => setBanRemoveContent(e.target.checked)} className="rounded border-[var(--border)]" />
+              <span className="text-xs text-[var(--foreground-muted)]">Remove all their content (reviews, comments, posts)</span>
+            </label>
             <div className="flex items-center gap-2">
-              <button onClick={() => resolve(banDialogId, "ban", { banReason, banDays: banDays || undefined })} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm font-semibold transition-colors">
+              <button onClick={() => resolve(banDialogId, "ban", { banReason, banDays: banDays || undefined, removeContent: banRemoveContent })} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-sm font-semibold transition-colors">
                 Remove Content + Ban User
               </button>
-              <button onClick={() => { setBanDialogId(null); setBanReason(""); setBanDays(""); }} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+              <button onClick={() => { setBanDialogId(null); setBanReason(""); setBanDays(""); setBanRemoveContent(true); }} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
                 Cancel
               </button>
             </div>

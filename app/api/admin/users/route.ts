@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { logAdminAction } from "@/lib/admin-log";
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -84,6 +85,7 @@ export async function PATCH(req: NextRequest) {
         data: { isAdmin: !target.isAdmin },
         select: { id: true, name: true, isAdmin: true },
       });
+      await logAdminAction(admin.id, "toggleAdmin", userId, `Set admin=${updated.isAdmin} for ${updated.name}`);
       return NextResponse.json({ user: updated });
     }
 
@@ -92,8 +94,8 @@ export async function PATCH(req: NextRequest) {
         where: { id: userId },
         data: { deletedAt: new Date(), deletedBy: admin.id },
       });
-      // Disable Firebase account so they can't use the app while deleted
       try { await adminAuth.updateUser(target.firebaseUid, { disabled: true }); } catch { /* ignore */ }
+      await logAdminAction(admin.id, "softDelete", userId, "Soft deleted user");
       return NextResponse.json({ ok: true });
     }
 
@@ -102,21 +104,20 @@ export async function PATCH(req: NextRequest) {
         where: { id: userId },
         data: { deletedAt: null, deletedBy: null },
       });
-      // Re-enable Firebase account
       try { await adminAuth.updateUser(target.firebaseUid, { disabled: false }); } catch { /* ignore */ }
+      await logAdminAction(admin.id, "restore", userId, "Restored user");
       return NextResponse.json({ ok: true });
     }
 
     case "permanentDelete": {
-      // Delete from Firebase Auth
+      await logAdminAction(admin.id, "permanentDelete", userId, "Permanently deleted user");
       try { await adminAuth.deleteUser(target.firebaseUid); } catch { /* ignore */ }
-      // Delete from DB (cascade handles all related records)
       await prisma.user.delete({ where: { id: userId } });
       return NextResponse.json({ ok: true });
     }
 
     case "ban": {
-      const { reason, expiresAt } = body;
+      const { reason, expiresAt, removeContent } = body;
       await prisma.user.update({
         where: { id: userId },
         data: {
@@ -125,6 +126,8 @@ export async function PATCH(req: NextRequest) {
           banReason: reason || null,
         },
       });
+      if (removeContent) await bulkRemoveContent(userId);
+      await logAdminAction(admin.id, "ban", userId, `Banned user${reason ? `: ${reason}` : ""}${removeContent ? " + removed content" : ""}`);
       return NextResponse.json({ ok: true });
     }
 
@@ -133,6 +136,7 @@ export async function PATCH(req: NextRequest) {
         where: { id: userId },
         data: { bannedAt: null, bannedUntil: null, banReason: null },
       });
+      await logAdminAction(admin.id, "unban", userId, "Unbanned user");
       return NextResponse.json({ ok: true });
     }
 
@@ -161,4 +165,21 @@ export async function DELETE(req: NextRequest) {
   try { await adminAuth.updateUser(target.firebaseUid, { disabled: true }); } catch { /* ignore */ }
 
   return NextResponse.json({ ok: true });
+}
+
+async function bulkRemoveContent(userId: string) {
+  await Promise.all([
+    // Clear review text (keep ratings data)
+    prisma.movieRating.updateMany({ where: { userId, reviewText: { not: null } }, data: { reviewText: null } }),
+    // Delete comments
+    prisma.comment.deleteMany({ where: { userId } }),
+    // Delete forum posts (not threads — those may have other replies)
+    prisma.forumPost.deleteMany({ where: { authorId: userId } }),
+    // Delete hot takes
+    prisma.hotTake.deleteMany({ where: { authorId: userId } }),
+    // Delete recasts
+    prisma.recast.deleteMany({ where: { creatorId: userId } }),
+    // Delete looks-like submissions
+    prisma.looksLike.deleteMany({ where: { creatorId: userId } }),
+  ]);
 }
