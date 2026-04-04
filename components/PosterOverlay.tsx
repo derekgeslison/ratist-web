@@ -4,20 +4,25 @@ import { useState } from "react";
 import { Eye, Bookmark, BookmarkCheck, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
+import RatingBadge from "./RatingBadge";
 
 interface Props {
   tmdbId: number;
   title: string;
   posterPath: string | null;
   releaseDate?: string | null;
+  voteAverage?: number | null;
+  showRatings?: boolean;
   children: React.ReactNode;
 }
 
-export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, children }: Props) {
+export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, showRatings = false, children }: Props) {
   const { user } = useAuth();
-  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useMovieUserState(tmdbId);
+  const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(tmdbId);
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
+
+  const communityScore = voteAverage && voteAverage > 0 ? voteAverage : null;
 
   async function markSeen(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
@@ -73,6 +78,17 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
           >
             {watchlisted ? <><BookmarkCheck className="w-3 h-3" /> Listed</> : <><Bookmark className="w-3 h-3" /> {markingW ? "..." : "Watchlist"}</>}
           </button>
+        </div>
+      )}
+      {showRatings && (
+        <div className="flex items-center gap-2 mt-0.5">
+          <RatingBadge type="community" score={communityScore} size="sm" />
+          <RatingBadge
+            type="ratist"
+            score={ratistRating ?? estimatedRating}
+            isEstimate={ratistRating == null && estimatedRating != null}
+            size="sm"
+          />
         </div>
       )}
     </div>

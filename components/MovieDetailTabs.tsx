@@ -206,7 +206,7 @@ export default function MovieDetailTabs({
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {recommendations.slice(0, 12).map((m) => (
                   <Link key={m.id} href={`/movies/${m.id}`} className="group flex flex-col">
-                    <PosterOverlay tmdbId={m.id} title={m.title} posterPath={m.poster_path} releaseDate={m.release_date}>
+                    <PosterOverlay tmdbId={m.id} title={m.title} posterPath={m.poster_path} releaseDate={m.release_date} voteAverage={m.vote_average} showRatings>
                       <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
                         <Image
                           src={posterUrl(m.poster_path, "w185")}

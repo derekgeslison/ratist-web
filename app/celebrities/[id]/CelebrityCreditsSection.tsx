@@ -11,6 +11,7 @@ interface Credit {
   title: string;
   poster_path: string | null;
   release_date: string;
+  vote_average: number;
   character?: string;
   job?: string;
   popularity: number;
@@ -34,7 +35,7 @@ export default function CelebrityCreditsSection({
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 mb-4">
         {visible.map((movie) => (
           <Link key={`${movie.id}-${type}`} href={`/movies/${movie.id}`} className="group flex flex-col">
-            <PosterOverlay tmdbId={movie.id} title={movie.title} posterPath={movie.poster_path} releaseDate={movie.release_date}>
+            <PosterOverlay tmdbId={movie.id} title={movie.title} posterPath={movie.poster_path} releaseDate={movie.release_date} voteAverage={movie.vote_average} showRatings>
               <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
                 {movie.poster_path ? (
                   <Image

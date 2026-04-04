@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Bookmark, Lock, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
-import RatingBadge from "@/components/RatingBadge";
+
 import PosterOverlay from "@/components/PosterOverlay";
 
 interface Props {
@@ -99,7 +99,7 @@ export default async function PublicWatchlistPage({ params }: Props) {
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {watchlist.movies.map((entry) => (
             <Link key={entry.id} href={`/movies/${entry.movie.tmdbId}`} className={`group flex flex-col ${entry.isChecked ? "opacity-60" : ""}`}>
-              <PosterOverlay tmdbId={entry.movie.tmdbId} title={entry.movie.title} posterPath={entry.movie.posterPath} releaseDate={entry.movie.releaseDate}>
+              <PosterOverlay tmdbId={entry.movie.tmdbId} title={entry.movie.title} posterPath={entry.movie.posterPath} releaseDate={entry.movie.releaseDate} voteAverage={entry.movie.voteAverage} showRatings>
                 <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
                   entry.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
                 }`}>
@@ -114,11 +114,6 @@ export default async function PublicWatchlistPage({ params }: Props) {
                 entry.isChecked ? "text-[var(--foreground-muted)] line-through" : "text-white group-hover:text-[var(--ratist-red)]"
               }`}>{entry.movie.title}</p>
               <p className="text-xs text-[var(--foreground-muted)]">{entry.movie.releaseDate?.slice(0, 4)}</p>
-              <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                {entry.movie.voteAverage != null && entry.movie.voteAverage > 0 && (
-                  <RatingBadge type="community" score={entry.movie.voteAverage} size="sm" />
-                )}
-              </div>
             </Link>
           ))}
         </div>
