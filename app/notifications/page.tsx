@@ -125,6 +125,7 @@ export default function NotificationsPage() {
           <p>No notifications yet.</p>
         </div>
       ) : (
+        <>
         <div className="divide-y divide-[var(--border)]/20">
           {notifications.map((n) => (
             <button
@@ -178,6 +179,7 @@ export default function NotificationsPage() {
             </div>
           </div>
         )}
+        </>
       )}
     </div>
   );
