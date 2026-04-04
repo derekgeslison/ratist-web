@@ -1,0 +1,192 @@
+import { NextRequest, NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebase-admin";
+import { prisma } from "@/lib/prisma";
+
+async function requireAdmin(req: NextRequest) {
+  const auth = req.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  const decoded = await adminAuth.verifyIdToken(auth.slice(7)).catch(() => null);
+  if (!decoded) return null;
+  const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  if (!user?.isAdmin) return null;
+  return user;
+}
+
+// GET /api/admin/moderation?status=pending|dismissed|resolved
+export async function GET(req: NextRequest) {
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const status = req.nextUrl.searchParams.get("status") ?? "pending";
+
+  const reports = await prisma.report.findMany({
+    where: { status },
+    include: {
+      reporter: { select: { id: true, name: true, avatarUrl: true } },
+      resolver: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  // Fetch content previews for each report
+  const enriched = await Promise.all(
+    reports.map(async (r) => {
+      let contentPreview: string | null = null;
+      let contentAuthor: { id: string; name: string; firebaseUid: string } | null = null;
+
+      try {
+        if (r.targetType === "review") {
+          const rating = await prisma.movieRating.findUnique({
+            where: { id: r.targetId },
+            select: { reviewText: true, user: { select: { id: true, name: true, firebaseUid: true } }, movie: { select: { title: true } } },
+          });
+          contentPreview = rating ? `Review of "${rating.movie.title}": ${rating.reviewText?.slice(0, 200) ?? "(no text)"}` : "(deleted)";
+          contentAuthor = rating?.user ?? null;
+        } else if (r.targetType === "comment") {
+          const comment = await prisma.comment.findUnique({
+            where: { id: r.targetId },
+            select: { content: true, user: { select: { id: true, name: true, firebaseUid: true } } },
+          });
+          contentPreview = comment ? comment.content.slice(0, 200) : "(deleted)";
+          contentAuthor = comment?.user ?? null;
+        } else if (r.targetType === "forumPost") {
+          const post = await prisma.forumPost.findUnique({
+            where: { id: r.targetId },
+            select: { content: true, author: { select: { id: true, name: true, firebaseUid: true } } },
+          });
+          contentPreview = post ? post.content.slice(0, 200) : "(deleted)";
+          contentAuthor = post?.author ?? null;
+        } else if (r.targetType === "hotTake") {
+          const take = await prisma.hotTake.findUnique({
+            where: { id: r.targetId },
+            select: { content: true, user: { select: { id: true, name: true, firebaseUid: true } } },
+          });
+          contentPreview = take ? take.content.slice(0, 200) : "(deleted)";
+          contentAuthor = take?.user ?? null;
+        } else if (r.targetType === "recast") {
+          const recast = await prisma.recast.findUnique({
+            where: { id: r.targetId },
+            select: { id: true, user: { select: { id: true, name: true, firebaseUid: true } } },
+          });
+          contentPreview = recast ? `Recast suggestion #${recast.id}` : "(deleted)";
+          contentAuthor = recast?.user ?? null;
+        } else if (r.targetType === "looksLike") {
+          const ll = await prisma.looksLike.findUnique({
+            where: { id: r.targetId },
+            select: { name1: true, name2: true, creator: { select: { id: true, name: true, firebaseUid: true } } },
+          });
+          contentPreview = ll ? `${ll.name1} / ${ll.name2}` : "(deleted)";
+          contentAuthor = ll?.creator ?? null;
+        }
+      } catch { /* content may not exist */ }
+
+      return {
+        ...r,
+        contentPreview,
+        contentAuthor,
+      };
+    })
+  );
+
+  return NextResponse.json({ reports: enriched });
+}
+
+// PATCH /api/admin/moderation — resolve a report
+export async function PATCH(req: NextRequest) {
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { reportId, action, banReason, banDays } = await req.json();
+  if (!reportId || !action) return NextResponse.json({ error: "reportId and action required" }, { status: 400 });
+
+  const report = await prisma.report.findUnique({ where: { id: reportId } });
+  if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });
+
+  // Determine new status based on action
+  let newStatus = "dismissed";
+
+  if (action === "dismiss") {
+    newStatus = "dismissed";
+  } else if (action === "remove") {
+    newStatus = "removed";
+    // Delete the reported content
+    await deleteContent(report.targetType, report.targetId);
+  } else if (action === "warn") {
+    newStatus = "warned";
+    await deleteContent(report.targetType, report.targetId);
+    // TODO: could send a notification to the user
+  } else if (action === "ban") {
+    newStatus = "banned";
+    await deleteContent(report.targetType, report.targetId);
+    // Find content author and ban them
+    const authorId = await getContentAuthorId(report.targetType, report.targetId);
+    if (authorId) {
+      await prisma.user.update({
+        where: { id: authorId },
+        data: {
+          bannedAt: new Date(),
+          bannedUntil: banDays ? new Date(Date.now() + Number(banDays) * 86400000) : null,
+          banReason: banReason || "Violation of community guidelines",
+        },
+      });
+    }
+  }
+
+  // Update report status
+  await prisma.report.update({
+    where: { id: reportId },
+    data: { status: newStatus, resolvedBy: admin.id, resolvedAt: new Date() },
+  });
+
+  // Also resolve any other pending reports on the same content
+  await prisma.report.updateMany({
+    where: { targetType: report.targetType, targetId: report.targetId, status: "pending", id: { not: reportId } },
+    data: { status: newStatus, resolvedBy: admin.id, resolvedAt: new Date() },
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
+async function deleteContent(targetType: string, targetId: string) {
+  try {
+    if (targetType === "review") {
+      await prisma.movieRating.update({ where: { id: targetId }, data: { reviewText: null } });
+    } else if (targetType === "comment") {
+      await prisma.comment.delete({ where: { id: targetId } });
+    } else if (targetType === "forumPost") {
+      await prisma.forumPost.delete({ where: { id: targetId } });
+    } else if (targetType === "hotTake") {
+      await prisma.hotTake.delete({ where: { id: targetId } });
+    } else if (targetType === "recast") {
+      await prisma.recast.delete({ where: { id: targetId } });
+    } else if (targetType === "looksLike") {
+      await prisma.looksLike.delete({ where: { id: targetId } });
+    }
+  } catch { /* content may already be deleted */ }
+}
+
+async function getContentAuthorId(targetType: string, targetId: string): Promise<string | null> {
+  try {
+    if (targetType === "review") {
+      const r = await prisma.movieRating.findUnique({ where: { id: targetId }, select: { userId: true } });
+      return r?.userId ?? null;
+    } else if (targetType === "comment") {
+      const c = await prisma.comment.findUnique({ where: { id: targetId }, select: { userId: true } });
+      return c?.userId ?? null;
+    } else if (targetType === "forumPost") {
+      const p = await prisma.forumPost.findUnique({ where: { id: targetId }, select: { authorId: true } });
+      return p?.authorId ?? null;
+    } else if (targetType === "hotTake") {
+      const t = await prisma.hotTake.findUnique({ where: { id: targetId }, select: { userId: true } });
+      return t?.userId ?? null;
+    } else if (targetType === "recast") {
+      const r = await prisma.recast.findUnique({ where: { id: targetId }, select: { userId: true } });
+      return r?.userId ?? null;
+    } else if (targetType === "looksLike") {
+      const l = await prisma.looksLike.findUnique({ where: { id: targetId }, select: { creatorId: true } });
+      return l?.creatorId ?? null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}

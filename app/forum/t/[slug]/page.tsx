@@ -6,6 +6,7 @@ import Image from "next/image";
 import { use } from "react";
 import { ArrowLeft, Lock, Pin, Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
 
 interface ForumPost {
@@ -137,6 +138,9 @@ export default function ThreadPage({ params }: Props) {
                 </span>
               </div>
               <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{post.content}</p>
+              <div className="flex justify-end mt-2">
+                <ReportButton targetType="forumPost" targetId={post.id} />
+              </div>
             </div>
           </div>
         ))}

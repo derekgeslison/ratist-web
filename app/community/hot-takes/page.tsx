@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
 
 interface HotTakeItem {
@@ -294,6 +295,7 @@ export default function HotTakesPage() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
+                    <ReportButton targetType="hotTake" targetId={item.id} />
                   </div>
                   {expandedComments === item.id && (
                     <CommentSection targetType="hottake" targetId={item.id} isAdmin={isAdmin} />

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, Reply, Trash2, ChevronDown, ChevronUp, Send } from "lucide-react";
+import ReportButton from "./ReportButton";
 import { useAuth } from "@/context/AuthContext";
 
 interface CommentUser {
@@ -254,6 +255,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                   <Heart className="w-3 h-3" /> {comment.likeCount}
                 </span>
               )}
+              {user && <ReportButton targetType="comment" targetId={comment.id} />}
             </div>
 
             {/* Reply input */}

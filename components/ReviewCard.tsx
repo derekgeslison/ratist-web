@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, AlertTriangle, MessageCircle } from "lucide-rea
 import { scoreColor } from "@/lib/ratings";
 import CommentSection from "./CommentSection";
 import PostLikeButton from "./PostLikeButton";
+import ReportButton from "./ReportButton";
 
 interface ReviewData {
   id: string;
@@ -192,6 +193,7 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
               Full review →
             </Link>
           )}
+          <ReportButton targetType="review" targetId={review.id} />
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w185";
@@ -407,6 +408,7 @@ export default function LooksLikePage() {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
+                  <ReportButton targetType="looksLike" targetId={item.id} />
                 </div>
                 {expandedComments === item.id && (
                   <CommentSection targetType="lookslike" targetId={item.id} isAdmin={isAdmin} />

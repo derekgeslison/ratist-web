@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w185";
@@ -457,6 +458,7 @@ export default function RecastPage() {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
+                  <ReportButton targetType="recast" targetId={item.id} />
                 </div>
                 {expandedComments === item.id && (
                   <CommentSection targetType="recast" targetId={item.id} isAdmin={isAdmin} />
