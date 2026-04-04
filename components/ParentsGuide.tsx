@@ -20,7 +20,7 @@ interface CategoryData {
 interface GuideData {
   categories: CategoryData[] | null;
   totalVoters?: number;
-  maxTopicVotes?: number;
+  limitedData?: boolean;
   source?: string;
   message?: string;
 }
@@ -84,7 +84,7 @@ export default function ParentsGuide({ tmdbId, title }: { tmdbId: number; title:
     );
   }
 
-  const limitedData = (data.maxTopicVotes ?? 0) < 10;
+  const limitedData = data.limitedData ?? false;
 
   return (
     <div className="space-y-3">

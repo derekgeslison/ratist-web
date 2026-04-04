@@ -233,19 +233,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const totalVoters = Math.max(...allStats.map((s) => s.yesSum + s.noSum), 0);
 
-    // Highest single-topic vote count across all categories
-    let maxTopicVotes = 0;
+    // Count how many categories have at least one topic with 10+ votes
+    let categoriesWithStrongData = 0;
     for (const cat of categories) {
-      for (const d of cat.details) {
-        const total = d.yes + d.no;
-        if (total > maxTopicVotes) maxTopicVotes = total;
-      }
+      const hasStrong = cat.details.some((d) => d.yes + d.no >= 10);
+      if (hasStrong) categoriesWithStrongData++;
     }
 
     return NextResponse.json({
       categories,
       totalVoters,
-      maxTopicVotes,
+      limitedData: categoriesWithStrongData < 2,
       source: "DoesTheDogDie.com",
     });
   } catch (err) {
