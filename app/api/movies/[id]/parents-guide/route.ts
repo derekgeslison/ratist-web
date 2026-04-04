@@ -197,10 +197,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       };
     });
 
-    // Sort by severity (severe first)
-    const severityOrder = { severe: 0, moderate: 1, mild: 2, none: 3 };
-    categories.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-
     const totalVoters = Math.max(...stats.map((s) => s.yesSum + s.noSum), 0);
 
     return NextResponse.json({
