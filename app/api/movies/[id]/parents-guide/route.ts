@@ -55,8 +55,8 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Language & Substance",
-    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
-    thresholds: [2, 5, 6],
+    // None: 0 / Mild: 1-3 / Moderate: 4-7 / Severe: 8 (all 3 confirmed)
+    thresholds: [3, 7, 8],
     topics: [
       // Heavy (3)
       { id: 193, label: "Drug use", weight: 3 },
