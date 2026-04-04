@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Swords, Film } from "lucide-react";
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies } from "@/lib/tmdb";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
 import PersonalizedSection from "@/components/PersonalizedSection";
@@ -36,10 +36,11 @@ const TOOLS = [
 ];
 
 export default async function HomePage() {
-  const [popular, topRated, nowPlaying] = await Promise.all([
+  const [popular, topRated, nowPlaying, upcoming] = await Promise.all([
     getPopularMovies(),
     getTopRatedMovies(),
     getNowPlayingMovies(),
+    getUpcomingMovies(),
   ]);
 
   // Hero carousel: popular movies filtered to rating >= 7.0 with a backdrop, up to 6
@@ -119,6 +120,15 @@ export default async function HomePage() {
           movies={popular.results.slice(1, 13)}
           viewAllHref="/movies"
         />
+
+        {/* Coming Soon */}
+        {upcoming.results.length > 0 && (
+          <MovieRow
+            title="Coming Soon"
+            movies={upcoming.results.slice(0, 12)}
+            viewAllHref="/movies?theaterStatus=upcoming"
+          />
+        )}
 
         {/* Top Rated */}
         <MovieRow
