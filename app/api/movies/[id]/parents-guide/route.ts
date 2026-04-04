@@ -5,98 +5,122 @@ export const dynamic = "force-dynamic";
 const DDD_API_KEY = process.env.DDD_API_KEY;
 const DDD_BASE = "https://www.doesthedogdie.com";
 
-// Map DDD topic IDs to our 5 parents' guide categories (curated)
-const CATEGORY_MAP: Record<string, number[]> = {
-  "Violence & Gore": [
-    188, // blood or gore
-    232, // gun violence
-    267, // excessive gore
-    200, // eye mutilation
-    164, // burned alive
-    223, // heads squashed
-    331, // decapitation
-    282, // crushed to death
-    203, // torture
-    296, // body horror
-    343, // stabbings
-    250, // amputation
-    216, // bones breaking
-    281, // asphyxiation
-    309, // chokings
-    245, // choking
-    240, // buried alive
-  ],
-  "Sexual Content": [
-    197, // sexual content
-    279, // nude scenes
-    276, // sexual objectification
-    292, // onscreen sexual assault
-    182, // sexual assault
-    326, // rape mentions
-  ],
-  "Language & Substance": [
-    193, // drug use
-    225, // alcohol abuse
-    290, // obscene language/gestures
-  ],
-  "Scary & Intense": [
-    161, // jump scares
-    167, // flashing lights
-    339, // sudden loud noises
-    366, // screaming
-    202, // claustrophobic scenes
-    207, // ghosts
-    206, // seizures (medical/sensory concern)
-    165, // spiders
-  ],
-  "Sensitive Themes": [
-    187, // suicide
-    286, // suicide attempts
-    199, // self harm
-    168, // parents dying
-    328, // major character dies
-    153, // dog dies
-    189, // animals dying
-    330, // abusive parents
-    238, // abortions
-    215, // miscarriages
-  ],
-};
+// Topic weights: heavy (3), medium (2), light (1)
+// A topic is "confirmed" when yes > 70% of votes AND at least 3 total votes
+interface TopicDef { id: number; label: string; weight: number }
 
-// Friendly labels for each topic
-const TOPIC_LABELS: Record<number, string> = {
-  188: "Blood & gore", 232: "Gun violence", 267: "Excessive gore",
-  200: "Eye mutilation", 164: "People burned alive", 223: "Head trauma",
-  331: "Decapitation", 282: "Crushing", 203: "Torture",
-  296: "Body horror", 343: "Stabbing", 250: "Amputation",
-  216: "Broken bones", 281: "Asphyxiation", 309: "Choking",
-  245: "Choking", 240: "Buried alive",
-  197: "Sexual content", 279: "Nudity", 276: "Sexual objectification",
-  292: "Onscreen sexual assault", 182: "Sexual assault", 326: "Rape mentioned",
-  193: "Drug use", 225: "Alcohol abuse", 290: "Strong language",
-  161: "Jump scares", 167: "Flashing lights", 339: "Loud noises",
-  366: "Screaming", 202: "Claustrophobic scenes", 207: "Ghosts",
-  206: "Seizures",
-  187: "Suicide", 286: "Suicide attempt", 199: "Self-harm",
-  168: "Parent death", 328: "Major character death",
-  153: "Dog dies", 189: "Animal death",
-  330: "Abusive parents", 238: "Abortion", 215: "Miscarriage",
-  165: "Spiders",
-};
+const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number] }[] = [
+  {
+    name: "Violence & Gore",
+    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
+    thresholds: [2, 5, 6],
+    topics: [
+      // Heavy (3)
+      { id: 267, label: "Excessive gore", weight: 3 },
+      { id: 200, label: "Eye mutilation", weight: 3 },
+      { id: 331, label: "Decapitation", weight: 3 },
+      { id: 203, label: "Torture", weight: 3 },
+      { id: 164, label: "People burned alive", weight: 3 },
+      // Medium (2)
+      { id: 188, label: "Blood & gore", weight: 2 },
+      { id: 232, label: "Gun violence", weight: 2 },
+      { id: 296, label: "Body horror", weight: 2 },
+      { id: 343, label: "Stabbing", weight: 2 },
+      { id: 250, label: "Amputation", weight: 2 },
+      { id: 240, label: "Buried alive", weight: 2 },
+      // Light (1)
+      { id: 223, label: "Head trauma", weight: 1 },
+      { id: 282, label: "Crushing", weight: 1 },
+      { id: 216, label: "Broken bones", weight: 1 },
+      { id: 281, label: "Asphyxiation", weight: 1 },
+      { id: 309, label: "Choking", weight: 1 },
+      { id: 245, label: "Choking", weight: 1 },
+    ],
+  },
+  {
+    name: "Sexual Content",
+    // None: 0 / Mild: 1-2 / Moderate: 3-4 / Severe: 5+
+    thresholds: [2, 4, 5],
+    topics: [
+      // Heavy (3)
+      { id: 292, label: "Onscreen sexual assault", weight: 3 },
+      { id: 279, label: "Nudity", weight: 3 },
+      // Medium (2)
+      { id: 197, label: "Sexual content", weight: 2 },
+      { id: 182, label: "Sexual assault", weight: 2 },
+      // Light (1)
+      { id: 276, label: "Sexual objectification", weight: 1 },
+      { id: 326, label: "Rape mentioned", weight: 1 },
+    ],
+  },
+  {
+    name: "Language & Substance",
+    // None: 0 / Mild: 1-2 / Moderate: 3-4 / Severe: 5+
+    thresholds: [2, 4, 5],
+    topics: [
+      // Heavy (3)
+      { id: 193, label: "Drug use", weight: 3 },
+      { id: 290, label: "Strong language", weight: 3 },
+      // Medium (2)
+      { id: 225, label: "Alcohol abuse", weight: 2 },
+    ],
+  },
+  {
+    name: "Scary & Intense",
+    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
+    thresholds: [2, 5, 6],
+    topics: [
+      // Heavy (3)
+      { id: 206, label: "Seizures", weight: 3 },
+      { id: 167, label: "Flashing lights", weight: 3 },
+      // Medium (2)
+      { id: 161, label: "Jump scares", weight: 2 },
+      { id: 202, label: "Claustrophobic scenes", weight: 2 },
+      // Light (1)
+      { id: 339, label: "Loud noises", weight: 1 },
+      { id: 366, label: "Screaming", weight: 1 },
+      { id: 165, label: "Spiders", weight: 1 },
+      { id: 207, label: "Ghosts", weight: 1 },
+    ],
+  },
+  {
+    name: "Sensitive Themes",
+    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
+    thresholds: [2, 5, 6],
+    topics: [
+      // Heavy (3)
+      { id: 187, label: "Suicide", weight: 3 },
+      { id: 199, label: "Self-harm", weight: 3 },
+      { id: 330, label: "Abusive parents", weight: 3 },
+      // Medium (2)
+      { id: 286, label: "Suicide attempt", weight: 2 },
+      { id: 168, label: "Parent death", weight: 2 },
+      { id: 328, label: "Major character death", weight: 2 },
+      { id: 153, label: "Dog dies", weight: 2 },
+      { id: 189, label: "Animal death", weight: 2 },
+      // Light (1)
+      { id: 238, label: "Abortion", weight: 1 },
+      { id: 215, label: "Miscarriage", weight: 1 },
+    ],
+  },
+];
 
 interface DDDTopicStat {
   TopicId: number;
   yesSum: number;
   noSum: number;
-  topic: { id: number; doesName: string; name: string; smmwDescription?: string };
-  TopicCategory: { name: string };
 }
 
-function getSeverity(yesTotal: number, noTotal: number): "none" | "mild" | "moderate" | "severe" {
-  if (yesTotal === 0) return "none";
-  const ratio = yesTotal / (yesTotal + noTotal);
-  if (ratio < 0.3 || yesTotal < 3) return "mild";
-  if (ratio < 0.7) return "moderate";
+function isConfirmed(yes: number, no: number): boolean {
+  const total = yes + no;
+  if (total < 3) return false;
+  return yes / total > 0.7;
+}
+
+function getSeverity(score: number, thresholds: [number, number, number]): "none" | "mild" | "moderate" | "severe" {
+  if (score === 0) return "none";
+  if (score <= thresholds[0]) return "mild";
+  if (score <= thresholds[1]) return "moderate";
   return "severe";
 }
 
@@ -114,7 +138,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Step 1: Search DDD and match by TMDB ID
     let dddItemId: number | null = null;
 
-    // Try searching by title (more reliable than searching by ID)
     if (title) {
       const searchRes = await fetch(`${DDD_BASE}/dddsearch?q=${encodeURIComponent(title)}`, {
         headers: { "X-API-KEY": DDD_API_KEY, Accept: "application/json" },
@@ -126,7 +149,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    // Fallback: search by TMDB ID number
     if (!dddItemId) {
       const searchRes = await fetch(`${DDD_BASE}/dddsearch?q=${tmdbId}`, {
         headers: { "X-API-KEY": DDD_API_KEY, Accept: "application/json" },
@@ -151,53 +173,66 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const mediaData = await mediaRes.json();
-    const stats: DDDTopicStat[] = mediaData.topicItemStats ?? [];
+    const allStats: DDDTopicStat[] = mediaData.topicItemStats ?? [];
 
-    // Build a lookup of topic ID → votes
     const topicVotes = new Map<number, { yes: number; no: number }>();
-    for (const s of stats) {
+    for (const s of allStats) {
       topicVotes.set(s.TopicId, { yes: s.yesSum, no: s.noSum });
     }
 
-    // Step 3: Aggregate into our 5 categories
-    const categories = Object.entries(CATEGORY_MAP).map(([category, topicIds]) => {
-      let totalYes = 0;
-      let totalNo = 0;
-      const details: { label: string; yes: number; no: number }[] = [];
+    // Step 3: Score each category using weighted confirmed topics
+    const categories = CATEGORIES.map((cat) => {
+      let weightedScore = 0;
+      let totalVotes = 0;
+      const details: { label: string; yes: number; no: number; weight: number; confirmed: boolean }[] = [];
 
-      for (const tid of topicIds) {
-        const votes = topicVotes.get(tid);
+      for (const topic of cat.topics) {
+        const votes = topicVotes.get(topic.id);
         if (!votes) continue;
-        totalYes += votes.yes;
-        totalNo += votes.no;
-        // Include in details if it has any votes at all
-        if (votes.yes > 0 || votes.no > 0) {
-          details.push({
-            label: TOPIC_LABELS[tid] ?? `Topic ${tid}`,
-            yes: votes.yes,
-            no: votes.no,
-          });
-        }
+        const total = votes.yes + votes.no;
+        if (total === 0) continue;
+
+        totalVotes += total;
+        const confirmed = isConfirmed(votes.yes, votes.no);
+        if (confirmed) weightedScore += topic.weight;
+
+        details.push({
+          label: topic.label,
+          yes: votes.yes,
+          no: votes.no,
+          weight: topic.weight,
+          confirmed,
+        });
       }
 
-      details.sort((a, b) => b.yes - a.yes);
+      // Sort: confirmed first (by weight desc), then unconfirmed by yes count
+      details.sort((a, b) => {
+        if (a.confirmed !== b.confirmed) return a.confirmed ? -1 : 1;
+        if (a.confirmed && b.confirmed) return b.weight - a.weight || b.yes - a.yes;
+        return b.yes - a.yes;
+      });
 
-      // Top triggers for the summary line (only items where yes > no)
+      // Summary triggers: confirmed topics only, sorted by weight then yes
       const triggers = details
-        .filter((d) => d.yes > d.no)
+        .filter((d) => d.confirmed)
         .slice(0, 5)
         .map((d) => d.label);
 
       return {
-        category,
-        severity: getSeverity(totalYes, totalNo),
+        category: cat.name,
+        severity: getSeverity(weightedScore, cat.thresholds),
+        weightedScore,
         triggers,
-        details: details.slice(0, 10),
-        totalVotes: totalYes + totalNo,
+        details: details.slice(0, 10).map((d) => ({
+          label: d.label,
+          yes: d.yes,
+          no: d.no,
+        })),
+        totalVotes,
       };
     });
 
-    const totalVoters = Math.max(...stats.map((s) => s.yesSum + s.noSum), 0);
+    const totalVoters = Math.max(...allStats.map((s) => s.yesSum + s.noSum), 0);
 
     return NextResponse.json({
       categories,
