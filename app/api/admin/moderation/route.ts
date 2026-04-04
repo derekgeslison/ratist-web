@@ -60,17 +60,17 @@ export async function GET(req: NextRequest) {
         } else if (r.targetType === "hotTake") {
           const take = await prisma.hotTake.findUnique({
             where: { id: r.targetId },
-            select: { content: true, user: { select: { id: true, name: true, firebaseUid: true } } },
+            select: { content: true, author: { select: { id: true, name: true, firebaseUid: true } } },
           });
           contentPreview = take ? take.content.slice(0, 200) : "(deleted)";
-          contentAuthor = take?.user ?? null;
+          contentAuthor = take?.author ?? null;
         } else if (r.targetType === "recast") {
           const recast = await prisma.recast.findUnique({
             where: { id: r.targetId },
-            select: { id: true, user: { select: { id: true, name: true, firebaseUid: true } } },
+            select: { id: true, creator: { select: { id: true, name: true, firebaseUid: true } } },
           });
           contentPreview = recast ? `Recast suggestion #${recast.id}` : "(deleted)";
-          contentAuthor = recast?.user ?? null;
+          contentAuthor = recast?.creator ?? null;
         } else if (r.targetType === "looksLike") {
           const ll = await prisma.looksLike.findUnique({
             where: { id: r.targetId },
@@ -178,11 +178,11 @@ async function getContentAuthorId(targetType: string, targetId: string): Promise
       const p = await prisma.forumPost.findUnique({ where: { id: targetId }, select: { authorId: true } });
       return p?.authorId ?? null;
     } else if (targetType === "hotTake") {
-      const t = await prisma.hotTake.findUnique({ where: { id: targetId }, select: { userId: true } });
-      return t?.userId ?? null;
+      const t = await prisma.hotTake.findUnique({ where: { id: targetId }, select: { authorId: true } });
+      return t?.authorId ?? null;
     } else if (targetType === "recast") {
-      const r = await prisma.recast.findUnique({ where: { id: targetId }, select: { userId: true } });
-      return r?.userId ?? null;
+      const r = await prisma.recast.findUnique({ where: { id: targetId }, select: { creatorId: true } });
+      return r?.creatorId ?? null;
     } else if (targetType === "looksLike") {
       const l = await prisma.looksLike.findUnique({ where: { id: targetId }, select: { creatorId: true } });
       return l?.creatorId ?? null;
