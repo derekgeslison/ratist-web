@@ -20,6 +20,7 @@ interface CategoryData {
 interface GuideData {
   categories: CategoryData[] | null;
   totalVoters?: number;
+  maxTopicVotes?: number;
   source?: string;
   message?: string;
 }
@@ -83,8 +84,16 @@ export default function ParentsGuide({ tmdbId, title }: { tmdbId: number; title:
     );
   }
 
+  const limitedData = (data.maxTopicVotes ?? 0) < 10;
+
   return (
     <div className="space-y-3">
+      {limitedData && (
+        <div className="flex items-start gap-2 bg-yellow-400/5 border border-yellow-400/20 rounded-xl px-4 py-3">
+          <ShieldAlert className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-yellow-400/80">This guide has limited community data and may not reflect all content in this film.</p>
+        </div>
+      )}
       {data.categories.map((cat) => {
         const config = SEVERITY_CONFIG[cat.severity];
         const isExpanded = expanded.has(cat.category);
