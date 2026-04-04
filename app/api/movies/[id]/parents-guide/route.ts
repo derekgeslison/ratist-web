@@ -112,9 +112,8 @@ interface DDDTopicStat {
 }
 
 function isConfirmed(yes: number, no: number): boolean {
-  const total = yes + no;
-  if (total < 3) return false;
-  return yes / total > 0.7;
+  if (yes === 0) return false;
+  return yes / (yes + no) > 0.7;
 }
 
 function getSeverity(score: number, thresholds: [number, number, number]): "none" | "mild" | "moderate" | "severe" {
