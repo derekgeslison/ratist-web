@@ -49,7 +49,7 @@ interface RecentRating {
 
 interface RecentComment {
   id: string;
-  content: string;
+  text: string;
   targetType: string;
   createdAt: string;
 }
@@ -192,7 +192,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <div className="space-y-2">
               {recentComments.map((c) => (
                 <div key={c.id}>
-                  <p className="text-sm text-white line-clamp-1">{c.content}</p>
+                  <p className="text-sm text-white line-clamp-1">{c.text}</p>
                   <p className="text-[10px] text-[var(--foreground-muted)]">
                     {c.targetType} · {new Date(c.createdAt).toLocaleDateString()}
                   </p>

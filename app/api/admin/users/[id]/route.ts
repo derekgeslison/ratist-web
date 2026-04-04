@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Recent comments
   const recentComments = await prisma.comment.findMany({
     where: { userId: id },
-    select: { id: true, content: true, targetType: true, createdAt: true },
+    select: { id: true, text: true, targetType: true, createdAt: true },
     orderBy: { createdAt: "desc" },
     take: 5,
   });
