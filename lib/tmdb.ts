@@ -161,7 +161,7 @@ export async function getUpcomingMovies(page = 1) {
   const sixMonths = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", {
     page: String(page),
-    sort_by: "primary_release_date.asc",
+    sort_by: "popularity.desc",
     "primary_release_date.gte": tomorrow,
     "primary_release_date.lte": sixMonths,
     with_release_type: "2|3",

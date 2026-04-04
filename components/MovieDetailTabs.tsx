@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, Star, ArrowRight } from "lucide-react";
+import { Play, ArrowRight } from "lucide-react";
 import { posterUrl, type TMDBMovie, type TMDBCastMember, type TMDBCrewMember, type TMDBImage, type TMDBWatchProvider } from "@/lib/tmdb";
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
@@ -218,12 +218,7 @@ export default function MovieDetailTabs({
                       </div>
                     </PosterOverlay>
                     <p className="text-xs font-medium text-white line-clamp-1">{m.title}</p>
-                    {m.vote_average > 0 && (
-                      <span className="flex items-center gap-0.5 text-xs text-yellow-400">
-                        <Star className="w-3 h-3 fill-yellow-400" />
-                        {m.vote_average.toFixed(1)}
-                      </span>
-                    )}
+                    <p className="text-[10px] text-[var(--foreground-muted)]">{m.release_date?.slice(0, 4) ?? "—"}</p>
                   </Link>
                 ))}
               </div>
