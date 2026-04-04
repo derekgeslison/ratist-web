@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Swords, Film } from "lucide-react";
 import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies } from "@/lib/tmdb";
+import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
 import PersonalizedSection from "@/components/PersonalizedSection";
@@ -36,11 +37,12 @@ const TOOLS = [
 ];
 
 export default async function HomePage() {
-  const [popular, topRated, nowPlaying, upcoming] = await Promise.all([
+  const [popular, topRated, nowPlaying, upcoming, spotlights] = await Promise.all([
     getPopularMovies(),
     getTopRatedMovies(),
     getNowPlayingMovies(),
     getUpcomingMovies(),
+    prisma.siteSpotlight.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
   // Hero carousel: popular movies filtered to rating >= 7.0 with a backdrop, up to 6
@@ -73,6 +75,33 @@ export default async function HomePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
         {/* Personalized section */}
         <PersonalizedSection />
+
+        {/* Admin Spotlights */}
+        {spotlights.length > 0 && (
+          <section className="space-y-3">
+            {spotlights.map((s) => (
+              <Link
+                key={s.id}
+                href={s.linkUrl}
+                className="flex items-center gap-4 bg-gradient-to-r from-[var(--ratist-red)]/10 to-transparent border border-[var(--ratist-red)]/30 rounded-xl p-5 hover:border-[var(--ratist-red)] transition-colors group"
+              >
+                {s.imageUrl && (
+                  <Image src={s.imageUrl} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-[var(--ratist-red)] font-semibold uppercase tracking-wider mb-1">
+                    {s.type === "blog" ? "New Post" : s.type === "punch_and_judy" ? "Punch & Judy" : s.type === "feature" ? "New Feature" : "Spotlight"}
+                  </p>
+                  <p className="text-base font-bold text-white group-hover:text-[var(--ratist-red)] transition-colors">{s.title}</p>
+                  {s.description && <p className="text-sm text-[var(--foreground-muted)] mt-1 line-clamp-2">{s.description}</p>}
+                </div>
+                <span className="text-sm text-[var(--ratist-red)] font-semibold shrink-0 hidden sm:block">
+                  {s.linkLabel} &rarr;
+                </span>
+              </Link>
+            ))}
+          </section>
+        )}
 
         {/* Now Playing */}
         <MovieRow

@@ -226,7 +226,7 @@ export default function AdminUsersPage() {
                           </div>
                         )}
                       </div>
-                      <span className="text-white font-medium">{u.name}</span>
+                      <Link href={`/admin/users/${u.id}`} className="text-white font-medium hover:text-[var(--ratist-red)] transition-colors">{u.name}</Link>
                       {u.isAdmin && <span className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] px-1.5 py-0.5 rounded">admin</span>}
                     </div>
                   </td>
