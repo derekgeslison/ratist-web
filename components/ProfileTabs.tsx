@@ -10,6 +10,7 @@ import CategoryScoreBar from "./CategoryScoreBar";
 import RatingBadge from "./RatingBadge";
 import ShareButton from "./ShareButton";
 import ProfileDiaryTab from "./ProfileDiaryTab";
+import PosterOverlay from "./PosterOverlay";
 
 interface RatedMovie {
   id: string;
@@ -52,6 +53,7 @@ interface Recommendation {
   tmdbId: number;
   title: string;
   posterPath: string | null;
+  releaseDate: string | null;
   voteAverage: number | null;
   avgRating: number;
 }
@@ -302,22 +304,20 @@ export default function ProfileTabs({
               <section>
                 <h2 className="text-base font-semibold text-white mb-1">Recommended For You</h2>
                 <p className="text-xs text-[var(--foreground-muted)] mb-4">Based on similar taste profiles</p>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                   {recommendations.map((m) => (
-                    <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group">
-                      <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                        {m.posterPath ? (
-                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
-                        {m.voteAverage != null && m.voteAverage > 0 && (
-                          <RatingBadge type="community" score={m.voteAverage} size="sm" />
-                        )}
-                        <RatingBadge type="ratist" score={m.avgRating} size="sm" />
-                      </div>
+                    <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group flex flex-col">
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} voteAverage={m.voteAverage} showRatings>
+                        <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                          {m.posterPath ? (
+                            <Image src={posterUrl(m.posterPath, "w185")} alt={m.title} fill sizes="120px" className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
+                          )}
+                        </div>
+                      </PosterOverlay>
+                      <p className="text-xs font-medium text-white mt-1.5 line-clamp-1">{m.title}</p>
+                      <p className="text-[10px] text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4) ?? "—"}</p>
                     </Link>
                   ))}
                 </div>

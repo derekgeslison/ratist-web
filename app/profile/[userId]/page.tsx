@@ -181,27 +181,29 @@ export default async function ProfilePage({ params }: Props) {
 
   // Find similar users + recommendations
   let similarUsers: Awaited<ReturnType<typeof findSimilarUsers>> = [];
-  let recommendations: { tmdbId: number; title: string; posterPath: string | null; voteAverage: number | null; avgRating: number }[] = [];
+  let recommendations: { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; avgRating: number }[] = [];
   try {
     similarUsers = await findSimilarUsers(user.id, 5);
     if (similarUsers.length > 0) {
       const similarIds = similarUsers.map((s) => s.user.id);
       const ratedByUser = new Set(allRatings.map((r) => r.movieId));
+      const seenByUser = new Set(seenMovies.map((s) => s.movieId));
+      const excludeIds = new Set([...ratedByUser, ...seenByUser]);
       const topRatings = await prisma.movieRating.findMany({
         where: {
           userId: { in: similarIds },
           ratistRating: { gte: 8.0 },
-          movieId: { notIn: [...ratedByUser] },
         },
-        include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, voteAverage: true } } },
+        include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } } },
         orderBy: { ratistRating: "desc" },
-        take: 50,
+        take: 200,
       });
-      const movieMap = new Map<string, { tmdbId: number; title: string; posterPath: string | null; voteAverage: number | null; sum: number; count: number }>();
+      const movieMap = new Map<string, { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; sum: number; count: number }>();
       for (const r of topRatings) {
+        if (excludeIds.has(r.movieId)) continue;
         const existing = movieMap.get(r.movieId);
         if (existing) { existing.sum += r.ratistRating ?? 0; existing.count++; }
-        else movieMap.set(r.movieId, { tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? null, sum: r.ratistRating ?? 0, count: 1 });
+        else movieMap.set(r.movieId, { tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath, releaseDate: r.movie.releaseDate, voteAverage: r.movie.voteAverage ?? null, sum: r.ratistRating ?? 0, count: 1 });
       }
       recommendations = [...movieMap.values()]
         .map((m) => ({ ...m, avgRating: m.sum / m.count }))

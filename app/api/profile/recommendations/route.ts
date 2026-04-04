@@ -34,24 +34,24 @@ export async function GET(req: NextRequest) {
       })).map((r) => r.movieId)
     );
 
-    const excludeIds = [...ratedByUser, ...seenByUser];
+    const excludeIds = new Set([...ratedByUser, ...seenByUser]);
 
     const topRatings = await prisma.movieRating.findMany({
       where: {
         userId: { in: similarIds },
         ratistRating: { gte: 8.0 },
-        movieId: excludeIds.length > 0 ? { notIn: excludeIds } : undefined,
       },
-      include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true } } },
+      include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } } },
       orderBy: { ratistRating: "desc" },
-      take: 100,
+      take: 300,
     });
 
     // Aggregate by movie, weight by similarity score
-    const movieMap = new Map<string, { tmdbId: number; title: string; posterPath: string | null; sum: number; count: number }>();
+    const movieMap = new Map<string, { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; sum: number; count: number }>();
     const similarityMap = new Map(similarUsers.map((s) => [s.user.id, s.overallMatch / 100]));
 
     for (const r of topRatings) {
+      if (excludeIds.has(r.movieId)) continue;
       const weight = similarityMap.get(r.userId) ?? 0.6;
       const weightedScore = (r.ratistRating ?? 0) * weight;
       const existing = movieMap.get(r.movieId);
@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
           tmdbId: r.movie.tmdbId,
           title: r.movie.title,
           posterPath: r.movie.posterPath,
+          releaseDate: r.movie.releaseDate,
+          voteAverage: r.movie.voteAverage,
           sum: weightedScore,
           count: 1,
         });
@@ -73,7 +75,7 @@ export async function GET(req: NextRequest) {
       .map((m) => ({ ...m, avgRating: m.sum / m.count }))
       .sort((a, b) => b.avgRating - a.avgRating)
       .slice(0, 15)
-      .map(({ tmdbId, title, posterPath, avgRating }) => ({ tmdbId, title, posterPath, avgRating }));
+      .map(({ tmdbId, title, posterPath, releaseDate, voteAverage, avgRating }) => ({ tmdbId, title, posterPath, releaseDate, voteAverage, avgRating }));
 
     return NextResponse.json({ movies });
   } catch (err) {
