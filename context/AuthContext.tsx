@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -71,6 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, []);
 
+  // Handle redirect result (for Brave / popup-blocked browsers)
+  useEffect(() => {
+    getRedirectResult(auth).catch(() => { /* no redirect pending */ });
+  }, []);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -85,9 +92,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [syncUser]);
 
   async function signInWithGoogle() {
-    const result = await signInWithPopup(auth, googleProvider);
-    const info = getAdditionalUserInfo(result);
-    return { isNewUser: info?.isNewUser ?? false };
+    try {
+      // Try popup first (works on most browsers)
+      const result = await signInWithPopup(auth, googleProvider);
+      const info = getAdditionalUserInfo(result);
+      return { isNewUser: info?.isNewUser ?? false };
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      // If popup blocked (Brave, some mobile browsers), fall back to redirect
+      if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-browser" || code === "auth/cancelled-popup-request" || code === "auth/internal-error") {
+        await signInWithRedirect(auth, googleProvider);
+        return { isNewUser: false }; // redirect won't return here
+      }
+      throw err;
+    }
   }
 
   async function signInWithEmail(email: string, password: string) {
