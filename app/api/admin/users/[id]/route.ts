@@ -55,7 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       OR: [
         { targetType: "review", targetId: { in: (await prisma.movieRating.findMany({ where: { userId: id }, select: { id: true } })).map(r => r.id) } },
         { targetType: "comment", targetId: { in: (await prisma.comment.findMany({ where: { userId: id }, select: { id: true } })).map(c => c.id) } },
-        { targetType: "hotTake", targetId: { in: (await prisma.hotTake.findMany({ where: { userId: id }, select: { id: true } })).map(t => t.id) } },
+        { targetType: "hotTake", targetId: { in: (await prisma.hotTake.findMany({ where: { authorId: id }, select: { id: true } })).map(t => t.id) } },
         { targetType: "forumPost", targetId: { in: (await prisma.forumPost.findMany({ where: { authorId: id }, select: { id: true } })).map(p => p.id) } },
       ],
     },
