@@ -62,6 +62,15 @@ model User {
   autoDateOnSeen    Boolean  @default(false) @map("auto_date_on_seen")
   notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
 
+  // Soft delete
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") // "self" or admin user ID
+
+  // Ban/block
+  bannedAt    DateTime? @map("banned_at")
+  bannedUntil DateTime? @map("banned_until") // null = permanent ban
+  banReason   String?   @map("ban_reason")
+
   @@map("users")
 }
 

@@ -45,7 +45,7 @@ const HUB_FEATURES = [
 
 export default async function CommunityPage() {
   const users = await prisma.user.findMany({
-    where: { isPrivate: false },
+    where: { isPrivate: false, deletedAt: null, bannedAt: null },
     select: {
       id: true,
       firebaseUid: true,

@@ -51,7 +51,7 @@ export default async function ProfilePage({ params }: Props) {
     include: { profile: true },
   });
 
-  if (!user) notFound();
+  if (!user || user.deletedAt) notFound();
 
   // Fetch all profile data in parallel
   const currentYear = new Date().getFullYear().toString();

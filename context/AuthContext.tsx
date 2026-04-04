@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   onAuthStateChanged,
   signInWithPopup,
@@ -14,14 +14,26 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 
+interface AccountStatus {
+  type: "deleted" | "banned";
+  message: string;
+  daysLeft?: number;
+  bannedUntil?: string | null;
+  banReason?: string | null;
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  accountStatus: AccountStatus | null;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  restoreAccount: () => Promise<void>;
+  startFresh: () => Promise<void>;
+  clearAccountStatus: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -29,27 +41,48 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
+
+  const syncUser = useCallback(async (firebaseUser: User, restoreAction?: string) => {
+    const token = await firebaseUser.getIdToken();
+    const res = await fetch("/api/auth/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name: firebaseUser.displayName ?? firebaseUser.email?.split("@")[0] ?? "User",
+        email: firebaseUser.email,
+        avatarUrl: firebaseUser.photoURL,
+        restoreAction,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.deleted) {
+        setAccountStatus({ type: "deleted", message: data.message, daysLeft: data.daysLeft });
+        return false;
+      }
+      if (data.banned) {
+        setAccountStatus({ type: "banned", message: data.message, bannedUntil: data.bannedUntil, banReason: data.banReason });
+        return false;
+      }
+      setAccountStatus(null);
+      return true;
+    }
+    return true;
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
       if (firebaseUser) {
-        // Sync user to our DB
-        const token = await firebaseUser.getIdToken();
-        await fetch("/api/auth/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            name: firebaseUser.displayName ?? firebaseUser.email?.split("@")[0] ?? "User",
-            email: firebaseUser.email,
-            avatarUrl: firebaseUser.photoURL,
-          }),
-        });
+        await syncUser(firebaseUser);
+      } else {
+        setAccountStatus(null);
       }
     });
     return unsub;
-  }, []);
+  }, [syncUser]);
 
   async function signInWithGoogle() {
     const result = await signInWithPopup(auth, googleProvider);
@@ -64,7 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signUpWithEmail(email: string, password: string, name: string) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
-    // Force re-sync with updated display name
     const token = await cred.user.getIdToken();
     await fetch("/api/auth/sync", {
       method: "POST",
@@ -78,11 +110,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    setAccountStatus(null);
     await firebaseSignOut(auth);
   }
 
+  async function restoreAccount() {
+    if (!user) return;
+    await syncUser(user, "restore");
+  }
+
+  async function startFresh() {
+    if (!user) return;
+    await syncUser(user, "fresh");
+  }
+
+  function clearAccountStatus() {
+    setAccountStatus(null);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, signOut }}>
+    <AuthContext.Provider value={{ user, loading, accountStatus, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus }}>
       {children}
     </AuthContext.Provider>
   );

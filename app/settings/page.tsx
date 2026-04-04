@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Check, Save, Upload, X } from "lucide-react";
+import { Check, Save, Upload, X, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
 
@@ -36,7 +36,7 @@ const COMPONENTS = [
 ];
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +68,22 @@ export default function SettingsPage() {
   );
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [savedPrefs, setSavedPrefs] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDeleteAccount() {
+    if (!user) return;
+    setDeleting(true);
+    const token = await user.getIdToken();
+    const res = await fetch("/api/auth/delete-account", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      await signOut();
+    }
+    setDeleting(false);
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -563,6 +579,40 @@ export default function SettingsPage() {
             </span>
           )}
         </div>
+      </section>
+
+      {/* ── Danger Zone ── */}
+      <section className="border border-red-500/30 rounded-2xl p-6 bg-red-500/5">
+        <h2 className="text-lg font-semibold text-red-400 mb-2 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5" /> Danger Zone
+        </h2>
+        <p className="text-sm text-[var(--foreground-muted)] mb-4">
+          Deleting your account will immediately hide your profile and data from the site. Your account and all associated data (ratings, watchlists, seen movies, reviews, etc.) will be <strong className="text-white">permanently deleted after 30 days</strong>. If you log back in within 30 days, you&apos;ll have the option to restore your account with all data intact, or start fresh.
+        </p>
+        {deleteConfirm ? (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {deleting ? "Deleting…" : "Yes, Delete My Account"}
+            </button>
+            <button
+              onClick={() => setDeleteConfirm(false)}
+              className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setDeleteConfirm(true)}
+            className="px-5 py-2 border border-red-500/50 text-red-400 hover:bg-red-500/10 text-sm font-semibold rounded-lg transition-colors"
+          >
+            Delete My Account
+          </button>
+        )}
       </section>
     </div>
   );
