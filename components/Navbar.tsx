@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Search, Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Star, Bell } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Star, Bell } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import QuickSearch from "./QuickSearch";
 
 const READ_LINKS = [
   { href: "/blog", label: "Blog", icon: BookOpen },
@@ -17,9 +18,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
-  const router = useRouter();
   const pathname = usePathname();
   const userMenuRef = useRef<HTMLDivElement>(null);
   const readMenuRef = useRef<HTMLDivElement>(null);
@@ -65,14 +64,6 @@ export default function Navbar() {
     setUserMenuOpen(false);
     setMenuOpen(false);
   }, [pathname]);
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-    setSearchQuery("");
-    setMenuOpen(false);
-  }
 
   const navLinks = [
     { href: "/", label: "Home" },
@@ -130,18 +121,7 @@ export default function Navbar() {
 
           {/* Search + Auth */}
           <div className="flex items-center gap-3">
-            <form onSubmit={handleSearch} className="hidden sm:flex items-center">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search movies & people..."
-                  className="bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] w-44 lg:w-60 transition-all"
-                />
-              </div>
-            </form>
+            <QuickSearch className="hidden sm:block" />
 
             {user ? (
               <div className="flex items-center gap-3">
@@ -222,18 +202,11 @@ export default function Navbar() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 pb-4">
-          <form onSubmit={handleSearch} className="pt-3 pb-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search movies & people..."
-                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-              />
-            </div>
-          </form>
+          <div className="pt-3 pb-2">
+            <QuickSearch
+              inputClassName="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+            />
+          </div>
           <nav className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
