@@ -13,13 +13,12 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     // Soft delete — set deletedAt and deletedBy
+    // Don't disable Firebase account — user needs to be able to log back in
+    // within 30 days to restore or start fresh
     await prisma.user.update({
       where: { id: user.id },
       data: { deletedAt: new Date(), deletedBy: "self" },
     });
-
-    // Disable Firebase account
-    try { await adminAuth.updateUser(decoded.uid, { disabled: true }); } catch { /* ignore */ }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
