@@ -46,9 +46,9 @@ export async function GET(req: NextRequest) {
         } else if (r.targetType === "comment") {
           const comment = await prisma.comment.findUnique({
             where: { id: r.targetId },
-            select: { content: true, user: { select: { id: true, name: true, firebaseUid: true } } },
+            select: { text: true, user: { select: { id: true, name: true, firebaseUid: true } } },
           });
-          contentPreview = comment ? comment.content.slice(0, 200) : "(deleted)";
+          contentPreview = comment ? comment.text.slice(0, 200) : "(deleted)";
           contentAuthor = comment?.user ?? null;
         } else if (r.targetType === "forumPost") {
           const post = await prisma.forumPost.findUnique({
