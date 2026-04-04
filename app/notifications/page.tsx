@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, Shield, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface NotificationItem {
@@ -35,6 +35,7 @@ export default function NotificationsPage() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminModal, setAdminModal] = useState<NotificationItem | null>(null);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -63,18 +64,34 @@ export default function NotificationsPage() {
 
   async function handleClick(n: NotificationItem) {
     if (!user) return;
+    // Admin notifications open in a modal — only dismissed via "Acknowledge"
+    if (n.type === "admin") {
+      setAdminModal(n);
+      return;
+    }
     if (!n.read) {
-      const token = await user.getIdToken();
-      fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [n.id] }),
-      }).catch(() => {});
-      setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
-      const newUnread = notifications.filter((x) => !x.read && x.id !== n.id).length;
-      window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: newUnread } }));
+      await markRead(n.id);
     }
     if (n.link) router.push(n.link);
+  }
+
+  async function markRead(id: string) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id] }),
+    }).catch(() => {});
+    setNotifications((prev) => prev.map((x) => x.id === id ? { ...x, read: true } : x));
+    const newUnread = notifications.filter((x) => !x.read && x.id !== id).length;
+    window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: newUnread } }));
+  }
+
+  async function acknowledgeAdmin() {
+    if (!adminModal) return;
+    await markRead(adminModal.id);
+    setAdminModal(null);
   }
 
   const unread = notifications.filter((n) => !n.read).length;
@@ -115,9 +132,13 @@ export default function NotificationsPage() {
               onClick={() => handleClick(n)}
               className={`flex items-start gap-3 py-3 w-full text-left transition-colors rounded-lg px-2 -mx-2 ${
                 n.read ? "opacity-60" : "hover:bg-[var(--surface)]"
-              } ${n.link ? "cursor-pointer" : "cursor-default"}`}
+              } cursor-pointer`}
             >
-              {n.actor?.avatarUrl ? (
+              {n.type === "admin" ? (
+                <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)] flex items-center justify-center shrink-0">
+                  <Shield className="w-4 h-4 text-white" />
+                </div>
+              ) : n.actor?.avatarUrl ? (
                 <Image src={n.actor.avatarUrl} alt={n.actor.name} width={32} height={32} className="rounded-full shrink-0" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)] shrink-0">
@@ -125,13 +146,38 @@ export default function NotificationsPage() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white">{n.message}</p>
+                {n.type === "admin" && <p className="text-xs text-[var(--ratist-red)] font-semibold mb-0.5">Message from admins</p>}
+                <p className="text-sm text-white line-clamp-2">{n.message}</p>
                 <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{timeAgo(n.createdAt)}</p>
               </div>
               {!n.read && <div className="w-2 h-2 rounded-full bg-[var(--ratist-red)] shrink-0 mt-2" />}
             </button>
           ))}
         </div>
+
+        {/* Admin message modal */}
+        {adminModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 max-w-md w-full">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-[var(--ratist-red)] flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Message from admins</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">{timeAgo(adminModal.createdAt)}</p>
+                </div>
+              </div>
+              <p className="text-sm text-white leading-relaxed mb-6 whitespace-pre-wrap">{adminModal.message}</p>
+              <button
+                onClick={acknowledgeAdmin}
+                className="w-full py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                Acknowledge
+              </button>
+            </div>
+          </div>
+        )}
       )}
     </div>
   );

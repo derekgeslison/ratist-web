@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
     data: {
       userId,
       type: "admin",
-      actorId: admin.id,
       message: message.trim(),
     },
   });
