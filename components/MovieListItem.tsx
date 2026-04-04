@@ -63,7 +63,7 @@ export default function MovieListItem({ movie }: Props) {
       <div className="flex-1 min-w-0">
         <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{movie.title}</p>
         <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-          {movie.release_date?.slice(0, 4)} · {movie.popularity.toFixed(0)} popularity
+          {movie.release_date?.slice(0, 4)}
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{movie.overview}</p>
       </div>

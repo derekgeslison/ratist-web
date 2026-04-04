@@ -65,6 +65,16 @@ export default function Navbar() {
     setMenuOpen(false);
   }, [pathname]);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [menuOpen]);
+
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies" },
@@ -201,10 +211,11 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 pb-4">
+        <div className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 pb-4 max-h-[calc(100vh-64px)] overflow-y-auto">
           <div className="pt-3 pb-2">
             <QuickSearch
               inputClassName="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+              onNavigate={() => setMenuOpen(false)}
             />
           </div>
           <nav className="flex flex-col gap-1">

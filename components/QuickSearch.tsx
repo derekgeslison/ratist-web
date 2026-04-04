@@ -12,7 +12,7 @@ interface QuickPerson { id: number; name: string; profilePath: string | null; de
 
 const TMDB_PROFILE = "https://image.tmdb.org/t/p/w45";
 
-export default function QuickSearch({ className, inputClassName }: { className?: string; inputClassName?: string }) {
+export default function QuickSearch({ className, inputClassName, onNavigate }: { className?: string; inputClassName?: string; onNavigate?: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState<QuickMovie[]>([]);
@@ -54,12 +54,14 @@ export default function QuickSearch({ className, inputClassName }: { className?:
     setOpen(false);
     router.push(`/search?q=${encodeURIComponent(query.trim())}`);
     setQuery("");
+    onNavigate?.();
   }
 
   function navigate(href: string) {
     setOpen(false);
     setQuery("");
     router.push(href);
+    onNavigate?.();
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
