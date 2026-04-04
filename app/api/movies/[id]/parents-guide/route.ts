@@ -5,8 +5,7 @@ export const dynamic = "force-dynamic";
 const DDD_API_KEY = process.env.DDD_API_KEY;
 const DDD_BASE = "https://www.doesthedogdie.com";
 
-// Map DDD topic IDs to our 5 parents' guide categories
-// Built from DDD's TopicCategory groupings + manual curation
+// Map DDD topic IDs to our 5 parents' guide categories (curated)
 const CATEGORY_MAP: Record<string, number[]> = {
   "Violence & Gore": [
     188, // blood or gore
@@ -17,21 +16,15 @@ const CATEGORY_MAP: Record<string, number[]> = {
     223, // heads squashed
     331, // decapitation
     282, // crushed to death
-    177, // shaving/cutting
     203, // torture
     296, // body horror
-    171, // finger/toe mutilation
     343, // stabbings
     250, // amputation
     216, // bones breaking
     281, // asphyxiation
     309, // chokings
     245, // choking
-    206, // seizures
-    298, // unconscious
     240, // buried alive
-    367, // women brutalized
-    255, // audio gore
   ],
   "Sexual Content": [
     197, // sexual content
@@ -40,7 +33,6 @@ const CATEGORY_MAP: Record<string, number[]> = {
     292, // onscreen sexual assault
     182, // sexual assault
     326, // rape mentions
-    315, // sexual assault jokes
   ],
   "Language & Substance": [
     193, // drug use
@@ -51,76 +43,45 @@ const CATEGORY_MAP: Record<string, number[]> = {
     161, // jump scares
     167, // flashing lights
     339, // sudden loud noises
-    181, // shaky cam
     366, // screaming
     202, // claustrophobic scenes
-    312, // trypophobia
     207, // ghosts
-    165, // spiders
-    213, // bugs
-    214, // snakes
-    337, // sharks
-    335, // bodies of water
-    356, // underwater scenes
+    206, // seizures (medical/sensory concern)
   ],
   "Sensitive Themes": [
     187, // suicide
     286, // suicide attempts
     199, // self harm
     168, // parents dying
-    313, // family dies
     328, // major character dies
-    311, // someone dies
-    289, // self-sacrifice
-    305, // non-human death
-    238, // abortions
-    228, // childbirth
-    215, // miscarriages
-    239, // pregnant people deaths
-    266, // babies/unborn
-    235, // anxiety attacks
-    348, // meltdowns
-    195, // body dysmorphia
-    334, // reality unhinged
     153, // dog dies
     189, // animals dying
     330, // abusive parents
-    237, // gaslighting
-    212, // hate speech
-    351, // religion discussed
-    299, // druggings
-    274, // restraints
+    238, // abortions
+    215, // miscarriages
+    212, // hate speech / racism
   ],
 };
 
-// Friendly label for each topic (extracted from DDD's doesName/smmwDescription)
+// Friendly labels for each topic
 const TOPIC_LABELS: Record<number, string> = {
   188: "Blood & gore", 232: "Gun violence", 267: "Excessive gore",
   200: "Eye mutilation", 164: "People burned alive", 223: "Head trauma",
-  331: "Decapitation", 282: "Crushing", 177: "Cutting/shaving",
-  203: "Torture", 296: "Body horror", 171: "Finger/toe injury",
-  343: "Stabbing", 250: "Amputation", 216: "Broken bones",
-  281: "Asphyxiation", 309: "Choking", 245: "Choking",
-  206: "Seizures", 298: "Unconsciousness", 240: "Buried alive",
-  367: "Brutalization", 255: "Audio gore",
+  331: "Decapitation", 282: "Crushing", 203: "Torture",
+  296: "Body horror", 343: "Stabbing", 250: "Amputation",
+  216: "Broken bones", 281: "Asphyxiation", 309: "Choking",
+  245: "Choking", 240: "Buried alive",
   197: "Sexual content", 279: "Nudity", 276: "Sexual objectification",
   292: "Onscreen sexual assault", 182: "Sexual assault", 326: "Rape mentioned",
-  315: "SA jokes",
   193: "Drug use", 225: "Alcohol abuse", 290: "Strong language",
   161: "Jump scares", 167: "Flashing lights", 339: "Loud noises",
-  181: "Shaky cam", 366: "Screaming", 202: "Claustrophobic scenes",
-  312: "Trypophobia", 207: "Ghosts", 165: "Spiders",
-  213: "Bugs", 214: "Snakes", 337: "Sharks",
-  335: "Open water", 356: "Underwater scenes",
+  366: "Screaming", 202: "Claustrophobic scenes", 207: "Ghosts",
+  206: "Seizures",
   187: "Suicide", 286: "Suicide attempt", 199: "Self-harm",
-  168: "Parent death", 313: "Family death", 328: "Major character death",
-  311: "Someone dies", 289: "Self-sacrifice", 305: "Non-human death",
-  238: "Abortion", 228: "Childbirth", 215: "Miscarriage",
-  239: "Pregnant person dies", 266: "Babies/unborn",
-  235: "Anxiety/panic attacks", 348: "Meltdowns", 195: "Body dysmorphia",
-  334: "Unstable reality", 153: "Dog dies", 189: "Animal death",
-  330: "Abusive parents", 237: "Gaslighting", 212: "Hate speech",
-  351: "Religion discussed", 299: "Drugging", 274: "Restraints",
+  168: "Parent death", 328: "Major character death",
+  153: "Dog dies", 189: "Animal death",
+  330: "Abusive parents", 238: "Abortion", 215: "Miscarriage",
+  212: "Hate speech / racism",
 };
 
 interface DDDTopicStat {
@@ -160,7 +121,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       });
       if (searchRes.ok) {
         const searchData = await searchRes.json();
-        // Match by TMDB ID first
         const exactMatch = searchData.items?.find((item: { tmdbid: number }) => item.tmdbid === tmdbId);
         if (exactMatch) dddItemId = exactMatch.id;
       }
@@ -203,15 +163,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const categories = Object.entries(CATEGORY_MAP).map(([category, topicIds]) => {
       let totalYes = 0;
       let totalNo = 0;
-      const triggers: { label: string; yes: number; no: number }[] = [];
+      const details: { label: string; yes: number; no: number }[] = [];
 
       for (const tid of topicIds) {
         const votes = topicVotes.get(tid);
         if (!votes) continue;
         totalYes += votes.yes;
         totalNo += votes.no;
-        if (votes.yes > 0 && votes.yes > votes.no) {
-          triggers.push({
+        // Include in details if it has any votes at all
+        if (votes.yes > 0 || votes.no > 0) {
+          details.push({
             label: TOPIC_LABELS[tid] ?? `Topic ${tid}`,
             yes: votes.yes,
             no: votes.no,
@@ -219,12 +180,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
 
-      triggers.sort((a, b) => b.yes - a.yes);
+      details.sort((a, b) => b.yes - a.yes);
+
+      // Top triggers for the summary line (only items where yes > no)
+      const triggers = details
+        .filter((d) => d.yes > d.no)
+        .slice(0, 5)
+        .map((d) => d.label);
 
       return {
         category,
         severity: getSeverity(totalYes, totalNo),
-        triggers: triggers.slice(0, 5).map((t) => t.label),
+        triggers,
+        details: details.slice(0, 10),
         totalVotes: totalYes + totalNo,
       };
     });
