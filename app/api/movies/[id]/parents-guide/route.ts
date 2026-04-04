@@ -47,6 +47,7 @@ const CATEGORY_MAP: Record<string, number[]> = {
     202, // claustrophobic scenes
     207, // ghosts
     206, // seizures (medical/sensory concern)
+    165, // spiders
   ],
   "Sensitive Themes": [
     187, // suicide
@@ -59,7 +60,6 @@ const CATEGORY_MAP: Record<string, number[]> = {
     330, // abusive parents
     238, // abortions
     215, // miscarriages
-    212, // hate speech / racism
   ],
 };
 
@@ -81,7 +81,7 @@ const TOPIC_LABELS: Record<number, string> = {
   168: "Parent death", 328: "Major character death",
   153: "Dog dies", 189: "Animal death",
   330: "Abusive parents", 238: "Abortion", 215: "Miscarriage",
-  212: "Hate speech / racism",
+  165: "Spiders",
 };
 
 interface DDDTopicStat {
