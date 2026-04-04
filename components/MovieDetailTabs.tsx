@@ -8,6 +8,7 @@ import { posterUrl, type TMDBMovie, type TMDBCastMember, type TMDBCrewMember, ty
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
 import ReviewCard from "./ReviewCard";
+import ParentsGuide from "./ParentsGuide";
 
 interface Review {
   id: string;
@@ -35,7 +36,7 @@ interface Props {
   reviews: Review[];
 }
 
-const TABS = ["Overview", "Cast & Crew", "Media"] as const;
+const TABS = ["Overview", "Cast & Crew", "Media", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
@@ -365,6 +366,13 @@ export default function MovieDetailTabs({
           {images.length === 0 && !trailerKey && (
             <p className="text-[var(--foreground-muted)] text-sm py-8 text-center">No media available for this title.</p>
           )}
+        </div>
+      )}
+
+      {/* ── PARENTS' GUIDE TAB ── */}
+      {activeTab === "Parents' Guide" && (
+        <div className="pb-16">
+          <ParentsGuide tmdbId={movie.id} title={movie.title} />
         </div>
       )}
     </>
