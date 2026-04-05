@@ -46,9 +46,13 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
       ? [{ createdAt: "desc" as const }] // we'll sort by like count in JS
       : [{ createdAt: "desc" as const }];
 
+  // Filter by review type if "critics" sort is selected
+  const typeFilter = sort === "critics" ? { reviewType: "critic" } : {};
+
   const rawReviews = await prisma.movieRating.findMany({
     where: {
       movieId: dbMovie.id,
+      ...typeFilter,
       OR: [
         { reviewText: { not: null } },
         { ratistRating: { not: null } },
@@ -117,8 +121,8 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
           <p className="text-sm text-[var(--foreground-muted)] mt-1">{reviews.length} review{reviews.length !== 1 ? "s" : ""} for {movieTitle}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {(["recent", "top", "liked"] as const).map((s) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          {(["recent", "top", "liked", "critics"] as const).map((s) => (
             <Link
               key={s}
               href={`/movies/${id}/reviews?sort=${s}`}
@@ -128,7 +132,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
                   : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
               }`}
             >
-              {s === "recent" ? "Recent" : s === "top" ? "Top Rated" : "Most Liked"}
+              {s === "recent" ? "Recent" : s === "top" ? "Top Rated" : s === "liked" ? "Most Liked" : "Critics"}
             </Link>
           ))}
         </div>

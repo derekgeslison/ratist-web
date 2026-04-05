@@ -180,6 +180,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [componentsTouched, setComponentsTouched] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [tosAccepted, setTosAccepted] = useState(false);
 
   const allMovies = [...recentMovies, ...classicMovies];
 
@@ -386,13 +387,28 @@ export default function OnboardingPage() {
                   );
                 })}
               </div>
+              <label className="flex items-start gap-2.5 mb-4 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={tosAccepted}
+                  onChange={(e) => setTosAccepted(e.target.checked)}
+                  className="mt-0.5 rounded border-[var(--border)] accent-[var(--ratist-red)]"
+                />
+                <span className="text-xs text-[var(--foreground-muted)] group-hover:text-white transition-colors">
+                  I agree to The Ratist&apos;s{" "}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">
+                    Terms of Service
+                  </a>
+                </span>
+              </label>
               <button
                 onClick={() => setStep(2)}
-                className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2"
+                disabled={!tosAccepted}
+                className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Continue <ChevronRight className="w-4 h-4" />
               </button>
-              <button onClick={() => setStep(2)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+              <button onClick={() => { if (tosAccepted) setStep(2); }} className={`w-full mt-3 text-sm transition-colors ${tosAccepted ? "text-[var(--foreground-muted)] hover:text-white" : "text-[var(--foreground-muted)]/40 cursor-not-allowed"}`}>
                 Skip for now
               </button>
             </div>

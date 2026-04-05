@@ -15,7 +15,7 @@ async function requireAdmin(req: NextRequest) {
 
 const USER_SELECT = {
   id: true, firebaseUid: true, name: true, email: true, avatarUrl: true,
-  isAdmin: true, isPrivate: true, createdAt: true,
+  isAdmin: true, isOwner: true, isPrivate: true, createdAt: true,
   deletedAt: true, deletedBy: true,
   bannedAt: true, bannedUntil: true, banReason: true,
   _count: { select: { ratings: true, favoriteMovies: true } },
@@ -75,8 +75,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Cannot perform this action on yourself" }, { status: 400 });
   }
 
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firebaseUid: true, isAdmin: true } });
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, firebaseUid: true, isAdmin: true, isOwner: true } });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  // Owner accounts are fully protected — no destructive actions allowed
+  if (target.isOwner) {
+    return NextResponse.json({ error: "Cannot perform actions on the site owner account" }, { status: 403 });
+  }
 
   switch (action) {
     case "toggleAdmin": {
@@ -155,8 +160,9 @@ export async function DELETE(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
   if (userId === admin.id) return NextResponse.json({ error: "Cannot delete yourself" }, { status: 400 });
 
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { firebaseUid: true } });
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { firebaseUid: true, isOwner: true } });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (target.isOwner) return NextResponse.json({ error: "Cannot delete the site owner account" }, { status: 403 });
 
   await prisma.user.update({
     where: { id: userId },

@@ -317,35 +317,64 @@ function Pagination({
     return `/movies?${q.toString()}`;
   }
 
-  const pages = [];
-  const start = Math.max(1, current - 2);
-  const end = Math.min(total, current + 2);
-  for (let i = start; i <= end; i++) pages.push(i);
+  // Build page numbers: always show at least 5, with first/last + ellipsis when needed
+  const VISIBLE = 5;
+  const pages: (number | "...")[] = [];
+
+  if (total <= VISIBLE + 2) {
+    // Small total — show all pages
+    for (let i = 1; i <= total; i++) pages.push(i);
+  } else {
+    // Always show page 1
+    pages.push(1);
+
+    // Calculate window center
+    let start = Math.max(2, current - Math.floor(VISIBLE / 2));
+    let end = start + VISIBLE - 1;
+    if (end >= total) {
+      end = total - 1;
+      start = Math.max(2, end - VISIBLE + 1);
+    }
+
+    if (start > 2) pages.push("...");
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push("...");
+
+    // Always show last page
+    pages.push(total);
+  }
+
+  const linkClass = "px-3 py-1.5 text-sm rounded border transition-colors";
+  const inactiveClass = `${linkClass} border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white`;
+  const activeClass = `${linkClass} border-[var(--ratist-red)] text-white bg-[var(--ratist-red)]/10`;
 
   return (
-    <div className="flex items-center justify-center gap-2 mt-10">
-      {current > 1 && (
-        <a href={buildUrl(current - 1)} className="px-3 py-1.5 text-sm rounded border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white transition-colors">
-          ← Prev
-        </a>
-      )}
-      {pages.map((p) => (
-        <a
-          key={p}
-          href={buildUrl(p)}
-          className={`px-3 py-1.5 text-sm rounded border transition-colors ${
-            p === current
-              ? "border-[var(--ratist-red)] text-white bg-[var(--ratist-red)]/10"
-              : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white"
-          }`}
-        >
-          {p}
-        </a>
-      ))}
-      {current < total && (
-        <a href={buildUrl(current + 1)} className="px-3 py-1.5 text-sm rounded border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white transition-colors">
-          Next →
-        </a>
+    <div className="flex flex-col items-center gap-3 mt-10">
+      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        {current > 1 && (
+          <a href={buildUrl(current - 1)} className={inactiveClass}>
+            ← Prev
+          </a>
+        )}
+        {pages.map((p, i) =>
+          p === "..." ? (
+            <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-sm text-[var(--foreground-muted)]">...</span>
+          ) : (
+            <a key={p} href={buildUrl(p)} className={p === current ? activeClass : inactiveClass}>
+              {p}
+            </a>
+          )
+        )}
+        {current < total && (
+          <a href={buildUrl(current + 1)} className={inactiveClass}>
+            Next →
+          </a>
+        )}
+      </div>
+      {total > VISIBLE && (
+        <p className="text-xs text-[var(--foreground-muted)]">
+          Page {current} of {total.toLocaleString()}
+        </p>
       )}
     </div>
   );

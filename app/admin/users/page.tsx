@@ -13,6 +13,7 @@ interface AdminUser {
   email: string;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isOwner: boolean;
   isPrivate: boolean;
   createdAt: string;
   deletedAt: string | null;
@@ -233,7 +234,8 @@ export default function AdminUsersPage() {
                         )}
                       </div>
                       <Link href={`/admin/users/${u.id}`} className="text-white font-medium hover:text-[var(--ratist-red)] transition-colors">{u.name}</Link>
-                      {u.isAdmin && <span className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] px-1.5 py-0.5 rounded">admin</span>}
+                      {u.isOwner && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded font-bold">owner</span>}
+                      {u.isAdmin && !u.isOwner && <span className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] px-1.5 py-0.5 rounded">admin</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[var(--foreground-muted)] hidden sm:table-cell">{u.email}</td>
@@ -269,8 +271,8 @@ export default function AdminUsersPage() {
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
 
-                      {/* Active tab actions */}
-                      {tab === "active" && (
+                      {/* Active tab actions — owner accounts are protected */}
+                      {tab === "active" && !u.isOwner && (
                         <>
                           <button
                             onClick={() => doAction(u.id, "toggleAdmin")}

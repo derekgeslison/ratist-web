@@ -7,10 +7,11 @@ export function useShowUserState(showId: number) {
   const { user } = useAuth();
   const [seen, setSeen] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
+  const [ratistRating, setRatistRating] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user || !showId) {
-      setSeen(false); setWatchlisted(false);
+      setSeen(false); setWatchlisted(false); setRatistRating(null);
       return;
     }
     let cancelled = false;
@@ -23,6 +24,7 @@ export function useShowUserState(showId: number) {
       if (cancelled) return;
       setSeen(!!data.seen);
       setWatchlisted(!!data.watchlisted);
+      setRatistRating(data.rating?.ratistRating ?? data.rating?.overallRating ?? null);
     })
     .catch(() => {});
     return () => { cancelled = true; };
@@ -31,5 +33,5 @@ export function useShowUserState(showId: number) {
   const markSeen = useCallback(() => setSeen(true), []);
   const setWatchlistState = useCallback((val: boolean) => setWatchlisted(val), []);
 
-  return { seen, watchlisted, markSeen, setWatchlistState };
+  return { seen, watchlisted, ratistRating, markSeen, setWatchlistState };
 }

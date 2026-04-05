@@ -23,6 +23,7 @@ model User {
   publicTabs  Json     @default("{\"overview\":true,\"ratings\":true,\"diary\":true,\"watchlist\":true,\"stats\":true,\"rankings\":true}") @map("public_tabs")
   inviteCode  String   @unique @map("invite_code")
   isAdmin     Boolean  @default(false) @map("is_admin")
+  isOwner     Boolean  @default(false) @map("is_owner")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

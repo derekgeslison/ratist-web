@@ -9,8 +9,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
-    const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, isOwner: true } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (user.isOwner) return NextResponse.json({ error: "Owner account cannot be deleted" }, { status: 403 });
 
     // Soft delete — set deletedAt and deletedBy
     // Don't disable Firebase account — user needs to be able to log back in

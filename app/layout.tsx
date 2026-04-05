@@ -50,6 +50,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="flex-1">{children}</main>
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
+              <a href="/about" className="hover:text-white transition-colors">About</a>
+            </div>
             <div className="flex items-center justify-center gap-3 mt-3">
               {/* TMDB attribution — required by their API Terms of Service */}
               <a
