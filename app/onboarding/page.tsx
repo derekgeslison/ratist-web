@@ -179,6 +179,7 @@ export default function OnboardingPage() {
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [componentsTouched, setComponentsTouched] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const allMovies = [...recentMovies, ...classicMovies];
 
@@ -241,6 +242,7 @@ export default function OnboardingPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ name: show.name, poster_path: show.poster_path, first_air_date: show.first_air_date, noDate: true }),
       });
+      if (!res.ok) throw new Error("Failed to mark show");
       const data = await res.json();
       setSeenShowIds((prev) => {
         const next = new Set(prev);
@@ -248,7 +250,9 @@ export default function OnboardingPage() {
         else next.delete(show.id);
         return next;
       });
-    } catch { /* continue */ }
+    } catch {
+      setErrorMsg("Failed to mark show as seen. Please try again.");
+    }
     setMarkingId(null);
   }
 
@@ -271,6 +275,7 @@ export default function OnboardingPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date, noDate: true }),
       });
+      if (!res.ok) throw new Error("Failed to mark movie");
       const data = await res.json();
       setSeenMovieIds((prev) => {
         const next = new Set(prev);
@@ -278,7 +283,9 @@ export default function OnboardingPage() {
         else next.delete(movie.id);
         return next;
       });
-    } catch { /* continue */ }
+    } catch {
+      setErrorMsg("Failed to mark movie as seen. Please try again.");
+    }
     setMarkingId(null);
   }
 
@@ -287,7 +294,7 @@ export default function OnboardingPage() {
     setSaving(true);
     try {
       const token = await user.getIdToken();
-      await fetch(`/api/movies/${selectedForRating.id}/rate`, {
+      const res = await fetch(`/api/movies/${selectedForRating.id}/rate`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -298,8 +305,11 @@ export default function OnboardingPage() {
           // No pillar scores — creates an incomplete rating the user can fill in later
         }),
       });
+      if (!res.ok) throw new Error("Failed to save rating");
       setRatingSubmitted(true);
-    } catch { /* continue */ }
+    } catch {
+      setErrorMsg("Failed to save your rating. Please try again.");
+    }
     setSaving(false);
   }
 
@@ -315,14 +325,17 @@ export default function OnboardingPage() {
 
     try {
       const token = await user.getIdToken();
-      await fetch("/api/profile/preferences", {
+      const res = await fetch("/api/profile/preferences", {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } catch { /* continue */ }
-
-    router.push("/movies");
+      if (!res.ok) throw new Error("Failed to save preferences");
+      router.push("/movies");
+    } catch {
+      setErrorMsg("Failed to save preferences. Please try again.");
+      setSaving(false);
+    }
   }
 
   const seenList = allMovies.filter((m) => seenMovieIds.has(m.id));
@@ -339,6 +352,13 @@ export default function OnboardingPage() {
         <StepIndicator step={step} />
 
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8">
+
+          {errorMsg && (
+            <div className="flex items-center justify-between gap-2 mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <p className="text-sm text-red-400">{errorMsg}</p>
+              <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-white text-xs shrink-0">Dismiss</button>
+            </div>
+          )}
 
           {/* ── STEP 1: Genre preferences ── */}
           {step === 1 && (

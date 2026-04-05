@@ -29,7 +29,7 @@ interface UserRating {
   mediaType?: "movie" | "tv";
 }
 
-interface UnratedMovie {
+interface UnratedItem {
   tmdbId: number;
   title: string;
   posterPath: string | null;
@@ -38,6 +38,7 @@ interface UnratedMovie {
   voteAverage: number | null;
   watchedDate: string | null;
   seenAt: string;
+  mediaType?: "movie" | "tv";
 }
 
 type TabMode = "rated" | "needs-rating";
@@ -47,8 +48,9 @@ type SortBy = "rated" | "score" | "title" | "year";
 export default function RatingsPage() {
   const { user } = useAuth();
   const [ratings, setRatings] = useState<UserRating[]>([]);
-  const [unrated, setUnrated] = useState<UnratedMovie[]>([]);
+  const [unrated, setUnrated] = useState<UnratedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -71,7 +73,7 @@ export default function RatingsPage() {
     if (!user) { setLoading(false); return; }
     user.getIdToken().then((token) => {
       fetch("/api/ratings", { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((data) => {
           setRatings(data.ratings ?? []);
           setUnrated(data.unrated ?? []);
@@ -81,31 +83,41 @@ export default function RatingsPage() {
           setServerAvg(data.avgRating ?? null);
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch(() => { setError("Failed to load ratings."); setLoading(false); });
     });
   }, [user]);
 
   async function loadMore() {
     if (!user || !nextCursor || loadingMore) return;
     setLoadingMore(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/ratings?cursor=${nextCursor}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setRatings((prev) => [...prev, ...(data.ratings ?? [])]);
-    setNextCursor(data.nextCursor ?? null);
-    setHasMore(data.hasMore ?? false);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/ratings?cursor=${nextCursor}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRatings((prev) => [...prev, ...(data.ratings ?? [])]);
+      setNextCursor(data.nextCursor ?? null);
+      setHasMore(data.hasMore ?? false);
+    } catch {
+      setError("Failed to load more ratings.");
+    }
     setLoadingMore(false);
   }
 
   async function loadAll() {
     if (!user || loadingMore) return;
     setLoadingMore(true);
-    const token = await user.getIdToken();
-    const res = await fetch("/api/ratings?all=1", { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setRatings(data.ratings ?? []);
-    setNextCursor(null);
-    setHasMore(false);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/ratings?all=1", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRatings(data.ratings ?? []);
+      setNextCursor(null);
+      setHasMore(false);
+    } catch {
+      setError("Failed to load all ratings.");
+    }
     setLoadingMore(false);
   }
 
@@ -128,18 +140,19 @@ export default function RatingsPage() {
     return [...acts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
   }, [ratings]);
 
-  // Filtered/sorted unrated movies
+  // Filtered/sorted unrated items (movies + shows)
   const filteredUnrated = useMemo(() => {
     let arr = unrated.filter((m) => {
       if (query && !m.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (genreFilter && !m.genres.includes(genreFilter)) return false;
+      if (mediaFilter !== "all" && (m.mediaType ?? "movie") !== mediaFilter) return false;
       return true;
     });
     if (unratedSort === "title") arr = [...arr].sort((a, b) => a.title.localeCompare(b.title));
     else if (unratedSort === "year") arr = [...arr].sort((a, b) => (b.year || "0").localeCompare(a.year || "0"));
     else arr = [...arr].sort((a, b) => new Date(b.watchedDate ?? b.seenAt).getTime() - new Date(a.watchedDate ?? a.seenAt).getTime());
     return arr;
-  }, [unrated, query, genreFilter, unratedSort]);
+  }, [unrated, query, genreFilter, unratedSort, mediaFilter]);
 
   const filtered = useMemo(() => {
     return ratings.filter((r) => {
@@ -199,6 +212,11 @@ export default function RatingsPage() {
         </div>
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading…</p>
+      ) : error ? (
+        <div className="text-center py-16 text-[var(--foreground-muted)]">
+          <p className="text-red-400 mb-2">{error}</p>
+          <button onClick={() => window.location.reload()} className="text-sm text-[var(--ratist-red)] hover:underline">Retry</button>
+        </div>
       ) : ratings.length === 0 && unrated.length === 0 ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <Star className="w-12 h-12 mx-auto mb-4 opacity-30" />
@@ -445,7 +463,7 @@ export default function RatingsPage() {
           {tab === "needs-rating" && (
             <>
               <p className="text-sm text-[var(--foreground-muted)] mb-4">
-                {unrated.length} movie{unrated.length !== 1 ? "s" : ""} you&apos;ve seen but haven&apos;t rated yet.
+                {unrated.length} {unrated.length !== 1 ? "items" : "item"} you&apos;ve seen but haven&apos;t rated yet.
               </p>
 
               {/* Filters for needs-rating */}
@@ -473,37 +491,49 @@ export default function RatingsPage() {
 
               {filteredUnrated.length === 0 ? (
                 <p className="text-center text-sm text-[var(--foreground-muted)] py-8">
-                  {unrated.length === 0 ? "All your seen movies have been rated!" : "No unrated movies match your filters."}
+                  {unrated.length === 0 ? "All your seen items have been rated!" : "No unrated items match your filters."}
                 </p>
               ) : (
                 <div className="divide-y divide-[var(--border)]/10">
-                  {filteredUnrated.map((m) => (
-                    <div key={m.tmdbId} className="flex items-center gap-3 py-3 group">
-                      <Link href={`/movies/${m.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                        {m.posterPath && (
-                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="40px" className="object-cover" />
-                        )}
-                      </Link>
-                      <div className="flex-1 min-w-0">
-                        <Link href={`/movies/${m.tmdbId}`} className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                          {m.title}
+                  {filteredUnrated.map((m) => {
+                    const isTv = m.mediaType === "tv";
+                    const detailHref = isTv ? `/shows/${m.tmdbId}` : `/movies/${m.tmdbId}`;
+                    const rateHref = isTv ? `/shows/${m.tmdbId}/rate` : `/movies/${m.tmdbId}/rate`;
+                    return (
+                      <div key={`${m.mediaType ?? "movie"}-${m.tmdbId}`} className="flex items-center gap-3 py-3 group">
+                        <Link href={detailHref} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                          {m.posterPath && (
+                            <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="40px" className="object-cover" />
+                          )}
                         </Link>
-                        <p className="text-xs text-[var(--foreground-muted)]">{m.year}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <Link href={detailHref} className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                              {m.title}
+                            </Link>
+                            {isTv && (
+                              <span className="shrink-0 flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                                <Tv className="w-2.5 h-2.5" />TV
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[var(--foreground-muted)]">{m.year}</p>
+                        </div>
+                        <Link
+                          href={rateHref}
+                          className="text-xs font-semibold px-3 py-1 rounded-full border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white transition-colors shrink-0"
+                        >
+                          Rate →
+                        </Link>
                       </div>
-                      <Link
-                        href={`/movies/${m.tmdbId}/rate`}
-                        className="text-xs font-semibold px-3 py-1 rounded-full border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white transition-colors shrink-0"
-                      >
-                        Rate →
-                      </Link>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {filteredUnrated.length > 0 && filteredUnrated.length < unrated.length && (
                 <p className="text-xs text-[var(--foreground-muted)] text-center mt-4">
-                  Showing {filteredUnrated.length} of {unrated.length} unrated movies
+                  Showing {filteredUnrated.length} of {unrated.length} unrated items
                 </p>
               )}
             </>

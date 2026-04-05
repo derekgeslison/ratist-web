@@ -86,22 +86,46 @@ export default function SeenPage() {
 
   function deleteRewatch(logId: string) {
     if (!user) return;
-    user.getIdToken().then((token) => {
-      fetch(`/api/watchlog/${logId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    });
+    // Optimistic removal
+    const removed = movies.find((m) => m.logId === logId);
     setMovies((prev) => prev.filter((m) => m.logId !== logId));
+    user.getIdToken().then((token) => {
+      fetch(`/api/watchlog/${logId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          if (!res.ok) {
+            console.error("Failed to delete rewatch");
+            if (removed) setMovies((prev) => [...prev, removed]);
+          }
+        })
+        .catch(() => {
+          console.error("Network error deleting rewatch");
+          if (removed) setMovies((prev) => [...prev, removed]);
+        });
+    });
   }
 
   function editRewatchNotes(logId: string, notes: string) {
     if (!user) return;
+    // Optimistic update
+    const prev = movies.find((m) => m.logId === logId)?.notes ?? null;
+    setMovies((ms) => ms.map((m) => (m.logId === logId ? { ...m, notes } : m)));
     user.getIdToken().then((token) => {
       fetch(`/api/watchlog/${logId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ notes }),
-      });
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.error("Failed to save rewatch notes");
+            setMovies((ms) => ms.map((m) => (m.logId === logId ? { ...m, notes: prev } : m)));
+          }
+        })
+        .catch(() => {
+          console.error("Network error saving rewatch notes");
+          setMovies((ms) => ms.map((m) => (m.logId === logId ? { ...m, notes: prev } : m)));
+        });
     });
-    setMovies((prev) => prev.map((m) => (m.logId === logId ? { ...m, notes } : m)));
   }
 
   useEffect(() => {

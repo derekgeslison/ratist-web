@@ -35,16 +35,27 @@ export default function NotificationsPage() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [adminModal, setAdminModal] = useState<NotificationItem | null>(null);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     (async () => {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/notifications", { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setNotifications(data.notifications ?? []);
-      setLoading(false);
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/notifications", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          setError("Failed to load notifications.");
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        setNotifications(data.notifications ?? []);
+      } catch {
+        setError("Failed to load notifications.");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [user]);
 
@@ -77,15 +88,27 @@ export default function NotificationsPage() {
 
   async function markRead(id: string) {
     if (!user) return;
-    const token = await user.getIdToken();
-    fetch("/api/notifications", {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: [id] }),
-    }).catch(() => {});
+    // Optimistic update
     setNotifications((prev) => prev.map((x) => x.id === id ? { ...x, read: true } : x));
     const newUnread = notifications.filter((x) => !x.read && x.id !== id).length;
     window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: newUnread } }));
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setNotifications((prev) => prev.map((x) => x.id === id ? { ...x, read: false } : x));
+        window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: newUnread + 1 } }));
+      }
+    } catch {
+      // Revert on failure
+      setNotifications((prev) => prev.map((x) => x.id === id ? { ...x, read: false } : x));
+      window.dispatchEvent(new CustomEvent("ratist:notif-update", { detail: { unreadCount: newUnread + 1 } }));
+    }
   }
 
   async function acknowledgeAdmin() {
@@ -119,6 +142,11 @@ export default function NotificationsPage() {
         </div>
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading...</p>
+      ) : error ? (
+        <div className="text-center py-16 text-[var(--foreground-muted)]">
+          <Bell className="w-12 h-12 mx-auto mb-4 opacity-30" />
+          <p className="text-red-400">{error}</p>
+        </div>
       ) : notifications.length === 0 ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <Bell className="w-12 h-12 mx-auto mb-4 opacity-30" />

@@ -120,6 +120,13 @@ export default function WatchlistPage() {
   const [movieLists, setMovieLists] = useState<{ id: string; name: string; isDefault: boolean; hasMovie: boolean }[]>([]);
   const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
+  /* ── Error / success banners ── */
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  function showError(msg: string) { setError(msg); setTimeout(() => setError(null), 5000); }
+  function showSuccess(msg: string) { setSuccess(msg); setTimeout(() => setSuccess(null), 5000); }
+
   const activeList = watchlists.find((w) => w.id === activeId) ?? null;
 
   /* ── Helpers ── */
@@ -132,19 +139,23 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     (async () => {
-      const token = await getToken();
-      if (!token) return;
-      const [listRes, inviteRes] = await Promise.all([
-        fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/watchlist/invites", { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      const data = await listRes.json();
-      const inviteData = await inviteRes.json();
-      setWatchlists(data.watchlists ?? []);
-      setMovies(data.defaultMovies ?? []);
-      setPendingInvites(inviteData.invites ?? []);
-      const def = (data.watchlists ?? []).find((w: WatchlistMeta) => w.isDefault);
-      if (def) setActiveId(def.id);
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const [listRes, inviteRes] = await Promise.all([
+          fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/watchlist/invites", { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (!listRes.ok) { showError("Failed to load watchlists."); setLoading(false); return; }
+        if (!inviteRes.ok) { showError("Failed to load invites."); }
+        const data = await listRes.json();
+        const inviteData = inviteRes.ok ? await inviteRes.json() : { invites: [] };
+        setWatchlists(data.watchlists ?? []);
+        setMovies(data.defaultMovies ?? []);
+        setPendingInvites(inviteData.invites ?? []);
+        const def = (data.watchlists ?? []).find((w: WatchlistMeta) => w.isDefault);
+        if (def) setActiveId(def.id);
+      } catch { showError("Failed to load watchlists."); }
       setLoading(false);
     })();
   }, [user, getToken]);
@@ -157,11 +168,14 @@ export default function WatchlistPage() {
     setQuery("");
     setSeenFilter("all");
     setGenreFilter("");
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch(`/api/watchlist/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setMovies(data.movies ?? []);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showError("Failed to load list."); setLoadingMovies(false); return; }
+      const data = await res.json();
+      setMovies(data.movies ?? []);
+    } catch { showError("Failed to load list."); }
     setLoadingMovies(false);
   }
 
@@ -169,145 +183,170 @@ export default function WatchlistPage() {
   async function createWatchlist() {
     if (!newName.trim() || creating) return;
     setCreating(true);
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch("/api/watchlist", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() || null, isPrivate: newPrivate }),
-    });
-    const data = await res.json();
-    if (data.watchlist) {
-      setWatchlists((prev) => [...prev, data.watchlist]);
-      setActiveId(data.watchlist.id);
-      setMovies([]);
-    }
-    setNewName("");
-    setNewDesc("");
-    setNewPrivate(false);
-    setShowCreate(false);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() || null, isPrivate: newPrivate }),
+      });
+      if (!res.ok) { showError("Failed to create watchlist."); setCreating(false); return; }
+      const data = await res.json();
+      if (data.watchlist) {
+        setWatchlists((prev) => [...prev, data.watchlist]);
+        setActiveId(data.watchlist.id);
+        setMovies([]);
+      }
+      setNewName("");
+      setNewDesc("");
+      setNewPrivate(false);
+      setShowCreate(false);
+    } catch { showError("Failed to create watchlist."); }
     setCreating(false);
   }
 
   /* ── Edit watchlist ── */
   async function saveEdit() {
     if (!activeId) return;
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/watchlist/${activeId}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName.trim(), description: editDesc.trim() || null, isPrivate: editPrivate }),
-    });
-    setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, name: editName.trim(), description: editDesc.trim() || null, isPrivate: editPrivate } : w));
-    setEditingList(false);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName.trim(), description: editDesc.trim() || null, isPrivate: editPrivate }),
+      });
+      if (!res.ok) { showError("Failed to save list changes."); return; }
+      setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, name: editName.trim(), description: editDesc.trim() || null, isPrivate: editPrivate } : w));
+      setEditingList(false);
+    } catch { showError("Failed to save list changes."); }
   }
 
   /* ── Delete watchlist ── */
   async function deleteWatchlist() {
     if (!activeId) return;
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/watchlist/${activeId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    setWatchlists((prev) => prev.filter((w) => w.id !== activeId));
-    const def = watchlists.find((w) => w.isDefault);
-    if (def) { setActiveId(def.id); loadList(def.id); }
-    setShowDeleteConfirm(false);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showError("Failed to delete watchlist."); return; }
+      setWatchlists((prev) => prev.filter((w) => w.id !== activeId));
+      const def = watchlists.find((w) => w.isDefault);
+      if (def) { setActiveId(def.id); loadList(def.id); }
+      setShowDeleteConfirm(false);
+    } catch { showError("Failed to delete watchlist."); }
   }
 
   /* ── Collaborator management ── */
   async function openCollaborators() {
     if (!activeId) return;
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch(`/api/watchlist/${activeId}/collaborators`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/collaborators`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showError("Failed to load collaborators."); return; }
       const data = await res.json();
       setCollaborators(data.collaborators ?? []);
-    }
-    setInviteCode("");
-    setInviteError("");
-    setShowCollaborators(true);
+      setInviteCode("");
+      setInviteError("");
+      setShowCollaborators(true);
+    } catch { showError("Failed to load collaborators."); }
   }
 
   async function inviteByCode() {
     if (!activeId || !inviteCode.trim() || inviting) return;
     setInviting(true);
     setInviteError("");
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ inviteCode: inviteCode.trim(), role: inviteRole }),
-    });
-    const data = await res.json();
-    if (res.ok && data.collaborator) {
-      setCollaborators((prev) => [...prev, data.collaborator]);
-      setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount + 1 } : w));
-      setInviteCode("");
-    } else {
-      setInviteError(data.error ?? "Failed to invite");
-    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteCode: inviteCode.trim(), role: inviteRole }),
+      });
+      const data = await res.json();
+      if (res.ok && data.collaborator) {
+        setCollaborators((prev) => [...prev, data.collaborator]);
+        setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount + 1 } : w));
+        setInviteCode("");
+      } else {
+        setInviteError(data.error ?? "Failed to invite");
+      }
+    } catch { setInviteError("Failed to send invite."); }
     setInviting(false);
   }
 
   async function respondToInvite(watchlistId: string, action: "accept" | "decline") {
     setRespondingTo(watchlistId);
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/watchlist/${watchlistId}/collaborators`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    setPendingInvites((prev) => prev.filter((i) => i.watchlistId !== watchlistId));
-    if (action === "accept") {
-      // Reload the sidebar to include the new list
-      const res = await fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setWatchlists(data.watchlists ?? []);
-    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${watchlistId}/collaborators`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) { showError(`Failed to ${action} invite.`); setRespondingTo(null); return; }
+      setPendingInvites((prev) => prev.filter((i) => i.watchlistId !== watchlistId));
+      if (action === "accept") {
+        const listRes = await fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } });
+        if (listRes.ok) {
+          const data = await listRes.json();
+          setWatchlists(data.watchlists ?? []);
+        }
+      }
+    } catch { showError(`Failed to ${action} invite.`); }
     setRespondingTo(null);
   }
 
   async function changeRole(userId: string, role: string) {
     if (!activeId) return;
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/watchlist/${activeId}/collaborators`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, role }),
-    });
-    setCollaborators((prev) => prev.map((c) => c.userId === userId ? { ...c, role } : c));
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role }),
+      });
+      if (!res.ok) { showError("Failed to change role."); return; }
+      setCollaborators((prev) => prev.map((c) => c.userId === userId ? { ...c, role } : c));
+    } catch { showError("Failed to change role."); }
   }
 
   async function removeCollaborator(userId: string) {
     if (!activeId) return;
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/watchlist/${activeId}/collaborators`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-    setCollaborators((prev) => prev.filter((c) => c.userId !== userId));
-    setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount - 1 } : w));
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) { showError("Failed to remove collaborator."); return; }
+      setCollaborators((prev) => prev.filter((c) => c.userId !== userId));
+      setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount - 1 } : w));
+    } catch { showError("Failed to remove collaborator."); }
   }
 
   async function leaveList() {
     if (!activeId || !user) return;
-    const token = await getToken();
-    if (!token) return;
-    await fetch(`/api/watchlist/${activeId}/collaborators`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.uid }),
-    });
-    setWatchlists((prev) => prev.filter((w) => w.id !== activeId));
-    const def = watchlists.find((w) => w.isDefault);
-    if (def) { setActiveId(def.id); loadList(def.id); }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+      if (!res.ok) { showError("Failed to leave list."); return; }
+      setWatchlists((prev) => prev.filter((w) => w.id !== activeId));
+      const def = watchlists.find((w) => w.isDefault);
+      if (def) { setActiveId(def.id); loadList(def.id); }
+    } catch { showError("Failed to leave list."); }
   }
 
   /* ── Export to rankings ── */
@@ -315,16 +354,17 @@ export default function WatchlistPage() {
     if (!activeList || !user) return;
     const name = prompt("Name for your custom rankings list:", activeList.name);
     if (!name?.trim()) return;
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch("/api/tools/rankings/lists", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), fromWatchlistId: activeList.id }),
-    });
-    if (res.ok) {
-      alert(`Rankings list "${name}" created! You can find it on the Rankings page.`);
-    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch("/api/tools/rankings/lists", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), fromWatchlistId: activeList.id }),
+      });
+      if (!res.ok) { showError("Failed to export to rankings."); return; }
+      showSuccess(`Rankings list "${name}" created! Find it on the Rankings page.`);
+    } catch { showError("Failed to export to rankings."); }
   }
 
   /* ── Remove movie ── */
@@ -332,55 +372,62 @@ export default function WatchlistPage() {
     if (!activeId) return;
     setConfirmingRemove(null);
     setRemoving((prev) => new Set(prev).add(movie.id));
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch(`/api/watchlist/${activeId}/movies/${movie.id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setMovies((prev) => prev.filter((m) => m.id !== movie.id));
-      setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: w.movieCount - 1 } : w));
-    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/movies/${movie.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setMovies((prev) => prev.filter((m) => m.id !== movie.id));
+        setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: w.movieCount - 1 } : w));
+      } else { showError("Failed to remove movie."); }
+    } catch { showError("Failed to remove movie."); }
     setRemoving((prev) => { const s = new Set(prev); s.delete(movie.id); return s; });
   }
 
   /* ── Toggle check-off ── */
   async function toggleCheck(movie: WatchlistMovie) {
     if (!activeId) return;
-    const token = await getToken();
-    if (!token) return;
-    const res = await fetch(`/api/watchlist/${activeId}/movies/${movie.id}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setMovies((prev) => prev.map((m) => m.id === movie.id ? { ...m, isChecked: data.isChecked, checkedAt: data.checkedAt } : m));
-    }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/movies/${movie.id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMovies((prev) => prev.map((m) => m.id === movie.id ? { ...m, isChecked: data.isChecked, checkedAt: data.checkedAt } : m));
+      } else { showError("Failed to update watched status."); }
+    } catch { showError("Failed to update watched status."); }
   }
 
   /* ── Add movie/show search ── */
   useEffect(() => {
     if (addMovieQuery.length < 2) { setAddMovieResults([]); return; }
     const t = setTimeout(async () => {
-      const q = encodeURIComponent(addMovieQuery);
-      const [movieRes, tvRes] = await Promise.all([
-        fetch(`/api/tmdb/movie/search?q=${q}`),
-        fetch(`/api/tmdb/tv/search?q=${q}`),
-      ]);
-      const movieData = await movieRes.json();
-      const tvData = await tvRes.json();
-      const movies = (movieData.results ?? []).map((m: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...m, mediaType: "movie" as const }));
-      const shows = (tvData.results ?? []).map((s: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...s, mediaType: "tv" as const }));
-      // Interleave: alternate movie, show, to give balanced results
-      const combined: typeof movies = [];
-      const maxLen = Math.max(movies.length, shows.length);
-      for (let i = 0; i < maxLen; i++) {
-        if (i < movies.length) combined.push(movies[i]);
-        if (i < shows.length) combined.push(shows[i]);
-      }
-      setAddMovieResults(combined.slice(0, 12));
+      try {
+        const q = encodeURIComponent(addMovieQuery);
+        const [movieRes, tvRes] = await Promise.all([
+          fetch(`/api/tmdb/movie/search?q=${q}`),
+          fetch(`/api/tmdb/tv/search?q=${q}`),
+        ]);
+        if (!movieRes.ok && !tvRes.ok) { showError("Search failed."); return; }
+        const movieData = movieRes.ok ? await movieRes.json() : { results: [] };
+        const tvData = tvRes.ok ? await tvRes.json() : { results: [] };
+        const movies = (movieData.results ?? []).map((m: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...m, mediaType: "movie" as const }));
+        const shows = (tvData.results ?? []).map((s: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...s, mediaType: "tv" as const }));
+        // Interleave: alternate movie, show, to give balanced results
+        const combined: typeof movies = [];
+        const maxLen = Math.max(movies.length, shows.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < movies.length) combined.push(movies[i]);
+          if (i < shows.length) combined.push(shows[i]);
+        }
+        setAddMovieResults(combined.slice(0, 12));
+      } catch { showError("Search failed."); }
     }, 300);
     return () => clearTimeout(t);
   }, [addMovieQuery]);
@@ -388,66 +435,77 @@ export default function WatchlistPage() {
   async function addMovieToList(m: { id: number; title: string; posterPath: string | null; releaseDate: string; mediaType: "movie" | "tv" }) {
     if (!user || !activeList || addingMovie) return;
     setAddingMovie(m.id);
-    const token = await user.getIdToken();
-    await fetch(`/api/watchlist/${activeList.id}/movies`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate, mediaType: m.mediaType }),
-    });
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/watchlist/${activeList.id}/movies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate, mediaType: m.mediaType }),
+      });
+      if (!res.ok) { showError("Failed to add to list."); setAddingMovie(null); return; }
+      setAddMovieQuery("");
+      setAddMovieResults([]);
+      // Refresh movies for current list
+      const token2 = await user.getIdToken();
+      const res2 = await fetch(`/api/watchlist/${activeList.id}`, { headers: { Authorization: `Bearer ${token2}` } });
+      if (res2.ok) {
+        const data2 = await res2.json();
+        setMovies(data2.movies ?? []);
+      }
+      // Update list count
+      setWatchlists((prev) => prev.map((l) => l.id === activeList.id ? { ...l, movieCount: l.movieCount + 1 } : l));
+    } catch { showError("Failed to add to list."); }
     setAddingMovie(null);
-    setAddMovieQuery("");
-    setAddMovieResults([]);
-    // Refresh movies for current list
-    const token2 = await user.getIdToken();
-    const res2 = await fetch(`/api/watchlist/${activeList.id}`, { headers: { Authorization: `Bearer ${token2}` } });
-    const data2 = await res2.json();
-    setMovies(data2.movies ?? []);
-    // Update list count
-    setWatchlists((prev) => prev.map((l) => l.id === activeList.id ? { ...l, movieCount: l.movieCount + 1 } : l));
   }
 
   /* ── List picker for adding movie to other lists ── */
   async function openListPicker(movie: WatchlistMovie) {
     setListPickerMovie(movie);
-    const token = await getToken();
-    if (!token) return;
-    const endpoint = (movie.mediaType === "tv") ? `/api/shows/${movie.tmdbId}/watchlist` : `/api/movies/${movie.tmdbId}/watchlist`;
-    const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    setMovieLists(data.lists ?? []);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const endpoint = (movie.mediaType === "tv") ? `/api/shows/${movie.tmdbId}/watchlist` : `/api/movies/${movie.tmdbId}/watchlist`;
+      const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showError("Failed to load list info."); setListPickerMovie(null); return; }
+      const data = await res.json();
+      setMovieLists(data.lists ?? []);
+    } catch { showError("Failed to load list info."); setListPickerMovie(null); }
   }
 
   async function toggleMovieList(listId: string) {
     if (!listPickerMovie) return;
     setTogglingListId(listId);
-    const token = await getToken();
-    if (!token) return;
-    const list = movieLists.find((l) => l.id === listId);
-    if (!list) { setTogglingListId(null); return; }
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const list = movieLists.find((l) => l.id === listId);
+      if (!list) { setTogglingListId(null); return; }
 
-    if (list.hasMovie) {
-      const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      const entry = data.movies?.find((m: { tmdbId: number }) => m.tmdbId === listPickerMovie.tmdbId);
-      if (entry) {
-        await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (list.hasMovie) {
+        const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) { showError("Failed to update list."); setTogglingListId(null); return; }
+        const data = await res.json();
+        const entry = data.movies?.find((m: { tmdbId: number }) => m.tmdbId === listPickerMovie.tmdbId);
+        if (entry) {
+          const delRes = await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+          if (!delRes.ok) { showError("Failed to remove from list."); setTogglingListId(null); return; }
+        }
+        setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: false } : l));
+        if (listId === activeId) {
+          setMovies((prev) => prev.filter((m) => m.tmdbId !== listPickerMovie.tmdbId));
+          setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: w.movieCount - 1 } : w));
+        }
+      } else {
+        const addRes = await fetch(`/api/watchlist/${listId}/movies`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ tmdbId: listPickerMovie.tmdbId, title: listPickerMovie.title, posterPath: listPickerMovie.posterPath, mediaType: listPickerMovie.mediaType }),
+        });
+        if (!addRes.ok) { showError("Failed to add to list."); setTogglingListId(null); return; }
+        setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: true } : l));
+        setWatchlists((prev) => prev.map((w) => w.id === listId ? { ...w, movieCount: w.movieCount + 1 } : w));
       }
-      setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: false } : l));
-      // If removed from the currently viewed list, remove from grid
-      if (listId === activeId) {
-        setMovies((prev) => prev.filter((m) => m.tmdbId !== listPickerMovie.tmdbId));
-        setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: w.movieCount - 1 } : w));
-      }
-    } else {
-      await fetch(`/api/watchlist/${listId}/movies`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId: listPickerMovie.tmdbId, title: listPickerMovie.title, posterPath: listPickerMovie.posterPath, mediaType: listPickerMovie.mediaType }),
-      });
-      setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: true } : l));
-      // Update count for the list it was added to
-      setWatchlists((prev) => prev.map((w) => w.id === listId ? { ...w, movieCount: w.movieCount + 1 } : w));
-    }
+    } catch { showError("Failed to update list."); }
     setTogglingListId(null);
   }
 
@@ -498,6 +556,20 @@ export default function WatchlistPage() {
       <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline mb-6 inline-block">
         View what you&apos;ve already seen &rarr;
       </Link>
+
+      {/* Error / success banners */}
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-red-600/10 border border-red-500/30 text-red-400 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-3 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-green-600/10 border border-green-500/30 text-green-400 text-sm flex items-center justify-between">
+          <span>{success}</span>
+          <button onClick={() => setSuccess(null)} className="ml-3 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {!user ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">

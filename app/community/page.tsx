@@ -44,18 +44,24 @@ const HUB_FEATURES = [
 ] as const;
 
 export default async function CommunityPage() {
-  const users = await prisma.user.findMany({
-    where: { isPrivate: false, deletedAt: null, bannedAt: null },
-    select: {
-      id: true,
-      firebaseUid: true,
-      name: true,
-      avatarUrl: true,
-      _count: { select: { ratings: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 24,
-  });
+  let users: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; _count: { ratings: number } }[] = [];
+  let fetchError = false;
+  try {
+    users = await prisma.user.findMany({
+      where: { isPrivate: false, deletedAt: null, bannedAt: null },
+      select: {
+        id: true,
+        firebaseUid: true,
+        name: true,
+        avatarUrl: true,
+        _count: { select: { ratings: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 24,
+    });
+  } catch {
+    fetchError = true;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -88,7 +94,11 @@ export default async function CommunityPage() {
       {/* Members */}
       <div>
         <h2 className="text-lg font-semibold text-white mb-4">Members</h2>
-        {users.length === 0 ? (
+        {fetchError ? (
+          <div className="text-center py-20 text-red-400">
+            <p>Something went wrong loading members. Please try again later.</p>
+          </div>
+        ) : users.length === 0 ? (
           <div className="text-center py-20 text-[var(--foreground-muted)]">
             <p>No community members yet. Be the first to sign up!</p>
             <Link href="/auth/signin" className="mt-4 inline-block text-[var(--ratist-red)] hover:underline">Join now →</Link>
@@ -106,7 +116,7 @@ export default async function CommunityPage() {
                     <Image src={user.avatarUrl} alt={user.name} fill sizes="64px" className="object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xl font-bold text-white bg-[var(--ratist-red)]">
-                      {user.name[0].toUpperCase()}
+                      {(user.name || "?")[0].toUpperCase()}
                     </div>
                   )}
                 </div>

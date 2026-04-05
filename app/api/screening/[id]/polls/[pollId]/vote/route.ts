@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-/** POST — Vote on a poll */
+const MAX_RETRIES = 3;
+
+/** POST — Vote on a poll (atomic update with retry) */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string; pollId: string }> }) {
   try {
     const user = await getAuthedUser(req);
@@ -23,25 +25,38 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "optionIndex required" }, { status: 400 });
     }
 
-    const poll = await prisma.screeningPoll.findUnique({ where: { id: pollId } });
-    if (!poll || poll.sessionId !== id) return NextResponse.json({ error: "Poll not found" }, { status: 404 });
-    if (poll.closedAt) return NextResponse.json({ error: "Poll is closed" }, { status: 400 });
+    // Atomic vote update with optimistic retry to avoid read-modify-write race
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const result = await prisma.$transaction(async (tx) => {
+        const poll = await tx.screeningPoll.findUnique({ where: { id: pollId } });
+        if (!poll || poll.sessionId !== id) return { error: "Poll not found", status: 404 };
+        if (poll.closedAt) return { error: "Poll is closed", status: 400 };
 
-    const options = poll.options as string[];
-    if (optionIndex < 0 || optionIndex >= options.length) {
-      return NextResponse.json({ error: "Invalid option" }, { status: 400 });
+        const options = poll.options as string[];
+        if (optionIndex < 0 || optionIndex >= options.length) {
+          return { error: "Invalid option", status: 400 };
+        }
+
+        const votes = (poll.votes as Record<string, number>) ?? {};
+        votes[user.id] = optionIndex;
+
+        const updated = await tx.screeningPoll.update({
+          where: { id: pollId },
+          data: { votes },
+        });
+
+        return { data: updated };
+      });
+
+      if ("error" in result) {
+        return NextResponse.json({ error: result.error }, { status: result.status });
+      }
+
+      // Transaction succeeded
+      return NextResponse.json(result.data);
     }
 
-    // Update votes JSON
-    const votes = (poll.votes as Record<string, number>) ?? {};
-    votes[user.id] = optionIndex;
-
-    const updated = await prisma.screeningPoll.update({
-      where: { id: pollId },
-      data: { votes },
-    });
-
-    return NextResponse.json(updated);
+    return NextResponse.json({ error: "Vote conflict, please try again" }, { status: 409 });
   } catch (err) {
     console.error("Vote error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

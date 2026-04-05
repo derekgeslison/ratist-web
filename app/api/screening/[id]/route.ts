@@ -82,12 +82,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json().catch(() => ({}));
     const data: Record<string, unknown> = {};
 
-    // Setting the movie (host or anyone in lobby)
+    // Setting the movie/show (host or anyone in lobby)
     if ((body.movieId !== undefined || body.tmdbId !== undefined || body.movieTitle !== undefined) && session.status === "LOBBY") {
       if (body.movieId !== undefined) data.movieId = body.movieId || null;
       if (body.tmdbId !== undefined) data.tmdbId = body.tmdbId ?? null;
       if (body.movieTitle !== undefined) data.movieTitle = body.movieTitle ?? null;
       if (body.posterPath !== undefined) data.posterPath = body.posterPath ?? null;
+      if (body.mediaType !== undefined) data.mediaType = body.mediaType === "tv" ? "tv" : "movie";
     }
 
     // Status transitions

@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       }),
     });
 
-    // Fetch TV show ratings (series-level only)
+    // Fetch TV show ratings (series-level only) with pagination
     const allTVRatings = await prisma.tVShowRating.findMany({
       where: { userId: user.id, ratingScope: "series" },
       include: {
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: { createdAt: "desc" },
+      ...(loadAll ? {} : { take: PAGE_SIZE }),
     });
 
     const hasMore = !loadAll && allMovieRatings.length > PAGE_SIZE;
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
       (a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime()
     );
 
-    // Unrated seen movies (only on first page load, not paginated loads)
+    // Unrated seen movies + shows (only on first page load, not paginated loads)
     let unrated: unknown[] = [];
     if (!cursor) {
       const ratedMovieIds = new Set(
@@ -153,7 +154,7 @@ export async function GET(req: NextRequest) {
         }).then((rows) => rows.map((r) => r.movieId))
       );
 
-      unrated = favorites
+      const unratedMovies = favorites
         .filter((f) => !ratedMovieIds.has(f.movieId))
         .map((f) => ({
           tmdbId: f.movie.tmdbId,
@@ -164,7 +165,47 @@ export async function GET(req: NextRequest) {
           voteAverage: f.movie.voteAverage ?? null,
           watchedDate: f.watchedDate?.toISOString() ?? null,
           seenAt: f.createdAt.toISOString(),
+          mediaType: "movie" as const,
         }));
+
+      // Unrated seen TV shows
+      const ratedShowIds = new Set(
+        await prisma.tVShowRating.findMany({
+          where: { userId: user.id, ratingScope: "series" },
+          select: { tvShowId: true },
+        }).then((rows) => rows.map((r) => r.tvShowId))
+      );
+
+      const favoriteShows = await prisma.userFavoriteShow.findMany({
+        where: { userId: user.id },
+        select: {
+          tvShowId: true, createdAt: true,
+          tvShow: {
+            select: {
+              id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true, voteAverage: true,
+              genres: { include: { genre: { select: { name: true } } } },
+            },
+          },
+        },
+      });
+
+      const unratedShows = favoriteShows
+        .filter((f) => !ratedShowIds.has(f.tvShowId))
+        .map((f) => ({
+          tmdbId: f.tvShow.tmdbId,
+          title: f.tvShow.name,
+          posterPath: f.tvShow.posterPath,
+          year: f.tvShow.firstAirDate?.slice(0, 4) ?? "",
+          genres: f.tvShow.genres.map((g) => g.genre.name),
+          voteAverage: f.tvShow.voteAverage ?? null,
+          watchedDate: null,
+          seenAt: f.createdAt.toISOString(),
+          mediaType: "tv" as const,
+        }));
+
+      unrated = [...unratedMovies, ...unratedShows].sort(
+        (a, b) => new Date(b.seenAt).getTime() - new Date(a.seenAt).getTime()
+      );
     }
 
     // Total count for stats (always return this)

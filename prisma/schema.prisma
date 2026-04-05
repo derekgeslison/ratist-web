@@ -945,6 +945,7 @@ model ScreeningSession {
   tmdbId      Int?                    @map("tmdb_id")
   movieTitle  String?                 @map("movie_title")
   posterPath  String?                 @map("poster_path")
+  mediaType   String                  @default("movie") @map("media_type")
   status      ScreeningSessionStatus  @default(LOBBY)
   inviteCode  String                  @unique @map("invite_code")
   startedAt   DateTime?               @map("started_at")

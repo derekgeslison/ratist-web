@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { movieId, tmdbId, movieTitle, posterPath } = body;
+    const { movieId, tmdbId, movieTitle, posterPath, mediaType } = body;
 
     // Generate a unique invite code
     let inviteCode = generateInviteCode();
@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         tmdbId: tmdbId ?? null,
         movieTitle: movieTitle ?? null,
         posterPath: posterPath ?? null,
+        mediaType: mediaType === "tv" ? "tv" : "movie",
         inviteCode,
         participants: {
           create: { userId: user.id },

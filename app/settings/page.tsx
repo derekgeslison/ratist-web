@@ -38,7 +38,12 @@ const COMPONENTS = [
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function showSuccess(msg: string) { setSuccess(msg); setTimeout(() => setSuccess(null), 3000); }
+  function showError(msg: string) { setError(msg); setTimeout(() => setError(null), 5000); }
 
   // Account state
   const [displayName, setDisplayName] = useState("");
@@ -74,13 +79,19 @@ export default function SettingsPage() {
   async function handleDeleteAccount() {
     if (!user) return;
     setDeleting(true);
-    const token = await user.getIdToken();
-    const res = await fetch("/api/auth/delete-account", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      await signOut();
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/auth/delete-account", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        await signOut();
+      } else {
+        showError("Failed to delete account. Please try again.");
+      }
+    } catch {
+      showError("Failed to delete account. Please try again.");
     }
     setDeleting(false);
   }
@@ -89,10 +100,16 @@ export default function SettingsPage() {
     if (!user) return;
     Promise.all([
       user.getIdToken().then((token) =>
-        fetch("/api/profile/me", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json())
+        fetch("/api/profile/me", { headers: { Authorization: `Bearer ${token}` } }).then((r) => {
+          if (!r.ok) throw new Error("Failed to load profile");
+          return r.json();
+        })
       ),
       user.getIdToken().then((token) =>
-        fetch("/api/profile/preferences", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json())
+        fetch("/api/profile/preferences", { headers: { Authorization: `Bearer ${token}` } }).then((r) => {
+          if (!r.ok) throw new Error("Failed to load preferences");
+          return r.json();
+        })
       ),
     ]).then(([meData, prefData]) => {
       if (meData.user) {
@@ -121,7 +138,7 @@ export default function SettingsPage() {
         setComponentScores(scores);
       }
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { showError("Failed to load settings"); setLoading(false); });
   }, [user]);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -221,13 +238,18 @@ export default function SettingsPage() {
     for (const g of GENRES) prefs[g.key] = selectedGenres.has(g.key) ? 8 : 2;
     for (const c of COMPONENTS) prefs[c.key] = componentScores[c.key];
     const token = await user.getIdToken();
-    await fetch("/api/profile/preferences", {
+    const res = await fetch("/api/profile/preferences", {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(prefs),
     });
     setSavingPrefs(false);
+    if (!res.ok) {
+      showError("Failed to save preferences");
+      return;
+    }
     setSavedPrefs(true);
+    showSuccess("Preferences saved");
     setTimeout(() => setSavedPrefs(false), 2500);
   }
 
@@ -254,6 +276,19 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
       </div>
+
+      {error && (
+        <div className="flex items-center justify-between bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-lg">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300 ml-3"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+      {success && (
+        <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 text-green-400 text-sm px-4 py-3 rounded-lg">
+          <span>{success}</span>
+          <button onClick={() => setSuccess(null)} className="text-green-400 hover:text-green-300 ml-3"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* ── ACCOUNT ── */}
       <section>
@@ -558,13 +593,18 @@ export default function SettingsPage() {
               setSavingNotif(true);
               setSavedNotif(false);
               const token = await user.getIdToken();
-              await fetch("/api/profile/me", {
+              const res = await fetch("/api/profile/me", {
                 method: "PATCH",
                 headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
                 body: JSON.stringify({ notificationPrefs: notifPrefs }),
               });
               setSavingNotif(false);
+              if (!res.ok) {
+                showError("Failed to save notification preferences");
+                return;
+              }
               setSavedNotif(true);
+              showSuccess("Notification preferences saved");
               setTimeout(() => setSavedNotif(false), 3000);
             }}
             disabled={savingNotif}

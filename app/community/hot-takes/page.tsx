@@ -35,14 +35,17 @@ export default function HotTakesPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchItems = useCallback(async () => {
+    setFetchError(false);
     try {
       const res = await fetch("/api/community/hot-takes");
+      if (!res.ok) throw new Error("fetch failed");
       const data = await res.json();
       setItems(data.items ?? []);
     } catch {
-      // ignore
+      setFetchError(true);
     }
     setLoading(false);
   }, []);
@@ -209,6 +212,11 @@ export default function HotTakesPage() {
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">Loading…</p>
+      ) : fetchError ? (
+        <div className="text-center py-20">
+          <p className="text-red-400 mb-3">Something went wrong loading hot takes.</p>
+          <button onClick={fetchItems} className="text-sm text-orange-400 hover:underline">Try again</button>
+        </div>
       ) : items.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No hot takes yet. Be the first to start the fire!</p>
       ) : (
@@ -244,7 +252,7 @@ export default function HotTakesPage() {
                     <Image src={item.author.avatarUrl} alt={item.author.name} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
                   ) : (
                     <div className="w-9 h-9 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-sm font-bold text-white">
-                      {item.author.name[0].toUpperCase()}
+                      {(item.author.name || "?")[0].toUpperCase()}
                     </div>
                   )}
                 </div>

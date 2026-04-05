@@ -51,6 +51,7 @@ interface SessionData {
   tmdbId: number | null;
   movieTitle: string | null;
   posterPath: string | null;
+  mediaType: "movie" | "tv";
   status: string;
   inviteCode: string;
   startedAt: string | null;
@@ -93,9 +94,13 @@ export default function ScreeningSessionPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Movie picker
+  // Movie/show picker
   const [movieQuery, setMovieQuery] = useState("");
   const [movieResults, setMovieResults] = useState<MovieResult[]>([]);
+  const [searchType, setSearchType] = useState<"movie" | "tv">("movie");
+
+  // Connection status
+  const [isConnected, setIsConnected] = useState(true);
 
   // Predictions
   const [plotGuess, setPlotGuess] = useState("");
@@ -245,6 +250,16 @@ export default function ScreeningSessionPage() {
     return () => clearInterval(interval);
   }, [session?.startedAt, session?.status, isPaused, totalPausedMsForRender]);
 
+  // RTDB connection status listener
+  useEffect(() => {
+    if (!rtdb) return;
+    const connRef = ref(rtdb, ".info/connected");
+    const unsub = onValue(connRef, (snap) => {
+      setIsConnected(snap.val() === true);
+    });
+    return () => off(connRef, "value", unsub);
+  }, []);
+
   // RTDB listener for suggestions toggle
   useEffect(() => {
     if (!rtdb || !session || session.status !== "LOBBY") return;
@@ -381,7 +396,7 @@ export default function ScreeningSessionPage() {
       if (rtdb && isHostRef.current) {
         push(ref(rtdb, rtdbPaths.chat(id)), {
           userId: "system", userName: "System",
-          text: "Movie resumed! Press play.",
+          text: "Resumed! Press play.",
           timestamp: Date.now(), system: true,
         });
       }
@@ -480,8 +495,8 @@ export default function ScreeningSessionPage() {
     fetchSession();
   }
 
-  async function selectMovie(m: MovieResult) {
-    await apiPatch({ tmdbId: m.id, movieTitle: m.title, posterPath: m.posterPath });
+  async function selectMovie(m: MovieResult, mediaType: "movie" | "tv" = "movie") {
+    await apiPatch({ tmdbId: m.id, movieTitle: m.title, posterPath: m.posterPath, mediaType });
     setMovieQuery("");
     setMovieResults([]);
   }
@@ -604,7 +619,7 @@ export default function ScreeningSessionPage() {
       // Only the accepting user posts the message (last to accept)
       await push(ref(rtdb, rtdbPaths.chat(id)), {
         userId: "system", userName: "System",
-        text: "Everyone accepted — movie is paused!",
+        text: "Everyone accepted — paused!",
         timestamp: Date.now(), system: true,
       });
     }
@@ -722,16 +737,17 @@ export default function ScreeningSessionPage() {
     fetchSession();
   }
 
-  // ── Movie search ──
+  // ── Movie/show search ──
   useEffect(() => {
     if (movieQuery.length < 2) { setMovieResults([]); return; }
+    const endpoint = searchType === "tv" ? "/api/tmdb/tv/search" : "/api/tmdb/movie/search";
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(movieQuery)}`);
+      const res = await fetch(`${endpoint}?q=${encodeURIComponent(movieQuery)}`);
       const data = await res.json();
       setMovieResults(data.results ?? []);
     }, 300);
     return () => clearTimeout(t);
-  }, [movieQuery]);
+  }, [movieQuery, searchType]);
 
   // ── Render ──
 
@@ -795,6 +811,13 @@ export default function ScreeningSessionPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Connection lost banner */}
+      {!isConnected && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-orange-500 text-black text-center py-2 text-sm font-medium">
+          Connection lost — trying to reconnect...
+        </div>
+      )}
+
       {/* Pause accept/reject overlay */}
       {activePause && !isPaused && !activePause.accepted[myUserId] && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/95 text-black px-6 py-4 rounded-xl shadow-2xl max-w-sm w-full mx-4">
@@ -834,7 +857,7 @@ export default function ScreeningSessionPage() {
         <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 max-w-sm w-full mx-4 text-center">
             <PauseCircle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
-            <h2 className="text-xl font-bold text-white mb-2">Movie Paused</h2>
+            <h2 className="text-xl font-bold text-white mb-2">Paused</h2>
             <p className="text-sm text-[var(--foreground-muted)] mb-2">Ready up when you&apos;re ready to resume</p>
             <p className="text-[10px] text-[var(--foreground-muted)] mb-6">A 5-second countdown will begin when everyone is ready</p>
             <p className="text-xs text-[var(--foreground-muted)] mb-3">
@@ -907,7 +930,7 @@ export default function ScreeningSessionPage() {
           {/* Movie selection */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Movie</h2>
+              <h2 className="text-sm font-semibold text-white">{session.mediaType === "tv" ? "TV Show" : "Movie"}</h2>
               {amHost && !session.movieTitle && (
                 <button onClick={toggleSuggestions}
                   className={`text-[10px] px-3 py-1 rounded-full transition-colors ${suggestionsOpen ? "bg-green-500/20 text-green-400" : "bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white"}`}>
@@ -925,7 +948,7 @@ export default function ScreeningSessionPage() {
                 )}
                 <div>
                   <p className="text-white font-semibold">{session.movieTitle}</p>
-                  {amHost && <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-1">Change movie</button>}
+                  {amHost && <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-1">Change {session.mediaType === "tv" ? "show" : "movie"}</button>}
                 </div>
               </div>
             ) : suggestionsOpen ? (
@@ -934,25 +957,35 @@ export default function ScreeningSessionPage() {
                 myUserId={myUserId}
                 myName={user?.displayName ?? "Anonymous"}
                 isHost={amHost}
-                onSelectMovie={(m) => selectMovie({ id: m.id, title: m.title, posterPath: m.posterPath, releaseDate: "" })}
+                onSelectMovie={(m) => selectMovie({ id: m.id, title: m.title, posterPath: m.posterPath, releaseDate: "" }, "movie")}
               />
             ) : amHost ? (
               <div className="relative">
+                <div className="flex items-center gap-1 mb-2">
+                  <button onClick={() => { if (searchType !== "movie") { setSearchType("movie"); setMovieQuery(""); setMovieResults([]); } }}
+                    className={`text-[10px] px-3 py-1 rounded-full transition-colors ${searchType === "movie" ? "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 text-white" : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    Movie
+                  </button>
+                  <button onClick={() => { if (searchType !== "tv") { setSearchType("tv"); setMovieQuery(""); setMovieResults([]); } }}
+                    className={`text-[10px] px-3 py-1 rounded-full transition-colors ${searchType === "tv" ? "bg-blue-600/20 border border-blue-500/40 text-blue-400" : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    TV Show
+                  </button>
+                </div>
                 <div className="flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2">
                   <Search className="w-4 h-4 text-[var(--foreground-muted)]" />
-                  <input type="text" value={movieQuery} onChange={(e) => setMovieQuery(e.target.value)} placeholder="Search for a movie..."
+                  <input type="text" value={movieQuery} onChange={(e) => setMovieQuery(e.target.value)} placeholder={searchType === "tv" ? "Search for a show..." : "Search for a movie..."}
                     className="flex-1 bg-transparent text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
                   {movieQuery && <button onClick={() => { setMovieQuery(""); setMovieResults([]); }}><X className="w-4 h-4 text-[var(--foreground-muted)]" /></button>}
                 </div>
                 {movieResults.length > 0 && (
                   <div className="absolute z-20 mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl max-h-64 overflow-y-auto">
                     {movieResults.map((m) => (
-                      <button key={m.id} onClick={() => selectMovie(m)} className="flex items-center gap-3 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
+                      <button key={m.id} onClick={() => selectMovie(m, searchType)} className="flex items-center gap-3 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
                         <div className="w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] flex-shrink-0">
                           {m.posterPath && <Image src={`${TMDB_SM}${m.posterPath}`} alt={m.title} width={32} height={48} className="object-cover w-full h-full" />}
                         </div>
                         <div>
-                          <p className="text-sm text-white">{m.title}</p>
+                          <p className="text-sm text-white">{searchType === "tv" && <span className="text-blue-400 mr-1">TV</span>}{m.title}</p>
                           <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
                         </div>
                       </button>
@@ -961,7 +994,7 @@ export default function ScreeningSessionPage() {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-[var(--foreground-muted)]">Waiting for the host to pick a movie...</p>
+              <p className="text-sm text-[var(--foreground-muted)]">Waiting for the host to pick a movie or show...</p>
             )}
           </section>
 
@@ -988,7 +1021,7 @@ export default function ScreeningSessionPage() {
           {/* Predictions */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <h2 className="text-sm font-semibold text-white mb-3">Pre-Watch Predictions</h2>
-            <p className="text-xs text-[var(--foreground-muted)] mb-3">Your predictions will be hidden until after the movie.</p>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">Your predictions will be hidden until after the {session.mediaType === "tv" ? "show" : "movie"}.</p>
             <div className="space-y-3">
               <textarea
                 value={plotGuess} onChange={(e) => { setPlotGuess(e.target.value); setPredictionSaved(false); }}
@@ -1069,7 +1102,7 @@ export default function ScreeningSessionPage() {
           <div className="text-8xl font-bold text-[var(--ratist-red)] animate-pulse">
             {countdown ?? "..."}
           </div>
-          <p className="text-sm text-[var(--foreground-muted)] mt-4">Press play on your movie when the countdown hits 0</p>
+          <p className="text-sm text-[var(--foreground-muted)] mt-4">Press play when the countdown hits 0</p>
         </div>
       )}
 
@@ -1113,7 +1146,7 @@ export default function ScreeningSessionPage() {
               <button onClick={undoFinished} className="text-xs text-green-400 hover:text-yellow-400 flex-shrink-0 transition-colors" title="Undo">Done ✓ (undo)</button>
             )}
             {amHost && (
-              <button onClick={() => { if (confirm("End the movie for everyone? This will move all participants to the post-watch phase.")) markFinished(true); }}
+              <button onClick={() => { if (confirm("End for everyone? This will move all participants to the post-watch phase.")) markFinished(true); }}
                 className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30 flex-shrink-0">
                 Force End
               </button>
@@ -1353,7 +1386,7 @@ export default function ScreeningSessionPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-semibold text-white">Rating Comparison</h2>
                   <ShareButton
-                    text={`Check out our Screening Room recap for ${session.movieTitle ?? "a movie"}!`}
+                    text={`Check out our Screening Room recap for ${session.movieTitle ?? (session.mediaType === "tv" ? "a show" : "a movie")}!`}
                     url={typeof window !== "undefined" ? `${window.location.origin}/screening-room/${id}/recap` : ""}
                     cardImageUrl={`/api/og/screening?id=${id}`}
                   />
