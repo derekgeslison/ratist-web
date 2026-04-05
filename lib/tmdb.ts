@@ -53,6 +53,7 @@ export interface TMDBCollection {
 
 export interface TMDBVideo {
   key: string;
+  name: string;
   site: string;
   type: string;
   official: boolean;
@@ -117,8 +118,15 @@ export function backdropUrl(path: string | null, size = "w1280"): string {
   return `${IMAGE_BASE_URL}/${size}${path}`;
 }
 
+function isAccessibilityVideo(v: TMDBVideo): boolean {
+  const name = (v.name ?? "").toLowerCase();
+  return name.includes("audio desc") || name.includes("descriptive audio")
+    || name.includes("visually impaired") || name.includes("audio commentary")
+    || name.includes("sign language") || name.includes("closed caption");
+}
+
 export function getTrailerKey(movie: TMDBMovie): string | null {
-  const videos = movie.videos?.results ?? [];
+  const videos = (movie.videos?.results ?? []).filter((v) => !isAccessibilityVideo(v));
   const trailer = videos.find(
     (v) => v.type === "Trailer" && v.site === "YouTube" && v.official
   ) ?? videos.find((v) => v.type === "Trailer" && v.site === "YouTube");
@@ -342,7 +350,7 @@ export interface TMDBContentRating {
 }
 
 export function getShowTrailerKey(show: TMDBShow): string | null {
-  const videos = show.videos?.results ?? [];
+  const videos = (show.videos?.results ?? []).filter((v) => !isAccessibilityVideo(v));
   const trailer = videos.find(
     (v) => v.type === "Trailer" && v.site === "YouTube" && v.official
   ) ?? videos.find((v) => v.type === "Trailer" && v.site === "YouTube");
