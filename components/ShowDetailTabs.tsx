@@ -433,6 +433,12 @@ export default function ShowDetailTabs({
             </section>
           )}
 
+          {/* Soundtrack */}
+          <section>
+            <h2 className="text-base font-semibold text-white mb-3">Official Soundtrack</h2>
+            <Soundtrack tmdbId={show.id} title={show.name} mediaType="tv" />
+          </section>
+
           {images.length > 0 && (
             <section>
               <div className="flex items-baseline justify-between mb-1">
@@ -475,12 +481,6 @@ export default function ShowDetailTabs({
           {images.length === 0 && !trailerKey && (
             <p className="text-[var(--foreground-muted)] text-sm py-8 text-center">No media available for this title.</p>
           )}
-
-          {/* Soundtrack */}
-          <section className="mt-8">
-            <h2 className="text-base font-semibold text-white mb-3">Official Soundtrack</h2>
-            <Soundtrack tmdbId={show.id} title={show.name} mediaType="tv" />
-          </section>
         </div>
       )}
 
