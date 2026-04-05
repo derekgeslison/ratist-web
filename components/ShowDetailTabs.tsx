@@ -243,8 +243,12 @@ export default function ShowDetailTabs({
 
   // Fetch seen episodes on mount
   useEffect(() => {
-    if (!isLoggedIn) return;
-    fetch(`/api/shows/${show.id}/episodes/seen`)
+    if (!user) return;
+    user.getIdToken().then((token) =>
+      fetch(`/api/shows/${show.id}/episodes/seen`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    )
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.episodes) {
@@ -256,10 +260,11 @@ export default function ShowDetailTabs({
         }
       })
       .catch(() => {});
-  }, [isLoggedIn, show.id]);
+  }, [user, show.id]);
 
   const toggleEpisode = useCallback(
-    (seasonNumber: number, episodeNumber: number) => {
+    async (seasonNumber: number, episodeNumber: number) => {
+      if (!user) return;
       const key = `${seasonNumber}-${episodeNumber}`;
       const removing = seenEpisodes.has(key);
       setSeenEpisodes((prev) => {
@@ -268,9 +273,10 @@ export default function ShowDetailTabs({
         else next.add(key);
         return next;
       });
+      const token = await user.getIdToken();
       fetch(`/api/shows/${show.id}/episodes/seen`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           mode: "episodes",
           episodes: [{ seasonNumber, episodeNumber }],
@@ -278,11 +284,12 @@ export default function ShowDetailTabs({
         }),
       }).catch(() => {});
     },
-    [seenEpisodes, show.id]
+    [seenEpisodes, show.id, user]
   );
 
   const toggleSeason = useCallback(
-    (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => {
+    async (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => {
+      if (!user) return;
       const allSeen = episodes.every((ep) =>
         seenEpisodes.has(`${seasonNumber}-${ep.episode_number}`)
       );
@@ -296,9 +303,10 @@ export default function ShowDetailTabs({
         }
         return next;
       });
+      const token = await user.getIdToken();
       fetch(`/api/shows/${show.id}/episodes/seen`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           mode: "season",
           episodes: episodes.map((ep) => ({
@@ -309,7 +317,7 @@ export default function ShowDetailTabs({
         }),
       }).catch(() => {});
     },
-    [seenEpisodes, show.id]
+    [seenEpisodes, show.id, user]
   );
 
   // Extract key crew
