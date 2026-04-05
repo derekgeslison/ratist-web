@@ -183,6 +183,7 @@ export default function RecommendPage() {
     setStep(0); setMediaType("any"); setSelectedGenres(new Set()); setExperience(new Set()); setRuntime(new Set());
     setEra(new Set()); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
     setFiltersOpen(false); setResultMediaFilter("all"); setSelectedStreamingProviders(new Set());
+    setTvRatingSelected(new Set(ALL_TV_RATINGS));
     setHasSearched(false); setVisibleCount(5); setSortMode("match");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
@@ -228,7 +229,13 @@ export default function RecommendPage() {
     return true;
   });
   const sorted = sortMode === "rating" ? [...filtered].sort((a, b) => b.voteAverage - a.voteAverage)
-    : sortMode === "match" ? [...filtered].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
+    : sortMode === "match" ? [...filtered].sort((a, b) => {
+        // Sort by matchScore first, fall back to rating for non-personalized results
+        const aScore = a.matchScore ?? 0;
+        const bScore = b.matchScore ?? 0;
+        if (aScore !== bScore) return bScore - aScore;
+        return b.voteAverage - a.voteAverage;
+      })
     : sortMode === "newest" ? [...filtered].sort((a, b) => (b.year || "").localeCompare(a.year || ""))
     : sortMode === "oldest" ? [...filtered].sort((a, b) => (a.year || "").localeCompare(b.year || ""))
     : filtered;
@@ -292,10 +299,15 @@ export default function RecommendPage() {
                   { value: "popular", label: "Something popular", desc: "Trending and widely talked about" },
                   { value: "hidden_gem", label: "A hidden gem", desc: "Highly rated but lesser known" },
                   { value: "classic", label: "A certified classic", desc: "Timeless titles that defined the medium" },
-                  { value: "taste", label: "Based on my taste", desc: "Matched to your genre preferences" },
+                  { value: "taste", label: "Based on my taste", desc: user ? "Matched to your genre preferences" : "Sign in to use taste matching" },
                 ].map((opt) => (
-                  <button key={opt.value} onClick={() => toggleSet(setExperience, opt.value)}
-                    className={`text-left p-4 rounded-xl border transition-colors ${experience.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
+                  <button key={opt.value}
+                    onClick={() => { if (opt.value === "taste" && !user) return; toggleSet(setExperience, opt.value); }}
+                    className={`text-left p-4 rounded-xl border transition-colors ${
+                      opt.value === "taste" && !user
+                        ? "border-[var(--border)] opacity-50 cursor-not-allowed"
+                        : experience.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"
+                    }`}>
                     <p className="text-sm font-semibold text-white">{opt.label}</p>
                     <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
                   </button>
@@ -528,6 +540,8 @@ export default function RecommendPage() {
                     if (value !== prev) {
                       const fetchType = value === "all" ? "any" : value;
                       setMediaType(fetchType as "movie" | "tv" | "any");
+                      setCurrentPage(1);
+                      setVisibleCount(5);
                       fetchResults(1, false, fetchType);
                     }
                   }}
@@ -661,7 +675,7 @@ export default function RecommendPage() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {movie.matchScore != null && movie.matchScore > 0 && (
-                              <span className="text-[10px] font-bold bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full">{movie.matchScore * 10}% match</span>
+                              <span className="text-[10px] font-bold bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full">{Math.min(movie.matchScore * 10, 100)}% match</span>
                             )}
                             <RatingBadge type="community" score={movie.voteAverage} size="sm" />
                           </div>
