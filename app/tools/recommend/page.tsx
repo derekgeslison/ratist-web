@@ -5,8 +5,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { posterUrl, STREAMING_PROVIDERS } from "@/lib/tmdb";
+import { posterUrl, STREAMING_PROVIDERS, IMAGE_BASE_URL } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
+import ProviderLogos from "@/components/ProviderLogos";
 
 const GENRES = [
   "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
@@ -593,11 +594,15 @@ export default function RecommendPage() {
                 {STREAMING_PROVIDERS.map((p) => (
                   <button key={p.id}
                     onClick={() => toggleSet(setSelectedStreamingProviders, p.short as string)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                    title={p.short}
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
                       selectedStreamingProviders.has(p.short)
                         ? "bg-green-500/15 border-green-500/30 text-green-400"
                         : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-                    }`}>{p.short}</button>
+                    }`}>
+                    <img src={`${IMAGE_BASE_URL}/w45${p.logo}`} alt="" className="w-3.5 h-3.5 rounded-[2px]" />
+                    {p.short}
+                  </button>
                 ))}
                 {selectedStreamingProviders.size > 0 && (
                   <button onClick={() => setSelectedStreamingProviders(new Set())} className="text-[10px] text-[var(--foreground-muted)] hover:text-white ml-1">
@@ -669,7 +674,7 @@ export default function RecommendPage() {
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             {movie.streaming.length > 0 && (
-                              <span className="text-[10px] text-green-400">Stream: {movie.streaming.join(", ")}</span>
+                              <ProviderLogos names={movie.streaming} size={18} />
                             )}
                             {movie.streaming.length === 0 && movie.rentBuy.length > 0 && (
                               <span className="text-[10px] text-blue-400">Rent: {movie.rentBuy.join(", ")}</span>

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Eye, Bookmark, BookmarkCheck, Tv } from "lucide-react";
 import { posterUrl, type TMDBShow } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
+import ProviderLogos from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useShowUserState } from "@/hooks/useShowUserState";
 
@@ -74,7 +75,9 @@ export default function ShowListItem({ show, characterName, streaming }: Props) 
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{show.overview}</p>
         {streaming && streaming.length > 0 && (
-          <p className="text-[10px] text-green-400 mt-1">{streaming.join(", ")}</p>
+          <div className="mt-1">
+            <ProviderLogos names={streaming} size={18} />
+          </div>
         )}
       </div>
 

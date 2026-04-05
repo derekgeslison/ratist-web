@@ -224,15 +224,24 @@ const SORT_MAP: Record<string, string> = {
 export const MPAA_ORDER = ["G", "PG", "PG-13", "R", "NC-17"];
 
 export const STREAMING_PROVIDERS = [
-  { id: 8, name: "Netflix", short: "Netflix" },
-  { id: 9, name: "Amazon Prime Video", short: "Prime" },
-  { id: 337, name: "Disney Plus", short: "Disney+" },
-  { id: 15, name: "Hulu", short: "Hulu" },
-  { id: 1899, name: "Max", short: "Max" },
-  { id: 350, name: "Apple TV Plus", short: "Apple TV+" },
-  { id: 386, name: "Peacock Premium", short: "Peacock" },
-  { id: 531, name: "Paramount Plus", short: "Paramount+" },
+  { id: 8, name: "Netflix", short: "Netflix", logo: "/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg" },
+  { id: 9, name: "Amazon Prime Video", short: "Prime", logo: "/pvske1MyAoymrs5bguRfVqYiM9a.jpg" },
+  { id: 337, name: "Disney Plus", short: "Disney+", logo: "/97yvRBw1GzX7fXprcF80er19ot.jpg" },
+  { id: 15, name: "Hulu", short: "Hulu", logo: "/bxBlRPEPpMVDc4jMhSrTf2339DW.jpg" },
+  { id: 1899, name: "HBO Max", short: "Max", logo: "/jbe4gVSfRlbPTdESXhEKpornsfu.jpg" },
+  { id: 350, name: "Apple TV", short: "Apple TV+", logo: "/mcbz1LgtErU9p4UdbZ0rG6RTWHX.jpg" },
+  { id: 386, name: "Peacock Premium", short: "Peacock", logo: "/2aGrp1xw3qhwCYvNGAJZPdjfeeX.jpg" },
+  { id: 2303, name: "Paramount Plus Premium", short: "Paramount+", logo: "/fts6X10Jn4QT0X6ac3udKEn2tJA.jpg" },
 ] as const;
+
+/** Look up a streaming provider logo URL by name (full or short). Returns w45 TMDB image URL or null. */
+export function providerLogoUrl(name: string): string | null {
+  const p = STREAMING_PROVIDERS.find(
+    (sp) => sp.name === name || sp.short === name
+      || name.includes(sp.short) || name.includes(sp.name)
+  );
+  return p ? `${IMAGE_BASE_URL}/w45${p.logo}` : null;
+}
 
 export async function discoverMovies(options: {
   query?: string;

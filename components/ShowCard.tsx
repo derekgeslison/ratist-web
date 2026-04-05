@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Eye, Bookmark, BookmarkCheck, Check, Tv } from "lucide-react";
 import { posterUrl, type TMDBShow } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
+import ProviderLogos from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useShowUserState } from "@/hooks/useShowUserState";
 
@@ -103,7 +104,9 @@ export default function ShowCard({ show, characterName, streaming }: Props) {
           <RatingBadge type="ratist" score={null} size="sm" />
         </div>
         {streaming && streaming.length > 0 && (
-          <p className="text-[10px] text-green-400 line-clamp-1 mt-0.5">{streaming.join(", ")}</p>
+          <div className="mt-0.5">
+            <ProviderLogos names={streaming} size={18} />
+          </div>
         )}
       </div>
     </Link>
