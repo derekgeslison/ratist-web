@@ -36,6 +36,44 @@ async function tmdbGet(path: string, params: Record<string, string> = {}) {
   return res.json();
 }
 
+function getReasonForResult(
+  experienceArr: string[],
+  voteAverage: number,
+  voteCount: number,
+  popularity: number,
+  matchScore: number | null,
+): string {
+  if (experienceArr.length === 0) return "Random pick";
+  // When only one experience selected, use it directly
+  if (experienceArr.length === 1) {
+    if (experienceArr[0] === "classic") return "Classic";
+    if (experienceArr[0] === "hidden_gem") return "Hidden gem";
+    if (experienceArr[0] === "popular") return "Popular pick";
+    if (experienceArr[0] === "taste") return "Based on your taste";
+  }
+  // Multiple experiences: label each result by what it best matches
+  const candidates: { label: string; score: number }[] = [];
+  if (experienceArr.includes("classic") && voteAverage >= 7.5 && voteCount >= 500) {
+    candidates.push({ label: "Classic", score: voteAverage * 10 + voteCount / 100 });
+  }
+  if (experienceArr.includes("hidden_gem") && voteAverage >= 6.5 && popularity < 50) {
+    candidates.push({ label: "Hidden gem", score: voteAverage * 10 + (50 - popularity) });
+  }
+  if (experienceArr.includes("popular") && voteCount >= 500) {
+    candidates.push({ label: "Popular pick", score: popularity + voteCount / 100 });
+  }
+  if (experienceArr.includes("taste") && matchScore && matchScore > 0) {
+    candidates.push({ label: "Based on your taste", score: matchScore * 10 });
+  }
+  if (candidates.length > 0) {
+    return candidates.sort((a, b) => b.score - a.score)[0].label;
+  }
+  // Fallback: best-fit label based on characteristics
+  if (voteAverage >= 7.5 && voteCount >= 500) return "Classic";
+  if (popularity < 50 && voteAverage >= 6.5) return "Hidden gem";
+  return "Popular pick";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
@@ -290,13 +328,13 @@ export async function POST(req: NextRequest) {
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
-        reason: experienceArr.length === 0
-          ? "Random pick"
-          : experienceArr.includes("taste") ? "Based on your taste"
-          : experienceArr.includes("hidden_gem") ? "Hidden gem"
-          : experienceArr.includes("classic") ? "Classic"
-          : experienceArr.includes("popular") ? "Popular pick"
-          : "Popular pick",
+        reason: getReasonForResult(
+          experienceArr,
+          m.vote_average as number,
+          m.vote_count as number,
+          m.popularity as number,
+          matchScore,
+        ),
       };
     });
 
