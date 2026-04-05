@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Search, Swords, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Swords, X, ChevronDown, ChevronUp, Film, Tv } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
@@ -50,20 +50,22 @@ const CATEGORIES = [
   ]},
 ];
 
-function MoviePicker({ label, onSelect, onClear, selected }: {
+function MoviePicker({ label, onSelect, onClear, selected, mediaType = "movie" }: {
   label: string;
   onSelect: (m: MovieResult) => void;
   onClear: () => void;
   selected: MovieResult | null;
+  mediaType?: "movie" | "tv";
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MovieResult[]>([]);
 
   useEffect(() => {
     if (selected || query.length < 2) { setResults([]); return; }
+    const endpoint = mediaType === "tv" ? "/api/tmdb/tv/search" : "/api/tmdb/movie/search";
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
         if (!res.ok) { setResults([]); return; }
         const data = await res.json();
         setResults(data.results ?? []);
@@ -72,7 +74,7 @@ function MoviePicker({ label, onSelect, onClear, selected }: {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [query, selected]);
+  }, [query, selected, mediaType]);
 
   if (selected) {
     return (
@@ -102,7 +104,7 @@ function MoviePicker({ label, onSelect, onClear, selected }: {
       </div>
       <div className="relative w-32 sm:w-48">
         <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search movie…"
+        <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={mediaType === "tv" ? "Search show…" : "Search movie…"}
           className="w-full pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]" />
         {results.length > 0 && (
           <div className="absolute z-10 top-full mt-1 w-[200px] sm:w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-xl">
@@ -145,6 +147,7 @@ function ScoreBar({ score, state }: { score: number | null; state: BarState }) {
 }
 
 export default function MatchupPage() {
+  const [mediaType, setMediaType] = useState<"movie" | "tv">("movie");
   const [movie1, setMovie1] = useState<MovieResult | null>(null);
   const [movie2, setMovie2] = useState<MovieResult | null>(null);
   const [data1, setData1] = useState<RatingBreakdown | null>(null);
@@ -157,12 +160,13 @@ export default function MatchupPage() {
     if (!movie1 || !movie2) return;
     setLoading(true);
     setError(null);
+    const apiBase = mediaType === "tv" ? "/api/shows" : "/api/movies";
     Promise.all([
-      fetch(`/api/movies/${movie1.id}/matchup`).then((r) => {
+      fetch(`${apiBase}/${movie1.id}/matchup`).then((r) => {
         if (!r.ok) throw new Error(`Failed to load data for ${movie1.title}`);
         return r.json();
       }),
-      fetch(`/api/movies/${movie2.id}/matchup`).then((r) => {
+      fetch(`${apiBase}/${movie2.id}/matchup`).then((r) => {
         if (!r.ok) throw new Error(`Failed to load data for ${movie2.title}`);
         return r.json();
       }),
@@ -174,7 +178,8 @@ export default function MatchupPage() {
       setError("Something went wrong loading matchup data. Please try again.");
       setLoading(false);
     });
-  }, [movie1, movie2]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movie1, movie2, mediaType]);
 
   const hasData = data1 && data2;
 
@@ -184,16 +189,32 @@ export default function MatchupPage() {
         <Swords className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">The Matchup</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-10">Pick two movies and see how they stack up against each other across every Ratist rating category.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Pick two {mediaType === "tv" ? "shows" : "movies"} and see how they stack up against each other across every Ratist rating category.</p>
 
-      {/* Movie pickers */}
+      {/* Media type toggle */}
+      <div className="flex items-center gap-1 mb-8">
+        <button onClick={() => { if (mediaType !== "movie") { setMediaType("movie"); setMovie1(null); setMovie2(null); setData1(null); setData2(null); setError(null); } }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            mediaType === "movie" ? "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 text-white" : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]"
+          }`}>
+          <Film className="w-3.5 h-3.5" /> Movies
+        </button>
+        <button onClick={() => { if (mediaType !== "tv") { setMediaType("tv"); setMovie1(null); setMovie2(null); setData1(null); setData2(null); setError(null); } }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            mediaType === "tv" ? "bg-blue-600/20 border border-blue-500/40 text-blue-400" : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]"
+          }`}>
+          <Tv className="w-3.5 h-3.5" /> TV Shows
+        </button>
+      </div>
+
+      {/* Pickers */}
       <div className="flex items-center justify-center gap-6 sm:gap-12 mb-10">
-        <MoviePicker label="Pick Movie 1" selected={movie1} onSelect={(m) => { setMovie1(m); setData1(null); setError(null); }} onClear={() => { setMovie1(null); setData1(null); setError(null); }} />
+        <MoviePicker label={mediaType === "tv" ? "Pick Show 1" : "Pick Movie 1"} selected={movie1} onSelect={(m) => { setMovie1(m); setData1(null); setError(null); }} onClear={() => { setMovie1(null); setData1(null); setError(null); }} mediaType={mediaType} />
         <div className="flex flex-col items-center gap-1 shrink-0">
           <Swords className="w-8 h-8 text-[var(--ratist-red)]" />
           <span className="text-xs text-[var(--foreground-muted)] font-bold uppercase tracking-widest">VS</span>
         </div>
-        <MoviePicker label="Pick Movie 2" selected={movie2} onSelect={(m) => { setMovie2(m); setData2(null); setError(null); }} onClear={() => { setMovie2(null); setData2(null); setError(null); }} />
+        <MoviePicker label={mediaType === "tv" ? "Pick Show 2" : "Pick Movie 2"} selected={movie2} onSelect={(m) => { setMovie2(m); setData2(null); setError(null); }} onClear={() => { setMovie2(null); setData2(null); setError(null); }} mediaType={mediaType} />
       </div>
 
       {movie1 && movie2 && loading && (
