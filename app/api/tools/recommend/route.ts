@@ -46,8 +46,9 @@ export async function POST(req: NextRequest) {
     const eraArr: string[] = Array.isArray(body.era) ? body.era : (body.era ? [body.era] : []);
     const excludeGenres: string[] = body.excludeGenres ?? [];
     const page: number = body.page ?? 1;
-    const userSort: string = body.sort ?? "";
+    const userSort: string = body.sort ?? "match";
     const mediaType: string = body.mediaType ?? "any";
+    const providerIds: number[] = body.providers ?? [];
 
     const { nameToId, idToName } = await getGenreMaps();
     const currentYear = new Date().getFullYear();
@@ -67,7 +68,11 @@ export async function POST(req: NextRequest) {
       sort = "vote_average.desc"; ratingGte = "7.5"; voteCountGte = "500";
     } else if (experienceArr.includes("popular")) {
       sort = "vote_count.desc"; voteCountGte = "1000"; ratingGte = "6";
-    } else if (experienceArr.includes("random")) {
+    } else if (experienceArr.includes("taste")) {
+      // Use popularity as base query, matchScore re-sorting happens client-side
+      sort = "popularity.desc"; ratingGte = "6"; voteCountGte = "50";
+    } else if (experienceArr.length === 0) {
+      // No experience selected = random mix
       sort = "popularity.desc";
     }
     // If multiple selected, loosen constraints
@@ -90,6 +95,8 @@ export async function POST(req: NextRequest) {
 
     // User sort override
     if (userSort === "rating") sort = "vote_average.desc";
+    else if (userSort === "newest") sort = mediaType === "tv" ? "first_air_date.desc" : "primary_release_date.desc";
+    else if (userSort === "oldest") sort = mediaType === "tv" ? "first_air_date.asc" : "primary_release_date.asc";
 
     // Movie runtime: combine ranges from selections
     const runtimeParams: Record<string, string> = {};
@@ -120,7 +127,7 @@ export async function POST(req: NextRequest) {
     const genreIds = genres.map((g: string) => nameToId.get(g)).filter(Boolean).map(String);
     const excludeIds = excludeGenres.map((g: string) => nameToId.get(g)).filter(Boolean).map(String);
 
-    const actualPage = experienceArr.includes("random") && experienceArr.length === 1 ? Math.floor(Math.random() * 10) + 1 : page;
+    const actualPage = experienceArr.length === 0 ? Math.floor(Math.random() * 10) + 1 : page;
 
     const params: Record<string, string> = {
       page: String(actualPage),
@@ -135,6 +142,10 @@ export async function POST(req: NextRequest) {
     if (ratingGte) params["vote_average.gte"] = ratingGte;
     if (popularityLte) params["popularity.lte"] = popularityLte;
     if (sort === "vote_average.desc" && !ratingGte) params["vote_count.gte"] = "200";
+    if (providerIds.length > 0) {
+      params.with_watch_providers = providerIds.join("|");
+      params.watch_region = "US";
+    }
     Object.assign(params, runtimeParams);
 
     // Discover — movie, TV, or both
@@ -144,9 +155,12 @@ export async function POST(req: NextRequest) {
     delete tvParams["with_runtime.lte"];
     delete tvParams["with_runtime.gte"];
     Object.assign(tvParams, tvRuntimeParams);
-    // TV uses different date params
+    // TV uses different date and sort params
     if (yearFrom) { tvParams["first_air_date.gte"] = tvParams["primary_release_date.gte"]; delete tvParams["primary_release_date.gte"]; }
     if (yearTo) { tvParams["first_air_date.lte"] = tvParams["primary_release_date.lte"]; delete tvParams["primary_release_date.lte"]; }
+    // Fix TV sort for date-based sorts
+    if (tvParams.sort_by === "primary_release_date.desc") tvParams.sort_by = "first_air_date.desc";
+    if (tvParams.sort_by === "primary_release_date.asc") tvParams.sort_by = "first_air_date.asc";
 
     let discoverData: { results: Record<string, unknown>[]; total_pages: number };
 
@@ -277,11 +291,11 @@ export async function POST(req: NextRequest) {
         rentBuy: providers?.rent ?? [],
         matchScore,
         reason: experienceArr.length === 0
-          ? (matchScore && matchScore > 0 ? "Based on your taste" : "Popular pick")
+          ? "Random pick"
+          : experienceArr.includes("taste") ? "Based on your taste"
           : experienceArr.includes("hidden_gem") ? "Hidden gem"
           : experienceArr.includes("classic") ? "Classic"
           : experienceArr.includes("popular") ? "Popular pick"
-          : experienceArr.includes("random") ? "Random pick"
           : "Popular pick",
       };
     });

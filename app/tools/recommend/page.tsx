@@ -18,7 +18,7 @@ const GENRES = [
 const STEPS = [
   { key: "mediaType", title: "What do you want to watch?", subtitle: "A movie, a show, or open to either?" },
   { key: "genres", title: "What are you in the mood for?", subtitle: "Pick one or more genres, or skip for a mix of everything." },
-  { key: "experience", title: "What kind of experience?", subtitle: "Select one or more, or skip for all." },
+  { key: "experience", title: "What kind of experience?", subtitle: "Select one or more, or skip for a random mix." },
   { key: "runtime", title: "How much time do you have?", subtitle: "Select one or more, or skip for any length." },
   { key: "era", title: "Any era preference?", subtitle: "Select one or more, or skip for any era." },
   { key: "exclude", title: "Anything to avoid?", subtitle: "Tap genres you want excluded from results." },
@@ -35,7 +35,7 @@ interface MovieResult {
   mediaType?: "movie" | "tv";
 }
 
-type SortMode = "" | "rating" | "match";
+type SortMode = "match" | "rating" | "newest" | "oldest";
 const STORAGE_KEY = "ratist-recommend-state";
 
 function loadSaved() {
@@ -66,7 +66,7 @@ export default function RecommendPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [sortMode, setSortMode] = useState<SortMode>("");
+  const [sortMode, setSortMode] = useState<SortMode>("match");
   const [watchlisted, setWatchlisted] = useState<Set<number>>(new Set());
   const [resultMediaFilter, setResultMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [tvRatingSelected, setTvRatingSelected] = useState<Set<string>>(new Set(ALL_TV_RATINGS));
@@ -92,7 +92,7 @@ export default function RecommendPage() {
       setHasSearched(saved.hasSearched ?? false);
       setCurrentPage(saved.currentPage ?? 1);
       setTotalPages(saved.totalPages ?? 1);
-      setSortMode(saved.sortMode ?? "");
+      setSortMode(saved.sortMode && saved.sortMode !== "" ? saved.sortMode : "match");
       setWatchlisted(new Set(saved.watchlisted ?? []));
       setResultMediaFilter(saved.resultMediaFilter ?? "all");
       setTvRatingSelected(new Set(saved.tvRatingSelected ?? ALL_TV_RATINGS));
@@ -125,13 +125,19 @@ export default function RecommendPage() {
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
-  async function fetchResults(page = 1, append = false, overrideMediaType?: string) {
+  async function fetchResults(page = 1, append = false, overrideMediaType?: string, overrideProviders?: Set<string>) {
     setLoading(true);
     const token = await getToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
 
     const effectiveMediaType = overrideMediaType ?? mediaType;
+    const effectiveProviders = overrideProviders ?? selectedStreamingProviders;
+    // Map short names to TMDB provider IDs
+    const providerIds = [...effectiveProviders]
+      .map((short) => STREAMING_PROVIDERS.find((sp) => sp.short === short)?.id)
+      .filter(Boolean) as number[];
+
     const res = await fetch("/api/tools/recommend", {
       method: "POST", headers,
       body: JSON.stringify({
@@ -140,8 +146,9 @@ export default function RecommendPage() {
         runtime: [...runtime],
         era: [...era],
         excludeGenres: [...excludeGenres], page,
-        sort: sortMode === "rating" ? "rating" : "",
+        sort: sortMode,
         mediaType: effectiveMediaType,
+        providers: providerIds,
       }),
     });
     if (res.ok) {
@@ -176,7 +183,7 @@ export default function RecommendPage() {
     setStep(0); setMediaType("any"); setSelectedGenres(new Set()); setExperience(new Set()); setRuntime(new Set());
     setEra(new Set()); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
     setFiltersOpen(false); setResultMediaFilter("all"); setSelectedStreamingProviders(new Set());
-    setHasSearched(false); setVisibleCount(5); setSortMode("");
+    setHasSearched(false); setVisibleCount(5); setSortMode("match");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
 
@@ -218,20 +225,12 @@ export default function RecommendPage() {
         if (!mpaaSelected.has(rating)) return false;
       }
     }
-    // Streaming service filter
-    if (selectedStreamingProviders.size > 0) {
-      const providerShorts = [...selectedStreamingProviders];
-      const matchesProvider = providerShorts.some((short) => {
-        const provider = STREAMING_PROVIDERS.find((sp) => sp.short === short);
-        if (!provider) return false;
-        return r.streaming.some((s) => s.name === provider.name || s.name === provider.short || s.name.includes(provider.short));
-      });
-      if (!matchesProvider) return false;
-    }
     return true;
   });
   const sorted = sortMode === "rating" ? [...filtered].sort((a, b) => b.voteAverage - a.voteAverage)
     : sortMode === "match" ? [...filtered].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
+    : sortMode === "newest" ? [...filtered].sort((a, b) => (b.year || "").localeCompare(a.year || ""))
+    : sortMode === "oldest" ? [...filtered].sort((a, b) => (a.year || "").localeCompare(b.year || ""))
     : filtered;
 
   const isLastStep = step === STEPS.length - 1;
@@ -293,7 +292,7 @@ export default function RecommendPage() {
                   { value: "popular", label: "Something popular", desc: "Trending and widely talked about" },
                   { value: "hidden_gem", label: "A hidden gem", desc: "Highly rated but lesser known" },
                   { value: "classic", label: "A certified classic", desc: "Timeless titles that defined the medium" },
-                  { value: "random", label: "Surprise me!", desc: "Completely random — roll the dice" },
+                  { value: "taste", label: "Based on my taste", desc: "Matched to your genre preferences" },
                 ].map((opt) => (
                   <button key={opt.value} onClick={() => toggleSet(setExperience, opt.value)}
                     className={`text-left p-4 rounded-xl border transition-colors ${experience.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
@@ -431,7 +430,7 @@ export default function RecommendPage() {
                   { value: "popular", label: "Popular" },
                   { value: "hidden_gem", label: "Hidden Gem" },
                   { value: "classic", label: "Classic" },
-                  { value: "random", label: "Random" },
+                  { value: "taste", label: "My Taste" },
                 ].map((opt) => (
                   <button key={opt.value} onClick={() => toggleSet(setExperience, opt.value)}
                     className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-colors ${experience.has(opt.value) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
@@ -545,10 +544,10 @@ export default function RecommendPage() {
               {/* Sort */}
               <div className="flex items-center gap-2">
                 <ArrowUpDown className="w-3 h-3 text-[var(--foreground-muted)]" />
-                {(["", "rating", "match"] as SortMode[]).map((s) => (
+                {(["match", "rating", "newest", "oldest"] as SortMode[]).map((s) => (
                   <button key={s} onClick={() => setSortMode(s)}
                     className={`px-2 py-1 rounded-md font-medium transition-colors ${sortMode === s ? "bg-[var(--ratist-red)]/20 text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
-                    {s === "" ? "Default" : s === "rating" ? "Highest Rated" : "Best Match"}
+                    {s === "match" ? "Best Match" : s === "rating" ? "Highest Rated" : s === "newest" ? "Newest" : "Oldest"}
                   </button>
                 ))}
               </div>
@@ -595,7 +594,12 @@ export default function RecommendPage() {
                 <span className="text-[var(--foreground-muted)] mr-1">Stream:</span>
                 {STREAMING_PROVIDERS.map((p) => (
                   <button key={p.id}
-                    onClick={() => toggleSet(setSelectedStreamingProviders, p.short as string)}
+                    onClick={() => {
+                      const next = new Set(selectedStreamingProviders);
+                      if (next.has(p.short)) next.delete(p.short); else next.add(p.short as string);
+                      setSelectedStreamingProviders(next);
+                      fetchResults(1, false, undefined, next);
+                    }}
                     title={p.short}
                     className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
                       selectedStreamingProviders.has(p.short)
@@ -607,7 +611,7 @@ export default function RecommendPage() {
                   </button>
                 ))}
                 {selectedStreamingProviders.size > 0 && (
-                  <button onClick={() => setSelectedStreamingProviders(new Set())} className="text-[10px] text-[var(--foreground-muted)] hover:text-white ml-1">
+                  <button onClick={() => { setSelectedStreamingProviders(new Set()); fetchResults(1, false, undefined, new Set()); }} className="text-[10px] text-[var(--foreground-muted)] hover:text-white ml-1">
                     <X className="w-3 h-3" />
                   </button>
                 )}
@@ -628,7 +632,7 @@ export default function RecommendPage() {
                   : "Nothing matched your criteria. Try broadening your filters."}
               </p>
               {results.length > 0 && selectedStreamingProviders.size > 0 && (
-                <button onClick={() => setSelectedStreamingProviders(new Set())} className="text-sm text-[var(--ratist-red)] hover:underline mr-4">Clear streaming filter</button>
+                <button onClick={() => { setSelectedStreamingProviders(new Set()); fetchResults(1, false, undefined, new Set()); }} className="text-sm text-[var(--ratist-red)] hover:underline mr-4">Clear streaming filter</button>
               )}
               <button onClick={handleStartOver} className="text-sm text-[var(--ratist-red)] hover:underline">Start over</button>
             </div>
