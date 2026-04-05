@@ -6,17 +6,18 @@ import Image from "next/image";
 import { Eye, Bookmark, BookmarkCheck, Check } from "lucide-react";
 import { posterUrl, type TMDBMovie } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
-import ProviderLogos from "./ProviderLogos";
+import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 
 interface Props {
   movie: TMDBMovie;
   characterName?: string;
-  streaming?: string[];
+  streaming?: ProviderInfo[];
+  rent?: ProviderInfo[];
 }
 
-export default function MovieCard({ movie, characterName, streaming }: Props) {
+export default function MovieCard({ movie, characterName, streaming, rent }: Props) {
   const { user } = useAuth();
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
   const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
@@ -103,11 +104,11 @@ export default function MovieCard({ movie, characterName, streaming }: Props) {
             size="sm"
           />
         </div>
-        {streaming && streaming.length > 0 && (
-          <div className="mt-0.5">
-            <ProviderLogos names={streaming} size={18} />
-          </div>
-        )}
+        {streaming && streaming.length > 0 ? (
+          <div className="mt-0.5"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+        ) : rent && rent.length > 0 ? (
+          <div className="mt-0.5"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+        ) : null}
       </div>
     </Link>
   );

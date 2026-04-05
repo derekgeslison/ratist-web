@@ -216,14 +216,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const providersMap = new Map<number, { stream: string[]; rent: string[] }>();
+    const providersMap = new Map<number, { stream: { name: string; logo: string }[]; rent: { name: string; logo: string }[] }>();
     for (let i = 0; i < resultIds.length && i < 20; i++) {
       const p = providersArr[i];
       if (!p?.results?.US) continue;
       const us = p.results.US;
       providersMap.set(resultIds[i], {
-        stream: (us.flatrate ?? []).map((s: { provider_name: string }) => s.provider_name).slice(0, 3),
-        rent: (us.rent ?? []).map((s: { provider_name: string }) => s.provider_name).slice(0, 3),
+        stream: (us.flatrate ?? []).map((s: { provider_name: string; logo_path: string }) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 5),
+        rent: (us.rent ?? []).map((s: { provider_name: string; logo_path: string }) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 3),
       });
     }
 
@@ -276,11 +276,13 @@ export async function POST(req: NextRequest) {
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
-        reason: experienceArr.includes("popular") ? "Popular pick"
+        reason: experienceArr.length === 0
+          ? (matchScore && matchScore > 0 ? "Based on your taste" : "Popular pick")
           : experienceArr.includes("hidden_gem") ? "Hidden gem"
-          : experienceArr.includes("classic") ? "Highly acclaimed"
+          : experienceArr.includes("classic") ? "Classic"
+          : experienceArr.includes("popular") ? "Popular pick"
           : experienceArr.includes("random") ? "Random pick"
-          : "Recommended for you",
+          : "Popular pick",
       };
     });
 

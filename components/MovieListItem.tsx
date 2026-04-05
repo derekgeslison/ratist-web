@@ -6,17 +6,18 @@ import Image from "next/image";
 import { Eye, Bookmark, BookmarkCheck } from "lucide-react";
 import { posterUrl, type TMDBMovie } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
-import ProviderLogos from "./ProviderLogos";
+import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 
 interface Props {
   movie: TMDBMovie;
   characterName?: string;
-  streaming?: string[];
+  streaming?: ProviderInfo[];
+  rent?: ProviderInfo[];
 }
 
-export default function MovieListItem({ movie, characterName, streaming }: Props) {
+export default function MovieListItem({ movie, characterName, streaming, rent }: Props) {
   const { user } = useAuth();
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
   const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
@@ -70,11 +71,11 @@ export default function MovieListItem({ movie, characterName, streaming }: Props
           {characterName && <span className="text-[var(--ratist-red)]/70 ml-2">as {characterName}</span>}
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{movie.overview}</p>
-        {streaming && streaming.length > 0 && (
-          <div className="mt-1">
-            <ProviderLogos names={streaming} size={18} />
-          </div>
-        )}
+        {streaming && streaming.length > 0 ? (
+          <div className="mt-1"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+        ) : rent && rent.length > 0 ? (
+          <div className="mt-1"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+        ) : null}
       </div>
 
       {/* Seen / Watchlist — left of ratings, expand on row hover */}

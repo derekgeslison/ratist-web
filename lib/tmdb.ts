@@ -234,14 +234,6 @@ export const STREAMING_PROVIDERS = [
   { id: 2303, name: "Paramount Plus Premium", short: "Paramount+", logo: "/fts6X10Jn4QT0X6ac3udKEn2tJA.jpg" },
 ] as const;
 
-/** Look up a streaming provider logo URL by name (full or short). Returns w45 TMDB image URL or null. */
-export function providerLogoUrl(name: string): string | null {
-  const p = STREAMING_PROVIDERS.find(
-    (sp) => sp.name === name || sp.short === name
-      || name.includes(sp.short) || name.includes(sp.name)
-  );
-  return p ? `${IMAGE_BASE_URL}/w45${p.logo}` : null;
-}
 
 export async function discoverMovies(options: {
   query?: string;

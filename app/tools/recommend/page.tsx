@@ -24,11 +24,13 @@ const STEPS = [
   { key: "exclude", title: "Anything to avoid?", subtitle: "Tap genres you want excluded from results." },
 ] as const;
 
+interface ProviderInfo { name: string; logo: string; }
+
 interface MovieResult {
   tmdbId: number; title: string; posterPath: string | null; year: string;
   overview: string; voteAverage: number; genres: string[];
   runtime: number | null; mpaaRating: string | null;
-  streaming: string[]; rentBuy: string[];
+  streaming: ProviderInfo[]; rentBuy: ProviderInfo[];
   matchScore: number | null; reason: string;
   mediaType?: "movie" | "tv";
 }
@@ -222,7 +224,7 @@ export default function RecommendPage() {
       const matchesProvider = providerShorts.some((short) => {
         const provider = STREAMING_PROVIDERS.find((sp) => sp.short === short);
         if (!provider) return false;
-        return r.streaming.some((s) => s === provider.name || s === provider.short);
+        return r.streaming.some((s) => s.name === provider.name || s.name === provider.short || s.name.includes(provider.short));
       });
       if (!matchesProvider) return false;
     }
@@ -674,10 +676,10 @@ export default function RecommendPage() {
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             {movie.streaming.length > 0 && (
-                              <ProviderLogos names={movie.streaming} size={18} />
+                              <ProviderLogos providers={movie.streaming} size={18} label="Stream" />
                             )}
-                            {movie.streaming.length === 0 && movie.rentBuy.length > 0 && (
-                              <span className="text-[10px] text-blue-400">Rent: {movie.rentBuy.join(", ")}</span>
+                            {movie.rentBuy.length > 0 && (
+                              <ProviderLogos providers={movie.rentBuy} size={18} label="Rent" />
                             )}
                             <span className="inline-block text-[10px] font-medium bg-[var(--ratist-red)]/10 text-[var(--ratist-red)] px-1.5 py-0.5 rounded-full">{movie.reason}</span>
                           </div>

@@ -6,17 +6,18 @@ import Image from "next/image";
 import { Eye, Bookmark, BookmarkCheck, Tv } from "lucide-react";
 import { posterUrl, type TMDBShow } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
-import ProviderLogos from "./ProviderLogos";
+import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useShowUserState } from "@/hooks/useShowUserState";
 
 interface Props {
   show: TMDBShow;
   characterName?: string;
-  streaming?: string[];
+  streaming?: ProviderInfo[];
+  rent?: ProviderInfo[];
 }
 
-export default function ShowListItem({ show, characterName, streaming }: Props) {
+export default function ShowListItem({ show, characterName, streaming, rent }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
   const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
@@ -74,11 +75,11 @@ export default function ShowListItem({ show, characterName, streaming }: Props) 
           {characterName && <span className="text-[var(--ratist-red)]/70 ml-2">as {characterName}</span>}
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{show.overview}</p>
-        {streaming && streaming.length > 0 && (
-          <div className="mt-1">
-            <ProviderLogos names={streaming} size={18} />
-          </div>
-        )}
+        {streaming && streaming.length > 0 ? (
+          <div className="mt-1"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+        ) : rent && rent.length > 0 ? (
+          <div className="mt-1"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+        ) : null}
       </div>
 
       {user && (

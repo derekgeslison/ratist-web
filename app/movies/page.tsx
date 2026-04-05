@@ -206,12 +206,11 @@ export default async function MoviesPage({ searchParams }: Props) {
     } catch { /* ignore */ }
   }
 
-  // Fetch streaming provider names when showProviders is on
-  const streamingMap = new Map<number, string[]>();
+  // Fetch streaming provider data when showProviders is on
+  type ProviderInfo = { name: string; logo: string };
+  const streamingMap = new Map<number, ProviderInfo[]>();
+  const rentMap = new Map<number, ProviderInfo[]>();
   if (showProviders) {
-    const selectedProviderNames = new Set(
-      providers?.map((pid) => STREAMING_PROVIDERS.find((s) => String(s.id) === pid)?.short).filter(Boolean) as string[]
-    );
     const movieIds = movieResult?.results.map((m) => m.id) ?? [];
     const showIds = showResult?.results.map((s) => s.id) ?? [];
 
@@ -220,27 +219,16 @@ export default async function MoviesPage({ searchParams }: Props) {
       Promise.all(showIds.map((id) => getShowWatchProviders(id).catch(() => null))),
     ]);
 
-    for (let i = 0; i < movieIds.length; i++) {
-      const p = movieProviders[i];
-      if (!p) continue;
-      const names = (p.flatrate ?? []).map((s) => s.provider_name);
-      // If provider filter is active, only show selected providers; otherwise show all
-      const display = selectedProviderNames.size > 0
-        ? names.filter((n) => STREAMING_PROVIDERS.some((sp) => sp.name === n && selectedProviderNames.has(sp.short)))
-            .map((n) => STREAMING_PROVIDERS.find((sp) => sp.name === n)?.short ?? n)
-        : names.slice(0, 3);
-      if (display.length > 0) streamingMap.set(movieIds[i], display);
+    function extractProviders(data: { flatrate?: { provider_name: string; logo_path: string }[]; rent?: { provider_name: string; logo_path: string }[] } | null, id: number) {
+      if (!data) return;
+      const stream = (data.flatrate ?? []).map((s) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 5);
+      const rent = (data.rent ?? []).map((s) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 3);
+      if (stream.length > 0) streamingMap.set(id, stream);
+      if (rent.length > 0) rentMap.set(id, rent);
     }
-    for (let i = 0; i < showIds.length; i++) {
-      const p = showProvidersList[i];
-      if (!p) continue;
-      const names = (p.flatrate ?? []).map((s) => s.provider_name);
-      const display = selectedProviderNames.size > 0
-        ? names.filter((n) => STREAMING_PROVIDERS.some((sp) => sp.name === n && selectedProviderNames.has(sp.short)))
-            .map((n) => STREAMING_PROVIDERS.find((sp) => sp.name === n)?.short ?? n)
-        : names.slice(0, 3);
-      if (display.length > 0) streamingMap.set(showIds[i], display);
-    }
+
+    for (let i = 0; i < movieIds.length; i++) extractProviders(movieProviders[i] as never, movieIds[i]);
+    for (let i = 0; i < showIds.length; i++) extractProviders(showProvidersList[i] as never, showIds[i]);
   }
 
   const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);
@@ -266,13 +254,13 @@ export default async function MoviesPage({ searchParams }: Props) {
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {movieResult.results.map((movie) => (
-                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} />
+                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} rent={rentMap.get(movie.id)} />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {movieResult.results.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} />
+                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} rent={rentMap.get(movie.id)} />
               ))}
             </div>
           )}
@@ -286,13 +274,13 @@ export default async function MoviesPage({ searchParams }: Props) {
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {showResult.results.map((show) => (
-                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} />
+                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} rent={rentMap.get(show.id)} />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {showResult.results.map((show) => (
-                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} />
+                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} rent={rentMap.get(show.id)} />
               ))}
             </div>
           )}
