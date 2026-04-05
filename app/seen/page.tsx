@@ -77,6 +77,16 @@ export default function SeenPage() {
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
 
+  function refetchEpisodeGroups() {
+    if (!user) return;
+    user.getIdToken().then((token) => {
+      fetch("/api/seen", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => { setEpisodeGroups(data.episodeGroups ?? []); })
+        .catch(() => {});
+    });
+  }
+
   function updateEpisodeGroupDate(showTmdbId: number, oldDate: string | null, newDate: string | null) {
     const safeDate = newDate ? (newDate.includes("T") ? newDate : `${newDate}T12:00:00`) : null;
     setEpisodeGroups((prev) => prev.map((g) =>
@@ -319,6 +329,7 @@ export default function SeenPage() {
             episodes={m.episodes}
             ratistRating={m.ratistRating}
             onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
+                            onEpisodeDateChange={refetchEpisodeGroups}
           />
         );
       }
@@ -607,6 +618,7 @@ export default function SeenPage() {
                             episodes={m.episodes}
                             ratistRating={m.ratistRating}
                             onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
+                            onEpisodeDateChange={refetchEpisodeGroups}
                           />
                         );
                       }
@@ -655,6 +667,7 @@ export default function SeenPage() {
                         episodes={m.episodes}
                         ratistRating={m.ratistRating}
                         onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
+                            onEpisodeDateChange={refetchEpisodeGroups}
                       />
                     );
                   }
@@ -706,6 +719,7 @@ export default function SeenPage() {
                           episodes={m.episodes}
                           ratistRating={m.ratistRating}
                           onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
+                            onEpisodeDateChange={refetchEpisodeGroups}
                         />
                       );
                     }

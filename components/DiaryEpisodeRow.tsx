@@ -22,12 +22,13 @@ interface Props {
   ratistRating?: number | null;
   editable?: boolean;
   onDateChange?: (newDate: string | null) => void;
+  onEpisodeDateChange?: () => void;
 }
 
 export default function DiaryEpisodeRow({
   showTmdbId, title, posterPath, year, dayNumber, watchedDate,
   seasonCount, episodeCount, seasons, episodes, ratistRating,
-  editable = true, onDateChange,
+  editable = true, onDateChange, onEpisodeDateChange,
 }: Props) {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
@@ -68,6 +69,7 @@ export default function DiaryEpisodeRow({
       body: JSON.stringify({ watchedDate: date }),
     }).catch(() => {});
     onDateChange?.(date);
+    onEpisodeDateChange?.();
   }
 
   async function saveEpisodeDate(seasonNumber: number, episodeNumber: number, date: string | null) {
@@ -81,6 +83,8 @@ export default function DiaryEpisodeRow({
         watchedDate: date,
       }),
     }).catch(() => {});
+    // Trigger refetch so grouping updates
+    onEpisodeDateChange?.();
   }
 
   return (
@@ -202,6 +206,7 @@ export default function DiaryEpisodeRow({
                   seasonNumber={ep.seasonNumber}
                   episodeNumber={ep.episodeNumber}
                   name={ep.name}
+                  groupDate={dateValue}
                   editable={editable && !!user}
                   onDateChange={(date) => saveEpisodeDate(ep.seasonNumber, ep.episodeNumber, date)}
                 />
@@ -215,11 +220,12 @@ export default function DiaryEpisodeRow({
 }
 
 function EpisodeRow({
-  seasonNumber, episodeNumber, name, editable, onDateChange,
+  seasonNumber, episodeNumber, name, groupDate, editable, onDateChange,
 }: {
   seasonNumber: number;
   episodeNumber: number;
   name: string | null;
+  groupDate: string | null;
   editable: boolean;
   onDateChange: (date: string | null) => void;
 }) {
@@ -227,7 +233,7 @@ function EpisodeRow({
   const [pendingDate, setPendingDate] = useState("");
 
   return (
-    <div className="flex items-center gap-2 py-0.5 group">
+    <div className="flex items-center gap-2 py-0.5">
       <p className="text-xs text-[var(--foreground-muted)] flex-1">
         <span className="text-white/60">S{seasonNumber}E{episodeNumber}</span>
         {name && <span> — {name}</span>}
@@ -257,8 +263,8 @@ function EpisodeRow({
           </div>
         ) : (
           <button
-            onClick={() => { setPendingDate(""); setEditing(true); }}
-            className="p-0.5 text-[var(--foreground-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--ratist-red)] transition-all"
+            onClick={() => { setPendingDate(groupDate ?? ""); setEditing(true); }}
+            className="p-0.5 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
             title="Set date for this episode"
           >
             <Calendar className="w-3 h-3" />
