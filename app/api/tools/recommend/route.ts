@@ -36,6 +36,11 @@ async function tmdbGet(path: string, params: Record<string, string> = {}) {
   return res.json();
 }
 
+// Classify results based on their actual characteristics:
+// - Classic: excellent AND widely recognized (many votes, high rating)
+// - Hidden gem: excellent but genuinely under the radar (few votes, low popularity)
+// - Popular pick: well-known, widely viewed
+// - Based on your taste: high matchScore from genre preferences
 function getReasonForResult(
   experienceArr: string[],
   voteAverage: number,
@@ -53,14 +58,14 @@ function getReasonForResult(
   }
   // Multiple experiences: label each result by what it best matches
   const candidates: { label: string; score: number }[] = [];
-  if (experienceArr.includes("classic") && voteAverage >= 7.5 && voteCount >= 500) {
-    candidates.push({ label: "Classic", score: voteAverage * 10 + voteCount / 100 });
+  if (experienceArr.includes("classic") && voteAverage >= 7.5 && voteCount >= 1000) {
+    candidates.push({ label: "Classic", score: voteAverage * 10 + Math.log10(voteCount) * 5 });
   }
-  if (experienceArr.includes("hidden_gem") && voteAverage >= 6.5 && popularity < 50) {
-    candidates.push({ label: "Hidden gem", score: voteAverage * 10 + (50 - popularity) });
+  if (experienceArr.includes("hidden_gem") && voteAverage >= 7.0 && voteCount <= 500 && popularity < 30) {
+    candidates.push({ label: "Hidden gem", score: voteAverage * 10 + (30 - popularity) });
   }
-  if (experienceArr.includes("popular") && voteCount >= 500) {
-    candidates.push({ label: "Popular pick", score: popularity + voteCount / 100 });
+  if (experienceArr.includes("popular") && voteCount >= 1000) {
+    candidates.push({ label: "Popular pick", score: popularity + Math.log10(voteCount) * 5 });
   }
   if (experienceArr.includes("taste") && matchScore && matchScore > 0) {
     candidates.push({ label: "Based on your taste", score: matchScore * 10 });
@@ -68,10 +73,13 @@ function getReasonForResult(
   if (candidates.length > 0) {
     return candidates.sort((a, b) => b.score - a.score)[0].label;
   }
-  // Fallback: best-fit label based on characteristics
-  if (voteAverage >= 7.5 && voteCount >= 500) return "Classic";
-  if (popularity < 50 && voteAverage >= 6.5) return "Hidden gem";
-  return "Popular pick";
+  // Fallback: classify by characteristics even if not a perfect fit
+  if (voteAverage >= 7.5 && voteCount >= 1000) return "Classic";
+  if (voteAverage >= 7.0 && voteCount <= 500 && popularity < 30) return "Hidden gem";
+  if (voteCount >= 1000) return "Popular pick";
+  return experienceArr[0] === "hidden_gem" ? "Hidden gem"
+    : experienceArr[0] === "classic" ? "Classic"
+    : "Popular pick";
 }
 
 export async function POST(req: NextRequest) {
@@ -103,21 +111,21 @@ export async function POST(req: NextRequest) {
     if (experienceArr.includes("hidden_gem")) {
       sort = "vote_average.desc"; ratingGte = "7"; popularityLte = "30"; voteCountGte = "50";
     } else if (experienceArr.includes("classic")) {
-      sort = "vote_average.desc"; ratingGte = "7.5"; voteCountGte = "500";
+      sort = "vote_average.desc"; ratingGte = "7.5"; voteCountGte = "1000";
     } else if (experienceArr.includes("popular")) {
       sort = "vote_count.desc"; voteCountGte = "1000"; ratingGte = "6";
     } else if (experienceArr.includes("taste")) {
-      // Use popularity as base query, matchScore re-sorting happens client-side
       sort = "popularity.desc"; ratingGte = "6"; voteCountGte = "50";
     } else if (experienceArr.length === 0) {
-      // No experience selected = random mix
       sort = "popularity.desc";
     }
-    // If multiple selected, loosen constraints
+    // Multiple selected: widen the net so the labeling function can classify each result
     if (experienceArr.length > 1) {
-      ratingGte = ratingGte ? "6" : "";
+      // Keep rating bar high enough for quality results
+      ratingGte = "7";
       voteCountGte = "50";
       popularityLte = "";
+      sort = "vote_average.desc";
     }
 
     // Era: combine ranges from all selections
