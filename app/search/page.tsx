@@ -96,8 +96,18 @@ export default async function SearchPage({ searchParams }: Props) {
   const showMovies = typeFilter === "all" || typeFilter === "movies";
   const showShows = typeFilter === "all" || typeFilter === "shows";
   const showPeople = typeFilter === "all" || typeFilter === "people";
+  const showContent = showMovies || showShows; // combined movies & shows section
 
-  const total = (showMovies ? movies.length : 0) + (showShows ? shows.length : 0) + (showPeople ? people.length : 0);
+  // Merge movies and shows into one list sorted by popularity for the "All" and combined views
+  const contentItems: { type: "movie" | "tv"; id: number; title: string; popularity: number; data: TMDBMovie | TMDBShow }[] = [
+    ...(showMovies ? movies.map((m) => ({ type: "movie" as const, id: m.id, title: m.title, popularity: m.popularity, data: m })) : []),
+    ...(showShows ? shows.map((s) => ({ type: "tv" as const, id: s.id, title: s.name, popularity: s.popularity, data: s })) : []),
+  ];
+  if (sortMode === "rating") contentItems.sort((a, b) => (b.data.vote_average ?? 0) - (a.data.vote_average ?? 0));
+  else if (sortMode === "az") contentItems.sort((a, b) => a.title.localeCompare(b.title));
+  else contentItems.sort((a, b) => b.popularity - a.popularity); // relevance = popularity
+
+  const total = contentItems.length + (showPeople ? people.length : 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -153,30 +163,20 @@ export default async function SearchPage({ searchParams }: Props) {
         </section>
       )}
 
-      {/* Movies */}
-      {showMovies && movies.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Movies
-          </h2>
-          <div className="flex flex-col divide-y divide-[var(--border)]">
-            {movies.map((movie) => (
-              <MovieListItem key={movie.id} movie={movie} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* TV Shows */}
-      {showShows && shows.length > 0 && (
+      {/* Movies & Shows — merged and sorted by relevance */}
+      {showContent && contentItems.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Tv className="w-5 h-5 text-blue-400" /> TV Shows
+            <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Movies & Shows
           </h2>
           <div className="flex flex-col divide-y divide-[var(--border)]">
-            {shows.map((show) => (
-              <ShowListItem key={show.id} show={show} />
-            ))}
+            {contentItems.map((item) =>
+              item.type === "movie" ? (
+                <MovieListItem key={`m-${item.id}`} movie={item.data as TMDBMovie} />
+              ) : (
+                <ShowListItem key={`s-${item.id}`} show={item.data as TMDBShow} />
+              )
+            )}
           </div>
         </section>
       )}

@@ -19,13 +19,21 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
   const [movies, setMovies] = useState<QuickMovie[]>([]);
   const [shows, setShows] = useState<QuickShow[]>([]);
   const [people, setPeople] = useState<QuickPerson[]>([]);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(["movies", "shows", "people"]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const totalResults = movies.length + shows.length + people.length;
+  // Build a flat ordered list for keyboard navigation and rendering
+  const orderedItems: { type: "movie" | "show" | "person"; index: number }[] = [];
+  for (const section of sectionOrder) {
+    if (section === "movies") movies.forEach((_, i) => orderedItems.push({ type: "movie", index: i }));
+    else if (section === "shows") shows.forEach((_, i) => orderedItems.push({ type: "show", index: i }));
+    else if (section === "people") people.forEach((_, i) => orderedItems.push({ type: "person", index: i }));
+  }
+  const totalResults = orderedItems.length;
 
   const fetchResults = useCallback(async (q: string) => {
     if (q.length < 2) { setMovies([]); setShows([]); setPeople([]); setOpen(false); return; }
@@ -37,6 +45,7 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
         setMovies(data.movies ?? []);
         setShows(data.shows ?? []);
         setPeople(data.people ?? []);
+        setSectionOrder(data.sectionOrder ?? ["movies", "shows", "people"]);
         setOpen(true);
         setSelectedIdx(-1);
       }
@@ -77,14 +86,12 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
       setSelectedIdx((prev) => (prev - 1 + totalResults + 1) % (totalResults + 1));
     } else if (e.key === "Enter" && selectedIdx >= 0) {
       e.preventDefault();
-      if (selectedIdx < movies.length) {
-        navigate(`/movies/${movies[selectedIdx].id}`);
-      } else if (selectedIdx < movies.length + shows.length) {
-        navigate(`/shows/${shows[selectedIdx - movies.length].id}`);
-      } else if (selectedIdx < movies.length + shows.length + people.length) {
-        navigate(`/celebrities/${people[selectedIdx - movies.length - shows.length].id}`);
+      if (selectedIdx < totalResults) {
+        const item = orderedItems[selectedIdx];
+        if (item.type === "movie") navigate(`/movies/${movies[item.index].id}`);
+        else if (item.type === "show") navigate(`/shows/${shows[item.index].id}`);
+        else navigate(`/celebrities/${people[item.index].id}`);
       } else {
-        // "View all" selected
         navigate(`/search?q=${encodeURIComponent(query.trim())}`);
         setQuery("");
       }
@@ -122,99 +129,90 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
       </form>
 
       {/* Dropdown */}
-      {open && (movies.length > 0 || shows.length > 0 || people.length > 0) && (
+      {open && totalResults > 0 && (
         <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50 min-w-[280px]">
-          {/* Movies */}
-          {movies.length > 0 && (
-            <div>
-              <p className="px-3 pt-2.5 pb-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium flex items-center gap-1">
-                <Film className="w-3 h-3" /> Movies
-              </p>
-              {movies.map((m, i) => (
-                <button
-                  key={m.id}
-                  onClick={() => navigate(`/movies/${m.id}`)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                    selectedIdx === i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  <div className="relative w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] shrink-0">
-                    {m.posterPath ? (
-                      <Image src={posterUrl(m.posterPath, "w92")} alt="" fill sizes="32px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
-                    )}
+          {(() => {
+            let flatIdx = 0;
+            let isFirstSection = true;
+            return sectionOrder.map((section) => {
+              if (section === "movies" && movies.length > 0) {
+                const startIdx = flatIdx;
+                flatIdx += movies.length;
+                const border = !isFirstSection;
+                isFirstSection = false;
+                return (
+                  <div key="movies" className={border ? "border-t border-[var(--border)]" : ""}>
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium flex items-center gap-1">
+                      <Film className="w-3 h-3" /> Movies
+                    </p>
+                    {movies.map((m, i) => (
+                      <button key={m.id} onClick={() => navigate(`/movies/${m.id}`)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${selectedIdx === startIdx + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"}`}>
+                        <div className="relative w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] shrink-0">
+                          {m.posterPath ? <Image src={posterUrl(m.posterPath, "w92")} alt="" fill sizes="32px" className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{m.title}</p>
+                          {m.year && <p className="text-xs text-[var(--foreground-muted)]">{m.year}</p>}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-white truncate">{m.title}</p>
-                    {m.year && <p className="text-xs text-[var(--foreground-muted)]">{m.year}</p>}
+                );
+              }
+              if (section === "shows" && shows.length > 0) {
+                const startIdx = flatIdx;
+                flatIdx += shows.length;
+                const border = !isFirstSection;
+                isFirstSection = false;
+                return (
+                  <div key="shows" className={border ? "border-t border-[var(--border)]" : ""}>
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-blue-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                      <Tv className="w-3 h-3" /> TV Shows
+                    </p>
+                    {shows.map((s, i) => (
+                      <button key={s.id} onClick={() => navigate(`/shows/${s.id}`)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${selectedIdx === startIdx + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"}`}>
+                        <div className="relative w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] shrink-0">
+                          {s.posterPath ? <Image src={posterUrl(s.posterPath, "w92")} alt="" fill sizes="32px" className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{s.name}</p>
+                          {s.year && <p className="text-xs text-[var(--foreground-muted)]">{s.year}</p>}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* TV Shows */}
-          {shows.length > 0 && (
-            <div className={movies.length > 0 ? "border-t border-[var(--border)]" : ""}>
-              <p className="px-3 pt-2.5 pb-1 text-[10px] text-blue-400 uppercase tracking-wider font-medium flex items-center gap-1">
-                <Tv className="w-3 h-3" /> TV Shows
-              </p>
-              {shows.map((s, i) => (
-                <button
-                  key={s.id}
-                  onClick={() => navigate(`/shows/${s.id}`)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                    selectedIdx === movies.length + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  <div className="relative w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] shrink-0">
-                    {s.posterPath ? (
-                      <Image src={posterUrl(s.posterPath, "w92")} alt="" fill sizes="32px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
-                    )}
+                );
+              }
+              if (section === "people" && people.length > 0) {
+                const startIdx = flatIdx;
+                flatIdx += people.length;
+                const border = !isFirstSection;
+                isFirstSection = false;
+                return (
+                  <div key="people" className={border ? "border-t border-[var(--border)]" : ""}>
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium flex items-center gap-1">
+                      <User className="w-3 h-3" /> People
+                    </p>
+                    {people.map((p, i) => (
+                      <button key={p.id} onClick={() => navigate(`/celebrities/${p.id}`)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${selectedIdx === startIdx + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"}`}>
+                        <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
+                          {p.profilePath ? <Image src={`${TMDB_PROFILE}${p.profilePath}`} alt="" fill sizes="32px" className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">{p.name[0]}</div>}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{p.name}</p>
+                          <p className="text-xs text-[var(--foreground-muted)]">{p.department}</p>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  <div className="min-w-0 flex items-center gap-1.5">
-                    <div>
-                      <p className="text-sm text-white truncate">{s.name}</p>
-                      {s.year && <p className="text-xs text-[var(--foreground-muted)]">{s.year}</p>}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* People */}
-          {people.length > 0 && (
-            <div className={(movies.length > 0 || shows.length > 0) ? "border-t border-[var(--border)]" : ""}>
-              <p className="px-3 pt-2.5 pb-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium flex items-center gap-1">
-                <User className="w-3 h-3" /> People
-              </p>
-              {people.map((p, i) => (
-                <button
-                  key={p.id}
-                  onClick={() => navigate(`/celebrities/${p.id}`)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                    selectedIdx === movies.length + shows.length + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
-                    {p.profilePath ? (
-                      <Image src={`${TMDB_PROFILE}${p.profilePath}`} alt="" fill sizes="32px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">{p.name[0]}</div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm text-white truncate">{p.name}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">{p.department}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                );
+              }
+              return null;
+            });
+          })()}
 
           {/* View all */}
           <button
