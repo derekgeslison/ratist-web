@@ -2,39 +2,31 @@ import { NextResponse } from "next/server";
 
 const API_KEY = process.env.TMDB_API_KEY;
 
-interface TMDBPerson {
-  id: number;
-  name: string;
-  profile_path: string | null;
-  known_for_department: string;
-  birthday: string | null;
-  popularity: number;
-}
+export const revalidate = 3600; // cache for 1 hour
 
 export async function GET() {
   try {
     const today = new Date();
     const month = String(today.getMonth() + 1).padStart(2, "0");
     const day = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${month}-${day}`;
 
-    // Fetch multiple pages of popular people and filter by birthday
-    const pages = [1, 2, 3, 4, 5];
-    const results: TMDBPerson[] = [];
+    const results: { id: number; name: string; profilePath: string | null; department: string; birthday: string; age: number; popularity: number }[] = [];
 
-    for (const page of pages) {
-      const res = await fetch(
+    // Fetch up to 30 pages of popular people (600 people, ~1.6 expected birthday matches)
+    // Batch detail requests in groups of 20 to avoid overwhelming TMDB
+    for (let page = 1; page <= 30 && results.length < 12; page++) {
+      const listRes = await fetch(
         `https://api.themoviedb.org/3/person/popular?api_key=${API_KEY}&page=${page}`,
-        { next: { revalidate: 3600 } }
+        { next: { revalidate: 86400 } }
       );
-      if (!res.ok) continue;
-      const data = await res.json();
-
-      // For each person, fetch their details to get birthday
-      const personIds: number[] = (data.results ?? []).map((p: { id: number }) => p.id);
+      if (!listRes.ok) continue;
+      const listData = await listRes.json();
+      const people = listData.results ?? [];
 
       const details = await Promise.all(
-        personIds.map((id) =>
-          fetch(`https://api.themoviedb.org/3/person/${id}?api_key=${API_KEY}`, { next: { revalidate: 86400 } })
+        people.map((p: { id: number }) =>
+          fetch(`https://api.themoviedb.org/3/person/${p.id}?api_key=${API_KEY}`, { next: { revalidate: 86400 } })
             .then((r) => r.ok ? r.json() : null)
             .catch(() => null)
         )
@@ -42,37 +34,23 @@ export async function GET() {
 
       for (const person of details) {
         if (!person?.birthday) continue;
-        const bday = person.birthday; // "YYYY-MM-DD"
-        if (bday.slice(5) === `${month}-${day}`) {
-          const birthYear = parseInt(bday.slice(0, 4));
-          const age = today.getFullYear() - birthYear;
+        if (person.birthday.slice(5) === todayStr && !person.deathday) {
           results.push({
             id: person.id,
             name: person.name,
-            profile_path: person.profile_path,
-            known_for_department: person.known_for_department ?? "Acting",
+            profilePath: person.profile_path,
+            department: person.known_for_department ?? "Acting",
             birthday: person.birthday,
+            age: today.getFullYear() - parseInt(person.birthday.slice(0, 4)),
             popularity: person.popularity ?? 0,
           });
         }
       }
-
-      // Stop early if we have enough
-      if (results.length >= 10) break;
     }
 
-    // Sort by popularity and add age
     const birthdays = results
       .sort((a, b) => b.popularity - a.popularity)
-      .slice(0, 12)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        profilePath: p.profile_path,
-        department: p.known_for_department,
-        birthday: p.birthday,
-        age: p.birthday ? today.getFullYear() - parseInt(p.birthday.slice(0, 4)) : null,
-      }));
+      .slice(0, 12);
 
     return NextResponse.json({ birthdays });
   } catch (err) {

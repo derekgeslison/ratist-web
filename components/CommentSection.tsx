@@ -181,14 +181,16 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
     });
   }
 
-  function renderComment(comment: CommentData, depth: number = 0) {
+  function renderComment(comment: CommentData, depth: number = 0, threadParentId?: string) {
     const isOwn = user?.uid === comment.user.firebaseUid;
     const canDeleteComment = isOwn || isAdmin;
     const isExpanded = expandedThreads.has(comment.id);
-    const maxIndent = Math.min(depth, 4);
+    const maxIndent = Math.min(depth, 2);
+    // At depth >= 2, replies go to the thread parent (depth 1) instead of creating deeper nesting
+    const replyTo = depth >= 2 && threadParentId ? threadParentId : comment.id;
 
     return (
-      <div key={comment.id} className={depth > 0 ? `ml-${maxIndent * 4} pl-3 border-l border-[var(--border)]/30` : ""} style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 16}px` } : undefined}>
+      <div key={comment.id} className={depth > 0 ? `pl-3 border-l border-[var(--border)]/30` : ""} style={depth > 0 ? { marginLeft: `${maxIndent * 16}px` } : undefined}>
         <div className="flex gap-2.5 py-2.5 group/comment">
           {/* Avatar */}
           <Link href={`/profile/${comment.user.firebaseUid}`} className="shrink-0">
@@ -227,14 +229,12 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                     <Heart className={`w-3 h-3 ${comment.likedByMe ? "fill-current" : ""}`} />
                     {comment.likeCount > 0 && comment.likeCount}
                   </button>
-                  {depth < 2 && (
-                    <button
-                      onClick={() => { setReplyingTo(replyingTo === comment.id ? null : comment.id); setReplyText(""); }}
-                      className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
-                    >
-                      <Reply className="w-3 h-3" /> Reply
-                    </button>
-                  )}
+                  <button
+                    onClick={() => { setReplyingTo(replyingTo === replyTo ? null : replyTo); setReplyText(""); }}
+                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  >
+                    <Reply className="w-3 h-3" /> Reply
+                  </button>
                   {canDeleteComment && (
                     confirmingDelete === comment.id ? (
                       <span className="flex items-center gap-1.5 text-xs">
@@ -262,7 +262,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
             </div>
 
             {/* Reply input */}
-            {replyingTo === comment.id && (
+            {replyingTo === replyTo && replyTo === comment.id && (
               <div className="flex gap-2 mt-2">
                 <textarea
                   value={replyText}
@@ -293,7 +293,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
               {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               {isExpanded ? "Hide replies" : `Show ${comment.replies.length} repl${comment.replies.length === 1 ? "y" : "ies"}`}
             </button>
-            {isExpanded && comment.replies.map((reply) => renderComment(reply, depth + 1))}
+            {isExpanded && comment.replies.map((reply) => renderComment(reply, depth + 1, depth === 0 ? comment.id : threadParentId))}
           </>
         )}
       </div>

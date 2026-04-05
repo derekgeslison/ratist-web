@@ -97,12 +97,9 @@ export default function AboutPage() {
           <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-4">
             Our algorithm makes recommendations based on your <span className="text-white font-semibold">actual ratings</span>, not just what you&apos;ve watched. The more detailed ratings you provide, the better it understands what you value — and the more accurate your personalized score estimates become.
           </p>
-          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-4">
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
             We build a unique <span className="text-white font-medium">taste profile</span> for every user that captures which components of cinema matter most to them. This profile drives everything: your personalized score estimates, recommendations, and taste matching with other users.
           </p>
-          <Link href="/tools/recommend" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
-            Try the recommendation tool &rarr;
-          </Link>
         </div>
       </section>
 
@@ -139,31 +136,6 @@ export default function AboutPage() {
               <div key={title} className={cls}>{content}</div>
             );
           })}
-        </div>
-      </section>
-
-      {/* Tools */}
-      <section className="mb-16">
-        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-          <Zap className="w-5 h-5 text-[var(--ratist-red)]" />
-          Cinephile tools
-        </h2>
-        <div className="grid sm:grid-cols-3 gap-4">
-          {[
-            { icon: Users, title: "Shared Cast & Crew", desc: "Find who worked across your favorite films.", href: "/tools/shared-cast" },
-            { icon: Film, title: "Actor Lookup", desc: "Search an actor and see only the movies and shows you've seen.", href: "/tools/actor-lookup" },
-            { icon: BarChart3, title: "Analytics", desc: "Visualize your watch history and rating patterns.", href: "/tools/analytics" },
-            { icon: Star, title: "Rankings", desc: "Create and share custom movie ranking lists.", href: "/tools/rankings" },
-            { icon: Film, title: "Collections", desc: "Explore curated movie collections and franchises.", href: "/tools/collections" },
-          ].map(({ icon: Icon, title, desc, href }) => (
-            <Link key={title} href={href} className="flex gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors">
-              <Icon className="w-4 h-4 text-[var(--ratist-red)] shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-semibold text-white mb-0.5">{title}</p>
-                <p className="text-[10px] text-[var(--foreground-muted)] leading-relaxed">{desc}</p>
-              </div>
-            </Link>
-          ))}
         </div>
       </section>
 
