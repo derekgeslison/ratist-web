@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, ArrowRight, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
   posterUrl,
@@ -117,11 +117,26 @@ function SeasonCard({
           </div>
           {expanded ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
         </button>
-        {isLoggedIn && episodes && episodes.length > 0 && (
+        {isLoggedIn && (
           <button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              onToggleSeason(season.season_number, season.episode_count, episodes);
+              // If episodes not loaded yet, fetch them first
+              if (!episodes) {
+                setLoading(true);
+                try {
+                  const res = await fetch(`/api/shows/${showTmdbId}/season/${season.season_number}`);
+                  if (res.ok) {
+                    const data = await res.json();
+                    const eps = data.episodes ?? [];
+                    setEpisodes(eps);
+                    if (eps.length > 0) onToggleSeason(season.season_number, season.episode_count, eps);
+                  }
+                } catch { /* ignore */ }
+                setLoading(false);
+                return;
+              }
+              if (episodes.length > 0) onToggleSeason(season.season_number, season.episode_count, episodes);
             }}
             className={`shrink-0 mr-3 flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
               allSeen
@@ -130,8 +145,8 @@ function SeasonCard({
             }`}
             title={allSeen ? "Mark season as unwatched" : "Mark season as watched"}
           >
-            <Check className="w-3 h-3" />
-            {seenCount}/{episodes.length}
+            <Eye className="w-3 h-3" />
+            {episodes ? `${seenCount}/${episodes.length}` : `0/${season.episode_count}`}
           </button>
         )}
       </div>
@@ -187,11 +202,11 @@ function SeasonCard({
                         className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
                           isSeen
                             ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
-                            : "border-[var(--border)] text-transparent hover:border-[var(--foreground-muted)] hover:text-[var(--foreground-muted)]"
+                            : "border-[var(--border)] text-[var(--foreground-muted)]/30 hover:border-[var(--foreground-muted)] hover:text-[var(--foreground-muted)]"
                         }`}
                         title={isSeen ? "Mark as unwatched" : "Mark as watched"}
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        {isSeen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     )}
                   </div>
