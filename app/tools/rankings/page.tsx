@@ -112,6 +112,8 @@ export default function RankingsPage() {
   const [movies, setMovies] = useState<RankedMovie[]>([]);
   const [filter, setFilter] = useState<"all" | string>(String(CURRENT_YEAR));
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(50);
 
   // Custom lists
@@ -138,11 +140,15 @@ export default function RankingsPage() {
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     setLoading(true);
+    setError(null);
     user.getIdToken().then((token) => {
       fetch(`/api/tools/rankings?filter=${filter}`, { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error(`Failed to load rankings (${r.status})`);
+          return r.json();
+        })
         .then((data) => { setMovies(data.movies ?? []); setVisibleCount(50); setLoading(false); })
-        .catch(() => setLoading(false));
+        .catch((err) => { setError(err.message ?? "Failed to load rankings"); setLoading(false); });
     });
   }, [user, filter]);
 
@@ -170,13 +176,19 @@ export default function RankingsPage() {
 
   async function saveRankings(newMovies: RankedMovie[]) {
     if (!user) return;
-    const token = await user.getIdToken();
-    const listKey = filter === "all" ? "all-time" : filter;
-    fetch("/api/tools/rankings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ listKey, movieIds: newMovies.map((m) => m.id) }),
-    }).catch(() => {});
+    try {
+      const token = await user.getIdToken();
+      const listKey = filter === "all" ? "all-time" : filter;
+      const res = await fetch("/api/tools/rankings", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ listKey, movieIds: newMovies.map((m) => m.id) }),
+      });
+      if (!res.ok) throw new Error("Failed to save rankings");
+    } catch {
+      setSaveError("Failed to save rankings. Please try again.");
+      setTimeout(() => setSaveError(null), 3000);
+    }
   }
 
   async function createCustomList() {
@@ -213,20 +225,28 @@ export default function RankingsPage() {
   async function addMovieToRanking(m: { id: number; title: string; posterPath: string | null; releaseDate: string }) {
     if (!user || !isCustomList || addingMovie) return;
     setAddingMovie(m.id);
-    const token = await user.getIdToken();
-    await fetch(`/api/tools/rankings/lists/${filter}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate }),
-    });
-    setAddingMovie(null);
-    setAddMovieQuery("");
-    setAddMovieResults([]);
-    // Refresh
-    const token2 = await user.getIdToken();
-    const res2 = await fetch(`/api/tools/rankings?filter=${filter}`, { headers: { Authorization: `Bearer ${token2}` } });
-    const data2 = await res2.json();
-    setMovies(data2.movies ?? []);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/tools/rankings/lists/${filter}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate }),
+      });
+      if (!res.ok) throw new Error("Failed to add movie");
+      setAddMovieQuery("");
+      setAddMovieResults([]);
+      // Refresh
+      const token2 = await user.getIdToken();
+      const res2 = await fetch(`/api/tools/rankings?filter=${filter}`, { headers: { Authorization: `Bearer ${token2}` } });
+      if (!res2.ok) throw new Error("Failed to refresh rankings");
+      const data2 = await res2.json();
+      setMovies(data2.movies ?? []);
+    } catch {
+      setSaveError("Failed to add movie. Please try again.");
+      setTimeout(() => setSaveError(null), 3000);
+    } finally {
+      setAddingMovie(null);
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -291,6 +311,13 @@ export default function RankingsPage() {
         )}
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Drag to reorder, or type a number to move a movie to a specific rank.</p>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-400">{error}</div>
+      )}
+      {saveError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-400">{saveError}</div>
+      )}
 
       {!user ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">

@@ -24,6 +24,7 @@ interface MovieResult {
   title: string;
   poster_path: string | null;
   release_date: string;
+  mediaType?: string;
   count: number;
   appearances: Record<string, string>; // personId -> role
 }
@@ -40,6 +41,7 @@ export default function SharedCastPage() {
   const [movieResults, setMovieResults] = useState<MovieResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasResults, setHasResults] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -79,6 +81,7 @@ export default function SharedCastPage() {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/tools/shared-cast", {
         method: "POST",
@@ -86,6 +89,14 @@ export default function SharedCastPage() {
         body: JSON.stringify({ mode: currentMode, ids: sel.map((s) => s.id), minOverlap: overlap }),
         signal: abortRef.current.signal,
       });
+      if (!res.ok) {
+        setError("Failed to fetch shared cast results. Please try again.");
+        setPersonResults([]);
+        setMovieResults([]);
+        setHasResults(false);
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       if (currentMode === "movies-to-people") {
         setPersonResults(data.results ?? []);
@@ -97,6 +108,7 @@ export default function SharedCastPage() {
       setHasResults(true);
     } catch (e: unknown) {
       if ((e as Error).name !== "AbortError") {
+        setError("Something went wrong. Please try again.");
         setPersonResults([]);
         setMovieResults([]);
         setHasResults(true);
@@ -114,9 +126,14 @@ export default function SharedCastPage() {
     setQuery(q);
     if (q.length < 2) { setSearchResults([]); return; }
     const type = mode === "movies-to-people" ? "movie" : "person";
-    const res = await fetch(`https://api.themoviedb.org/3/search/${type}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`);
-    const data = await res.json();
-    setSearchResults((data.results ?? []).slice(0, 8));
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/search/${type}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`);
+      if (!res.ok) { setSearchResults([]); return; }
+      const data = await res.json();
+      setSearchResults((data.results ?? []).slice(0, 8));
+    } catch {
+      setSearchResults([]);
+    }
   }
 
   function addItem(item: SearchResult) {
@@ -223,6 +240,10 @@ export default function SharedCastPage() {
         <p className="text-[var(--foreground-muted)] text-sm py-6">
           Add at least 2 {mode === "movies-to-people" ? "movies" : "people"} to see shared connections.
         </p>
+      )}
+
+      {error && (
+        <p className="text-red-400 text-sm py-4">{error}</p>
       )}
 
       {loading && selected.length >= 2 && (
@@ -342,7 +363,7 @@ function MoviesTable({ results, selected }: { results: MovieResult[]; selected: 
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="border-b border-[var(--border)]">
-            <th className="sticky top-0 z-10 bg-[var(--background)] text-left py-3 pr-4 pl-3 text-[var(--foreground-muted)] font-medium min-w-[200px]">Movie</th>
+            <th className="sticky top-0 z-10 bg-[var(--background)] text-left py-3 pr-4 pl-3 text-[var(--foreground-muted)] font-medium min-w-[200px]">Title</th>
             {selected.map((person) => (
               <th key={person.id} className="sticky top-0 z-10 bg-[var(--background)] py-3 px-3 text-center text-[var(--foreground-muted)] font-medium max-w-[140px]">
                 <Link href={`/celebrities/${person.id}`} className="hover:text-[var(--ratist-red)] transition-colors block truncate text-xs text-[var(--foreground-muted)]">
@@ -356,7 +377,7 @@ function MoviesTable({ results, selected }: { results: MovieResult[]; selected: 
           {results.map((movie, i) => (
             <tr key={movie.id} className={`border-b border-[var(--border)]/40 ${i % 2 === 0 ? "bg-[var(--surface)]/50" : ""}`}>
               <td className="py-3 pr-4 pl-3">
-                <Link href={`/movies/${movie.id}`} className="flex items-center gap-2 hover:text-[var(--ratist-red)] transition-colors group">
+                <Link href={movie.mediaType === "tv" ? `/shows/${movie.id}` : `/movies/${movie.id}`} className="flex items-center gap-2 hover:text-[var(--ratist-red)] transition-colors group">
                   <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
                     {movie.poster_path ? (
                       <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="32px" className="object-cover" />
@@ -364,7 +385,10 @@ function MoviesTable({ results, selected }: { results: MovieResult[]; selected: 
                   </div>
                   <div>
                     <span className="text-white group-hover:text-[var(--ratist-red)] font-medium text-sm block line-clamp-1">{movie.title}</span>
-                    {movie.release_date && <span className="text-xs text-[var(--foreground-muted)]">{movie.release_date.slice(0, 4)}</span>}
+                    <span className="text-xs text-[var(--foreground-muted)]">
+                      {movie.mediaType === "tv" && <span className="text-blue-400 mr-1">TV</span>}
+                      {movie.release_date && movie.release_date.slice(0, 4)}
+                    </span>
                   </div>
                 </Link>
               </td>

@@ -152,6 +152,8 @@ export async function GET(req: NextRequest) {
     }
 
     // ── 3. Your Blind Spots ──
+    // TODO: N+1 query — fetches genres per rated movie in a loop. Optimize by
+    // batch-loading all movieGenres for userRatings movieIds in a single query.
     if (!which || which === "blind-spots") {
       const genreCounts = new Map<string, number>();
       for (const r of userRatings) {

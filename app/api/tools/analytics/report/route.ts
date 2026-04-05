@@ -18,11 +18,18 @@ export async function GET(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const groupBy = (req.nextUrl.searchParams.get("groupBy") ?? "genre") as GroupBy;
+    const ALLOWED_GROUP_BY: GroupBy[] = ["genre", "decade", "year", "director", "actor"];
+    const groupByParam = req.nextUrl.searchParams.get("groupBy") ?? "genre";
+    if (!ALLOWED_GROUP_BY.includes(groupByParam as GroupBy)) {
+      return NextResponse.json({ error: "Invalid groupBy value" }, { status: 400 });
+    }
+    const groupBy = groupByParam as GroupBy;
     const genreFilter = req.nextUrl.searchParams.get("genre") ?? "";
     const decadeFilter = req.nextUrl.searchParams.get("decade") ?? "";
-    const minRating = parseFloat(req.nextUrl.searchParams.get("minRating") ?? "0");
-    const maxRating = parseFloat(req.nextUrl.searchParams.get("maxRating") ?? "10");
+    const parsedMin = parseFloat(req.nextUrl.searchParams.get("minRating") ?? "0");
+    const parsedMax = parseFloat(req.nextUrl.searchParams.get("maxRating") ?? "10");
+    const minRating = isNaN(parsedMin) ? 0 : parsedMin;
+    const maxRating = isNaN(parsedMax) ? 10 : parsedMax;
 
     // Fetch ALL seen movies (not just rated) as the base dataset
     const allSeen = await prisma.userFavoriteMovie.findMany({

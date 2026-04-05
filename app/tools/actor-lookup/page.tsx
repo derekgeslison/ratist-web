@@ -35,12 +35,20 @@ function ActorLookupContent() {
   const [castList, setCastList] = useState<CastMember[] | null>(null);
   const [loadingCast, setLoadingCast] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   async function searchPerson(q: string) {
     setPersonQuery(q);
+    setError(null);
     if (q.length < 2) { setPersonResults([]); return; }
-    const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    setPersonResults((data.results ?? []).slice(0, 6));
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setPersonResults((data.results ?? []).slice(0, 6));
+    } catch {
+      setPersonResults([]);
+      setError("Failed to search people. Please try again.");
+    }
   }
 
   async function selectPerson(person: PersonResult) {
@@ -65,16 +73,22 @@ function ActorLookupContent() {
     setContentQuery(q);
     setSelectedContent(null);
     setCastList(null);
+    setError(null);
     if (q.length < 2) { setContentResults([]); return; }
-    // Search both movies and TV shows
-    const [movieRes, tvRes] = await Promise.all([
-      fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`),
-      fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`),
-    ]);
-    const [movieData, tvData] = await Promise.all([movieRes.json(), tvRes.json()]);
-    const movies = (movieData.results ?? []).slice(0, 4).map((m: ContentSearchResult) => ({ ...m, mediaType: "movie" as const }));
-    const shows = (tvData.results ?? []).slice(0, 3).map((s: ContentSearchResult) => ({ ...s, mediaType: "tv" as const }));
-    setContentResults([...movies, ...shows]);
+    try {
+      // Search both movies and TV shows
+      const [movieRes, tvRes] = await Promise.all([
+        fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`),
+        fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`),
+      ]);
+      const [movieData, tvData] = await Promise.all([movieRes.json(), tvRes.json()]);
+      const movies = (movieData.results ?? []).slice(0, 4).map((m: ContentSearchResult) => ({ ...m, mediaType: "movie" as const }));
+      const shows = (tvData.results ?? []).slice(0, 3).map((s: ContentSearchResult) => ({ ...s, mediaType: "tv" as const }));
+      setContentResults([...movies, ...shows]);
+    } catch {
+      setContentResults([]);
+      setError("Failed to search content. Please try again.");
+    }
   }
 
   async function selectContent(item: ContentSearchResult) {
@@ -82,34 +96,40 @@ function ActorLookupContent() {
     setContentResults([]);
     setContentQuery(item.title ?? item.name ?? "");
     setLoadingCast(true);
-    const endpoint = item.mediaType === "tv"
-      ? `https://api.themoviedb.org/3/tv/${item.id}/aggregate_credits?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
-      : `https://api.themoviedb.org/3/movie/${item.id}/credits?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`;
-    const res = await fetch(endpoint);
-    const data = await res.json();
+    setError(null);
+    try {
+      const endpoint = item.mediaType === "tv"
+        ? `https://api.themoviedb.org/3/tv/${item.id}/aggregate_credits?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
+        : `https://api.themoviedb.org/3/movie/${item.id}/credits?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`;
+      const res = await fetch(endpoint);
+      const data = await res.json();
 
-    let cast: CastMember[];
-    if (item.mediaType === "tv") {
-      // TV aggregate credits have roles[] array
-      cast = [
-        ...(data.cast ?? []).slice(0, 20).map((p: { id: number; name: string; profile_path: string | null; roles?: { character: string }[] }) => ({
-          id: p.id, name: p.name, profile_path: p.profile_path,
-          character: p.roles?.[0]?.character,
-          known_for_department: "Acting",
-        })),
-        ...(data.crew ?? []).filter((p: { department?: string }) => ["Directing", "Writing", "Production"].includes(p.department ?? "")).slice(0, 10).map((p: { id: number; name: string; profile_path: string | null; jobs?: { job: string }[] }) => ({
-          id: p.id, name: p.name, profile_path: p.profile_path,
-          job: p.jobs?.[0]?.job,
-          known_for_department: p.jobs?.[0]?.job,
-        })),
-      ];
-    } else {
-      cast = [
-        ...(data.cast ?? []).slice(0, 20).map((p: CastMember) => ({ ...p, known_for_department: "Acting" })),
-        ...(data.crew ?? []).filter((p: CastMember & { department?: string }) => ["Directing", "Writing"].includes(p.department ?? "")).slice(0, 10).map((p: CastMember) => ({ ...p, known_for_department: p.job })),
-      ];
+      let cast: CastMember[];
+      if (item.mediaType === "tv") {
+        // TV aggregate credits have roles[] array
+        cast = [
+          ...(data.cast ?? []).slice(0, 20).map((p: { id: number; name: string; profile_path: string | null; roles?: { character: string }[] }) => ({
+            id: p.id, name: p.name, profile_path: p.profile_path,
+            character: p.roles?.[0]?.character,
+            known_for_department: "Acting",
+          })),
+          ...(data.crew ?? []).filter((p: { department?: string }) => ["Directing", "Writing", "Production"].includes(p.department ?? "")).slice(0, 10).map((p: { id: number; name: string; profile_path: string | null; jobs?: { job: string }[] }) => ({
+            id: p.id, name: p.name, profile_path: p.profile_path,
+            job: p.jobs?.[0]?.job,
+            known_for_department: p.jobs?.[0]?.job,
+          })),
+        ];
+      } else {
+        cast = [
+          ...(data.cast ?? []).slice(0, 20).map((p: CastMember) => ({ ...p, known_for_department: "Acting" })),
+          ...(data.crew ?? []).filter((p: CastMember & { department?: string }) => ["Directing", "Writing"].includes(p.department ?? "")).slice(0, 10).map((p: CastMember) => ({ ...p, known_for_department: p.job })),
+        ];
+      }
+      setCastList(cast);
+    } catch {
+      setCastList([]);
+      setError("Failed to load cast information. Please try again.");
     }
-    setCastList(cast);
     setLoadingCast(false);
   }
 
@@ -166,6 +186,10 @@ function ActorLookupContent() {
         </button>
       </div>
 
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-6 text-sm text-red-400">{error}</div>
+      )}
+
       {mode === "person" ? (
         <>
           <div className="relative mb-6">
@@ -216,8 +240,8 @@ function ActorLookupContent() {
                   {(() => {
                     const movieCount = seenItems.filter((m) => m.mediaType === "movie").length;
                     const showCount = seenItems.filter((m) => m.mediaType === "tv").length;
-                    const rated = seenItems.filter((m) => m.ratistRating != null);
-                    const avg = rated.length > 0 ? rated.reduce((s, m) => s + (m.ratistRating ?? 0), 0) / rated.length : null;
+                    const rated = seenItems.filter((m): m is SeenItem & { ratistRating: number } => m.ratistRating != null);
+                    const avg = rated.length > 0 ? rated.reduce((s, m) => s + m.ratistRating, 0) / rated.length : null;
                     const countText = [
                       movieCount > 0 ? `${movieCount} movie${movieCount !== 1 ? "s" : ""}` : null,
                       showCount > 0 ? `${showCount} show${showCount !== 1 ? "s" : ""}` : null,

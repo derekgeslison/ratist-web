@@ -77,6 +77,7 @@ export default function AnalyticsPage() {
   const { user } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
@@ -97,34 +98,46 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     setLoading(true);
+    setError(null);
     (async () => {
-      const token = await getToken();
-      if (!token) return;
-      const params = new URLSearchParams();
-      if (yearFrom) params.set("yearFrom", yearFrom);
-      if (yearTo) params.set("yearTo", yearTo);
-      const qs = params.toString();
-      const res = await fetch(`/api/tools/analytics${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setData(await res.json());
-      setLoading(false);
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const params = new URLSearchParams();
+        if (yearFrom) params.set("yearFrom", yearFrom);
+        if (yearTo) params.set("yearTo", yearTo);
+        const qs = params.toString();
+        const res = await fetch(`/api/tools/analytics${qs ? `?${qs}` : ""}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) setData(await res.json());
+        else setError("Failed to load analytics. Please try again.");
+      } catch {
+        setError("Failed to load analytics. Please try again.");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [user, getToken, yearFrom, yearTo]);
 
   async function runReport() {
     setReportLoading(true);
-    const token = await getToken();
-    if (!token) return;
-    const params = new URLSearchParams({ groupBy: reportGroupBy });
-    if (reportGenre) params.set("genre", reportGenre);
-    if (reportDecade) params.set("decade", reportDecade);
-    if (reportMinRating) params.set("minRating", reportMinRating);
-    if (reportMaxRating) params.set("maxRating", reportMaxRating);
-    const res = await fetch(`/api/tools/analytics/report?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) {
-      const d = await res.json();
-      setReportRows(d.rows ?? []);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const params = new URLSearchParams({ groupBy: reportGroupBy });
+      if (reportGenre) params.set("genre", reportGenre);
+      if (reportDecade) params.set("decade", reportDecade);
+      if (reportMinRating) params.set("minRating", reportMinRating);
+      if (reportMaxRating) params.set("maxRating", reportMaxRating);
+      const res = await fetch(`/api/tools/analytics/report?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const d = await res.json();
+        setReportRows(d.rows ?? []);
+      }
+    } catch {
+      // Silently fail — rows stay as-is
+    } finally {
+      setReportLoading(false);
     }
-    setReportLoading(false);
   }
 
   const sortedReport = [...reportRows].sort((a, b) => {
@@ -158,7 +171,11 @@ export default function AnalyticsPage() {
         <input
           type="number"
           value={yearFrom}
-          onChange={(e) => setYearFrom(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v && (parseInt(v) < 0 || (yearTo && parseInt(v) > parseInt(yearTo)))) return;
+            setYearFrom(v);
+          }}
           placeholder="From"
           min={1900} max={2030}
           className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
@@ -167,7 +184,11 @@ export default function AnalyticsPage() {
         <input
           type="number"
           value={yearTo}
-          onChange={(e) => setYearTo(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v && (parseInt(v) < 0 || (yearFrom && parseInt(v) < parseInt(yearFrom)))) return;
+            setYearTo(v);
+          }}
           placeholder="To"
           min={1900} max={2030}
           className="w-20 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
@@ -186,6 +207,11 @@ export default function AnalyticsPage() {
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Crunching your data...</p>
+      ) : error ? (
+        <div className="text-center py-16 text-red-400">
+          <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+          <p>{error}</p>
+        </div>
       ) : !data ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-30" />

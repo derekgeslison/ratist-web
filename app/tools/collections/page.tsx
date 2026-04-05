@@ -32,21 +32,26 @@ export default function CollectionsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addingToWatchlist, setAddingToWatchlist] = useState<string | null>(null);
   const [creatingWatchlist, setCreatingWatchlist] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     (async () => {
-      const token = await getToken();
-      if (!token) return;
-      const res = await fetch("/api/tools/collections", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch("/api/tools/collections", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) { setError("Failed to load collections."); setLoading(false); return; }
         const data = await res.json();
         setCollections(data.collections ?? []);
-        // Default collapsed
+      } catch {
+        setError("Failed to load collections.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [user, getToken]);
 
@@ -59,45 +64,67 @@ export default function CollectionsPage() {
   }
 
   async function addToDefaultWatchlist(movie: CollectionMovie) {
-    const token = await getToken();
-    if (!token) return;
-    setAddingToWatchlist(movie.id);
-    await fetch(`/api/movies/${movie.tmdbId}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    });
-    setAddingToWatchlist(null);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      setAddingToWatchlist(movie.id);
+      const res = await fetch(`/api/movies/${movie.tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) setError("Failed to add to watchlist.");
+    } catch {
+      setError("Failed to add to watchlist.");
+    } finally {
+      setAddingToWatchlist(null);
+    }
+  }
+
+  function showSuccess(msg: string) {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 3000);
   }
 
   async function createWatchlistFromCollection(collection: Collection) {
     const name = prompt("Name for the watchlist:", collection.title);
     if (!name?.trim()) return;
     setCreatingWatchlist(collection.key);
-    const token = await getToken();
-    if (!token) return;
+    try {
+      const token = await getToken();
+      if (!token) return;
 
-    // Create the watchlist
-    const res = await fetch("/api/watchlist", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    if (!res.ok) { setCreatingWatchlist(null); return; }
-    const data = await res.json();
-    const wlId = data.watchlist?.id ?? data.id;
-    if (!wlId) { setCreatingWatchlist(null); return; }
-
-    // Add all movies to it
-    for (const movie of collection.movies) {
-      await fetch(`/api/watchlist/${wlId}/movies`, {
+      // Create the watchlist
+      const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId: movie.tmdbId, title: movie.title, posterPath: movie.posterPath, releaseDate: movie.releaseDate }),
+        body: JSON.stringify({ name: name.trim() }),
       });
-    }
+      if (!res.ok) { setError("Failed to create watchlist."); return; }
+      const data = await res.json();
+      const wlId = data.watchlist?.id ?? data.id;
+      if (!wlId) { setError("Failed to create watchlist."); return; }
 
-    setCreatingWatchlist(null);
-    alert(`Watchlist "${name}" created with ${collection.movies.length} movies!`);
+      // Add all movies in parallel
+      const results = await Promise.allSettled(
+        collection.movies.map((movie) =>
+          fetch(`/api/watchlist/${wlId}/movies`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ tmdbId: movie.tmdbId, title: movie.title, posterPath: movie.posterPath, releaseDate: movie.releaseDate }),
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)).length;
+      if (failed > 0) {
+        showSuccess(`Watchlist "${name}" created — ${collection.movies.length - failed}/${collection.movies.length} movies added.`);
+      } else {
+        showSuccess(`Watchlist "${name}" created with ${collection.movies.length} movies!`);
+      }
+    } catch {
+      setError("Failed to create watchlist.");
+    } finally {
+      setCreatingWatchlist(null);
+    }
   }
 
   if (!user) {
@@ -115,6 +142,18 @@ export default function CollectionsPage() {
         <h1 className="text-2xl font-bold text-white">Collections</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-8">Personalized movie recommendations based on your taste, ratings, and watch history.</p>
+
+      {error && (
+        <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm rounded-lg px-4 py-2.5 mb-4 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-white ml-3">✕</button>
+        </div>
+      )}
+      {successMsg && (
+        <div className="bg-green-900/40 border border-green-700 text-green-200 text-sm rounded-lg px-4 py-2.5 mb-4">
+          {successMsg}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Generating your collections...</p>

@@ -10,7 +10,7 @@ const TOOLS = [
     href: "/tools/shared-cast",
     icon: Users,
     title: "Shared Cast & Crew",
-    desc: "Select 2–4 movies to find actors and directors they share, or select 2–6 people to find movies they share. Filter by minimum overlap.",
+    desc: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share. Filter by minimum overlap.",
   },
   {
     href: "/tools/actor-lookup",
@@ -34,31 +34,31 @@ const TOOLS = [
     href: "/tools/matchup",
     icon: Swords,
     title: "The Matchup",
-    desc: "Pick two movies and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
+    desc: "Pick two movies or shows and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
   },
   {
     href: "/tools/recommend",
     icon: Sparkles,
     title: "What Should I Watch?",
-    desc: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized movie recommendations.",
+    desc: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized movie and TV show recommendations.",
   },
   {
     href: "/screening-room",
     icon: MonitorPlay,
     title: "Screening Room",
-    desc: "Watch movies with friends remotely. Predict plots, react in real-time, run polls, and compare ratings when the credits roll.",
+    desc: "Watch movies or shows with friends remotely. Predict plots, react in real-time, run polls, and compare ratings when the credits roll.",
   },
   {
     href: "/tools/collections",
     icon: Sparkles,
     title: "Collections",
-    desc: "Personalized movie recommendations based on your taste. Discover hidden gems, fill blind spots, and find films from directors you love.",
+    desc: "Personalized recommendations based on your taste. Discover hidden gems, fill blind spots, and find titles from directors you love.",
   },
   {
     href: "/tools/analytics",
     icon: BarChart3,
     title: "My Analytics",
-    desc: "Deep insights into your movie habits. Genre breakdowns, director/actor affinities, rating trends, contrarian score, and custom reports.",
+    desc: "Deep insights into your viewing habits. Genre breakdowns, director/actor affinities, rating trends, contrarian score, and custom reports.",
   },
 ];
 
@@ -69,7 +69,7 @@ export default function ToolsPage() {
         <Wrench className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Cinephile Tools</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Powerful tools for the serious movie fan.</p>
+      <p className="text-[var(--foreground-muted)] mb-8">Powerful tools for the serious movie and TV fan.</p>
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOOLS ?? ""} format="auto" className="mb-6" />
 

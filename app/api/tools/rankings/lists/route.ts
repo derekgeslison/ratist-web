@@ -15,12 +15,17 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Get movie counts for each list
-    const result = await Promise.all(lists.map(async (list) => {
-      const count = await prisma.userMovieRanking.count({
-        where: { userId: user.id, listKey: list.listKey },
-      });
-      return { ...list, movieCount: count };
+    // Get movie counts in a single query grouped by listKey
+    const counts = await prisma.userMovieRanking.groupBy({
+      by: ["listKey"],
+      where: { userId: user.id, listKey: { in: lists.map((l) => l.listKey) } },
+      _count: { _all: true },
+    });
+    const countMap = new Map(counts.map((c) => [c.listKey, c._count._all]));
+
+    const result = lists.map((list) => ({
+      ...list,
+      movieCount: countMap.get(list.listKey) ?? 0,
     }));
 
     return NextResponse.json(result);

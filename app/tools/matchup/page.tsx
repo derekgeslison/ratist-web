@@ -62,9 +62,14 @@ function MoviePicker({ label, onSelect, onClear, selected }: {
   useEffect(() => {
     if (selected || query.length < 2) { setResults([]); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setResults(data.results ?? []);
+      try {
+        const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`);
+        if (!res.ok) { setResults([]); return; }
+        const data = await res.json();
+        setResults(data.results ?? []);
+      } catch {
+        setResults([]);
+      }
     }, 300);
     return () => clearTimeout(t);
   }, [query, selected]);
@@ -145,19 +150,30 @@ export default function MatchupPage() {
   const [data1, setData1] = useState<RatingBreakdown | null>(null);
   const [data2, setData2] = useState<RatingBreakdown | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!movie1 || !movie2) return;
     setLoading(true);
+    setError(null);
     Promise.all([
-      fetch(`/api/movies/${movie1.id}/matchup`).then((r) => r.json()),
-      fetch(`/api/movies/${movie2.id}/matchup`).then((r) => r.json()),
+      fetch(`/api/movies/${movie1.id}/matchup`).then((r) => {
+        if (!r.ok) throw new Error(`Failed to load data for ${movie1.title}`);
+        return r.json();
+      }),
+      fetch(`/api/movies/${movie2.id}/matchup`).then((r) => {
+        if (!r.ok) throw new Error(`Failed to load data for ${movie2.title}`);
+        return r.json();
+      }),
     ]).then(([d1, d2]) => {
       setData1(d1);
       setData2(d2);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      setError("Something went wrong loading matchup data. Please try again.");
+      setLoading(false);
+    });
   }, [movie1, movie2]);
 
   const hasData = data1 && data2;
@@ -172,16 +188,22 @@ export default function MatchupPage() {
 
       {/* Movie pickers */}
       <div className="flex items-center justify-center gap-6 sm:gap-12 mb-10">
-        <MoviePicker label="Pick Movie 1" selected={movie1} onSelect={(m) => { setMovie1(m); setData1(null); }} onClear={() => { setMovie1(null); setData1(null); }} />
+        <MoviePicker label="Pick Movie 1" selected={movie1} onSelect={(m) => { setMovie1(m); setData1(null); setError(null); }} onClear={() => { setMovie1(null); setData1(null); setError(null); }} />
         <div className="flex flex-col items-center gap-1 shrink-0">
           <Swords className="w-8 h-8 text-[var(--ratist-red)]" />
           <span className="text-xs text-[var(--foreground-muted)] font-bold uppercase tracking-widest">VS</span>
         </div>
-        <MoviePicker label="Pick Movie 2" selected={movie2} onSelect={(m) => { setMovie2(m); setData2(null); }} onClear={() => { setMovie2(null); setData2(null); }} />
+        <MoviePicker label="Pick Movie 2" selected={movie2} onSelect={(m) => { setMovie2(m); setData2(null); setError(null); }} onClear={() => { setMovie2(null); setData2(null); setError(null); }} />
       </div>
 
       {movie1 && movie2 && loading && (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading ratings…</p>
+      )}
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded-xl px-4 py-3 mb-6 text-center">
+          <p className="text-sm text-red-400">{error}</p>
+        </div>
       )}
 
       {hasData && !loading && (

@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
     for (const s of seen) {
       const year = s.movie.releaseDate?.slice(0, 4);
       if (!year) continue;
-      const decade = year.slice(0, 3) + "0s";
+      const decade = Math.floor(parseInt(year) / 10) * 10 + "s";
       const score = ratingByMovieId.get(s.movieId) ?? null;
       const entry = decadeMap.get(decade) ?? { count: 0, totalScore: 0, ratedCount: 0 };
       entry.count++;

@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
-async function tmdb<T>(path: string): Promise<T> {
+async function tmdb<T>(path: string): Promise<T | null> {
   const res = await fetch(`${BASE}${path}?api_key=${API_KEY}`);
+  if (!res.ok) return null;
   return res.json();
 }
 
@@ -12,9 +13,9 @@ interface CreditsResponse {
   cast: { id: number; name: string; profile_path: string | null; character?: string }[];
   crew: { id: number; name: string; profile_path: string | null; job: string }[];
 }
-interface MovieCreditsResponse {
-  cast: { id: number; title: string; poster_path: string | null; release_date: string; character?: string }[];
-  crew: { id: number; title: string; poster_path: string | null; release_date: string; job: string }[];
+interface CombinedCreditsResponse {
+  cast: { id: number; title?: string; name?: string; media_type: string; poster_path: string | null; release_date?: string; first_air_date?: string; character?: string }[];
+  crew: { id: number; title?: string; name?: string; media_type: string; poster_path: string | null; release_date?: string; first_air_date?: string; job: string }[];
 }
 
 export async function POST(req: NextRequest) {
@@ -22,15 +23,17 @@ export async function POST(req: NextRequest) {
     const { mode, ids, minOverlap = 2 } = await req.json();
 
     if (mode === "movies-to-people") {
-      const creditsArr = await Promise.all(
+      const settled = await Promise.allSettled(
         ids.map((id: number) => tmdb<CreditsResponse>(`/movie/${id}/credits`))
       );
+      const creditsArr = settled.map((r) => r.status === "fulfilled" ? r.value : null);
 
       // personId -> { name, profile_path, appearances: {movieId: role} }
       const personMap = new Map<number, { name: string; profile_path: string | null; appearances: Map<number, string> }>();
 
       ids.forEach((movieId: number, idx: number) => {
         const credits = creditsArr[idx];
+        if (!credits) return;
         const seenForThisMovie = new Set<number>();
 
         for (const c of credits.cast) {
@@ -68,22 +71,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ results });
 
     } else {
-      // People → find movies
-      const creditsArr = await Promise.all(
-        ids.map((id: number) => tmdb<MovieCreditsResponse>(`/person/${id}/movie_credits`))
+      // People → find movies & TV shows
+      const settled = await Promise.allSettled(
+        ids.map((id: number) => tmdb<CombinedCreditsResponse>(`/person/${id}/combined_credits`))
       );
+      const creditsArr = settled.map((r) => r.status === "fulfilled" ? r.value : null);
 
-      // movieId -> { title, poster_path, release_date, appearances: {personId: role} }
-      const movieMap = new Map<number, { title: string; poster_path: string | null; release_date: string; appearances: Map<number, string> }>();
+      // itemId -> { title, poster_path, release_date, mediaType, appearances: {personId: role} }
+      const movieMap = new Map<number, { title: string; poster_path: string | null; release_date: string; mediaType: string; appearances: Map<number, string> }>();
 
       ids.forEach((personId: number, idx: number) => {
         const credits = creditsArr[idx];
+        if (!credits) return;
         const seenForThisPerson = new Set<number>();
 
         for (const m of credits.cast) {
           if (!seenForThisPerson.has(m.id)) {
             seenForThisPerson.add(m.id);
-            const existing = movieMap.get(m.id) ?? { title: m.title, poster_path: m.poster_path, release_date: m.release_date, appearances: new Map<number, string>() };
+            const title = m.title ?? m.name ?? "";
+            const releaseDate = m.release_date ?? m.first_air_date ?? "";
+            const existing = movieMap.get(m.id) ?? { title, poster_path: m.poster_path, release_date: releaseDate, mediaType: m.media_type, appearances: new Map<number, string>() };
             existing.appearances.set(personId, m.character || "Actor");
             movieMap.set(m.id, existing);
           }
@@ -91,7 +98,9 @@ export async function POST(req: NextRequest) {
         for (const m of credits.crew) {
           if (!seenForThisPerson.has(m.id)) {
             seenForThisPerson.add(m.id);
-            const existing = movieMap.get(m.id) ?? { title: m.title, poster_path: m.poster_path, release_date: m.release_date, appearances: new Map<number, string>() };
+            const title = m.title ?? m.name ?? "";
+            const releaseDate = m.release_date ?? m.first_air_date ?? "";
+            const existing = movieMap.get(m.id) ?? { title, poster_path: m.poster_path, release_date: releaseDate, mediaType: m.media_type, appearances: new Map<number, string>() };
             existing.appearances.set(personId, `(${m.job})`);
             movieMap.set(m.id, existing);
           }
@@ -106,6 +115,7 @@ export async function POST(req: NextRequest) {
           title: v.title,
           poster_path: v.poster_path,
           release_date: v.release_date,
+          mediaType: v.mediaType,
           count: v.appearances.size,
           appearances: Object.fromEntries(v.appearances),
         }));
