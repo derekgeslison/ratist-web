@@ -64,12 +64,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ tracks: [] });
     }
 
-    // Find the best release — prefer consumer soundtracks over expanded scores
-    const titleLower = title.toLowerCase();
+    // Normalize title for flexible matching (Vol. vs Volume, remove punctuation)
+    function normalize(s: string): string {
+      return s.toLowerCase()
+        .replace(/volume/g, "vol")
+        .replace(/vol\.\s*/g, "vol ")
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    const titleNorm = normalize(title);
+    // Extract the core title without sequel numbers for broader matching
+    const coreTitleNorm = normalize(title.replace(/\s*(vol\.?\s*\d+|volume\s*\d+|\d+)$/i, "").trim());
+
     const candidates = searchData.releases
       .filter((r) => {
-        const rTitle = r.title.toLowerCase();
-        return rTitle.includes(titleLower) || titleLower.includes(rTitle.replace(/\s*\(.*\)/, "").trim());
+        const rNorm = normalize(r.title);
+        // Flexible matching: normalized titles overlap
+        return rNorm.includes(titleNorm) || titleNorm.includes(rNorm.replace(/\s*(original\s+)?score.*$/, "").trim())
+          || rNorm.includes(coreTitleNorm);
       })
       .map((r) => {
         const rTitle = r.title.toLowerCase();
