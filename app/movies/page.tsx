@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Movies & TV" };
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, type TMDBShow } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import MovieListItem from "@/components/MovieListItem";
@@ -44,6 +44,8 @@ export default async function MoviesPage({ searchParams }: Props) {
   const certMax = mpaaRatings.length > 0 ? [...MPAA_ORDER].reverse().find((r) => mpaaRatings.includes(r)) : undefined;
 
   const theaterStatus = params.theaterStatus; // "now_playing" | "upcoming" | undefined
+  const providers = params.providers?.split(",").filter(Boolean);
+  const showProviders = params.showProviders === "1";
 
   const hasFilters = !!(
     genres?.length ||
@@ -51,6 +53,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     params.yearFrom || params.yearTo ||
     mpaaRatings.length ||
     params.ratingVal ||
+    providers?.length ||
     // legacy
     params.genre || params.decade || params.rating
   );
@@ -105,6 +108,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     certMax,
     ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
     ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
+    providers,
     genre: params.genre,
     minRating: params.rating,
   };
@@ -158,6 +162,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           yearTo: discoverOptions.yearTo,
           ratingGte: discoverOptions.ratingGte,
           ratingLte: discoverOptions.ratingLte,
+          providers: discoverOptions.providers,
           page: p,
           query: params.search,
         })
@@ -201,6 +206,43 @@ export default async function MoviesPage({ searchParams }: Props) {
     } catch { /* ignore */ }
   }
 
+  // Fetch streaming provider names when showProviders is on
+  const streamingMap = new Map<number, string[]>();
+  if (showProviders) {
+    const selectedProviderNames = new Set(
+      providers?.map((pid) => STREAMING_PROVIDERS.find((s) => String(s.id) === pid)?.short).filter(Boolean) as string[]
+    );
+    const movieIds = movieResult?.results.map((m) => m.id) ?? [];
+    const showIds = showResult?.results.map((s) => s.id) ?? [];
+
+    const [movieProviders, showProvidersList] = await Promise.all([
+      Promise.all(movieIds.map((id) => getWatchProviders(id).catch(() => null))),
+      Promise.all(showIds.map((id) => getShowWatchProviders(id).catch(() => null))),
+    ]);
+
+    for (let i = 0; i < movieIds.length; i++) {
+      const p = movieProviders[i];
+      if (!p) continue;
+      const names = (p.flatrate ?? []).map((s) => s.provider_name);
+      // If provider filter is active, only show selected providers; otherwise show all
+      const display = selectedProviderNames.size > 0
+        ? names.filter((n) => STREAMING_PROVIDERS.some((sp) => sp.name === n && selectedProviderNames.has(sp.short)))
+            .map((n) => STREAMING_PROVIDERS.find((sp) => sp.name === n)?.short ?? n)
+        : names.slice(0, 3);
+      if (display.length > 0) streamingMap.set(movieIds[i], display);
+    }
+    for (let i = 0; i < showIds.length; i++) {
+      const p = showProvidersList[i];
+      if (!p) continue;
+      const names = (p.flatrate ?? []).map((s) => s.provider_name);
+      const display = selectedProviderNames.size > 0
+        ? names.filter((n) => STREAMING_PROVIDERS.some((sp) => sp.name === n && selectedProviderNames.has(sp.short)))
+            .map((n) => STREAMING_PROVIDERS.find((sp) => sp.name === n)?.short ?? n)
+        : names.slice(0, 3);
+      if (display.length > 0) streamingMap.set(showIds[i], display);
+    }
+  }
+
   const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);
   const totalPages = contentType === "tv"
     ? (showResult?.total_pages ?? 1)
@@ -224,13 +266,13 @@ export default async function MoviesPage({ searchParams }: Props) {
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {movieResult.results.map((movie) => (
-                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} />
+                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {movieResult.results.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} />
+                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} />
               ))}
             </div>
           )}
@@ -244,13 +286,13 @@ export default async function MoviesPage({ searchParams }: Props) {
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {showResult.results.map((show) => (
-                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} />
+                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {showResult.results.map((show) => (
-                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} />
+                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} />
               ))}
             </div>
           )}

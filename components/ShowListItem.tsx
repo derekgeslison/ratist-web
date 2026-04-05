@@ -12,9 +12,10 @@ import { useShowUserState } from "@/hooks/useShowUserState";
 interface Props {
   show: TMDBShow;
   characterName?: string;
+  streaming?: string[];
 }
 
-export default function ShowListItem({ show, characterName }: Props) {
+export default function ShowListItem({ show, characterName, streaming }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
   const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
@@ -72,6 +73,9 @@ export default function ShowListItem({ show, characterName }: Props) {
           {characterName && <span className="text-[var(--ratist-red)]/70 ml-2">as {characterName}</span>}
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{show.overview}</p>
+        {streaming && streaming.length > 0 && (
+          <p className="text-[10px] text-green-400 mt-1">{streaming.join(", ")}</p>
+        )}
       </div>
 
       {user && (

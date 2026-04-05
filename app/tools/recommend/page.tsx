@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { posterUrl } from "@/lib/tmdb";
+import { posterUrl, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 
 const GENRES = [
@@ -67,6 +67,7 @@ export default function RecommendPage() {
   const [watchlisted, setWatchlisted] = useState<Set<number>>(new Set());
   const [resultMediaFilter, setResultMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [tvRatingSelected, setTvRatingSelected] = useState<Set<string>>(new Set(ALL_TV_RATINGS));
+  const [selectedStreamingProviders, setSelectedStreamingProviders] = useState<Set<string>>(new Set());
   const [watchlistingId, setWatchlistingId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -92,6 +93,7 @@ export default function RecommendPage() {
       setWatchlisted(new Set(saved.watchlisted ?? []));
       setResultMediaFilter(saved.resultMediaFilter ?? "all");
       setTvRatingSelected(new Set(saved.tvRatingSelected ?? ALL_TV_RATINGS));
+      setSelectedStreamingProviders(new Set(saved.selectedStreamingProviders ?? []));
     }
     setHydrated(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -113,9 +115,10 @@ export default function RecommendPage() {
         excludeGenres: [...excludeGenres], mpaaSelected: [...mpaaSelected], results, visibleCount,
         hasSearched, currentPage, totalPages, sortMode, watchlisted: [...watchlisted],
         resultMediaFilter, tvRatingSelected: [...tvRatingSelected],
+        selectedStreamingProviders: [...selectedStreamingProviders],
       }));
     } catch {}
-  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected]);
+  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders]);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
@@ -169,7 +172,7 @@ export default function RecommendPage() {
   function handleStartOver() {
     setStep(0); setMediaType("any"); setSelectedGenres(new Set()); setExperience(new Set()); setRuntime(new Set());
     setEra(new Set()); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
-    setFiltersOpen(false); setResultMediaFilter("all");
+    setFiltersOpen(false); setResultMediaFilter("all"); setSelectedStreamingProviders(new Set());
     setHasSearched(false); setVisibleCount(5); setSortMode("");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
@@ -211,6 +214,16 @@ export default function RecommendPage() {
         const rating = r.mpaaRating || "NR";
         if (!mpaaSelected.has(rating)) return false;
       }
+    }
+    // Streaming service filter
+    if (selectedStreamingProviders.size > 0) {
+      const providerShorts = [...selectedStreamingProviders];
+      const matchesProvider = providerShorts.some((short) => {
+        const provider = STREAMING_PROVIDERS.find((sp) => sp.short === short);
+        if (!provider) return false;
+        return r.streaming.some((s) => s === provider.name || s === provider.short);
+      });
+      if (!matchesProvider) return false;
     }
     return true;
   });
@@ -572,6 +585,24 @@ export default function RecommendPage() {
                         }`}>{r}</button>
                     ))}
                   </>
+                )}
+              </div>
+              {/* Streaming service filter */}
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[var(--foreground-muted)] mr-1">Stream:</span>
+                {STREAMING_PROVIDERS.map((p) => (
+                  <button key={p.id}
+                    onClick={() => toggleSet(setSelectedStreamingProviders, p.short as string)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                      selectedStreamingProviders.has(p.short)
+                        ? "bg-green-500/15 border-green-500/30 text-green-400"
+                        : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                    }`}>{p.short}</button>
+                ))}
+                {selectedStreamingProviders.size > 0 && (
+                  <button onClick={() => setSelectedStreamingProviders(new Set())} className="text-[10px] text-[var(--foreground-muted)] hover:text-white ml-1">
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
               </div>
             </div>

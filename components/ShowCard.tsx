@@ -12,9 +12,10 @@ import { useShowUserState } from "@/hooks/useShowUserState";
 interface Props {
   show: TMDBShow;
   characterName?: string;
+  streaming?: string[];
 }
 
-export default function ShowCard({ show, characterName }: Props) {
+export default function ShowCard({ show, characterName, streaming }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
   const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
@@ -101,6 +102,9 @@ export default function ShowCard({ show, characterName }: Props) {
           <RatingBadge type="community" score={communityScore} size="sm" />
           <RatingBadge type="ratist" score={null} size="sm" />
         </div>
+        {streaming && streaming.length > 0 && (
+          <p className="text-[10px] text-green-400 line-clamp-1 mt-0.5">{streaming.join(", ")}</p>
+        )}
       </div>
     </Link>
   );

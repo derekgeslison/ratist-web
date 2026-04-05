@@ -223,6 +223,17 @@ const SORT_MAP: Record<string, string> = {
 
 export const MPAA_ORDER = ["G", "PG", "PG-13", "R", "NC-17"];
 
+export const STREAMING_PROVIDERS = [
+  { id: 8, name: "Netflix", short: "Netflix" },
+  { id: 9, name: "Amazon Prime Video", short: "Prime" },
+  { id: 337, name: "Disney Plus", short: "Disney+" },
+  { id: 15, name: "Hulu", short: "Hulu" },
+  { id: 1899, name: "Max", short: "Max" },
+  { id: 350, name: "Apple TV Plus", short: "Apple TV+" },
+  { id: 386, name: "Peacock Premium", short: "Peacock" },
+  { id: 531, name: "Paramount Plus", short: "Paramount+" },
+] as const;
+
 export async function discoverMovies(options: {
   query?: string;
   genres?: string[];
@@ -235,6 +246,7 @@ export async function discoverMovies(options: {
   certMax?: string;
   ratingGte?: string;
   ratingLte?: string;
+  providers?: string[];
   page?: number;
   // legacy
   genre?: string;
@@ -262,6 +274,10 @@ export async function discoverMovies(options: {
     params.certification_country = "US";
     if (options.certMin) params["certification.gte"] = options.certMin;
     if (options.certMax) params["certification.lte"] = options.certMax;
+  }
+  if (options.providers?.length) {
+    params.with_watch_providers = options.providers.join("|");
+    params.watch_region = "US";
   }
 
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", params);
@@ -421,6 +437,7 @@ export async function discoverShows(options: {
   yearTo?: string;
   ratingGte?: string;
   ratingLte?: string;
+  providers?: string[];
   page?: number;
 }) {
   const TV_SORT_MAP: Record<string, string> = {
@@ -446,6 +463,10 @@ export async function discoverShows(options: {
   if (options.yearTo) params["first_air_date.lte"] = `${options.yearTo}-12-31`;
   if (options.ratingGte) params["vote_average.gte"] = options.ratingGte;
   if (options.ratingLte) params["vote_average.lte"] = options.ratingLte;
+  if (options.providers?.length) {
+    params.with_watch_providers = options.providers.join("|");
+    params.watch_region = "US";
+  }
 
   return tmdbFetch<TMDBPageResult<TMDBShow>>("/discover/tv", params);
 }

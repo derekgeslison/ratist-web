@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv } from "lucide-react";
+import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor } from "lucide-react";
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
+import { STREAMING_PROVIDERS } from "@/lib/tmdb";
 
 const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"];
 const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"];
@@ -63,6 +64,8 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentPerPage = searchParams.get("perPage") ?? "20";
   const currentTheaterStatus = searchParams.get("theaterStatus") ?? "";
   const currentType = searchParams.get("type") ?? "all";
+  const currentProviders = searchParams.get("providers")?.split(",").filter(Boolean) ?? [];
+  const currentShowProviders = searchParams.get("showProviders") === "1";
 
   // Local debounced state for text inputs
   const currentSearch = searchParams.get("search") ?? "";
@@ -94,6 +97,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentMpaa.length > 0,
     currentRatingVal,
     currentTheaterStatus,
+    currentProviders.length > 0,
   ].filter(Boolean).length;
 
   function update(updates: Record<string, string | null>) {
@@ -133,6 +137,19 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
       ? currentMpaa.filter((r) => r !== rating)
       : [...currentMpaa, rating];
     update({ mpaa: next.length > 0 ? next.join(",") : null });
+  }
+
+  function toggleProvider(id: string) {
+    const next = currentProviders.includes(id)
+      ? currentProviders.filter((p) => p !== id)
+      : [...currentProviders, id];
+    // Auto-enable showProviders when a provider is selected
+    const updates: Record<string, string | null> = {
+      providers: next.length > 0 ? next.join(",") : null,
+    };
+    if (next.length > 0 && !currentShowProviders) updates.showProviders = "1";
+    if (next.length === 0) updates.showProviders = null;
+    update(updates);
   }
 
   function addCast(actor: ActorOption) {
@@ -333,6 +350,15 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               <button onClick={() => update({ theaterStatus: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
+          {currentProviders.map((pid) => {
+            const p = STREAMING_PROVIDERS.find((s) => String(s.id) === pid);
+            return p ? (
+              <span key={pid} className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
+                {p.short}
+                <button onClick={() => toggleProvider(pid)}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+              </span>
+            ) : null;
+          })}
           <button onClick={clearAllFilters} className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
             Clear all
           </button>
@@ -354,6 +380,32 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
                   className={`${chipBase} ${currentTheaterStatus === o.value ? chipOn : chipOff}`}
                 >
                   {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Streaming Services */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium">Streaming Service</p>
+              {currentProviders.length === 0 && (
+                <label className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={currentShowProviders}
+                    onChange={(e) => update({ showProviders: e.target.checked ? "1" : null })}
+                    className="accent-[var(--ratist-red)] w-3 h-3"
+                  />
+                  <Monitor className="w-3 h-3" />
+                  Show on cards
+                </label>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {STREAMING_PROVIDERS.map((p) => (
+                <button key={p.id} onClick={() => toggleProvider(String(p.id))} className={`${chipBase} ${currentProviders.includes(String(p.id)) ? chipOn : chipOff}`}>
+                  {p.short}
                 </button>
               ))}
             </div>
