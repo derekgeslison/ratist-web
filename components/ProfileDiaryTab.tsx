@@ -193,6 +193,7 @@ export default function ProfileDiaryTab({
                             seasons={m.seasons}
                             episodes={m.episodes}
                             ratistRating={m.ratistRating}
+                            editable={isOwnProfile}
                           />
                         );
                       }

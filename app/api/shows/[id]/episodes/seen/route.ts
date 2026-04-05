@@ -20,6 +20,40 @@ async function getUser(req: NextRequest) {
   }
 }
 
+/** Cache season + episode metadata from TMDB into the DB (fire-and-forget) */
+async function cacheSeasonEpisodes(tvShowId: string, _showTmdbId: number, seasonNumber: number, tmdbEpisodes: { episode_number: number; name?: string | null; overview?: string | null; still_path?: string | null; air_date?: string | null; runtime?: number | null; vote_average?: number | null; vote_count?: number | null; id: number }[]) {
+  try {
+    // Upsert the season
+    const season = await prisma.tVSeason.upsert({
+      where: { tvShowId_seasonNumber: { tvShowId, seasonNumber } },
+      create: { tvShowId, tmdbId: 0, seasonNumber, episodeCount: tmdbEpisodes.length },
+      update: { episodeCount: tmdbEpisodes.length },
+    });
+    // Upsert episodes
+    for (const ep of tmdbEpisodes) {
+      await prisma.tVEpisode.upsert({
+        where: { seasonId_episodeNumber: { seasonId: season.id, episodeNumber: ep.episode_number } },
+        create: {
+          seasonId: season.id,
+          tmdbId: ep.id,
+          episodeNumber: ep.episode_number,
+          name: ep.name ?? null,
+          overview: ep.overview ?? null,
+          stillPath: ep.still_path ?? null,
+          airDate: ep.air_date ?? null,
+          runtime: ep.runtime ?? null,
+          voteAverage: ep.vote_average ?? null,
+          voteCount: ep.vote_count ?? null,
+        },
+        update: {
+          name: ep.name ?? null,
+          overview: ep.overview ?? null,
+        },
+      });
+    }
+  } catch { /* non-critical — just for name lookup */ }
+}
+
 // GET: return all seen episodes for this show
 export async function GET(req: NextRequest, { params }: Props) {
   const user = await getUser(req);
@@ -74,6 +108,8 @@ export async function POST(req: NextRequest, { params }: Props) {
           for (const ep of sd.episodes) {
             allEpisodes.push({ seasonNumber: ep.season_number, episodeNumber: ep.episode_number });
           }
+          // Cache episode names to DB (fire-and-forget)
+          cacheSeasonEpisodes(tvShow.id, showTmdbId, sd.episodes[0]?.season_number ?? 0, sd.episodes).catch(() => {});
         }
       }
 
@@ -101,6 +137,9 @@ export async function POST(req: NextRequest, { params }: Props) {
       // Mark/unmark entire season
       const seasonDetail = await getShowSeasonDetails(showTmdbId, seasonNumber).catch(() => null);
       if (!seasonDetail?.episodes) return NextResponse.json({ error: "Season not found" }, { status: 404 });
+
+      // Cache episode names to DB (fire-and-forget)
+      cacheSeasonEpisodes(tvShow.id, showTmdbId, seasonNumber, seasonDetail.episodes).catch(() => {});
 
       const seasonEpisodes = seasonDetail.episodes.map((ep) => ({
         seasonNumber: ep.season_number,

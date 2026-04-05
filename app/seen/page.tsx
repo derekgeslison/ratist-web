@@ -77,6 +77,13 @@ export default function SeenPage() {
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
 
+  function updateEpisodeGroupDate(showTmdbId: number, oldDate: string | null, newDate: string | null) {
+    const safeDate = newDate ? (newDate.includes("T") ? newDate : `${newDate}T12:00:00`) : null;
+    setEpisodeGroups((prev) => prev.map((g) =>
+      g.showTmdbId === showTmdbId && g.watchedDate === oldDate ? { ...g, watchedDate: safeDate } : g
+    ));
+  }
+
   function updateWatchedDate(tmdbId: number, date: string | null) {
     if (!user) return;
     const safeDate = date ? (date.includes("T") ? date : `${date}T12:00:00`) : null;
@@ -311,6 +318,7 @@ export default function SeenPage() {
             seasons={m.seasons}
             episodes={m.episodes}
             ratistRating={m.ratistRating}
+            onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
           />
         );
       }
@@ -598,6 +606,7 @@ export default function SeenPage() {
                             seasons={m.seasons}
                             episodes={m.episodes}
                             ratistRating={m.ratistRating}
+                            onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
                           />
                         );
                       }
@@ -645,6 +654,7 @@ export default function SeenPage() {
                         seasons={m.seasons}
                         episodes={m.episodes}
                         ratistRating={m.ratistRating}
+                        onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
                       />
                     );
                   }
@@ -695,6 +705,7 @@ export default function SeenPage() {
                           seasons={m.seasons}
                           episodes={m.episodes}
                           ratistRating={m.ratistRating}
+                          onDateChange={(newDate) => updateEpisodeGroupDate(m.showTmdbId, m.watchedDate, newDate)}
                         />
                       );
                     }

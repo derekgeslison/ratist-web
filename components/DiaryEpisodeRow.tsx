@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Calendar } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar, Check, X } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
 import { useAuth } from "@/context/AuthContext";
@@ -20,26 +20,31 @@ interface Props {
   seasons: { seasonNumber: number; episodeCount: number }[];
   episodes: { seasonNumber: number; episodeNumber: number; name: string | null }[];
   ratistRating?: number | null;
-  onDateChange?: (showTmdbId: number, newDate: string | null) => void;
+  editable?: boolean;
+  onDateChange?: (newDate: string | null) => void;
 }
 
 export default function DiaryEpisodeRow({
   showTmdbId, title, posterPath, year, dayNumber, watchedDate,
-  seasonCount, episodeCount, seasons, episodes, ratistRating, onDateChange,
+  seasonCount, episodeCount, seasons, episodes, ratistRating,
+  editable = true, onDateChange,
 }: Props) {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [editingDate, setEditingDate] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [pendingDate, setPendingDate] = useState("");
   const detailPath = `/shows/${showTmdbId}`;
   const isSingle = episodeCount === 1;
   const canExpand = !isSingle;
+
+  // Format date value for input (strip time portion)
+  const dateValue = watchedDate?.slice(0, 10) ?? null;
 
   // Build subtitle
   let subtitle: string;
   if (isSingle && episodes.length === 1) {
     const ep = episodes[0];
-    subtitle = `S${ep.seasonNumber} E${ep.episodeNumber}${ep.name ? `: ${ep.name}` : ""}`;
+    subtitle = `S${ep.seasonNumber}E${ep.episodeNumber}${ep.name ? ` — ${ep.name}` : ""}`;
   } else if (seasonCount === 1 && seasons.length === 1) {
     subtitle = `Season ${seasons[0].seasonNumber}, ${episodeCount} episode${episodeCount !== 1 ? "s" : ""}`;
   } else {
@@ -53,6 +58,30 @@ export default function DiaryEpisodeRow({
       .filter((ep) => ep.seasonNumber === s.seasonNumber)
       .sort((a, b) => a.episodeNumber - b.episodeNumber),
   }));
+
+  async function saveGroupDate(date: string | null) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ watchedDate: date }),
+    }).catch(() => {});
+    onDateChange?.(date);
+  }
+
+  async function saveEpisodeDate(seasonNumber: number, episodeNumber: number, date: string | null) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        episodes: [{ seasonNumber, episodeNumber }],
+        watchedDate: date,
+      }),
+    }).catch(() => {});
+  }
 
   return (
     <div>
@@ -94,15 +123,48 @@ export default function DiaryEpisodeRow({
         </div>
 
         {/* Date edit + Rating */}
-        <div className="flex items-center gap-2 shrink-0">
-          {user && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditingDate(!editingDate); }}
-              className="p-1 text-[var(--foreground-muted)] hover:text-white transition-colors"
-              title="Change date"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-            </button>
+        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {editable && user && onDateChange && (
+            editingDate ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={pendingDate}
+                  autoFocus
+                  onChange={(e) => setPendingDate(e.target.value)}
+                  className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
+                />
+                <button
+                  onClick={() => {
+                    if (pendingDate && pendingDate !== (dateValue ?? "")) {
+                      saveGroupDate(pendingDate);
+                    }
+                    setEditingDate(false);
+                  }}
+                  className="text-green-400 hover:text-green-300 transition-colors"
+                  title={`Save date for all ${episodeCount} episodes`}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                {(dateValue || pendingDate) && (
+                  <button
+                    onClick={() => { saveGroupDate(null); setPendingDate(""); setEditingDate(false); }}
+                    className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                    title="Remove date"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => { setPendingDate(dateValue ?? ""); setEditingDate(true); }}
+                className="p-1 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                title={episodeCount > 1 ? `Edit date for all ${episodeCount} episodes` : "Edit watched date"}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+              </button>
+            )
           )}
           {ratistRating != null ? (
             <RatingBadge type="ratist" score={ratistRating} size="sm" />
@@ -110,7 +172,6 @@ export default function DiaryEpisodeRow({
             <Link
               href={`${detailPath}/rate`}
               className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-              onClick={(e) => e.stopPropagation()}
             >
               Rate
             </Link>
@@ -125,52 +186,7 @@ export default function DiaryEpisodeRow({
         )}
       </div>
 
-      {/* Date editor */}
-      {editingDate && user && (
-        <div className="ml-11 pl-3 py-2 flex items-center gap-3 border-b border-[var(--border)]/10">
-          <span className="text-xs text-[var(--foreground-muted)]">Watched date for all {episodeCount} episode{episodeCount !== 1 ? "s" : ""}:</span>
-          <input
-            type="date"
-            defaultValue={watchedDate ?? ""}
-            className="bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-xs text-white [color-scheme:dark] focus:outline-none focus:border-[var(--ratist-red)]"
-            onChange={async (e) => {
-              const val = e.target.value || null;
-              setSaving(true);
-              const token = await user.getIdToken();
-              await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ watchedDate: val }),
-              }).catch(() => {});
-              onDateChange?.(showTmdbId, val);
-              setSaving(false);
-            }}
-            disabled={saving}
-          />
-          {watchedDate && (
-            <button
-              onClick={async () => {
-                setSaving(true);
-                const token = await user.getIdToken();
-                await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ watchedDate: null }),
-                }).catch(() => {});
-                onDateChange?.(showTmdbId, null);
-                setSaving(false);
-              }}
-              disabled={saving}
-              className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
-            >
-              Clear date
-            </button>
-          )}
-          {saving && <span className="text-xs text-[var(--foreground-muted)]">Saving...</span>}
-        </div>
-      )}
-
-      {/* Expanded episode list */}
+      {/* Expanded episode list with per-episode date editing */}
       {expanded && canExpand && (
         <div className="ml-11 pl-3 border-l-2 border-[var(--border)]/20 pb-2">
           {episodesBySeason.map((season) => (
@@ -181,13 +197,73 @@ export default function DiaryEpisodeRow({
                 </p>
               )}
               {season.episodes.map((ep) => (
-                <p key={`${ep.seasonNumber}-${ep.episodeNumber}`} className="text-xs text-[var(--foreground-muted)] py-0.5">
-                  S{ep.seasonNumber}E{ep.episodeNumber}{ep.name ? `: ${ep.name}` : ""}
-                </p>
+                <EpisodeRow
+                  key={`${ep.seasonNumber}-${ep.episodeNumber}`}
+                  seasonNumber={ep.seasonNumber}
+                  episodeNumber={ep.episodeNumber}
+                  name={ep.name}
+                  editable={editable && !!user}
+                  onDateChange={(date) => saveEpisodeDate(ep.seasonNumber, ep.episodeNumber, date)}
+                />
               ))}
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function EpisodeRow({
+  seasonNumber, episodeNumber, name, editable, onDateChange,
+}: {
+  seasonNumber: number;
+  episodeNumber: number;
+  name: string | null;
+  editable: boolean;
+  onDateChange: (date: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [pendingDate, setPendingDate] = useState("");
+
+  return (
+    <div className="flex items-center gap-2 py-0.5 group">
+      <p className="text-xs text-[var(--foreground-muted)] flex-1">
+        <span className="text-white/60">S{seasonNumber}E{episodeNumber}</span>
+        {name && <span> — {name}</span>}
+      </p>
+      {editable && (
+        editing ? (
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={pendingDate}
+              autoFocus
+              onChange={(e) => setPendingDate(e.target.value)}
+              className="w-28 bg-[var(--surface)] border border-[var(--ratist-red)] text-white text-xs rounded px-1 py-0.5 focus:outline-none [color-scheme:dark]"
+            />
+            <button
+              onClick={() => { if (pendingDate) onDateChange(pendingDate); setEditing(false); }}
+              className="text-green-400 hover:text-green-300 transition-colors"
+            >
+              <Check className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => { setEditing(false); setPendingDate(""); }}
+              className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setPendingDate(""); setEditing(true); }}
+            className="p-0.5 text-[var(--foreground-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--ratist-red)] transition-all"
+            title="Set date for this episode"
+          >
+            <Calendar className="w-3 h-3" />
+          </button>
+        )
       )}
     </div>
   );
