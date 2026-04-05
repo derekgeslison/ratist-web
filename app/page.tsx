@@ -7,6 +7,7 @@ import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
 import ShowRow from "@/components/ShowRow";
 import PersonalizedSection from "@/components/PersonalizedSection";
+import FollowingFeed from "@/components/FollowingFeed";
 import BrandCTAButtons from "@/components/BrandCTAButtons";
 import AdUnit from "@/components/AdUnit";
 
@@ -77,6 +78,9 @@ export default async function HomePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
         {/* Personalized section */}
         <PersonalizedSection />
+
+        {/* From people you follow */}
+        <FollowingFeed />
 
         {/* Admin Spotlights */}
         {spotlights.length > 0 && (

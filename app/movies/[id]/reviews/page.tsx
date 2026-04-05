@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getMovieDetails } from "@/lib/tmdb";
 import ReviewCard from "@/components/ReviewCard";
+import FollowingReviews from "@/components/FollowingReviews";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +123,7 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {(["recent", "top", "liked", "critics"] as const).map((s) => (
+          {(["recent", "top", "liked", "critics", "following"] as const).map((s) => (
             <Link
               key={s}
               href={`/movies/${id}/reviews?sort=${s}`}
@@ -132,13 +133,15 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
                   : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
               }`}
             >
-              {s === "recent" ? "Recent" : s === "top" ? "Top Rated" : s === "liked" ? "Most Liked" : "Critics"}
+              {s === "recent" ? "Recent" : s === "top" ? "Top Rated" : s === "liked" ? "Most Liked" : s === "critics" ? "Critics" : "Following"}
             </Link>
           ))}
         </div>
       </div>
 
-      {reviews.length === 0 ? (
+      {sort === "following" ? (
+        <FollowingReviews movieTmdbId={Number(id)} />
+      ) : reviews.length === 0 ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <p className="mb-2">No reviews yet.</p>
           <Link href={`/movies/${id}/rate`} className="text-sm text-[var(--ratist-red)] hover:underline">

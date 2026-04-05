@@ -69,6 +69,8 @@ model User {
   reportsMade      Report[]  @relation("reportsMade")
   reportsResolved  Report[]  @relation("reportsResolved")
   adminLogs        AdminLog[] @relation("adminLogs")
+  followers        UserFollow[] @relation("following")
+  following        UserFollow[] @relation("followers")
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -80,6 +82,20 @@ model User {
   banReason   String?   @map("ban_reason")
 
   @@map("users")
+}
+
+model UserFollow {
+  id          String   @id @default(cuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@map("user_follows")
 }
 
 model SiteConfig {
