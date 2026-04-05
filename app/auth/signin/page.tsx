@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function SignInPage() {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail } = useAuth();
   const router = useRouter();
   const redirectTo = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") : null;
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -25,6 +25,32 @@ export default function SignInPage() {
       router.push(isNewUser ? "/onboarding" : (redirectTo ?? "/"));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Google sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleFacebook() {
+    setError("");
+    setLoading(true);
+    try {
+      const { isNewUser } = await signInWithFacebook();
+      router.push(isNewUser ? "/onboarding" : (redirectTo ?? "/"));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Facebook sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleApple() {
+    setError("");
+    setLoading(true);
+    try {
+      const { isNewUser } = await signInWithApple();
+      router.push(isNewUser ? "/onboarding" : (redirectTo ?? "/"));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Apple sign-in failed");
     } finally {
       setLoading(false);
     }
@@ -76,6 +102,30 @@ export default function SignInPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             Continue with Google
+          </button>
+
+          {/* Facebook */}
+          <button
+            onClick={handleFacebook}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-[#166FE5] text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors mb-3 disabled:opacity-50"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            Continue with Facebook
+          </button>
+
+          {/* Apple */}
+          <button
+            onClick={handleApple}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-black hover:bg-gray-900 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors border border-gray-700 mb-4 disabled:opacity-50"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            Continue with Apple
           </button>
 
           <div className="flex items-center gap-3 mb-4">

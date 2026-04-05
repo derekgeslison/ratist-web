@@ -98,8 +98,9 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
     if (res.ok) {
       const data = await res.json();
       if (parentId) {
-        // Insert reply into the tree
+        // Insert reply into the tree and auto-expand the thread
         setComments((prev) => insertReply(prev, parentId, data.comment));
+        setExpandedThreads((prev) => new Set(prev).add(parentId));
         setReplyText("");
         setReplyingTo(null);
       } else {
@@ -226,12 +227,14 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                     <Heart className={`w-3 h-3 ${comment.likedByMe ? "fill-current" : ""}`} />
                     {comment.likeCount > 0 && comment.likeCount}
                   </button>
-                  <button
-                    onClick={() => { setReplyingTo(replyingTo === comment.id ? null : comment.id); setReplyText(""); }}
-                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
-                  >
-                    <Reply className="w-3 h-3" /> Reply
-                  </button>
+                  {depth < 2 && (
+                    <button
+                      onClick={() => { setReplyingTo(replyingTo === comment.id ? null : comment.id); setReplyText(""); }}
+                      className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    >
+                      <Reply className="w-3 h-3" /> Reply
+                    </button>
+                  )}
                   {canDeleteComment && (
                     confirmingDelete === comment.id ? (
                       <span className="flex items-center gap-1.5 text-xs">

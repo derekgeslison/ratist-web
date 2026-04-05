@@ -14,7 +14,7 @@ import {
   type User,
   getAdditionalUserInfo,
 } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { auth, googleProvider, facebookProvider, appleProvider } from "@/lib/firebase";
 
 interface AccountStatus {
   type: "deleted" | "banned";
@@ -29,6 +29,8 @@ interface AuthContextValue {
   loading: boolean;
   accountStatus: AccountStatus | null;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
+  signInWithFacebook: () => Promise<{ isNewUser: boolean }>;
+  signInWithApple: () => Promise<{ isNewUser: boolean }>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -108,6 +110,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function signInWithFacebook() {
+    try {
+      const result = await signInWithPopup(auth, facebookProvider);
+      const info = getAdditionalUserInfo(result);
+      return { isNewUser: info?.isNewUser ?? false };
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-browser" || code === "auth/cancelled-popup-request" || code === "auth/internal-error") {
+        await signInWithRedirect(auth, facebookProvider);
+        return { isNewUser: false };
+      }
+      throw err;
+    }
+  }
+
+  async function signInWithApple() {
+    try {
+      const result = await signInWithPopup(auth, appleProvider);
+      const info = getAdditionalUserInfo(result);
+      return { isNewUser: info?.isNewUser ?? false };
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-browser" || code === "auth/cancelled-popup-request" || code === "auth/internal-error") {
+        await signInWithRedirect(auth, appleProvider);
+        return { isNewUser: false };
+      }
+      throw err;
+    }
+  }
+
   async function signInWithEmail(email: string, password: string) {
     await signInWithEmailAndPassword(auth, email, password);
   }
@@ -147,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, accountStatus, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus }}>
+    <AuthContext.Provider value={{ user, loading, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus }}>
       {children}
     </AuthContext.Provider>
   );

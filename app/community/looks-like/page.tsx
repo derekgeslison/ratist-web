@@ -355,7 +355,6 @@ export default function LooksLikePage() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white">{item.name1}</p>
-                        <p className="text-xs text-[var(--foreground-muted)]">submitted by {item.creator.name}</p>
                       </div>
                     </div>
 
@@ -404,8 +403,9 @@ export default function LooksLikePage() {
                   </div>
                 </div>
 
-                {/* Comment toggle & delete */}
+                {/* Footer */}
                 <div className="border-t border-[var(--border)] mt-3 pt-2 flex items-center">
+                  <span className="text-[10px] text-[var(--foreground-muted)] mr-auto">by {item.creator.name}</span>
                   <button
                     onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
                     className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"

@@ -8,6 +8,7 @@ import MovieRow from "@/components/MovieRow";
 import ShowRow from "@/components/ShowRow";
 import PersonalizedSection from "@/components/PersonalizedSection";
 import FollowingFeed from "@/components/FollowingFeed";
+import BirthdaySection from "@/components/BirthdaySection";
 import BrandCTAButtons from "@/components/BrandCTAButtons";
 import AdUnit from "@/components/AdUnit";
 
@@ -199,6 +200,9 @@ export default async function HomePage() {
             </Link>
           </div>
         </section>
+
+        {/* Born Today */}
+        <BirthdaySection />
       </div>
     </div>
   );
