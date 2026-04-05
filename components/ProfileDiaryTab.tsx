@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { scoreColor } from "@/lib/ratings";
 import ShareButton from "./ShareButton";
 import DiaryRow from "./DiaryRow";
+import DiaryEpisodeRow from "./DiaryEpisodeRow";
 
 interface SeenMovie {
   tmdbId: number;
@@ -19,8 +20,26 @@ interface SeenMovie {
   mediaType?: "movie" | "tv";
 }
 
+interface EpisodeGroup {
+  showTmdbId: number;
+  title: string;
+  posterPath: string | null;
+  year: string;
+  watchedDate: string | null;
+  seasonCount: number;
+  episodeCount: number;
+  seasons: { seasonNumber: number; episodeCount: number }[];
+  episodes: { seasonNumber: number; episodeNumber: number; name: string | null }[];
+  ratistRating?: number | null;
+}
+
+type DiaryEntry =
+  | (SeenMovie & { _type: "movie"; id: string })
+  | (EpisodeGroup & { _type: "episode"; id: string; seenAt: string; releaseDate: string | null });
+
 interface Props {
   seenMovies: SeenMovie[];
+  episodeGroups?: EpisodeGroup[];
   isOwnProfile: boolean;
   profileFirebaseUid: string;
   activeYear: string;
@@ -33,7 +52,7 @@ interface Props {
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getWatchDate(m: SeenMovie): Date | null {
+function getWatchDate(m: { watchedDate: string | null }): Date | null {
   const str = m.watchedDate;
   if (!str) return null;
   if (str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
@@ -41,35 +60,49 @@ function getWatchDate(m: SeenMovie): Date | null {
 }
 
 export default function ProfileDiaryTab({
-  seenMovies, isOwnProfile, profileFirebaseUid, activeYear, seenThisYear,
+  seenMovies, episodeGroups = [], isOwnProfile, profileFirebaseUid, activeYear, seenThisYear,
   siteUrl, watchedDates, updateWatchedDate,
 }: Props) {
   const now = new Date();
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(parseInt(activeYear));
 
-  // Only show movies with explicit watchedDate in the monthly view (matches diary page behavior)
-  const datedMovies = useMemo(() => seenMovies.filter((m) => m.watchedDate != null), [seenMovies]);
+  // Merge movies + episode groups into unified entries
+  const allEntries: DiaryEntry[] = useMemo(() => {
+    const movieEntries: DiaryEntry[] = seenMovies.map((m) => ({
+      ...m, _type: "movie" as const, id: `${m.mediaType ?? "movie"}-${m.tmdbId}`,
+    }));
+    const epEntries: DiaryEntry[] = episodeGroups.map((eg) => ({
+      ...eg, _type: "episode" as const,
+      id: `ep-${eg.showTmdbId}-${eg.watchedDate ?? "undated"}`,
+      seenAt: eg.watchedDate ?? new Date().toISOString(),
+      releaseDate: null,
+    }));
+    return [...movieEntries, ...epEntries];
+  }, [seenMovies, episodeGroups]);
 
-  const monthMovies = useMemo(() => {
-    return datedMovies.filter((m) => {
+  // Only show entries with explicit watchedDate in the monthly view
+  const datedEntries = useMemo(() => allEntries.filter((m) => m.watchedDate != null), [allEntries]);
+
+  const monthEntries = useMemo(() => {
+    return datedEntries.filter((m) => {
       const d = getWatchDate(m)!;
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
     }).sort((a, b) => getWatchDate(b)!.getTime() - getWatchDate(a)!.getTime());
-  }, [datedMovies, viewYear, viewMonth]);
+  }, [datedEntries, viewYear, viewMonth]);
 
-  const moviesByDay = useMemo(() => {
-    const map = new Map<number, SeenMovie[]>();
-    for (const m of monthMovies) {
+  const entriesByDay = useMemo(() => {
+    const map = new Map<number, DiaryEntry[]>();
+    for (const m of monthEntries) {
       const day = getWatchDate(m)!.getDate();
       const list = map.get(day) ?? [];
       list.push(m);
       map.set(day, list);
     }
     return map;
-  }, [monthMovies]);
+  }, [monthEntries]);
 
-  const sortedDays = useMemo(() => [...moviesByDay.keys()].sort((a, b) => b - a), [moviesByDay]);
+  const sortedDays = useMemo(() => [...entriesByDay.keys()].sort((a, b) => b - a), [entriesByDay]);
 
   const prevMonth = useCallback(() => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
@@ -105,7 +138,7 @@ export default function ProfileDiaryTab({
         </div>
       </div>
 
-      {seenMovies.length === 0 ? (
+      {seenMovies.length === 0 && episodeGroups.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-[var(--foreground-muted)] mb-3">
             {isOwnProfile ? "No movies marked as seen yet." : "No diary entries."}
@@ -127,15 +160,15 @@ export default function ProfileDiaryTab({
           </div>
 
           <p className="text-xs text-[var(--foreground-muted)] mb-4">
-            {monthMovies.length} movie{monthMovies.length !== 1 ? "s" : ""} in {MONTH_NAMES[viewMonth]}
+            {monthEntries.length} entr{monthEntries.length !== 1 ? "ies" : "y"} in {MONTH_NAMES[viewMonth]}
           </p>
 
-          {monthMovies.length === 0 ? (
+          {monthEntries.length === 0 ? (
             <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
           ) : (
             <div>
               {sortedDays.map((day) => {
-                const dayMovies = moviesByDay.get(day) ?? [];
+                const dayEntries = entriesByDay.get(day) ?? [];
                 const dayOfWeek = DAY_NAMES[new Date(viewYear, viewMonth, day).getDay()];
                 return (
                   <div key={day}>
@@ -144,18 +177,37 @@ export default function ProfileDiaryTab({
                         {dayOfWeek}, {MONTH_NAMES[viewMonth].slice(0, 3)} {day}
                       </span>
                     </div>
-                    {dayMovies.map((m, idx) => (
-                      <DiaryRow
-                        key={`${m.mediaType ?? "movie"}-${m.tmdbId}`}
-                        tmdbId={m.tmdbId}
-                        title={m.title}
-                        posterPath={m.posterPath}
-                        year={m.releaseDate?.slice(0, 4) ?? ""}
-                        ratistRating={m.ratistRating}
-                        dayNumber={idx === 0 ? day : null}
-                        mediaType={m.mediaType}
-                      />
-                    ))}
+                    {dayEntries.map((m, idx) => {
+                      if (m._type === "episode") {
+                        return (
+                          <DiaryEpisodeRow
+                            key={m.id}
+                            showTmdbId={m.showTmdbId}
+                            title={m.title}
+                            posterPath={m.posterPath}
+                            year={m.year}
+                            dayNumber={idx === 0 ? day : null}
+                            seasonCount={m.seasonCount}
+                            episodeCount={m.episodeCount}
+                            seasons={m.seasons}
+                            episodes={m.episodes}
+                            ratistRating={m.ratistRating}
+                          />
+                        );
+                      }
+                      return (
+                        <DiaryRow
+                          key={m.id}
+                          tmdbId={m.tmdbId}
+                          title={m.title}
+                          posterPath={m.posterPath}
+                          year={m.releaseDate?.slice(0, 4) ?? ""}
+                          ratistRating={m.ratistRating}
+                          dayNumber={idx === 0 ? day : null}
+                          mediaType={m.mediaType}
+                        />
+                      );
+                    })}
                   </div>
                 );
               })}

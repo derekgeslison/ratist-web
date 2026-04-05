@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import DiaryRow from "@/components/DiaryRow";
+import DiaryEpisodeRow from "@/components/DiaryEpisodeRow";
 import ShareButton from "@/components/ShareButton";
 import { scoreColor } from "@/lib/ratings";
 
@@ -28,25 +29,41 @@ interface SeenMovie {
   mediaType?: "movie" | "tv";
 }
 
+interface EpisodeGroup {
+  showTmdbId: number;
+  title: string;
+  posterPath: string | null;
+  year: string;
+  watchedDate: string | null;
+  seasonCount: number;
+  episodeCount: number;
+  seasons: { seasonNumber: number; episodeCount: number }[];
+  episodes: { seasonNumber: number; episodeNumber: number; name: string | null }[];
+  ratistRating?: number | null;
+}
+
+type SeenEntry = (SeenMovie & { _type: "movie" }) | (EpisodeGroup & { _type: "episode"; id: string; seenAt: string });
+
 type ViewMode = "month" | "calendar" | "all";
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getWatchDate(m: SeenMovie): Date | null {
+function getWatchDate(m: { watchedDate: string | null }): Date | null {
   const str = m.watchedDate;
   if (!str) return null; // no date = undated entry
   if (str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
   return new Date(str);
 }
 
-function getWatchDateOrFallback(m: SeenMovie): Date {
+function getWatchDateOrFallback(m: SeenEntry): Date {
   return getWatchDate(m) ?? new Date(m.seenAt);
 }
 
 export default function SeenPage() {
   const { user } = useAuth();
   const [movies, setMovies] = useState<SeenMovie[]>([]);
+  const [episodeGroups, setEpisodeGroups] = useState<EpisodeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
@@ -133,16 +150,28 @@ export default function SeenPage() {
     user.getIdToken().then((token) => {
       fetch("/api/seen", { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then((data) => { setMovies(data.movies ?? []); setLoading(false); })
+        .then((data) => { setMovies(data.movies ?? []); setEpisodeGroups(data.episodeGroups ?? []); setLoading(false); })
         .catch(() => setLoading(false));
     });
   }, [user]);
 
+  // Merge movies + episode groups into unified entries
+  const entries: SeenEntry[] = useMemo(() => {
+    const movieEntries: SeenEntry[] = movies.map((m) => ({ ...m, _type: "movie" as const }));
+    const epEntries: SeenEntry[] = episodeGroups.map((eg) => ({
+      ...eg,
+      _type: "episode" as const,
+      id: `ep-${eg.showTmdbId}-${eg.watchedDate ?? "undated"}`,
+      seenAt: eg.watchedDate ?? new Date().toISOString(),
+    }));
+    return [...movieEntries, ...epEntries];
+  }, [movies, episodeGroups]);
+
   const availableYears = useMemo(() => {
     const years = new Set<number>();
-    for (const m of movies) { const d = getWatchDate(m); if (d) years.add(d.getFullYear()); }
+    for (const m of entries) { const d = getWatchDate(m); if (d) years.add(d.getFullYear()); }
     return [...years].sort((a, b) => b - a);
-  }, [movies]);
+  }, [entries]);
 
   const availableGenres = useMemo(() => {
     const genres = new Set<string>();
@@ -150,8 +179,17 @@ export default function SeenPage() {
     return [...genres].sort();
   }, [movies]);
 
-  const filtered = useMemo(() => {
-    return movies.filter((m) => {
+  const filtered: SeenEntry[] = useMemo(() => {
+    return entries.filter((m) => {
+      if (m._type === "episode") {
+        if (mediaFilter === "movie") return false;
+        if (query && !m.title.toLowerCase().includes(query.toLowerCase())) return false;
+        // Genre/rating filters don't apply well to episode groups; skip genre filter
+        if (ratingFilter === "8+" && (m.ratistRating == null || m.ratistRating < 8)) return false;
+        if (ratingFilter === "6+" && (m.ratistRating == null || m.ratistRating < 6)) return false;
+        if (ratingFilter === "unrated" && m.ratistRating != null) return false;
+        return true;
+      }
       if (mediaFilter !== "all" && (m.mediaType ?? "movie") !== mediaFilter) return false;
       if (query && !m.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (genreFilter && !m.genres.includes(genreFilter)) return false;
@@ -160,49 +198,49 @@ export default function SeenPage() {
       if (ratingFilter === "unrated" && m.ratistRating != null) return false;
       return true;
     });
-  }, [movies, query, genreFilter, ratingFilter, mediaFilter]);
+  }, [entries, query, genreFilter, ratingFilter, mediaFilter]);
 
-  const datedMovies = useMemo(() => filtered.filter((m) => m.watchedDate != null), [filtered]);
-  const undatedMovies = useMemo(() => filtered.filter((m) => m.watchedDate == null), [filtered]);
+  const datedEntries = useMemo(() => filtered.filter((m) => m.watchedDate != null), [filtered]);
+  const undatedEntries = useMemo(() => filtered.filter((m) => m.watchedDate == null), [filtered]);
 
-  const monthMovies = useMemo(() => {
-    return datedMovies.filter((m) => {
+  const monthEntries = useMemo(() => {
+    return datedEntries.filter((m) => {
       const d = getWatchDate(m)!;
       return d.getFullYear() === calYear && d.getMonth() === calMonth;
     }).sort((a, b) => getWatchDate(b)!.getTime() - getWatchDate(a)!.getTime());
-  }, [datedMovies, calYear, calMonth]);
+  }, [datedEntries, calYear, calMonth]);
 
-  const moviesByDay = useMemo(() => {
-    const map = new Map<number, SeenMovie[]>();
-    for (const m of monthMovies) {
+  const entriesByDay = useMemo(() => {
+    const map = new Map<number, SeenEntry[]>();
+    for (const m of monthEntries) {
       const day = getWatchDate(m)!.getDate();
       const list = map.get(day) ?? [];
       list.push(m);
       map.set(day, list);
     }
     return map;
-  }, [monthMovies]);
+  }, [monthEntries]);
 
-  const sortedDays = useMemo(() => [...moviesByDay.keys()].sort((a, b) => b - a), [moviesByDay]);
+  const sortedDays = useMemo(() => [...entriesByDay.keys()].sort((a, b) => b - a), [entriesByDay]);
 
   const allSorted = useMemo(() => {
     const arr = [...filtered];
     if (sort === "title") arr.sort((a, b) => a.title.localeCompare(b.title));
-    else if (sort === "rating") arr.sort((a, b) => (b.ratistRating ?? -1) - (a.ratistRating ?? -1));
+    else if (sort === "rating") arr.sort((a, b) => ((b.ratistRating ?? -1) - (a.ratistRating ?? -1)));
     else arr.sort((a, b) => getWatchDateOrFallback(b).getTime() - getWatchDateOrFallback(a).getTime());
     return arr;
   }, [filtered, sort]);
 
   const allByMonth = useMemo(() => {
     if (sort !== "date") return null;
-    const map = new Map<string, { label: string; movies: SeenMovie[] }>();
+    const map = new Map<string, { label: string; entries: SeenEntry[] }>();
     for (const m of allSorted) {
       const d = getWatchDate(m);
       if (!d) continue; // undated handled separately
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       const existing = map.get(key);
-      if (existing) existing.movies.push(m);
-      else map.set(key, { label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, movies: [m] });
+      if (existing) existing.entries.push(m);
+      else map.set(key, { label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, entries: [m] });
     }
     return map;
   }, [allSorted, sort]);
@@ -240,8 +278,8 @@ export default function SeenPage() {
     return results.sort((a, b) => a.yearsAgo - b.yearsAgo);
   }, [movies]);
 
-  const statsMovies = view === "all" ? filtered : monthMovies;
-  const rated = statsMovies.filter((m) => m.ratistRating != null);
+  const statsEntries = view === "all" ? filtered : monthEntries;
+  const rated = statsEntries.filter((m) => m.ratistRating != null);
   const avgRating = rated.length > 0 ? rated.reduce((s, m) => s + m.ratistRating!, 0) / rated.length : null;
 
   function prevMonth() {
@@ -255,11 +293,28 @@ export default function SeenPage() {
     else setCalMonth((m) => m + 1);
   }
 
-  /** Render diary rows for a list of movies grouped by day, with day numbers on the left */
-  function renderDayRows(dayMovies: SeenMovie[], day: number, editable: boolean) {
-    return dayMovies.map((m, idx) => {
+  /** Render diary rows for a list of entries grouped by day, with day numbers on the left */
+  function renderDayRows(dayEntries: SeenEntry[], day: number, editable: boolean) {
+    return dayEntries.map((m, idx) => {
+      if (m._type === "episode") {
+        return (
+          <DiaryEpisodeRow
+            key={m.id}
+            showTmdbId={m.showTmdbId}
+            title={m.title}
+            posterPath={m.posterPath}
+            year={m.year}
+            dayNumber={idx === 0 ? day : null}
+            seasonCount={m.seasonCount}
+            episodeCount={m.episodeCount}
+            seasons={m.seasons}
+            episodes={m.episodes}
+            ratistRating={m.ratistRating}
+          />
+        );
+      }
       const wd = m.watchedDate ? getWatchDate(m) : null;
-          const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
+      const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
       return (
         <DiaryRow
           key={m.id}
@@ -300,7 +355,7 @@ export default function SeenPage() {
         </div>
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading…</p>
-      ) : movies.length === 0 ? (
+      ) : movies.length === 0 && episodeGroups.length === 0 ? (
         <div className="text-center py-16 text-[var(--foreground-muted)]">
           <Eye className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="mb-2">Nothing here yet.</p>
@@ -322,8 +377,8 @@ export default function SeenPage() {
 
           {/* Stats */}
           <div className="flex items-center gap-4 mb-4 text-sm">
-            <span className="text-white font-bold">{statsMovies.length}</span>
-            <span className="text-[var(--foreground-muted)]">{mediaFilter === "tv" ? "shows" : mediaFilter === "movie" ? "movies" : statsMovies.some((m) => m.mediaType === "tv") && statsMovies.some((m) => (m.mediaType ?? "movie") === "movie") ? "movies & shows" : statsMovies.some((m) => m.mediaType === "tv") ? "shows" : "movies"}{view !== "all" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
+            <span className="text-white font-bold">{statsEntries.length}</span>
+            <span className="text-[var(--foreground-muted)]">{mediaFilter === "tv" ? "shows" : mediaFilter === "movie" ? "movies" : statsEntries.some((m) => m._type === "episode" || (m._type === "movie" && m.mediaType === "tv")) && statsEntries.some((m) => m._type === "movie" && (m.mediaType ?? "movie") === "movie") ? "movies & shows" : statsEntries.some((m) => m._type === "episode" || (m._type === "movie" && m.mediaType === "tv")) ? "shows" : "movies"}{view !== "all" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
             {avgRating != null && (
               <>
                 <span className="text-[var(--foreground-muted)]">· avg</span>
@@ -424,10 +479,10 @@ export default function SeenPage() {
               </button>
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-bold text-white">{MONTH_NAMES[calMonth]} {calYear}</h2>
-                {view === "month" && monthMovies.length > 0 && user && (
+                {view === "month" && monthEntries.length > 0 && user && (
                   <ShareButton
                     label="Share"
-                    text={`My ${MONTH_NAMES[calMonth]} ${calYear} in film: ${monthMovies.length} ${monthMovies.some((m) => m.mediaType === "tv") && monthMovies.some((m) => (m.mediaType ?? "movie") === "movie") ? "movies & shows" : monthMovies.some((m) => m.mediaType === "tv") ? "shows" : `movie${monthMovies.length !== 1 ? "s" : ""}`} watched${avgRating != null ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check it out on The Ratist!`}
+                    text={`My ${MONTH_NAMES[calMonth]} ${calYear} in film: ${monthEntries.length} ${monthEntries.some((m) => m._type === "episode" || (m._type === "movie" && m.mediaType === "tv")) && monthEntries.some((m) => m._type === "movie" && (m.mediaType ?? "movie") === "movie") ? "movies & shows" : monthEntries.some((m) => m._type === "episode" || (m._type === "movie" && m.mediaType === "tv")) ? "shows" : `movie${monthEntries.length !== 1 ? "s" : ""}`} watched${avgRating != null ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check it out on The Ratist!`}
                     url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/seen`}
                     cardImageUrl={`/api/og/month?userId=${encodeURIComponent(user.uid)}&year=${calYear}&month=${calMonth}`}
                   />
@@ -441,12 +496,12 @@ export default function SeenPage() {
 
           {/* ── MONTH VIEW ── */}
           {view === "month" && (
-            monthMovies.length === 0 ? (
+            monthEntries.length === 0 ? (
               <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
             ) : (
               <div>
                 {sortedDays.map((day) => {
-                  const dayMovies = moviesByDay.get(day) ?? [];
+                  const dayMovies = entriesByDay.get(day) ?? [];
                   const dayOfWeek = DAY_LABELS[new Date(calYear, calMonth, day).getDay()];
                   return (
                     <div key={day}>
@@ -472,7 +527,7 @@ export default function SeenPage() {
               <div className="grid grid-cols-7 gap-1">
                 {calendarDays.map((day, i) => {
                   if (day === null) return <div key={`e-${i}`} />;
-                  const dayMovies = moviesByDay.get(day) ?? [];
+                  const dayMovies = entriesByDay.get(day) ?? [];
                   const isToday = day === now.getDate() && calMonth === now.getMonth() && calYear === now.getFullYear();
                   const hasMovies = dayMovies.length > 0;
                   return (
@@ -499,7 +554,7 @@ export default function SeenPage() {
                   );
                 })}
               </div>
-              {selectedDay !== null && (moviesByDay.get(selectedDay) ?? []).length > 0 && (
+              {selectedDay !== null && (entriesByDay.get(selectedDay) ?? []).length > 0 && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
                   onClick={(e) => { if (e.target === e.currentTarget) setSelectedDay(null); }}>
                   <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5 max-h-[80vh] overflow-y-auto mx-4">
@@ -507,7 +562,7 @@ export default function SeenPage() {
                       <h3 className="text-base font-bold text-white">{MONTH_NAMES[calMonth]} {selectedDay}, {calYear}</h3>
                       <button onClick={() => setSelectedDay(null)} className="text-[var(--foreground-muted)] hover:text-white transition-colors text-sm">Close</button>
                     </div>
-                    {renderDayRows(moviesByDay.get(selectedDay) ?? [], selectedDay, true)}
+                    {renderDayRows(entriesByDay.get(selectedDay) ?? [], selectedDay, true)}
                   </div>
                 </div>
               )}
@@ -518,7 +573,7 @@ export default function SeenPage() {
           {view === "all" && (
             <div>
               {sort === "date" && allByMonth ? (
-                [...allByMonth.values()].map(({ label, movies: mlist }) => (
+                [...allByMonth.values()].map(({ label, entries: mlist }) => (
                   <div key={label}>
                     <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/30">
                       <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-widest">{label}</h3>
@@ -527,8 +582,25 @@ export default function SeenPage() {
                       const d = getWatchDate(m) ?? getWatchDateOrFallback(m);
                       const prevDay = idx > 0 ? (getWatchDate(mlist[idx - 1]) ?? getWatchDateOrFallback(mlist[idx - 1])).getDate() : null;
                       const showDay = idx === 0 || d.getDate() !== prevDay;
+                      if (m._type === "episode") {
+                        return (
+                          <DiaryEpisodeRow
+                            key={m.id}
+                            showTmdbId={m.showTmdbId}
+                            title={m.title}
+                            posterPath={m.posterPath}
+                            year={m.year}
+                            dayNumber={showDay ? d.getDate() : null}
+                            seasonCount={m.seasonCount}
+                            episodeCount={m.episodeCount}
+                            seasons={m.seasons}
+                            episodes={m.episodes}
+                            ratistRating={m.ratistRating}
+                          />
+                        );
+                      }
                       const wd = m.watchedDate ? getWatchDate(m) : null;
-          const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
+                      const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
                       return (
                         <DiaryRow
                           key={m.id}
@@ -556,8 +628,25 @@ export default function SeenPage() {
               ) : (
                 allSorted.map((m) => {
                   const d = getWatchDate(m) ?? getWatchDateOrFallback(m);
+                  if (m._type === "episode") {
+                    return (
+                      <DiaryEpisodeRow
+                        key={m.id}
+                        showTmdbId={m.showTmdbId}
+                        title={m.title}
+                        posterPath={m.posterPath}
+                        year={m.year}
+                        dayNumber={d.getDate()}
+                        seasonCount={m.seasonCount}
+                        episodeCount={m.episodeCount}
+                        seasons={m.seasons}
+                        episodes={m.episodes}
+                        ratistRating={m.ratistRating}
+                      />
+                    );
+                  }
                   const wd = m.watchedDate ? getWatchDate(m) : null;
-          const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
+                  const dateVal = wd ? `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,"0")}-${String(wd.getDate()).padStart(2,"0")}` : "";
                   return (
                     <DiaryRow
                       key={m.id}
@@ -581,34 +670,53 @@ export default function SeenPage() {
                   );
                 })
               )}
-              {/* Undated movies at the bottom */}
-              {undatedMovies.length > 0 && sort === "date" && (
+              {/* Undated entries at the bottom */}
+              {undatedEntries.length > 0 && sort === "date" && (
                 <>
                   <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/30 mt-4">
                     <h3 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-widest">No date set</h3>
                   </div>
-                  {undatedMovies.map((m) => (
-                    <DiaryRow
-                      key={m.id}
-                      tmdbId={m.tmdbId}
-                      title={m.title}
-                      posterPath={m.posterPath}
-                      year={m.year}
-                      ratistRating={m.ratistRating}
-                      voteAverage={m.voteAverage}
-                      dayNumber={null}
-                      editable
-                      dateValue=""
-                      onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
-                      mediaType={m.mediaType}
-                    />
-                  ))}
+                  {undatedEntries.map((m) => {
+                    if (m._type === "episode") {
+                      return (
+                        <DiaryEpisodeRow
+                          key={m.id}
+                          showTmdbId={m.showTmdbId}
+                          title={m.title}
+                          posterPath={m.posterPath}
+                          year={m.year}
+                          dayNumber={null}
+                          seasonCount={m.seasonCount}
+                          episodeCount={m.episodeCount}
+                          seasons={m.seasons}
+                          episodes={m.episodes}
+                          ratistRating={m.ratistRating}
+                        />
+                      );
+                    }
+                    return (
+                      <DiaryRow
+                        key={m.id}
+                        tmdbId={m.tmdbId}
+                        title={m.title}
+                        posterPath={m.posterPath}
+                        year={m.year}
+                        ratistRating={m.ratistRating}
+                        voteAverage={m.voteAverage}
+                        dayNumber={null}
+                        editable
+                        dateValue=""
+                        onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                        mediaType={m.mediaType}
+                      />
+                    );
+                  })}
                 </>
               )}
             </div>
           )}
 
-          {filtered.length === 0 && movies.length > 0 && (
+          {filtered.length === 0 && entries.length > 0 && (
             <div className="text-center py-12 text-[var(--foreground-muted)]"><p>No entries match your filters.</p></div>
           )}
         </>

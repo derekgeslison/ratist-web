@@ -1,0 +1,180 @@
+import { NextRequest, NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebase-admin";
+import { prisma } from "@/lib/prisma";
+import { getShowDetails, getShowSeasonDetails } from "@/lib/tmdb";
+
+export const dynamic = "force-dynamic";
+
+interface Props {
+  params: Promise<{ id: string }>;
+}
+
+async function getUser(req: NextRequest) {
+  const auth = req.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  try {
+    const decoded = await adminAuth.verifyIdToken(auth.slice(7));
+    return prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  } catch {
+    return null;
+  }
+}
+
+// GET: return all seen episodes for this show
+export async function GET(req: NextRequest, { params }: Props) {
+  const user = await getUser(req);
+  if (!user) return NextResponse.json({ episodes: [] });
+
+  const { id } = await params;
+  const showTmdbId = Number(id);
+
+  const episodes = await prisma.episodeSeen.findMany({
+    where: { userId: user.id, showTmdbId },
+    select: { seasonNumber: true, episodeNumber: true, watchedDate: true },
+    orderBy: [{ seasonNumber: "asc" }, { episodeNumber: "asc" }],
+  });
+
+  return NextResponse.json({ episodes });
+}
+
+// POST: bulk mark/unmark episodes
+export async function POST(req: NextRequest, { params }: Props) {
+  try {
+    const user = await getUser(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id } = await params;
+    const showTmdbId = Number(id);
+    const body = await req.json();
+    const { mode, episodes, seasonNumber, watchedDate, action = "add" } = body;
+
+    // Ensure show exists in DB
+    const tvShow = await prisma.tVShow.upsert({
+      where: { tmdbId: showTmdbId },
+      create: { tmdbId: showTmdbId, name: body.showName ?? "Unknown", posterPath: body.posterPath ?? null },
+      update: {},
+    });
+
+    if (mode === "series") {
+      // Mark entire series: fetch all seasons from TMDB, collect all episodes
+      const show = await getShowDetails(showTmdbId);
+      const regularSeasons = (show.seasons ?? []).filter((s) => s.season_number > 0);
+
+      const allEpisodes: { seasonNumber: number; episodeNumber: number }[] = [];
+      // Batch TMDB calls in groups of 5 to respect rate limits
+      for (let i = 0; i < regularSeasons.length; i += 5) {
+        const batch = regularSeasons.slice(i, i + 5);
+        const seasonDetails = await Promise.all(
+          batch.map((s) => getShowSeasonDetails(showTmdbId, s.season_number).catch(() => null))
+        );
+        for (const sd of seasonDetails) {
+          if (!sd?.episodes) continue;
+          for (const ep of sd.episodes) {
+            allEpisodes.push({ seasonNumber: ep.season_number, episodeNumber: ep.episode_number });
+          }
+        }
+      }
+
+      if (action === "remove") {
+        await prisma.episodeSeen.deleteMany({ where: { userId: user.id, showTmdbId } });
+      } else {
+        await prisma.episodeSeen.createMany({
+          data: allEpisodes.map((ep) => ({
+            userId: user.id,
+            showTmdbId,
+            seasonNumber: ep.seasonNumber,
+            episodeNumber: ep.episodeNumber,
+            watchedDate: watchedDate ? new Date(watchedDate) : new Date(),
+          })),
+          skipDuplicates: true,
+        });
+        // Also set show-level seen
+        await prisma.userFavoriteShow.upsert({
+          where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
+          create: { userId: user.id, tvShowId: tvShow.id },
+          update: {},
+        });
+      }
+    } else if (mode === "season" && seasonNumber != null) {
+      // Mark/unmark entire season
+      const seasonDetail = await getShowSeasonDetails(showTmdbId, seasonNumber).catch(() => null);
+      if (!seasonDetail?.episodes) return NextResponse.json({ error: "Season not found" }, { status: 404 });
+
+      const seasonEpisodes = seasonDetail.episodes.map((ep) => ({
+        seasonNumber: ep.season_number,
+        episodeNumber: ep.episode_number,
+      }));
+
+      if (action === "remove") {
+        await prisma.episodeSeen.deleteMany({
+          where: { userId: user.id, showTmdbId, seasonNumber },
+        });
+      } else {
+        await prisma.episodeSeen.createMany({
+          data: seasonEpisodes.map((ep) => ({
+            userId: user.id,
+            showTmdbId,
+            seasonNumber: ep.seasonNumber,
+            episodeNumber: ep.episodeNumber,
+            watchedDate: watchedDate ? new Date(watchedDate) : new Date(),
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } else if (mode === "episodes" && Array.isArray(episodes)) {
+      // Bulk add/remove specific episodes
+      if (action === "remove") {
+        for (const ep of episodes) {
+          await prisma.episodeSeen.deleteMany({
+            where: { userId: user.id, showTmdbId, seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber },
+          });
+        }
+      } else {
+        await prisma.episodeSeen.createMany({
+          data: episodes.map((ep: { seasonNumber: number; episodeNumber: number }) => ({
+            userId: user.id,
+            showTmdbId,
+            seasonNumber: ep.seasonNumber,
+            episodeNumber: ep.episodeNumber,
+            watchedDate: watchedDate ? new Date(watchedDate) : new Date(),
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } else {
+      return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
+    }
+
+    // Check remaining episode count and sync show-level seen
+    const remainingCount = await prisma.episodeSeen.count({ where: { userId: user.id, showTmdbId } });
+    if (remainingCount === 0 && mode !== "series") {
+      // No episodes left — remove show-level seen
+      await prisma.userFavoriteShow.deleteMany({
+        where: { userId: user.id, tvShowId: tvShow.id },
+      });
+    } else if (remainingCount > 0 && action !== "remove") {
+      // Has episodes — ensure show-level seen is set
+      await prisma.userFavoriteShow.upsert({
+        where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
+        create: { userId: user.id, tvShowId: tvShow.id },
+        update: {},
+      });
+    }
+
+    // Return updated seen episodes
+    const seenEpisodes = await prisma.episodeSeen.findMany({
+      where: { userId: user.id, showTmdbId },
+      select: { seasonNumber: true, episodeNumber: true },
+      orderBy: [{ seasonNumber: "asc" }, { episodeNumber: "asc" }],
+    });
+
+    return NextResponse.json({
+      episodes: seenEpisodes,
+      showSeen: remainingCount > 0,
+      totalEpisodesSeen: remainingCount,
+    });
+  } catch (err) {
+    console.error("Episode seen error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

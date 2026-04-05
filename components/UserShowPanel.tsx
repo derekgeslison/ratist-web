@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Star, Eye, Check, Bookmark, BookmarkCheck, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
+import MarkSeenModal from "./MarkSeenModal";
 
 interface UserRating {
   ratistRating: number | null;
@@ -33,6 +34,7 @@ interface Props {
   showName: string;
   posterPath: string | null;
   tmdbScore: number | null;
+  seasons?: { season_number: number; name: string; episode_count: number }[];
 }
 
 /** Hybrid community rating: TMDB score acts as 50 buffer reviews, replaced 1-for-1 by real Ratist reviews */
@@ -45,7 +47,7 @@ function hybridCommunityRating(tmdbScore: number | null, count: number, ratistSu
   return Math.round((sum / totalWeight) * 10) / 10;
 }
 
-export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore }: Props) {
+export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore, seasons }: Props) {
   const { user, loading: authLoading } = useAuth();
   const [seen, setSeen] = useState(false);
   const [watchlisted, setWatchlisted] = useState(false);
@@ -55,6 +57,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore 
   const [loaded, setLoaded] = useState(false);
   const [markingSeen, setMarkingSeen] = useState(false);
   const [markingWL, setMarkingWL] = useState(false);
+  const [showSeenModal, setShowSeenModal] = useState(false);
 
   const count = communityAvg?.count ?? 0;
   const communityHybrid = hybridCommunityRating(tmdbScore, count, communityAvg?.ratistSum ?? null);
@@ -179,7 +182,11 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore 
                 )}
               </Link>
               <button
-                onClick={toggleSeen}
+                onClick={() => {
+                  if (seen) { toggleSeen(); return; }
+                  if (seasons && seasons.length > 0) { setShowSeenModal(true); return; }
+                  toggleSeen();
+                }}
                 disabled={markingSeen}
                 className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full border transition-colors ${
                   seen
@@ -207,6 +214,16 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore 
             </p>
           )}
         </>
+      )}
+      {showSeenModal && seasons && (
+        <MarkSeenModal
+          showTmdbId={tmdbId}
+          showName={showName}
+          posterPath={posterPath}
+          seasons={seasons}
+          onClose={() => setShowSeenModal(false)}
+          onComplete={(showSeen) => setSeen(showSeen)}
+        />
       )}
     </div>
   );

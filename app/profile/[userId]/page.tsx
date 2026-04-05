@@ -69,6 +69,7 @@ export default async function ProfilePage({ params }: Props) {
     savedRankings,
     seenShows,
     allTVRatings,
+    episodesSeen,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
     prisma.movieRating.aggregate({
@@ -195,7 +196,52 @@ export default async function ProfilePage({ params }: Props) {
       },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.episodeSeen.findMany({
+      where: { userId: user.id },
+      orderBy: [{ watchedDate: "desc" }, { createdAt: "desc" }],
+    }),
   ]);
+
+  // Build episode groups for diary
+  const showTmdbIds = [...new Set(episodesSeen.map((e) => e.showTmdbId))];
+  const showMetaMap = new Map<number, { name: string; posterPath: string | null; year: string }>();
+  if (showTmdbIds.length > 0) {
+    const shows = await prisma.tVShow.findMany({
+      where: { tmdbId: { in: showTmdbIds } },
+      select: { tmdbId: true, name: true, posterPath: true, firstAirDate: true },
+    });
+    for (const s of shows) showMetaMap.set(s.tmdbId, { name: s.name, posterPath: s.posterPath, year: (s.firstAirDate ?? "").slice(0, 4) });
+  }
+  const epGroupMap = new Map<string, typeof episodesSeen>();
+  for (const ep of episodesSeen) {
+    const dateKey = ep.watchedDate ? ep.watchedDate.toISOString().slice(0, 10) : "undated";
+    const key = `${ep.showTmdbId}::${dateKey}`;
+    if (!epGroupMap.has(key)) epGroupMap.set(key, []);
+    epGroupMap.get(key)!.push(ep);
+  }
+  const episodeGroups = [...epGroupMap.entries()].map(([, eps]) => {
+    const first = eps[0];
+    const meta = showMetaMap.get(first.showTmdbId);
+    const seasonSet = new Set(eps.map((e) => e.seasonNumber));
+    return {
+      showTmdbId: first.showTmdbId,
+      title: meta?.name ?? "Unknown Show",
+      posterPath: meta?.posterPath ?? null,
+      year: meta?.year ?? "",
+      watchedDate: first.watchedDate?.toISOString().slice(0, 10) ?? null,
+      seenAt: eps.reduce((min, e) => e.createdAt < min ? e.createdAt : min, eps[0].createdAt).toISOString(),
+      seasonCount: seasonSet.size,
+      episodeCount: eps.length,
+      seasons: [...seasonSet].sort((a, b) => a - b).map((sn) => ({
+        seasonNumber: sn,
+        episodeCount: eps.filter((e) => e.seasonNumber === sn).length,
+      })),
+      episodes: eps.sort((a, b) => a.seasonNumber - b.seasonNumber || a.episodeNumber - b.episodeNumber)
+        .map((e) => ({ seasonNumber: e.seasonNumber, episodeNumber: e.episodeNumber, name: null as string | null })),
+      mediaType: "tv" as const,
+      isEpisodeGroup: true as const,
+    };
+  });
 
   // Build rating distribution (0-2, 2-4, 4-6, 6-8, 8-10)
   const RANGES = [
@@ -365,6 +411,7 @@ export default async function ProfilePage({ params }: Props) {
         }))}
         recommendations={recommendations}
         similarUsers={similarUsers}
+        episodeGroups={episodeGroups}
         profile={user.profile as Record<string, number> | null}
         stats={{
           ratingCount: ratingCount + tvRatingCount,

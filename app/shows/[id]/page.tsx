@@ -191,6 +191,7 @@ export default async function ShowDetailPage({ params }: Props) {
               showName={show.name}
               posterPath={show.poster_path}
               tmdbScore={communityScore}
+              seasons={seasons}
             />
           </div>
         </div>

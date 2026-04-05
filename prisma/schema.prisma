@@ -31,6 +31,7 @@ model User {
   profile        UserProfile?
   favoriteMovies UserFavoriteMovie[]
   favoriteShows  UserFavoriteShow[]
+  episodesSeen   EpisodeSeen[]
   watchlistsOwned  Watchlist[]
   watchlistCollab  WatchlistCollaborator[]
   blogPosts      BlogPost[]
@@ -322,6 +323,23 @@ model UserFavoriteShow {
 
   @@id([userId, tvShowId])
   @@map("user_favorite_shows")
+}
+
+model EpisodeSeen {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  showTmdbId    Int       @map("show_tmdb_id")
+  seasonNumber  Int       @map("season_number")
+  episodeNumber Int       @map("episode_number")
+  watchedDate   DateTime? @map("watched_date")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, showTmdbId, seasonNumber, episodeNumber])
+  @@index([userId, showTmdbId])
+  @@index([userId, watchedDate])
+  @@map("episode_seen")
 }
 
 model WatchlistShow {

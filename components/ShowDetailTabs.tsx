@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, ArrowRight, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import {
   posterUrl,
   type TMDBShow,
@@ -44,10 +45,30 @@ function FactRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function SeasonCard({ season, showTmdbId }: { season: TMDBSeason; showTmdbId: number }) {
+function SeasonCard({
+  season,
+  showTmdbId,
+  seenEpisodes,
+  onToggleEpisode,
+  onToggleSeason,
+  isLoggedIn,
+}: {
+  season: TMDBSeason;
+  showTmdbId: number;
+  seenEpisodes: Set<string>;
+  onToggleEpisode: (seasonNumber: number, episodeNumber: number) => void;
+  onToggleSeason: (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => void;
+  isLoggedIn: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Count seen episodes in this season
+  const seenCount = episodes
+    ? episodes.filter((ep) => seenEpisodes.has(`${season.season_number}-${ep.episode_number}`)).length
+    : 0;
+  const allSeen = episodes ? episodes.length > 0 && seenCount === episodes.length : false;
 
   async function toggleExpand() {
     if (expanded) { setExpanded(false); return; }
@@ -67,34 +88,53 @@ function SeasonCard({ season, showTmdbId }: { season: TMDBSeason; showTmdbId: nu
 
   return (
     <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-      <button
-        onClick={toggleExpand}
-        className="w-full flex items-center gap-4 p-3 hover:bg-[var(--surface-2)] transition-colors text-left"
-      >
-        {season.poster_path ? (
-          <div className="relative w-12 h-18 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-            <Image
-              src={posterUrl(season.poster_path, "w92")}
-              alt={season.name}
-              width={48}
-              height={72}
-              className="object-cover"
-            />
+      <div className="flex items-center gap-0">
+        <button
+          onClick={toggleExpand}
+          className="flex-1 flex items-center gap-4 p-3 hover:bg-[var(--surface-2)] transition-colors text-left"
+        >
+          {season.poster_path ? (
+            <div className="relative w-12 h-18 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+              <Image
+                src={posterUrl(season.poster_path, "w92")}
+                alt={season.name}
+                width={48}
+                height={72}
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <div className="w-12 h-18 shrink-0 rounded bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)]">
+              S{season.season_number}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white">{season.name}</p>
+            <p className="text-xs text-[var(--foreground-muted)]">
+              {season.episode_count} episode{season.episode_count !== 1 ? "s" : ""}
+              {season.air_date ? ` · ${season.air_date.slice(0, 4)}` : ""}
+            </p>
           </div>
-        ) : (
-          <div className="w-12 h-18 shrink-0 rounded bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)]">
-            S{season.season_number}
-          </div>
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
+        </button>
+        {isLoggedIn && episodes && episodes.length > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSeason(season.season_number, season.episode_count, episodes);
+            }}
+            className={`shrink-0 mr-3 flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
+              allSeen
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-emerald-500/40 hover:text-emerald-400"
+            }`}
+            title={allSeen ? "Mark season as unwatched" : "Mark season as watched"}
+          >
+            <Check className="w-3 h-3" />
+            {seenCount}/{episodes.length}
+          </button>
         )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">{season.name}</p>
-          <p className="text-xs text-[var(--foreground-muted)]">
-            {season.episode_count} episode{season.episode_count !== 1 ? "s" : ""}
-            {season.air_date ? ` · ${season.air_date.slice(0, 4)}` : ""}
-          </p>
-        </div>
-        {expanded ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t border-[var(--border)] bg-[var(--surface-1)]">
@@ -105,41 +145,58 @@ function SeasonCard({ season, showTmdbId }: { season: TMDBSeason; showTmdbId: nu
             <p className="text-xs text-[var(--foreground-muted)] px-4 py-3">Loading episodes...</p>
           ) : episodes && episodes.length > 0 ? (
             <div className="divide-y divide-[var(--border)]">
-              {episodes.map((ep) => (
-                <div key={ep.id} className="flex items-start gap-3 px-4 py-3">
-                  {ep.still_path ? (
-                    <div className="relative w-24 aspect-video shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-                      <Image
-                        src={`https://image.tmdb.org/t/p/w185${ep.still_path}`}
-                        alt={ep.name}
-                        fill
-                        sizes="96px"
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-24 aspect-video shrink-0 rounded bg-[var(--surface-2)] flex items-center justify-center text-[10px] text-[var(--foreground-muted)]">
-                      E{ep.episode_number}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white">
-                      <span className="text-[var(--foreground-muted)] mr-1">{ep.episode_number}.</span>
-                      {ep.name}
-                    </p>
-                    {ep.air_date && (
-                      <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">
-                        {ep.air_date}
-                        {ep.runtime ? ` · ${ep.runtime}m` : ""}
-                        {ep.vote_average > 0 ? ` · ${ep.vote_average.toFixed(1)}★` : ""}
-                      </p>
+              {episodes.map((ep) => {
+                const key = `${season.season_number}-${ep.episode_number}`;
+                const isSeen = seenEpisodes.has(key);
+                return (
+                  <div key={ep.id} className="flex items-start gap-3 px-4 py-3">
+                    {ep.still_path ? (
+                      <div className="relative w-24 aspect-video shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                        <Image
+                          src={`https://image.tmdb.org/t/p/w185${ep.still_path}`}
+                          alt={ep.name}
+                          fill
+                          sizes="96px"
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-24 aspect-video shrink-0 rounded bg-[var(--surface-2)] flex items-center justify-center text-[10px] text-[var(--foreground-muted)]">
+                        E{ep.episode_number}
+                      </div>
                     )}
-                    {ep.overview && (
-                      <p className="text-[11px] text-[var(--foreground-muted)] mt-1 line-clamp-2">{ep.overview}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-white">
+                        <span className="text-[var(--foreground-muted)] mr-1">{ep.episode_number}.</span>
+                        {ep.name}
+                      </p>
+                      {ep.air_date && (
+                        <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">
+                          {ep.air_date}
+                          {ep.runtime ? ` · ${ep.runtime}m` : ""}
+                          {ep.vote_average > 0 ? ` · ${ep.vote_average.toFixed(1)}★` : ""}
+                        </p>
+                      )}
+                      {ep.overview && (
+                        <p className="text-[11px] text-[var(--foreground-muted)] mt-1 line-clamp-2">{ep.overview}</p>
+                      )}
+                    </div>
+                    {isLoggedIn && (
+                      <button
+                        onClick={() => onToggleEpisode(season.season_number, ep.episode_number)}
+                        className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
+                          isSeen
+                            ? "border-emerald-500 bg-emerald-500/20 text-emerald-400"
+                            : "border-[var(--border)] text-transparent hover:border-[var(--foreground-muted)] hover:text-[var(--foreground-muted)]"
+                        }`}
+                        title={isSeen ? "Mark as unwatched" : "Mark as watched"}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : episodes && episodes.length === 0 ? (
             <p className="text-xs text-[var(--foreground-muted)] px-4 py-3">No episode details available.</p>
@@ -161,10 +218,84 @@ export default function ShowDetailTabs({
   rent,
   seasons,
 }: Props) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
+  const [seenEpisodes, setSeenEpisodes] = useState<Set<string>>(new Set());
+
+  // Fetch seen episodes on mount
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch(`/api/shows/${show.id}/episodes/seen`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.episodes) {
+          const set = new Set<string>();
+          for (const ep of data.episodes) {
+            set.add(`${ep.seasonNumber}-${ep.episodeNumber}`);
+          }
+          setSeenEpisodes(set);
+        }
+      })
+      .catch(() => {});
+  }, [isLoggedIn, show.id]);
+
+  const toggleEpisode = useCallback(
+    (seasonNumber: number, episodeNumber: number) => {
+      const key = `${seasonNumber}-${episodeNumber}`;
+      const removing = seenEpisodes.has(key);
+      setSeenEpisodes((prev) => {
+        const next = new Set(prev);
+        if (removing) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      fetch(`/api/shows/${show.id}/episodes/seen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "episodes",
+          episodes: [{ seasonNumber, episodeNumber }],
+          action: removing ? "remove" : "add",
+        }),
+      }).catch(() => {});
+    },
+    [seenEpisodes, show.id]
+  );
+
+  const toggleSeason = useCallback(
+    (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => {
+      const allSeen = episodes.every((ep) =>
+        seenEpisodes.has(`${seasonNumber}-${ep.episode_number}`)
+      );
+      const action = allSeen ? "remove" : "add";
+      setSeenEpisodes((prev) => {
+        const next = new Set(prev);
+        for (const ep of episodes) {
+          const key = `${seasonNumber}-${ep.episode_number}`;
+          if (allSeen) next.delete(key);
+          else next.add(key);
+        }
+        return next;
+      });
+      fetch(`/api/shows/${show.id}/episodes/seen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "season",
+          episodes: episodes.map((ep) => ({
+            seasonNumber,
+            episodeNumber: ep.episode_number,
+          })),
+          action,
+        }),
+      }).catch(() => {});
+    },
+    [seenEpisodes, show.id]
+  );
 
   // Extract key crew
   const creators = show.created_by ?? [];
@@ -326,12 +457,27 @@ export default function ShowDetailTabs({
       {activeTab === "Seasons" && (
         <div className="space-y-4 pb-16">
           {mainSeasons.map((s) => (
-            <SeasonCard key={s.season_number} season={s} showTmdbId={show.id} />
+            <SeasonCard
+              key={s.season_number}
+              season={s}
+              showTmdbId={show.id}
+              seenEpisodes={seenEpisodes}
+              onToggleEpisode={toggleEpisode}
+              onToggleSeason={toggleSeason}
+              isLoggedIn={isLoggedIn}
+            />
           ))}
           {specials && specials.episode_count > 0 && (
             <>
               <h3 className="text-sm font-semibold text-[var(--foreground-muted)] mt-6 mb-2">Specials</h3>
-              <SeasonCard season={specials} showTmdbId={show.id} />
+              <SeasonCard
+                season={specials}
+                showTmdbId={show.id}
+                seenEpisodes={seenEpisodes}
+                onToggleEpisode={toggleEpisode}
+                onToggleSeason={toggleSeason}
+                isLoggedIn={isLoggedIn}
+              />
             </>
           )}
         </div>

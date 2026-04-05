@@ -70,12 +70,15 @@ export async function GET(req: NextRequest, { params }: Props) {
     const tvShow = await prisma.tVShow.findUnique({ where: { tmdbId: Number(tmdbId) } });
     if (!tvShow) return NextResponse.json({ seen: false, watchlisted: false, rating: null, communityAvg: null });
 
-    const [isSeen, isWatchlisted, userRating] = await Promise.all([
+    const [isSeen, isWatchlisted, episodeSeenCount, userRating] = await Promise.all([
       prisma.userFavoriteShow.findUnique({
         where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
       }),
       prisma.watchlistShow.findFirst({
         where: { tvShowId: tvShow.id, watchlist: { userId: user.id } },
+      }),
+      prisma.episodeSeen.count({
+        where: { userId: user.id, showTmdbId: Number(tmdbId) },
       }),
       prisma.tVShowRating.findFirst({
         where: { userId: user.id, tvShowId: tvShow.id, ratingScope: "series", seasonNumber: 0 },
@@ -123,6 +126,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     return NextResponse.json({
       seen: !!isSeen,
       watchlisted: !!isWatchlisted,
+      episodeSeenCount,
       rating: ratingForClient,
       ratingStatus,
       communityAvg: {

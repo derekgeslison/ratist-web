@@ -81,9 +81,23 @@ interface UserWatchlistInfo {
   movieCount: number;
 }
 
+interface EpisodeGroup {
+  showTmdbId: number;
+  title: string;
+  posterPath: string | null;
+  year: string;
+  watchedDate: string | null;
+  seasonCount: number;
+  episodeCount: number;
+  seasons: { seasonNumber: number; episodeCount: number }[];
+  episodes: { seasonNumber: number; episodeNumber: number; name: string | null }[];
+  ratistRating?: number | null;
+}
+
 interface Props {
   ratings: RatedMovie[];
   seenMovies: SeenMovie[];
+  episodeGroups?: EpisodeGroup[];
   watchlistMovies: WatchlistMovie[];
   userWatchlists?: UserWatchlistInfo[];
   recommendations: Recommendation[];
@@ -108,6 +122,7 @@ type Tab = (typeof TABS)[number];
 export default function ProfileTabs({
   ratings,
   seenMovies,
+  episodeGroups = [],
   watchlistMovies,
   userWatchlists = [],
   recommendations,
@@ -578,6 +593,7 @@ export default function ProfileTabs({
       {activeTab === "Diary" && (
         <ProfileDiaryTab
           seenMovies={seenMovies}
+          episodeGroups={episodeGroups}
           isOwnProfile={isOwnProfile}
           profileFirebaseUid={profileFirebaseUid}
           activeYear={activeYear}
