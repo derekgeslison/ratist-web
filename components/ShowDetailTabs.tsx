@@ -64,11 +64,12 @@ function SeasonCard({
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Count seen episodes in this season
+  // Count seen episodes in this season — use seenEpisodes set directly so it works before expanding
   const seenCount = episodes
     ? episodes.filter((ep) => seenEpisodes.has(`${season.season_number}-${ep.episode_number}`)).length
-    : 0;
-  const allSeen = episodes ? episodes.length > 0 && seenCount === episodes.length : false;
+    : Array.from(seenEpisodes).filter((key) => key.startsWith(`${season.season_number}-`)).length;
+  const totalEpisodes = episodes?.length ?? season.episode_count;
+  const allSeen = totalEpisodes > 0 && seenCount === totalEpisodes;
 
   async function toggleExpand() {
     if (expanded) { setExpanded(false); return; }
@@ -146,7 +147,7 @@ function SeasonCard({
             title={allSeen ? "Mark season as unwatched" : "Mark season as watched"}
           >
             <Eye className="w-3 h-3" />
-            {episodes ? `${seenCount}/${episodes.length}` : `0/${season.episode_count}`}
+            {`${seenCount}/${totalEpisodes}`}
           </button>
         )}
       </div>

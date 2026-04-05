@@ -5,22 +5,27 @@ export const metadata: Metadata = { title: "Blog" };
 export const dynamic = "force-dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, Calendar, Eye, MessageCircle } from "lucide-react";
+import { BookOpen, Calendar, Eye, MessageCircle, Search } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 import AdUnit from "@/components/AdUnit";
 
-type Sort = "newest" | "oldest" | "popular";
-
-export default async function BlogPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
-  const { sort = "newest" } = await searchParams;
+export default async function BlogPage({ searchParams }: { searchParams: Promise<{ sort?: string; q?: string }> }) {
+  const { sort = "newest", q } = await searchParams;
   const orderBy =
     sort === "popular" ? { viewCount: "desc" as const } :
     sort === "oldest" ? { createdAt: "asc" as const } :
     { createdAt: "desc" as const };
 
+  const searchFilter = q?.trim()
+    ? { OR: [
+        { title: { contains: q.trim(), mode: "insensitive" as const } },
+        { excerpt: { contains: q.trim(), mode: "insensitive" as const } },
+      ] }
+    : {};
+
   const posts = await prisma.blogPost.findMany({
-    where: { type: "BLOG", published: true },
+    where: { type: "BLOG", published: true, ...searchFilter },
     select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
@@ -43,11 +48,26 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
         <h1 className="text-2xl font-bold text-white">Blog</h1>
       </div>
 
-      {posts.length > 0 && (
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+        <form action="/blog" method="get" className="relative flex-1 w-full sm:w-auto">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          <input
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Search posts..."
+            className="w-full pl-9 pr-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+          {sort !== "newest" && <input type="hidden" name="sort" value={sort} />}
+        </form>
+        {q && (
+          <Link href={`/blog${sort !== "newest" ? `?sort=${sort}` : ""}`} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+            Clear search
+          </Link>
+        )}
         <Suspense>
           <PostSortBar />
         </Suspense>
-      )}
+      </div>
 
       {posts.length === 0 ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">
