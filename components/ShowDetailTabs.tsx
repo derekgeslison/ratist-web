@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye } from "lucide-react";
+import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
   posterUrl,
@@ -457,6 +457,10 @@ export default function ShowDetailTabs({
                         sizes="(max-width: 640px) 33vw, 15vw"
                         className="object-cover"
                       />
+                      <div className="absolute top-1.5 left-1.5 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
+                        <Tv className="w-2.5 h-2.5" />
+                        <span className="text-[8px] font-bold leading-none">TV</span>
+                      </div>
                     </div>
                     <p className="text-xs font-medium text-white line-clamp-1">{s.name}</p>
                     <p className="text-[10px] text-[var(--foreground-muted)]">{s.first_air_date?.slice(0, 4) ?? "—"}</p>
