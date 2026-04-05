@@ -613,9 +613,16 @@ export default function RecommendPage() {
               <Sparkles className="w-10 h-10 mx-auto mb-4 text-[var(--ratist-red)] animate-pulse" />
               <p className="text-[var(--foreground-muted)]">Finding your perfect watch...</p>
             </div>
-          ) : results.length === 0 ? (
+          ) : sorted.length === 0 ? (
             <div className="text-center py-16 text-[var(--foreground-muted)]">
-              <p className="mb-3">Nothing matched your criteria. Try broadening your filters.</p>
+              <p className="mb-3">
+                {results.length > 0
+                  ? "No results match your current filters. Try removing a streaming service or rating filter."
+                  : "Nothing matched your criteria. Try broadening your filters."}
+              </p>
+              {results.length > 0 && selectedStreamingProviders.size > 0 && (
+                <button onClick={() => setSelectedStreamingProviders(new Set())} className="text-sm text-[var(--ratist-red)] hover:underline mr-4">Clear streaming filter</button>
+              )}
               <button onClick={handleStartOver} className="text-sm text-[var(--ratist-red)] hover:underline">Start over</button>
             </div>
           ) : (
@@ -686,7 +693,7 @@ export default function RecommendPage() {
                 ))}
               </div>
 
-              {(visibleCount < sorted.length || currentPage < totalPages) && (
+              {sorted.length > 0 && (visibleCount < sorted.length || currentPage < totalPages) && (
                 <div className="text-center mt-6">
                   <button onClick={handleSeeMore} disabled={loading}
                     className="flex items-center gap-2 mx-auto text-sm text-[var(--ratist-red)] hover:underline disabled:opacity-50">
