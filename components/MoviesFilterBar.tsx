@@ -354,7 +354,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
             const p = STREAMING_PROVIDERS.find((s) => String(s.id) === pid);
             return p ? (
               <span key={pid} className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
-                <Image src={`${IMAGE_BASE_URL}/w45${p.logo}`} alt="" width={14} height={14} className="rounded-[2px]" />
+                <img src={`${IMAGE_BASE_URL}/w92${p.logo}`} alt="" width={14} height={14} className="rounded-[2px]" />
                 {p.short}
                 <button onClick={() => toggleProvider(pid)}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
               </span>
@@ -406,7 +406,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
             <div className="flex flex-wrap gap-2">
               {STREAMING_PROVIDERS.map((p) => (
                 <button key={p.id} onClick={() => toggleProvider(String(p.id))} className={`${chipBase} flex items-center gap-1.5 ${currentProviders.includes(String(p.id)) ? chipOn : chipOff}`}>
-                  <Image src={`${IMAGE_BASE_URL}/w45${p.logo}`} alt="" width={16} height={16} className="rounded-[3px]" />
+                  <img src={`${IMAGE_BASE_URL}/w92${p.logo}`} alt="" width={16} height={16} className="rounded-[3px]" />
                   {p.short}
                 </button>
               ))}

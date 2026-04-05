@@ -602,7 +602,7 @@ export default function RecommendPage() {
                         ? "bg-green-500/15 border-green-500/30 text-green-400"
                         : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
                     }`}>
-                    <img src={`${IMAGE_BASE_URL}/w45${p.logo}`} alt="" className="w-3.5 h-3.5 rounded-[2px]" />
+                    <img src={`${IMAGE_BASE_URL}/w92${p.logo}`} alt="" className="w-3.5 h-3.5 rounded-[2px]" />
                     {p.short}
                   </button>
                 ))}
