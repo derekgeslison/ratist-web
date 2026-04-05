@@ -17,6 +17,7 @@ import {
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
 import ParentsGuide from "./ParentsGuide";
+import Soundtrack from "./Soundtrack";
 
 interface Props {
   show: TMDBShow;
@@ -474,6 +475,12 @@ export default function ShowDetailTabs({
           {images.length === 0 && !trailerKey && (
             <p className="text-[var(--foreground-muted)] text-sm py-8 text-center">No media available for this title.</p>
           )}
+
+          {/* Soundtrack */}
+          <section className="mt-8">
+            <h2 className="text-base font-semibold text-white mb-3">Official Soundtrack</h2>
+            <Soundtrack tmdbId={show.id} title={show.name} mediaType="tv" />
+          </section>
         </div>
       )}
 

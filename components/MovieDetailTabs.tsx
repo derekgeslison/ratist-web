@@ -8,6 +8,7 @@ import { posterUrl, type TMDBMovie, type TMDBCastMember, type TMDBCrewMember, ty
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
 import ReviewCard from "./ReviewCard";
+import Soundtrack from "./Soundtrack";
 import ParentsGuide from "./ParentsGuide";
 import PosterOverlay from "./PosterOverlay";
 
@@ -364,6 +365,12 @@ export default function MovieDetailTabs({
           {images.length === 0 && !trailerKey && (
             <p className="text-[var(--foreground-muted)] text-sm py-8 text-center">No media available for this title.</p>
           )}
+
+          {/* Soundtrack */}
+          <section className="mt-8">
+            <h2 className="text-base font-semibold text-white mb-3">Official Soundtrack</h2>
+            <Soundtrack tmdbId={movie.id} title={movie.title} mediaType="movie" />
+          </section>
         </div>
       )}
 
