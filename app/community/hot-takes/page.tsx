@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2, Search } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
@@ -36,6 +36,7 @@ export default function HotTakesPage() {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchItems = useCallback(async () => {
     setFetchError(false);
@@ -62,7 +63,11 @@ export default function HotTakesPage() {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  const sorted = [...items].sort((a, b) => {
+  const filtered = searchQuery.trim()
+    ? items.filter((i) => i.content.toLowerCase().includes(searchQuery.toLowerCase()) || i.author.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : items;
+
+  const sorted = [...filtered].sort((a, b) => {
     if (sort === "score") return b.score - a.score;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
@@ -191,9 +196,20 @@ export default function HotTakesPage() {
         </div>
       )}
 
-      {/* Sort controls */}
+      {/* Search & Sort controls */}
       {!loading && items.length > 0 && (
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+          <div className="relative flex-1 w-full sm:w-auto sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search takes..."
+              className="w-full pl-9 pr-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-orange-400"
+            />
+          </div>
+          <div className="flex items-center gap-2">
           <span className="text-xs text-[var(--foreground-muted)]">Sort:</span>
           <button
             onClick={() => setSort("newest")}
@@ -207,6 +223,7 @@ export default function HotTakesPage() {
           >
             <TrendingUp className="w-3 h-3" /> Hottest
           </button>
+          </div>
         </div>
       )}
 

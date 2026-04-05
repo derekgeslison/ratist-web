@@ -120,6 +120,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: tmdbId } = await params;
+    const authorization = req.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
+    const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const tvShow = await prisma.tVShow.findUnique({ where: { tmdbId: Number(tmdbId) } });
+    if (!tvShow) return NextResponse.json({ error: "No rating found" }, { status: 404 });
+
+    const scope = req.nextUrl.searchParams.get("scope") ?? "series";
+    const seasonNum = req.nextUrl.searchParams.get("season");
+
+    const deleted = await prisma.tVShowRating.deleteMany({
+      where: {
+        userId: user.id,
+        tvShowId: tvShow.id,
+        ratingScope: scope,
+        seasonNumber: scope === "season" && seasonNum ? Number(seasonNum) : 0,
+      },
+    });
+
+    if (deleted.count === 0) return NextResponse.json({ error: "No rating found" }, { status: 404 });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Delete show rating error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: tmdbId } = await params;

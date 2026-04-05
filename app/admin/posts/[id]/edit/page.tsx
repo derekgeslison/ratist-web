@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { Save, ArrowLeft, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload } from "lucide-react";
 import Link from "next/link";
 import type { PostType } from "@prisma/client";
 
@@ -36,6 +36,7 @@ export default function EditPostPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -152,16 +153,62 @@ export default function EditPostPage() {
           </div>
 
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-white mb-2">Cover Image URL</h3>
+            <h3 className="text-sm font-semibold text-white mb-2">Cover Image</h3>
+            <label className={`flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed rounded-lg cursor-pointer transition-colors mb-2 ${
+              uploading ? "border-[var(--ratist-red)]/50 text-[var(--foreground-muted)]" : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white"
+            }`}>
+              <Upload className="w-4 h-4" />
+              <span className="text-sm">{uploading ? "Uploading..." : "Upload Image"}</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                disabled={uploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !user) return;
+                  setUploading(true);
+                  try {
+                    const token = await user.getIdToken();
+                    const form = new FormData();
+                    form.append("file", file);
+                    const res = await fetch("/api/upload", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                      body: form,
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.url) {
+                      setCoverImage(data.url);
+                    } else {
+                      setError(data.error ?? "Upload failed");
+                    }
+                  } catch {
+                    setError("Upload failed");
+                  }
+                  setUploading(false);
+                  e.target.value = "";
+                }}
+              />
+            </label>
             <input
               value={coverImage}
               onChange={(e) => setCoverImage(e.target.value)}
-              placeholder="https://…"
+              placeholder="Or paste image URL..."
               className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg px-3 py-2 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)]"
             />
             {coverImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={coverImage} alt="" className="mt-2 rounded-lg w-full object-cover max-h-32" onError={(e) => (e.currentTarget.style.display = "none")} />
+              <div className="relative mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={coverImage} alt="" className="rounded-lg w-full object-cover max-h-32" onError={(e) => (e.currentTarget.style.display = "none")} />
+                <button
+                  type="button"
+                  onClick={() => setCoverImage("")}
+                  className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                >
+                  <span className="text-xs px-1">Remove</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

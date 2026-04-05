@@ -126,6 +126,7 @@ export default function LooksLikePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchItems = useCallback(async () => {
     try {
@@ -150,7 +151,11 @@ export default function LooksLikePage() {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  const sorted = [...items].sort((a, b) => {
+  const filtered = searchQuery.trim()
+    ? items.filter((i) => i.name1.toLowerCase().includes(searchQuery.toLowerCase()) || i.name2.toLowerCase().includes(searchQuery.toLowerCase()))
+    : items;
+
+  const sorted = [...filtered].sort((a, b) => {
     if (sort === "score") return b.score - a.score;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
@@ -275,22 +280,34 @@ export default function LooksLikePage() {
         </div>
       )}
 
-      {/* Sort controls */}
+      {/* Search & Sort controls */}
       {!loading && items.length > 0 && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xs text-[var(--foreground-muted)]">Sort:</span>
-          <button
-            onClick={() => setSort("newest")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "newest" ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
-          >
-            <Clock className="w-3 h-3" /> Newest
-          </button>
-          <button
-            onClick={() => setSort("score")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "score" ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
-          >
-            <TrendingUp className="w-3 h-3" /> Top Rated
-          </button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+          <div className="relative flex-1 w-full sm:w-auto sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search pairs..."
+              className="w-full pl-9 pr-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-purple-400"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--foreground-muted)]">Sort:</span>
+            <button
+              onClick={() => setSort("newest")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "newest" ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+            >
+              <Clock className="w-3 h-3" /> Newest
+            </button>
+            <button
+              onClick={() => setSort("score")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "score" ? "bg-purple-600 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+            >
+              <TrendingUp className="w-3 h-3" /> Top Rated
+            </button>
+          </div>
         </div>
       )}
 

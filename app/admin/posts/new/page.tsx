@@ -4,7 +4,7 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { Save, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff, Upload } from "lucide-react";
 import Link from "next/link";
 
 const TYPE_LABELS = {
@@ -26,6 +26,7 @@ function NewPostInner() {
   const [published, setPublished] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   async function save() {
     if (!user || !title.trim() || !content) return;
@@ -121,16 +122,64 @@ function NewPostInner() {
 
           {/* Cover image */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-white mb-2">Cover Image URL</h3>
-            <input
-              value={coverImage}
-              onChange={(e) => setCoverImage(e.target.value)}
-              placeholder="https://…"
-              className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg px-3 py-2 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)]"
-            />
+            <h3 className="text-sm font-semibold text-white mb-2">Cover Image</h3>
+            <label className={`flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed rounded-lg cursor-pointer transition-colors mb-2 ${
+              uploading ? "border-[var(--ratist-red)]/50 text-[var(--foreground-muted)]" : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white"
+            }`}>
+              <Upload className="w-4 h-4" />
+              <span className="text-sm">{uploading ? "Uploading..." : "Upload Image"}</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                disabled={uploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !user) return;
+                  setUploading(true);
+                  try {
+                    const token = await user.getIdToken();
+                    const form = new FormData();
+                    form.append("file", file);
+                    const res = await fetch("/api/upload", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                      body: form,
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.url) {
+                      setCoverImage(data.url);
+                    } else {
+                      setError(data.error ?? "Upload failed");
+                    }
+                  } catch {
+                    setError("Upload failed");
+                  }
+                  setUploading(false);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <div className="relative">
+              <input
+                value={coverImage}
+                onChange={(e) => setCoverImage(e.target.value)}
+                placeholder="Or paste image URL..."
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg px-3 py-2 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)]"
+              />
+            </div>
             {coverImage && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={coverImage} alt="" className="mt-2 rounded-lg w-full object-cover max-h-32" onError={(e) => (e.currentTarget.style.display = "none")} />
+              <div className="relative mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={coverImage} alt="" className="rounded-lg w-full object-cover max-h-32" onError={(e) => (e.currentTarget.style.display = "none")} />
+                <button
+                  type="button"
+                  onClick={() => setCoverImage("")}
+                  className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition-colors"
+                >
+                  <span className="text-xs px-1">Remove</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

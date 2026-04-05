@@ -84,6 +84,10 @@ export default function RateShowPage() {
   const [commentsDisabled, setCommentsDisabled] = useState(false);
   const [fieldComments, setFieldComments] = useState<Record<string, string>>({});
   const [categoryComments, setCategoryComments] = useState<Record<string, string>>({});
+  const [hasExisting, setHasExisting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   // Scope: series or season
   const [ratingScope, setRatingScope] = useState<"series" | "season">(
@@ -117,7 +121,25 @@ export default function RateShowPage() {
             if (rating.commentsDisabled) setCommentsDisabled(rating.commentsDisabled);
             if (rating.fieldComments) setFieldComments(rating.fieldComments);
             if (rating.categoryComments) setCategoryComments(rating.categoryComments);
+            setHasExisting(true);
+          } else {
+            // No server rating — try localStorage draft
+            try {
+              const raw = localStorage.getItem(`ratist-draft-show-${id}-${ratingScope}-${ratingScope === "season" ? seasonNumber : 0}`);
+              if (raw) {
+                const draft = JSON.parse(raw);
+                if (draft.values) setValues(draft.values);
+                if (draft.overallRating != null) setOverallRating(draft.overallRating);
+                if (draft.reviewText) setReviewText(draft.reviewText);
+                if (draft.mode) setMode(draft.mode);
+                if (draft.hasSpoilers) setHasSpoilers(draft.hasSpoilers);
+                if (draft.commentsDisabled) setCommentsDisabled(draft.commentsDisabled);
+                if (draft.fieldComments) setFieldComments(draft.fieldComments);
+                if (draft.categoryComments) setCategoryComments(draft.categoryComments);
+              }
+            } catch { /* ignore */ }
           }
+          setDraftLoaded(true);
         });
     });
   }, [authLoading, user, id, router, ratingScope, seasonNumber]);
@@ -126,6 +148,29 @@ export default function RateShowPage() {
     fetch(`/api/tmdb/tv/${id}`)
       .then(r => r.json()).then(setShow).catch(() => null);
   }, [id]);
+
+  // Auto-save draft to localStorage
+  const draftKey = `ratist-draft-show-${id}-${ratingScope}-${ratingScope === "season" ? seasonNumber : 0}`;
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const hasAnyValue = overallRating != null || reviewText.trim() || Object.values(values).some((v) => v != null);
+    if (!hasAnyValue) return;
+    const draft = { values, overallRating, reviewText, mode, hasSpoilers, commentsDisabled, fieldComments, categoryComments, savedAt: Date.now() };
+    localStorage.setItem(draftKey, JSON.stringify(draft));
+  }, [values, overallRating, reviewText, mode, hasSpoilers, commentsDisabled, fieldComments, categoryComments, draftKey, draftLoaded]);
+
+  function clearDraft() {
+    localStorage.removeItem(draftKey);
+    setValues({});
+    setOverallRating(null);
+    setReviewText("");
+    setMode("standard");
+    setHasSpoilers(false);
+    setCommentsDisabled(false);
+    setFieldComments({});
+    setCategoryComments({});
+    setDraftLoaded(true);
+  }
 
   function setValue(key: string, val: number) {
     setValues((v) => ({ ...v, [key]: val }));
@@ -183,6 +228,7 @@ export default function RateShowPage() {
       body: JSON.stringify(payload),
     });
     if (res.ok) {
+      localStorage.removeItem(draftKey);
       router.push(isDraft ? `/shows/${id}` : `/shows/${id}?rated=1`);
     } else {
       setError("Failed to save. Please try again.");
@@ -193,6 +239,25 @@ export default function RateShowPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await submitRating(false);
+  }
+
+  async function deleteRating() {
+    if (!user) return;
+    setDeleting(true);
+    const token = await user.getIdToken();
+    const scopeParam = ratingScope === "season" ? `?scope=season&season=${seasonNumber}` : "";
+    const res = await fetch(`/api/shows/${id}/rate${scopeParam}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      localStorage.removeItem(`ratist-draft-show-${id}-${ratingScope}-${ratingScope === "season" ? seasonNumber : 0}`);
+      router.push(`/shows/${id}`);
+    } else {
+      setError("Failed to delete rating.");
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
   }
 
   if (authLoading) return null;
@@ -463,14 +528,53 @@ export default function RateShowPage() {
               Cancel
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => submitRating(true)}
-            disabled={submitting}
-            className="w-full border border-[var(--border)] text-[var(--foreground-muted)] hover:border-orange-400 hover:text-orange-400 text-sm font-medium py-2.5 rounded-xl transition-colors disabled:opacity-50"
-          >
-            Save as Draft — come back to finish later
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => submitRating(true)}
+              disabled={submitting}
+              className="flex-1 border border-[var(--border)] text-[var(--foreground-muted)] hover:border-orange-400 hover:text-orange-400 text-sm font-medium py-2.5 rounded-xl transition-colors disabled:opacity-50"
+            >
+              Save as Draft
+            </button>
+            <button
+              type="button"
+              onClick={clearDraft}
+              className="px-5 border border-[var(--border)] text-[var(--foreground-muted)] hover:border-red-400 hover:text-red-400 text-sm font-medium py-2.5 rounded-xl transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          {hasExisting && (
+            confirmDelete ? (
+              <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                <span className="text-sm text-red-400 flex-1">Delete this rating and review permanently?</span>
+                <button
+                  type="button"
+                  onClick={deleteRating}
+                  disabled={deleting}
+                  className="px-4 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-4 py-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="w-full border border-[var(--border)] text-[var(--foreground-muted)] hover:border-red-400 hover:text-red-400 text-sm font-medium py-2.5 rounded-xl transition-colors"
+              >
+                Delete Rating
+              </button>
+            )
+          )}
         </div>
       </form>
     </div>
