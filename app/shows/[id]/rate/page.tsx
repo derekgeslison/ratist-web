@@ -359,14 +359,6 @@ export default function RateShowPage() {
             </div>
             <span className="text-sm text-[var(--foreground-muted)]">Required fields only</span>
           </label>
-          <button
-            type="button"
-            onClick={() => submitRating(true)}
-            disabled={submitting}
-            className="text-xs text-[var(--foreground-muted)] hover:text-orange-400 transition-colors disabled:opacity-50"
-          >
-            Save draft
-          </button>
         </div>
       )}
 
@@ -528,21 +520,14 @@ export default function RateShowPage() {
               Cancel
             </button>
           </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => submitRating(true)}
-              disabled={submitting}
-              className="flex-1 border border-[var(--border)] text-[var(--foreground-muted)] hover:border-orange-400 hover:text-orange-400 text-sm font-medium py-2.5 rounded-xl transition-colors disabled:opacity-50"
-            >
-              Save as Draft
-            </button>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[var(--foreground-muted)]">Your progress is auto-saved locally</p>
             <button
               type="button"
               onClick={clearDraft}
-              className="px-5 border border-[var(--border)] text-[var(--foreground-muted)] hover:border-red-400 hover:text-red-400 text-sm font-medium py-2.5 rounded-xl transition-colors"
+              className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
             >
-              Clear
+              Clear form
             </button>
           </div>
           {hasExisting && (
