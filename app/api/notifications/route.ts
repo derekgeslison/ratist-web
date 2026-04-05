@@ -24,14 +24,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ unreadCount });
     }
 
+    const cursor = req.nextUrl.searchParams.get("cursor");
+    const take = 50;
+
     const notifications = await prisma.notification.findMany({
       where: { userId: user.id },
       include: { actor: { select: { name: true, avatarUrl: true, firebaseUid: true } } },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const hasMore = notifications.length > take;
+    if (hasMore) notifications.pop();
+
+    const unreadCount = cursor
+      ? await prisma.notification.count({ where: { userId: user.id, read: false } })
+      : notifications.filter((n) => !n.read).length;
 
     return NextResponse.json({
       notifications: notifications.map((n) => ({
@@ -46,6 +55,7 @@ export async function GET(req: NextRequest) {
         createdAt: n.createdAt,
       })),
       unreadCount,
+      hasMore,
     });
   } catch (err) {
     console.error("Notifications error:", err);

@@ -318,7 +318,7 @@ export default function OnboardingPage() {
     setSaving(true);
 
     const payload: Record<string, number> = {};
-    for (const g of GENRES) payload[g.key] = selectedGenres.has(g.key) ? 8 : 5;
+    for (const g of GENRES) payload[g.key] = selectedGenres.has(g.key) ? 8 : 2;
     if (componentsTouched) {
       for (const c of COMPONENTS) payload[c.key] = componentScores[c.key];
     }

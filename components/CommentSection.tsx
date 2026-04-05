@@ -82,7 +82,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
       setComments(data.comments ?? []);
       setLoading(false);
     })();
-  }, [user, targetType, targetId]);
+  }, [user, targetType, targetId, isAdminProp]);
 
   async function submitComment(parentId: string | null = null) {
     const text = parentId ? replyText : newText;

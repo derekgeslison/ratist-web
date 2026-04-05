@@ -34,6 +34,7 @@ interface SeenMovie {
   watchedDate: string | null;
   ratistRating: number | null;
   ratingStatus: "complete" | "incomplete" | "imported" | null;
+  mediaType?: "movie" | "tv";
 }
 
 interface WatchlistMovie {
@@ -362,7 +363,7 @@ export default function ProfileTabs({
                 </p>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {topRatedThisYear.map((m, i) => (
-                    <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group relative">
+                    <Link key={m.tmdbId} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group relative">
                       <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                         {m.posterPath ? (
                           <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />

@@ -35,6 +35,8 @@ export default function NotificationsPage() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adminModal, setAdminModal] = useState<NotificationItem | null>(null);
 
@@ -51,6 +53,7 @@ export default function NotificationsPage() {
         }
         const data = await res.json();
         setNotifications(data.notifications ?? []);
+        setHasMore(data.hasMore ?? false);
       } catch {
         setError("Failed to load notifications.");
       } finally {
@@ -115,6 +118,25 @@ export default function NotificationsPage() {
     if (!adminModal) return;
     await markRead(adminModal.id);
     setAdminModal(null);
+  }
+
+  async function loadMore() {
+    if (!user || loadingMore || !hasMore || notifications.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const token = await user.getIdToken();
+      const cursor = notifications[notifications.length - 1].id;
+      const res = await fetch(`/api/notifications?cursor=${cursor}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications((prev) => [...prev, ...(data.notifications ?? [])]);
+        setHasMore(data.hasMore ?? false);
+      }
+    } catch {
+      // Silently fail — user can retry
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   const unread = notifications.filter((n) => !n.read).length;
@@ -183,6 +205,18 @@ export default function NotificationsPage() {
             </button>
           ))}
         </div>
+
+        {hasMore && (
+          <div className="text-center mt-4">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-4 py-2 text-sm text-[var(--foreground-muted)] hover:text-white border border-[var(--border)] rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loadingMore ? "Loading..." : "Load more"}
+            </button>
+          </div>
+        )}
 
         {/* Admin message modal */}
         {adminModal && (

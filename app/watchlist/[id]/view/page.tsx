@@ -42,6 +42,16 @@ export default async function PublicWatchlistPage({ params }: Props) {
         },
         orderBy: { addedAt: "desc" },
       },
+      shows: {
+        include: {
+          tvShow: {
+            select: {
+              tmdbId: true, name: true, posterPath: true, firstAirDate: true, voteAverage: true,
+            },
+          },
+        },
+        orderBy: { addedAt: "desc" },
+      },
     },
   });
 
@@ -56,7 +66,8 @@ export default async function PublicWatchlistPage({ params }: Props) {
     );
   }
 
-  const checkedCount = watchlist.movies.filter((m) => m.isChecked).length;
+  const checkedCount = watchlist.movies.filter((m) => m.isChecked).length + watchlist.shows.filter((s) => s.isChecked).length;
+  const totalCount = watchlist.movies.length + watchlist.shows.length;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -83,7 +94,7 @@ export default async function PublicWatchlistPage({ params }: Props) {
           )}
           {watchlist.user.name}
         </Link>
-        <span>{watchlist.movies.length} movie{watchlist.movies.length !== 1 ? "s" : ""}</span>
+        <span>{totalCount} title{totalCount !== 1 ? "s" : ""}</span>
         {checkedCount > 0 && <span className="text-green-400">{checkedCount} watched</span>}
         {watchlist.collaborators.length > 0 && (
           <span className="flex items-center gap-1">
@@ -92,8 +103,8 @@ export default async function PublicWatchlistPage({ params }: Props) {
         )}
       </div>
 
-      {/* Movies grid */}
-      {watchlist.movies.length === 0 ? (
+      {/* Grid */}
+      {totalCount === 0 ? (
         <p className="text-center py-16 text-[var(--foreground-muted)]">This list is empty.</p>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
@@ -114,6 +125,26 @@ export default async function PublicWatchlistPage({ params }: Props) {
                 entry.isChecked ? "text-[var(--foreground-muted)] line-through" : "text-white group-hover:text-[var(--ratist-red)]"
               }`}>{entry.movie.title}</p>
               <p className="text-xs text-[var(--foreground-muted)]">{entry.movie.releaseDate?.slice(0, 4)}</p>
+            </Link>
+          ))}
+          {watchlist.shows.map((entry) => (
+            <Link key={entry.id} href={`/shows/${entry.tvShow.tmdbId}`} className={`group flex flex-col ${entry.isChecked ? "opacity-60" : ""}`}>
+              <PosterOverlay tmdbId={entry.tvShow.tmdbId} title={entry.tvShow.name} posterPath={entry.tvShow.posterPath} releaseDate={entry.tvShow.firstAirDate} voteAverage={entry.tvShow.voteAverage} showRatings>
+                <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
+                  entry.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
+                }`}>
+                  {entry.tvShow.posterPath ? (
+                    <Image src={posterUrl(entry.tvShow.posterPath, "w185")} alt={entry.tvShow.name} fill sizes="120px" className="object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                  )}
+                  <span className="absolute top-1 left-1 bg-blue-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">TV</span>
+                </div>
+              </PosterOverlay>
+              <p className={`text-xs font-medium line-clamp-1 transition-colors ${
+                entry.isChecked ? "text-[var(--foreground-muted)] line-through" : "text-white group-hover:text-[var(--ratist-red)]"
+              }`}>{entry.tvShow.name}</p>
+              <p className="text-xs text-[var(--foreground-muted)]">{entry.tvShow.firstAirDate?.slice(0, 4)}</p>
             </Link>
           ))}
         </div>

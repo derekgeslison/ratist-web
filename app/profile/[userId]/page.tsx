@@ -67,6 +67,7 @@ export default async function ProfilePage({ params }: Props) {
     watchlistMovies,
     userWatchlists,
     savedRankings,
+    seenShows,
     allTVRatings,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
@@ -151,6 +152,21 @@ export default async function ProfilePage({ params }: Props) {
         movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
       },
       orderBy: { sortOrder: "asc" },
+    }),
+    prisma.userFavoriteShow.findMany({
+      where: { userId: user.id },
+      include: {
+        tvShow: {
+          select: {
+            tmdbId: true,
+            name: true,
+            posterPath: true,
+            firstAirDate: true,
+            ratings: { where: { userId: user.id, ratingScope: "series" }, select: { ratistRating: true }, take: 1 },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.tVShowRating.findMany({
       where: { userId: user.id, ratingScope: "series" },
@@ -309,16 +325,29 @@ export default async function ProfilePage({ params }: Props) {
             mediaType: "tv" as const,
           })),
         ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())}
-        seenMovies={seenMovies.map((s) => ({
-          tmdbId: s.movie.tmdbId,
-          title: s.movie.title,
-          posterPath: s.movie.posterPath,
-          releaseDate: s.movie.releaseDate,
-          seenAt: s.createdAt.toISOString(),
-          watchedDate: s.watchedDate?.toISOString() ?? null,
-          ratistRating: s.movie.ratings[0]?.ratistRating ?? null,
-          ratingStatus: ratingStatusByTmdbId.get(s.movie.tmdbId) ?? null,
-        }))}
+        seenMovies={[
+          ...seenMovies.map((s) => ({
+            tmdbId: s.movie.tmdbId,
+            title: s.movie.title,
+            posterPath: s.movie.posterPath,
+            releaseDate: s.movie.releaseDate,
+            seenAt: s.createdAt.toISOString(),
+            watchedDate: s.watchedDate?.toISOString() ?? null,
+            ratistRating: s.movie.ratings[0]?.ratistRating ?? null,
+            ratingStatus: ratingStatusByTmdbId.get(s.movie.tmdbId) ?? null,
+          })),
+          ...seenShows.map((s) => ({
+            tmdbId: s.tvShow.tmdbId,
+            title: s.tvShow.name,
+            posterPath: s.tvShow.posterPath,
+            releaseDate: s.tvShow.firstAirDate,
+            seenAt: s.createdAt.toISOString(),
+            watchedDate: null as string | null,
+            ratistRating: s.tvShow.ratings[0]?.ratistRating ?? null,
+            ratingStatus: null as "complete" | "incomplete" | "imported" | null,
+            mediaType: "tv" as const,
+          })),
+        ].sort((a, b) => new Date(b.seenAt).getTime() - new Date(a.seenAt).getTime())}
         watchlistMovies={watchlistMovies.map((w) => ({
           tmdbId: w.movie.tmdbId,
           title: w.movie.title,

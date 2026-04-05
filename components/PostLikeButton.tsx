@@ -16,7 +16,7 @@ export default function PostLikeButton({ targetType, targetId, initialLikeCount,
   const [likeCount, setLikeCount] = useState(initialLikeCount ?? 0);
   const [likedByMe, setLikedByMe] = useState(initialLikedByMe ?? false);
   const [toggling, setToggling] = useState(false);
-  const [loaded, setLoaded] = useState(initialLikeCount !== undefined);
+  const [loaded, setLoaded] = useState(initialLikeCount !== undefined && initialLikedByMe !== undefined);
 
   // Only fetch if no initial data provided
   useEffect(() => {

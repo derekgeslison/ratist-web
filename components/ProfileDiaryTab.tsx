@@ -16,6 +16,7 @@ interface SeenMovie {
   watchedDate: string | null;
   ratistRating: number | null;
   ratingStatus: "complete" | "incomplete" | "imported" | null;
+  mediaType?: "movie" | "tv";
 }
 
 interface Props {
@@ -145,13 +146,14 @@ export default function ProfileDiaryTab({
                     </div>
                     {dayMovies.map((m, idx) => (
                       <DiaryRow
-                        key={m.tmdbId}
+                        key={`${m.mediaType ?? "movie"}-${m.tmdbId}`}
                         tmdbId={m.tmdbId}
                         title={m.title}
                         posterPath={m.posterPath}
                         year={m.releaseDate?.slice(0, 4) ?? ""}
                         ratistRating={m.ratistRating}
                         dayNumber={idx === 0 ? day : null}
+                        mediaType={m.mediaType}
                       />
                     ))}
                   </div>
