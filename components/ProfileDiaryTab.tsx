@@ -187,6 +187,7 @@ export default function ProfileDiaryTab({
                             posterPath={m.posterPath}
                             year={m.year}
                             dayNumber={idx === 0 ? day : null}
+                            watchedDate={m.watchedDate}
                             seasonCount={m.seasonCount}
                             episodeCount={m.episodeCount}
                             seasons={m.seasons}

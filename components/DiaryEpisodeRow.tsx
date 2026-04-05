@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
+import { useAuth } from "@/context/AuthContext";
 
 interface Props {
   showTmdbId: number;
@@ -13,18 +14,23 @@ interface Props {
   posterPath: string | null;
   year: string;
   dayNumber: number | null;
+  watchedDate: string | null;
   seasonCount: number;
   episodeCount: number;
   seasons: { seasonNumber: number; episodeCount: number }[];
   episodes: { seasonNumber: number; episodeNumber: number; name: string | null }[];
   ratistRating?: number | null;
+  onDateChange?: (showTmdbId: number, newDate: string | null) => void;
 }
 
 export default function DiaryEpisodeRow({
-  showTmdbId, title, posterPath, year, dayNumber,
-  seasonCount, episodeCount, seasons, episodes, ratistRating,
+  showTmdbId, title, posterPath, year, dayNumber, watchedDate,
+  seasonCount, episodeCount, seasons, episodes, ratistRating, onDateChange,
 }: Props) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
+  const [editingDate, setEditingDate] = useState(false);
+  const [saving, setSaving] = useState(false);
   const detailPath = `/shows/${showTmdbId}`;
   const isSingle = episodeCount === 1;
   const canExpand = !isSingle;
@@ -87,8 +93,17 @@ export default function DiaryEpisodeRow({
           <p className="text-xs text-[var(--foreground-muted)]">{subtitle}</p>
         </div>
 
-        {/* Rating */}
+        {/* Date edit + Rating */}
         <div className="flex items-center gap-2 shrink-0">
+          {user && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setEditingDate(!editingDate); }}
+              className="p-1 text-[var(--foreground-muted)] hover:text-white transition-colors"
+              title="Change date"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+          )}
           {ratistRating != null ? (
             <RatingBadge type="ratist" score={ratistRating} size="sm" />
           ) : (
@@ -109,6 +124,51 @@ export default function DiaryEpisodeRow({
           </div>
         )}
       </div>
+
+      {/* Date editor */}
+      {editingDate && user && (
+        <div className="ml-11 pl-3 py-2 flex items-center gap-3 border-b border-[var(--border)]/10">
+          <span className="text-xs text-[var(--foreground-muted)]">Watched date for all {episodeCount} episode{episodeCount !== 1 ? "s" : ""}:</span>
+          <input
+            type="date"
+            defaultValue={watchedDate ?? ""}
+            className="bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-xs text-white [color-scheme:dark] focus:outline-none focus:border-[var(--ratist-red)]"
+            onChange={async (e) => {
+              const val = e.target.value || null;
+              setSaving(true);
+              const token = await user.getIdToken();
+              await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ watchedDate: val }),
+              }).catch(() => {});
+              onDateChange?.(showTmdbId, val);
+              setSaving(false);
+            }}
+            disabled={saving}
+          />
+          {watchedDate && (
+            <button
+              onClick={async () => {
+                setSaving(true);
+                const token = await user.getIdToken();
+                await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ watchedDate: null }),
+                }).catch(() => {});
+                onDateChange?.(showTmdbId, null);
+                setSaving(false);
+              }}
+              disabled={saving}
+              className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+            >
+              Clear date
+            </button>
+          )}
+          {saving && <span className="text-xs text-[var(--foreground-muted)]">Saving...</span>}
+        </div>
+      )}
 
       {/* Expanded episode list */}
       {expanded && canExpand && (

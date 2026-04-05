@@ -14,7 +14,7 @@ async function getUser(req: NextRequest) {
   if (!auth?.startsWith("Bearer ")) return null;
   try {
     const decoded = await adminAuth.verifyIdToken(auth.slice(7));
-    return prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, autoDateOnSeen: true } });
   } catch {
     return null;
   }
@@ -46,7 +46,9 @@ export async function POST(req: NextRequest, { params }: Props) {
     const { id } = await params;
     const showTmdbId = Number(id);
     const body = await req.json();
-    const { mode, episodes, seasonNumber, watchedDate, action = "add" } = body;
+    const { mode, episodes, seasonNumber, action = "add" } = body;
+    // Respect autoDateOnSeen preference: only auto-set date if user opted in
+    const watchedDate = body.watchedDate ?? (user.autoDateOnSeen ? new Date().toISOString() : null);
 
     // Ensure show exists in DB
     const tvShow = await prisma.tVShow.upsert({
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest, { params }: Props) {
             showTmdbId,
             seasonNumber: ep.seasonNumber,
             episodeNumber: ep.episodeNumber,
-            watchedDate: watchedDate ? new Date(watchedDate) : new Date(),
+            watchedDate: watchedDate ? new Date(watchedDate) : null,
           })),
           skipDuplicates: true,
         });
@@ -116,7 +118,7 @@ export async function POST(req: NextRequest, { params }: Props) {
             showTmdbId,
             seasonNumber: ep.seasonNumber,
             episodeNumber: ep.episodeNumber,
-            watchedDate: watchedDate ? new Date(watchedDate) : new Date(),
+            watchedDate: watchedDate ? new Date(watchedDate) : null,
           })),
           skipDuplicates: true,
         });
@@ -136,7 +138,7 @@ export async function POST(req: NextRequest, { params }: Props) {
             showTmdbId,
             seasonNumber: ep.seasonNumber,
             episodeNumber: ep.episodeNumber,
-            watchedDate: watchedDate ? new Date(watchedDate) : new Date(),
+            watchedDate: watchedDate ? new Date(watchedDate) : null,
           })),
           skipDuplicates: true,
         });
@@ -175,6 +177,43 @@ export async function POST(req: NextRequest, { params }: Props) {
     });
   } catch (err) {
     console.error("Episode seen error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+// PATCH: update watched dates for episodes
+export async function PATCH(req: NextRequest, { params }: Props) {
+  try {
+    const user = await getUser(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id } = await params;
+    const showTmdbId = Number(id);
+    const body = await req.json();
+    const { episodes, watchedDate } = body;
+    // episodes: optional array of {seasonNumber, episodeNumber} to update specific ones
+    // if omitted, updates ALL episodes for this show with the given date
+    const newDate = watchedDate ? new Date(watchedDate) : null;
+
+    if (Array.isArray(episodes) && episodes.length > 0) {
+      // Update specific episodes
+      for (const ep of episodes) {
+        await prisma.episodeSeen.updateMany({
+          where: { userId: user.id, showTmdbId, seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber },
+          data: { watchedDate: newDate },
+        });
+      }
+    } else {
+      // Update all episodes for this show
+      await prisma.episodeSeen.updateMany({
+        where: { userId: user.id, showTmdbId },
+        data: { watchedDate: newDate },
+      });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Episode date update error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

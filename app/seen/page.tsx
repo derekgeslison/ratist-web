@@ -305,6 +305,7 @@ export default function SeenPage() {
             posterPath={m.posterPath}
             year={m.year}
             dayNumber={idx === 0 ? day : null}
+            watchedDate={m.watchedDate}
             seasonCount={m.seasonCount}
             episodeCount={m.episodeCount}
             seasons={m.seasons}
@@ -591,6 +592,7 @@ export default function SeenPage() {
                             posterPath={m.posterPath}
                             year={m.year}
                             dayNumber={showDay ? d.getDate() : null}
+                            watchedDate={m.watchedDate}
                             seasonCount={m.seasonCount}
                             episodeCount={m.episodeCount}
                             seasons={m.seasons}
@@ -637,6 +639,7 @@ export default function SeenPage() {
                         posterPath={m.posterPath}
                         year={m.year}
                         dayNumber={d.getDate()}
+                        watchedDate={m.watchedDate}
                         seasonCount={m.seasonCount}
                         episodeCount={m.episodeCount}
                         seasons={m.seasons}
@@ -686,6 +689,7 @@ export default function SeenPage() {
                           posterPath={m.posterPath}
                           year={m.year}
                           dayNumber={null}
+                          watchedDate={m.watchedDate}
                           seasonCount={m.seasonCount}
                           episodeCount={m.episodeCount}
                           seasons={m.seasons}

@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
 
     const tvTmdbIds = [...new Set(allTVCredits.map((s) => s.tmdbId))];
 
+    // Check show-level seen (favorite + ratings)
     const seenShows = await prisma.tVShow.findMany({
       where: {
         tmdbId: { in: tvTmdbIds },
@@ -86,7 +87,17 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const seenShowTmdbIds = new Set(seenShows.map((s) => s.tmdbId));
+    // Also check episode-level seen (user may have watched episodes without show-level favorite)
+    const episodeSeenShowIds = await prisma.episodeSeen.findMany({
+      where: { userId: user.id, showTmdbId: { in: tvTmdbIds } },
+      select: { showTmdbId: true },
+      distinct: ["showTmdbId"],
+    });
+
+    const seenShowTmdbIds = new Set([
+      ...seenShows.map((s) => s.tmdbId),
+      ...episodeSeenShowIds.map((e) => e.showTmdbId),
+    ]);
     const showResults = allTVCredits
       .filter((s) => seenShowTmdbIds.has(s.tmdbId))
       .map((s) => {
