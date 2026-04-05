@@ -17,10 +17,12 @@ const geist = Geist({
 export const metadata: Metadata = {
   title: {
     template: "%s — The Ratist",
-    default: "The Ratist — Movie Reviews & Ratings",
+    default: "The Ratist — Movie & TV Show Reviews & Ratings",
   },
   description:
-    "Discover movies through deep, criteria-based ratings. Get personalized recommendations based on your unique taste profile.",
+    "Discover movies and TV shows through deep, criteria-based ratings. Get personalized recommendations based on your unique taste profile.",
+  metadataBase: new URL("https://www.theratist.com"),
+  alternates: { canonical: "/" },
   icons: {
     icon: [
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },
@@ -43,6 +45,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy="afterInteractive"
           />
         )}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "The Ratist",
+            url: "https://www.theratist.com",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: { "@type": "EntryPoint", urlTemplate: "https://www.theratist.com/movies?search={search_term_string}" },
+              "query-input": "required name=search_term_string",
+            },
+          }) }}
+        />
         <AuthProvider>
           <AccountStatusBanner />
           <AnnouncementBanner />

@@ -33,18 +33,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const movie = await getMovieDetails(Number(id));
     const description = movie.overview?.slice(0, 160) ?? undefined;
     const imageUrl = movie.poster_path ? posterUrl(movie.poster_path, "w500") : undefined;
+    const year = movie.release_date?.slice(0, 4);
+    const fullTitle = year ? `${movie.title} (${year})` : movie.title;
     return {
-      title: movie.title,
+      title: fullTitle,
       description,
+      alternates: { canonical: `https://www.theratist.com/movies/${id}` },
       openGraph: {
-        title: `${movie.title} — The Ratist`,
+        title: `${fullTitle} — The Ratist`,
         description,
         type: "video.movie",
+        url: `https://www.theratist.com/movies/${id}`,
         ...(imageUrl ? { images: [{ url: imageUrl, width: 500, height: 750 }] } : {}),
       },
       twitter: {
         card: "summary_large_image",
-        title: `${movie.title} — The Ratist`,
+        title: `${fullTitle} — The Ratist`,
         description,
         ...(imageUrl ? { images: [imageUrl] } : {}),
       },
@@ -155,8 +159,36 @@ export default async function MovieDetailPage({ params }: Props) {
   const crew = movie.credits?.crew ?? [];
   const images = movie.images?.backdrops ?? [];
 
+  // JSON-LD structured data
+  const directors = crew.filter((c) => c.job === "Director").map((c) => c.name);
+  const actors = cast.slice(0, 5).map((c) => ({ "@type": "Person" as const, name: c.name }));
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Movie",
+    name: movie.title,
+    ...(movie.overview ? { description: movie.overview } : {}),
+    ...(movie.release_date ? { datePublished: movie.release_date } : {}),
+    ...(movie.poster_path ? { image: posterUrl(movie.poster_path, "w500") } : {}),
+    ...(directors.length > 0 ? { director: directors.map((d) => ({ "@type": "Person", name: d })) } : {}),
+    ...(actors.length > 0 ? { actor: actors } : {}),
+    ...(movie.genres?.length ? { genre: movie.genres.map((g) => g.name) } : {}),
+    ...(movie.runtime ? { duration: `PT${movie.runtime}M` } : {}),
+    ...(mpaaRating ? { contentRating: mpaaRating } : {}),
+    ...(communityScore ? {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: communityScore.toFixed(1),
+        bestRating: "10",
+        worstRating: "1",
+        ratingCount: movie.vote_count ?? 0,
+      },
+    } : {}),
+    url: `https://www.theratist.com/movies/${movie.id}`,
+  };
+
   return (
     <div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Backdrop hero */}
       <div className="relative w-full h-[45vh] min-h-[300px] max-h-[500px] overflow-hidden">
         <Image

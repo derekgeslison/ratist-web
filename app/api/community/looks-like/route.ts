@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
+import { checkCommunityRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ async function getUser(req: NextRequest) {
   if (!auth?.startsWith("Bearer ")) return null;
   const decoded = await adminAuth.verifyIdToken(auth.slice(7)).catch(() => null);
   if (!decoded) return null;
-  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, isAdmin: true, firebaseUid: true, name: true } });
 }
 
 export async function GET() {
@@ -47,6 +48,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rateLimitMsg = await checkCommunityRateLimit(user.id, user.isAdmin, "looksLike");
+  if (rateLimitMsg) return NextResponse.json({ error: rateLimitMsg }, { status: 429 });
 
   const { tmdbPersonId1, name1, profilePath1, tmdbPersonId2, name2, profilePath2 } = await req.json();
 

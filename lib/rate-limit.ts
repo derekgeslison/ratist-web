@@ -1,0 +1,62 @@
+import { prisma } from "@/lib/prisma";
+
+// Default limits: 2 submissions per 3 days for each community feature
+const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
+  recast: { max: 2, windowDays: 3 },
+  hotTake: { max: 2, windowDays: 3 },
+  looksLike: { max: 2, windowDays: 3 },
+};
+
+/**
+ * Check if a user has exceeded the rate limit for a community feature.
+ * Returns null if allowed, or an error message string if rate limited.
+ * Admins bypass all rate limits.
+ */
+export async function checkCommunityRateLimit(
+  userId: string,
+  isAdmin: boolean,
+  featureType: "recast" | "hotTake" | "looksLike"
+): Promise<string | null> {
+  if (isAdmin) return null;
+
+  const limits = DEFAULT_LIMITS[featureType];
+  if (!limits) return null;
+
+  // Try to load admin-configured limits from SiteConfig
+  try {
+    const config = await prisma.siteConfig.findUnique({ where: { key: `rateLimit_${featureType}` } });
+    if (config?.value) {
+      const parsed = JSON.parse(config.value);
+      if (parsed.max != null) limits.max = parsed.max;
+      if (parsed.windowDays != null) limits.windowDays = parsed.windowDays;
+    }
+  } catch { /* use defaults */ }
+
+  const windowStart = new Date(Date.now() - limits.windowDays * 24 * 60 * 60 * 1000);
+
+  let recentCount = 0;
+  if (featureType === "recast") {
+    recentCount = await prisma.recast.count({
+      where: { creatorId: userId, createdAt: { gte: windowStart } },
+    });
+  } else if (featureType === "hotTake") {
+    recentCount = await prisma.hotTake.count({
+      where: { authorId: userId, createdAt: { gte: windowStart } },
+    });
+  } else if (featureType === "looksLike") {
+    recentCount = await prisma.looksLike.count({
+      where: { creatorId: userId, createdAt: { gte: windowStart } },
+    });
+  }
+
+  if (recentCount >= limits.max) {
+    const featureNames: Record<string, string> = {
+      recast: "Recasts",
+      hotTake: "Hot Takes",
+      looksLike: "Looks Like pairs",
+    };
+    return `To prevent spam, we limit users to ${limits.max} ${featureNames[featureType]} every ${limits.windowDays} days. Your submissions are also more likely to get engagement if you spread them out.`;
+  }
+
+  return null;
+}

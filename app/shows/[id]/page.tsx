@@ -30,18 +30,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const show = await getShowDetails(Number(id));
     const description = show.overview?.slice(0, 160) ?? undefined;
     const imageUrl = show.poster_path ? posterUrl(show.poster_path, "w500") : undefined;
+    const year = show.first_air_date?.slice(0, 4);
+    const fullTitle = year ? `${show.name} (${year})` : show.name;
     return {
-      title: show.name,
+      title: fullTitle,
       description,
+      alternates: { canonical: `https://www.theratist.com/shows/${id}` },
       openGraph: {
-        title: `${show.name} — The Ratist`,
+        title: `${fullTitle} — The Ratist`,
         description,
         type: "video.tv_show",
+        url: `https://www.theratist.com/shows/${id}`,
         ...(imageUrl ? { images: [{ url: imageUrl, width: 500, height: 750 }] } : {}),
       },
       twitter: {
         card: "summary_large_image",
-        title: `${show.name} — The Ratist`,
+        title: `${fullTitle} — The Ratist`,
         description,
         ...(imageUrl ? { images: [imageUrl] } : {}),
       },
@@ -83,6 +87,34 @@ export default async function ShowDetailPage({ params }: Props) {
   const images = show.images?.backdrops ?? [];
   const seasons = show.seasons ?? [];
 
+  // JSON-LD structured data
+  const creators = (show.created_by ?? []).map((c) => ({ "@type": "Person" as const, name: c.name }));
+  const actors = cast.slice(0, 5).map((c) => ({ "@type": "Person" as const, name: c.name }));
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "TVSeries",
+    name: show.name,
+    ...(show.overview ? { description: show.overview } : {}),
+    ...(show.first_air_date ? { datePublished: show.first_air_date } : {}),
+    ...(show.poster_path ? { image: posterUrl(show.poster_path, "w500") } : {}),
+    ...(creators.length > 0 ? { creator: creators } : {}),
+    ...(actors.length > 0 ? { actor: actors } : {}),
+    ...(show.genres?.length ? { genre: show.genres.map((g) => g.name) } : {}),
+    ...(show.number_of_seasons ? { numberOfSeasons: show.number_of_seasons } : {}),
+    ...(show.number_of_episodes ? { numberOfEpisodes: show.number_of_episodes } : {}),
+    ...(contentRating ? { contentRating } : {}),
+    ...(communityScore ? {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: communityScore.toFixed(1),
+        bestRating: "10",
+        worstRating: "1",
+        ratingCount: show.vote_count ?? 0,
+      },
+    } : {}),
+    url: `https://www.theratist.com/shows/${show.id}`,
+  };
+
   // Compute episode runtime display
   const avgRuntime = show.episode_run_time?.length
     ? Math.round(show.episode_run_time.reduce((a, b) => a + b, 0) / show.episode_run_time.length)
@@ -101,6 +133,7 @@ export default async function ShowDetailPage({ params }: Props) {
 
   return (
     <div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Backdrop hero */}
       <div className="relative w-full h-[45vh] min-h-[300px] max-h-[500px] overflow-hidden">
         <Image

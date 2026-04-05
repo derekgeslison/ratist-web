@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 
-export const metadata: Metadata = { title: "Cinephile Tools" };
+export const metadata: Metadata = { title: "Cinephile Tools", description: "Movie and TV show tools: find shared cast between films, look up actor filmographies, create rankings, get personalized recommendations, and more." };
 
 const TOOLS = [
   {

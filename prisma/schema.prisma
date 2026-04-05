@@ -82,6 +82,13 @@ model User {
   @@map("users")
 }
 
+model SiteConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("site_config")
+}
+
 model UserProfile {
   id     String @id @default(cuid())
   userId String @unique @map("user_id")
