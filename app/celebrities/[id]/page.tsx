@@ -29,6 +29,33 @@ interface TMDBPersonDetail {
     cast: CastCredit[];
     crew: CrewCredit[];
   };
+  tv_credits: {
+    cast: TVCastCredit[];
+    crew: TVCrewCredit[];
+  };
+}
+
+interface TVCastCredit {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  first_air_date: string;
+  character: string;
+  vote_average: number;
+  popularity: number;
+  episode_count: number;
+}
+
+interface TVCrewCredit {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  first_air_date: string;
+  job: string;
+  department: string;
+  vote_average: number;
+  popularity: number;
+  episode_count: number;
 }
 
 interface CastCredit {
@@ -54,7 +81,7 @@ interface CrewCredit {
 
 async function getPersonDetails(id: number): Promise<TMDBPersonDetail> {
   const res = await fetch(
-    `${BASE_URL}/person/${id}?api_key=${API_KEY}&append_to_response=movie_credits`,
+    `${BASE_URL}/person/${id}?api_key=${API_KEY}&append_to_response=movie_credits,tv_credits`,
     { next: { revalidate: 3600 } }
   );
   if (!res.ok) throw new Error("Not found");
@@ -136,16 +163,45 @@ export default async function CelebrityPage({ params }: Props) {
     },
   }).catch(() => {});
 
-  // Deduplicate and sort cast credits
-  const seenIds = new Set<number>();
-  const castCredits = person.movie_credits.cast
-    .filter((m) => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true; })
+  // Deduplicate movie cast credits
+  const seenMovieIds = new Set<number>();
+  const movieCastCredits = person.movie_credits.cast
+    .filter((m) => { if (seenMovieIds.has(m.id)) return false; seenMovieIds.add(m.id); return true; })
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      poster_path: m.poster_path,
+      release_date: m.release_date,
+      vote_average: m.vote_average,
+      character: m.character,
+      popularity: m.popularity,
+      mediaType: "movie" as const,
+    }));
+
+  // Deduplicate TV cast credits
+  const seenTvIds = new Set<number>();
+  const tvCastCredits = (person.tv_credits?.cast ?? [])
+    .filter((s) => { if (seenTvIds.has(s.id)) return false; seenTvIds.add(s.id); return true; })
+    .map((s) => ({
+      id: s.id,
+      title: s.name,
+      poster_path: s.poster_path,
+      release_date: s.first_air_date,
+      vote_average: s.vote_average,
+      character: s.character,
+      popularity: s.popularity,
+      mediaType: "tv" as const,
+    }));
+
+  // Combined filmography — sorted by year (newest first)
+  const filmography = [...movieCastCredits, ...tvCastCredits]
     .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
 
-  // Directing credits
+  // Directing credits (movies only for now)
   const directingCredits = person.movie_credits.crew
     .filter((c) => c.job === "Director")
-    .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
+    .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime())
+    .map((c) => ({ ...c, mediaType: "movie" as const }));
 
   const age = person.birthday
     ? Math.floor(
@@ -155,8 +211,8 @@ export default async function CelebrityPage({ params }: Props) {
     : null;
 
   // TMDB avg from cast credits
-  const allMovieTmdbIds = castCredits.map((m) => m.id);
-  const tmdbRatedMovies = castCredits.filter((m) => m.vote_average > 0);
+  const allMovieTmdbIds = movieCastCredits.map((m) => m.id);
+  const tmdbRatedMovies = movieCastCredits.filter((m) => m.vote_average > 0);
   const tmdbAvg = tmdbRatedMovies.length > 0
     ? tmdbRatedMovies.reduce((sum, m) => sum + m.vote_average, 0) / tmdbRatedMovies.length
     : null;
@@ -278,14 +334,22 @@ export default async function CelebrityPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Acting Credits — client-side "Show More" */}
-      {castCredits.length > 0 && (
+      {/* Filmography — combined movies + TV, sorted by year */}
+      {filmography.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Acting Credits
-            <span className="text-sm font-normal text-[var(--foreground-muted)]">({castCredits.length})</span>
-          </h2>
-          <CelebrityCreditsSection credits={castCredits} type="cast" />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Filmography
+              <span className="text-sm font-normal text-[var(--foreground-muted)]">({filmography.length})</span>
+            </h2>
+            <Link
+              href={`/movies?cast=${person.id}&castLabels=${encodeURIComponent(person.name)}`}
+              className="text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+            >
+              Show all &rarr;
+            </Link>
+          </div>
+          <CelebrityCreditsSection credits={filmography} type="cast" />
         </section>
       )}
 

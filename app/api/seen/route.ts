@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
     if (!user) return NextResponse.json({ movies: [] });
 
-    const [favorites, watchLog] = await Promise.all([
+    const [favorites, watchLog, favoriteShows] = await Promise.all([
       prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
         include: {
@@ -40,6 +40,19 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { watchedDate: "desc" },
       }),
+      prisma.userFavoriteShow.findMany({
+        where: { userId: user.id },
+        include: {
+          tvShow: {
+            select: {
+              id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true, voteAverage: true,
+              genres: { include: { genre: { select: { name: true } } } },
+              ratings: { where: { userId: user.id, ratingScope: "series" }, select: { ratistRating: true }, take: 1 },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
     ]);
 
     // First watches from UserFavoriteMovie
@@ -57,6 +70,7 @@ export async function GET(req: NextRequest) {
       watchedDate: f.watchedDate,
       isRewatch: false,
       notes: null as string | null,
+      mediaType: "movie" as const,
     }));
 
     // Rewatches from UserWatchLog
@@ -74,9 +88,28 @@ export async function GET(req: NextRequest) {
       watchedDate: w.watchedDate,
       isRewatch: true,
       notes: w.notes,
+      mediaType: "movie" as const,
     }));
 
-    return NextResponse.json({ movies: [...movies, ...rewatches] });
+    // TV Shows from UserFavoriteShow
+    const shows = favoriteShows.map((s) => ({
+      id: s.tvShow.id,
+      logId: null as string | null,
+      tmdbId: s.tvShow.tmdbId,
+      title: s.tvShow.name,
+      posterPath: s.tvShow.posterPath,
+      year: s.tvShow.firstAirDate?.slice(0, 4) ?? "",
+      voteAverage: s.tvShow.voteAverage ?? null,
+      genres: s.tvShow.genres.map((g) => g.genre.name),
+      ratistRating: s.tvShow.ratings[0]?.ratistRating ?? null,
+      seenAt: s.createdAt,
+      watchedDate: null as Date | null,
+      isRewatch: false,
+      notes: null as string | null,
+      mediaType: "tv" as const,
+    }));
+
+    return NextResponse.json({ movies: [...movies, ...rewatches, ...shows] });
   } catch (err) {
     console.error("Seen list error:", err);
     return NextResponse.json({ movies: [] });

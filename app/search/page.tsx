@@ -2,16 +2,29 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Search" };
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Film, User } from "lucide-react";
+import { Search, Film, User, Tv } from "lucide-react";
 import { type TMDBMovie as LibTMDBMovie } from "@/lib/tmdb";
 import SearchFilters from "./SearchFilters";
 import MovieListItem from "@/components/MovieListItem";
+import ShowListItem from "@/components/ShowListItem";
 import { Suspense } from "react";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
 type TMDBMovie = LibTMDBMovie & { media_type: "movie" };
+interface TMDBShow {
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  first_air_date: string;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+  media_type: "tv";
+}
 interface TMDBPerson {
   id: number;
   name: string;
@@ -24,33 +37,36 @@ interface TMDBPerson {
 async function searchAll(
   query: string,
   perPage: number
-): Promise<{ movies: TMDBMovie[]; people: TMDBPerson[] }> {
-  if (!query.trim()) return { movies: [], people: [] };
+): Promise<{ movies: TMDBMovie[]; shows: TMDBShow[]; people: TMDBPerson[] }> {
+  if (!query.trim()) return { movies: [], shows: [], people: [] };
 
   const tmdbMoviePages = Math.ceil(perPage / 20);
-  const tmdbPeoplePages = Math.ceil(perPage / 2 / 20); // show ~half as many people
+  const tmdbShowPages = Math.ceil(perPage / 2 / 20);
+  const tmdbPeoplePages = Math.ceil(perPage / 2 / 20);
 
-  const movieFetches = Array.from({ length: tmdbMoviePages }, (_, i) =>
-    fetch(`${BASE}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
-      .then((r) => r.json())
-  );
-  const peopleFetches = Array.from({ length: tmdbPeoplePages }, (_, i) =>
-    fetch(`${BASE}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
-      .then((r) => r.json())
-  );
-
-  const [moviePages, peoplePages] = await Promise.all([
-    Promise.all(movieFetches),
-    Promise.all(peopleFetches),
+  const [moviePages, showPages, peoplePages] = await Promise.all([
+    Promise.all(Array.from({ length: tmdbMoviePages }, (_, i) =>
+      fetch(`${BASE}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
+        .then((r) => r.json())
+    )),
+    Promise.all(Array.from({ length: tmdbShowPages }, (_, i) =>
+      fetch(`${BASE}/search/tv?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
+        .then((r) => r.json())
+    )),
+    Promise.all(Array.from({ length: tmdbPeoplePages }, (_, i) =>
+      fetch(`${BASE}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
+        .then((r) => r.json())
+    )),
   ]);
 
   return {
     movies: moviePages.flatMap((p) => p.results ?? []).slice(0, perPage) as TMDBMovie[],
+    shows: showPages.flatMap((p) => p.results ?? []).slice(0, Math.ceil(perPage / 2)) as TMDBShow[],
     people: peoplePages.flatMap((p) => p.results ?? []).slice(0, Math.ceil(perPage / 2)) as TMDBPerson[],
   };
 }
 
-type TypeFilter = "all" | "movies" | "people";
+type TypeFilter = "all" | "movies" | "shows" | "people";
 type SortMode = "relevance" | "rating" | "az";
 
 interface Props {
@@ -60,30 +76,28 @@ interface Props {
 export default async function SearchPage({ searchParams }: Props) {
   const { q = "", type: typeParam = "all", sort: sortParam = "relevance", perPage: perPageParam } = await searchParams;
 
-  const typeFilter = (["all", "movies", "people"].includes(typeParam) ? typeParam : "all") as TypeFilter;
+  const typeFilter = (["all", "movies", "shows", "people"].includes(typeParam) ? typeParam : "all") as TypeFilter;
   const sortMode = (["relevance", "rating", "az"].includes(sortParam) ? sortParam : "relevance") as SortMode;
   const perPage = [20, 50, 100].includes(Number(perPageParam)) ? Number(perPageParam) : 20;
 
-  const { movies: rawMovies, people: rawPeople } = await searchAll(q, perPage);
+  const { movies: rawMovies, shows: rawShows, people: rawPeople } = await searchAll(q, perPage);
 
-  // Apply sort to movies
   let movies = [...rawMovies];
-  if (sortMode === "rating") {
-    movies = movies.sort((a, b) => b.vote_average - a.vote_average);
-  } else if (sortMode === "az") {
-    movies = movies.sort((a, b) => a.title.localeCompare(b.title));
-  }
+  if (sortMode === "rating") movies = movies.sort((a, b) => b.vote_average - a.vote_average);
+  else if (sortMode === "az") movies = movies.sort((a, b) => a.title.localeCompare(b.title));
 
-  // Apply sort to people
+  let shows = [...rawShows];
+  if (sortMode === "rating") shows = shows.sort((a, b) => b.vote_average - a.vote_average);
+  else if (sortMode === "az") shows = shows.sort((a, b) => a.name.localeCompare(b.name));
+
   let people = [...rawPeople];
-  if (sortMode === "az") {
-    people = people.sort((a, b) => a.name.localeCompare(b.name));
-  }
+  if (sortMode === "az") people = people.sort((a, b) => a.name.localeCompare(b.name));
 
   const showMovies = typeFilter === "all" || typeFilter === "movies";
+  const showShows = typeFilter === "all" || typeFilter === "shows";
   const showPeople = typeFilter === "all" || typeFilter === "people";
 
-  const total = (showMovies ? movies.length : 0) + (showPeople ? people.length : 0);
+  const total = (showMovies ? movies.length : 0) + (showShows ? shows.length : 0) + (showPeople ? people.length : 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -102,7 +116,7 @@ export default async function SearchPage({ searchParams }: Props) {
       </Suspense>
 
       {!q && (
-        <p className="text-[var(--foreground-muted)]">Use the search bar above to find movies and people.</p>
+        <p className="text-[var(--foreground-muted)]">Use the search bar above to find movies, shows, and people.</p>
       )}
 
       {q && total === 0 && (
@@ -141,13 +155,27 @@ export default async function SearchPage({ searchParams }: Props) {
 
       {/* Movies */}
       {showMovies && movies.length > 0 && (
-        <section>
+        <section className="mb-10">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Movies
           </h2>
           <div className="flex flex-col divide-y divide-[var(--border)]">
             {movies.map((movie) => (
               <MovieListItem key={movie.id} movie={movie} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* TV Shows */}
+      {showShows && shows.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Tv className="w-5 h-5 text-blue-400" /> TV Shows
+          </h2>
+          <div className="flex flex-col divide-y divide-[var(--border)]">
+            {shows.map((show) => (
+              <ShowListItem key={show.id} show={show} />
             ))}
           </div>
         </section>

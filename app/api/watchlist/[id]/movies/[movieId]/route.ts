@@ -22,7 +22,7 @@ async function checkAccess(watchlistId: string, userId: string) {
   return isOwner || isEditor ? wl : null;
 }
 
-/** DELETE — remove a movie from this watchlist */
+/** DELETE — remove a movie or show from this watchlist */
 export async function DELETE(req: NextRequest, { params }: Props) {
   try {
     const { id: watchlistId, movieId } = await params;
@@ -32,19 +32,24 @@ export async function DELETE(req: NextRequest, { params }: Props) {
     const wl = await checkAccess(watchlistId, user.id);
     if (!wl) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // movieId here is the watchlistMovie entry ID
-    await prisma.watchlistMovie.deleteMany({
+    // Try deleting from watchlistMovie first, then watchlistShow
+    const movieDel = await prisma.watchlistMovie.deleteMany({
       where: { id: movieId, watchlistId },
     });
+    if (movieDel.count === 0) {
+      await prisma.watchlistShow.deleteMany({
+        where: { id: movieId, watchlistId },
+      });
+    }
 
     return NextResponse.json({ removed: true });
   } catch (err) {
-    console.error("Watchlist remove movie error:", err);
+    console.error("Watchlist remove entry error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
-/** PATCH — toggle check-off on a movie */
+/** PATCH — toggle check-off on a movie or show */
 export async function PATCH(req: NextRequest, { params }: Props) {
   try {
     const { id: watchlistId, movieId } = await params;
@@ -54,14 +59,28 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     const wl = await checkAccess(watchlistId, user.id);
     if (!wl) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const entry = await prisma.watchlistMovie.findFirst({ where: { id: movieId, watchlistId } });
-    if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+    // Try watchlistMovie first
+    const movieEntry = await prisma.watchlistMovie.findFirst({ where: { id: movieId, watchlistId } });
+    if (movieEntry) {
+      const updated = await prisma.watchlistMovie.update({
+        where: { id: movieId },
+        data: {
+          isChecked: !movieEntry.isChecked,
+          checkedAt: !movieEntry.isChecked ? new Date() : null,
+        },
+      });
+      return NextResponse.json({ isChecked: updated.isChecked, checkedAt: updated.checkedAt });
+    }
 
-    const updated = await prisma.watchlistMovie.update({
+    // Fall back to watchlistShow
+    const showEntry = await prisma.watchlistShow.findFirst({ where: { id: movieId, watchlistId } });
+    if (!showEntry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+
+    const updated = await prisma.watchlistShow.update({
       where: { id: movieId },
       data: {
-        isChecked: !entry.isChecked,
-        checkedAt: !entry.isChecked ? new Date() : null,
+        isChecked: !showEntry.isChecked,
+        checkedAt: !showEntry.isChecked ? new Date() : null,
       },
     });
 

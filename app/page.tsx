@@ -1,10 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Swords, Film } from "lucide-react";
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
+import ShowRow from "@/components/ShowRow";
 import PersonalizedSection from "@/components/PersonalizedSection";
 import BrandCTAButtons from "@/components/BrandCTAButtons";
 import AdUnit from "@/components/AdUnit";
@@ -37,11 +38,12 @@ const TOOLS = [
 ];
 
 export default async function HomePage() {
-  const [popular, topRated, nowPlaying, upcoming, spotlights] = await Promise.all([
+  const [popular, topRated, nowPlaying, upcoming, popularShows, spotlights] = await Promise.all([
     getPopularMovies(),
     getTopRatedMovies(),
     getNowPlayingMovies(),
     getUpcomingMovies(),
+    getPopularShows(),
     prisma.siteSpotlight.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
   ]);
 
@@ -148,6 +150,13 @@ export default async function HomePage() {
           title="Popular"
           movies={popular.results.slice(1, 13)}
           viewAllHref="/movies"
+        />
+
+        {/* Popular Shows */}
+        <ShowRow
+          title="Popular TV Shows"
+          shows={popularShows.results.slice(0, 12)}
+          viewAllHref="/movies?type=tv&sort=popular"
         />
 
         {/* Coming Soon */}

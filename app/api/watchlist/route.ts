@@ -46,7 +46,18 @@ export async function GET(req: NextRequest) {
     });
 
     // Also load the full default watchlist movies for backward compat with the current page
-    const defaultMovies = await loadWatchlistMovies(defaultList.id, user.id);
+    const [defaultMovies, defaultShows] = await Promise.all([
+      loadWatchlistMovies(defaultList.id, user.id),
+      loadWatchlistShows(defaultList.id),
+    ]);
+
+    // Get show counts per watchlist
+    const showCounts = await prisma.watchlistShow.groupBy({
+      by: ["watchlistId"],
+      where: { watchlistId: { in: watchlists.map((wl) => wl.id) } },
+      _count: { id: true },
+    });
+    const showCountMap = new Map(showCounts.map((sc) => [sc.watchlistId, sc._count.id]));
 
     return NextResponse.json({
       watchlists: watchlists.map((wl) => {
@@ -59,7 +70,7 @@ export async function GET(req: NextRequest) {
           description: wl.description,
           isDefault: wl.isDefault,
           isPrivate: wl.isPrivate,
-          movieCount: wl._count.movies,
+          movieCount: wl._count.movies + (showCountMap.get(wl.id) ?? 0),
           previewPosters: wl.movies.map((m) => m.movie.posterPath).filter(Boolean),
           isOwner,
           ownerName: isOwner ? undefined : wl.user.name,
@@ -69,7 +80,7 @@ export async function GET(req: NextRequest) {
           createdAt: wl.createdAt,
         };
       }),
-      defaultMovies,
+      defaultMovies: [...defaultMovies, ...defaultShows],
     });
   } catch (err) {
     console.error("Watchlist list error:", err);
@@ -109,6 +120,39 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/** Shared helper to load watchlist shows */
+export async function loadWatchlistShows(watchlistId: string) {
+  const entries = await prisma.watchlistShow.findMany({
+    where: { watchlistId },
+    include: {
+      tvShow: {
+        select: {
+          id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true, voteAverage: true,
+          genres: { include: { genre: true } },
+        },
+      },
+    },
+    orderBy: { addedAt: "desc" },
+  });
+
+  return entries.map((e) => ({
+    id: e.id,
+    tmdbId: e.tvShow.tmdbId,
+    title: e.tvShow.name,
+    posterPath: e.tvShow.posterPath,
+    year: e.tvShow.firstAirDate?.slice(0, 4) ?? "",
+    voteAverage: e.tvShow.voteAverage ?? null,
+    ratistRating: null as number | null,
+    estimatedRating: null as number | null,
+    genres: e.tvShow.genres.map((g) => g.genre.name),
+    isChecked: e.isChecked,
+    checkedAt: e.checkedAt,
+    addedAt: e.addedAt,
+    sortOrder: e.sortOrder,
+    mediaType: "tv" as const,
+  }));
+}
+
 /** Shared helper to load watchlist movies with ratings */
 export async function loadWatchlistMovies(watchlistId: string, userId: string) {
   const entries = await prisma.watchlistMovie.findMany({
@@ -142,5 +186,6 @@ export async function loadWatchlistMovies(watchlistId: string, userId: string) {
     checkedAt: e.checkedAt,
     addedAt: e.addedAt,
     sortOrder: e.sortOrder,
+    mediaType: "movie" as const,
   }));
 }

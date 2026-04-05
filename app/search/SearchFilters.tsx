@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
-type TypeFilter = "all" | "movies" | "people";
+type TypeFilter = "all" | "movies" | "shows" | "people";
 type SortMode = "relevance" | "rating" | "az";
 
 interface Props {
@@ -46,6 +46,7 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
   const typeOptions: { label: string; value: TypeFilter }[] = [
     { label: "All", value: "all" },
     { label: "Movies", value: "movies" },
+    { label: "TV Shows", value: "shows" },
     { label: "People", value: "people" },
   ];
 
@@ -65,7 +66,7 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search movies & people..."
+            placeholder="Search movies, shows & people..."
             className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
           />
         </div>

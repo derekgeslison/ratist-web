@@ -3,21 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, Bookmark, BookmarkCheck } from "lucide-react";
-import { posterUrl, type TMDBMovie } from "@/lib/tmdb";
+import { Eye, Bookmark, BookmarkCheck, Tv } from "lucide-react";
+import { posterUrl, type TMDBShow } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
 import { useAuth } from "@/context/AuthContext";
-import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useShowUserState } from "@/hooks/useShowUserState";
 
 interface Props {
-  movie: TMDBMovie;
+  show: TMDBShow;
   characterName?: string;
 }
 
-export default function MovieListItem({ movie, characterName }: Props) {
+export default function ShowListItem({ show, characterName }: Props) {
   const { user } = useAuth();
-  const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
-  const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
+  const communityScore = show.vote_average > 0 ? show.vote_average : null;
+  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
 
@@ -26,10 +26,10 @@ export default function MovieListItem({ movie, characterName }: Props) {
     if (!user || markingS || seen) return;
     setMarkingS(true);
     const token = await user.getIdToken();
-    await fetch(`/api/movies/${movie.id}/seen`, {
+    await fetch(`/api/shows/${show.id}/seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
+      body: JSON.stringify({ name: show.name, poster_path: show.poster_path, first_air_date: show.first_air_date }),
     }).catch(() => null);
     persistSeen();
     setMarkingS(false);
@@ -40,10 +40,10 @@ export default function MovieListItem({ movie, characterName }: Props) {
     if (!user || markingW || watchlisted) return;
     setMarkingW(true);
     const token = await user.getIdToken();
-    const res = await fetch(`/api/movies/${movie.id}/watchlist`, {
+    const res = await fetch(`/api/shows/${show.id}/watchlist`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
+      body: JSON.stringify({ name: show.name, poster_path: show.poster_path, first_air_date: show.first_air_date }),
     }).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
@@ -54,23 +54,26 @@ export default function MovieListItem({ movie, characterName }: Props) {
 
   return (
     <Link
-      href={`/movies/${movie.id}`}
+      href={`/shows/${show.id}`}
       className="flex items-center gap-4 py-4 hover:bg-[var(--surface)] px-3 -mx-3 rounded-lg transition-colors group"
     >
       <div className="relative w-14 h-20 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
-        <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="56px" className="object-cover" />
+        <Image src={posterUrl(show.poster_path, "w92")} alt={show.name} fill sizes="56px" className="object-cover" />
+        <div className="absolute top-0.5 left-0.5 bg-blue-600/90 text-white rounded px-0.5 py-0.5 flex items-center gap-0.5 z-10">
+          <Tv className="w-2 h-2" />
+          <span className="text-[6px] font-bold leading-none">TV</span>
+        </div>
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{movie.title}</p>
+        <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{show.name}</p>
         <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-          {movie.release_date?.slice(0, 4)}
+          {show.first_air_date?.slice(0, 4)}
           {characterName && <span className="text-[var(--ratist-red)]/70 ml-2">as {characterName}</span>}
         </p>
-        <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{movie.overview}</p>
+        <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{show.overview}</p>
       </div>
 
-      {/* Seen / Watchlist — left of ratings, expand on row hover */}
       {user && (
         <div className="flex items-center gap-1 shrink-0">
           <button
@@ -107,15 +110,9 @@ export default function MovieListItem({ movie, characterName }: Props) {
         </div>
       )}
 
-      {/* Ratings — rightmost */}
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <RatingBadge type="community" score={communityScore} size="sm" />
-        <RatingBadge
-          type="ratist"
-          score={ratistRating ?? estimatedRating}
-          isEstimate={ratistRating == null && estimatedRating != null}
-          size="sm"
-        />
+        <RatingBadge type="ratist" score={null} size="sm" />
       </div>
     </Link>
   );

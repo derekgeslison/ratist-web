@@ -160,6 +160,288 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
   return movie.id;
 }
 
+// ─── TV Show upsert ──────────────────────────────────────────────────────────
+
+export interface TMDBShowForSync {
+  id: number;
+  name: string;
+  overview?: string | null;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  first_air_date?: string | null;
+  last_air_date?: string | null;
+  status?: string | null;
+  number_of_seasons?: number | null;
+  number_of_episodes?: number | null;
+  episode_run_time?: number[] | null;
+  tagline?: string | null;
+  popularity?: number | null;
+  vote_average?: number | null;
+  vote_count?: number | null;
+  networks?: { id: number; name: string; logo_path: string | null }[];
+  genres?: { id: number; name: string }[];
+  seasons?: {
+    id: number;
+    season_number: number;
+    name: string;
+    overview?: string | null;
+    poster_path?: string | null;
+    air_date?: string | null;
+    episode_count: number;
+    vote_average?: number;
+  }[];
+  aggregate_credits?: {
+    cast?: {
+      id: number;
+      name: string;
+      profile_path?: string | null;
+      known_for_department?: string | null;
+      roles: { character: string; episode_count: number }[];
+      order: number;
+      total_episode_count: number;
+      popularity?: number;
+    }[];
+    crew?: {
+      id: number;
+      name: string;
+      profile_path?: string | null;
+      known_for_department?: string | null;
+      jobs: { job: string; episode_count: number }[];
+      department?: string | null;
+      total_episode_count: number;
+      popularity?: number;
+    }[];
+  };
+  content_ratings?: {
+    results?: { iso_3166_1: string; rating: string }[];
+  };
+  videos?: {
+    results?: { key: string; site: string; type: string }[];
+  };
+}
+
+export async function upsertTVShow(tmdb: TMDBShowForSync): Promise<string> {
+  // Derive content rating
+  let contentRating: string | null = null;
+  const usRating = tmdb.content_ratings?.results?.find((r) => r.iso_3166_1 === "US");
+  if (usRating?.rating) contentRating = usRating.rating;
+
+  // Derive trailer key
+  let trailerKey: string | null = null;
+  const trailer = tmdb.videos?.results?.find(
+    (v) => v.site === "YouTube" && v.type === "Trailer"
+  );
+  if (trailer) trailerKey = trailer.key;
+
+  const avgRuntime = tmdb.episode_run_time?.length
+    ? Math.round(tmdb.episode_run_time.reduce((a, b) => a + b, 0) / tmdb.episode_run_time.length)
+    : null;
+
+  const tvShow = await prisma.tVShow.upsert({
+    where: { tmdbId: tmdb.id },
+    create: {
+      tmdbId: tmdb.id,
+      name: tmdb.name,
+      overview: tmdb.overview ?? null,
+      posterPath: tmdb.poster_path ?? null,
+      backdropPath: tmdb.backdrop_path ?? null,
+      firstAirDate: tmdb.first_air_date ?? null,
+      lastAirDate: tmdb.last_air_date ?? null,
+      status: tmdb.status ?? null,
+      numberOfSeasons: tmdb.number_of_seasons ?? null,
+      numberOfEpisodes: tmdb.number_of_episodes ?? null,
+      episodeRunTime: avgRuntime,
+      contentRating,
+      tagline: tmdb.tagline ?? null,
+      popularity: tmdb.popularity ?? null,
+      voteAverage: tmdb.vote_average ?? null,
+      voteCount: tmdb.vote_count ?? null,
+      trailerKey,
+      networks: tmdb.networks ?? undefined,
+      cachedAt: new Date(),
+    },
+    update: {
+      name: tmdb.name,
+      overview: tmdb.overview ?? null,
+      posterPath: tmdb.poster_path ?? null,
+      backdropPath: tmdb.backdrop_path ?? null,
+      firstAirDate: tmdb.first_air_date ?? null,
+      lastAirDate: tmdb.last_air_date ?? null,
+      status: tmdb.status ?? null,
+      numberOfSeasons: tmdb.number_of_seasons ?? null,
+      numberOfEpisodes: tmdb.number_of_episodes ?? null,
+      episodeRunTime: avgRuntime,
+      contentRating,
+      tagline: tmdb.tagline ?? null,
+      popularity: tmdb.popularity ?? null,
+      voteAverage: tmdb.vote_average ?? null,
+      voteCount: tmdb.vote_count ?? null,
+      trailerKey,
+      networks: tmdb.networks ?? undefined,
+      cachedAt: new Date(),
+    },
+    select: { id: true },
+  });
+
+  // Upsert genres
+  if (tmdb.genres?.length) {
+    await Promise.all(
+      tmdb.genres.map((g) =>
+        prisma.genre.upsert({
+          where: { id: g.id },
+          create: { id: g.id, name: g.name },
+          update: { name: g.name },
+        })
+      )
+    );
+    await prisma.tVShowGenre.deleteMany({ where: { tvShowId: tvShow.id } });
+    await prisma.tVShowGenre.createMany({
+      data: tmdb.genres.map((g) => ({ tvShowId: tvShow.id, genreId: g.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  // Upsert seasons
+  if (tmdb.seasons?.length) {
+    for (const season of tmdb.seasons) {
+      await prisma.tVSeason.upsert({
+        where: { tvShowId_seasonNumber: { tvShowId: tvShow.id, seasonNumber: season.season_number } },
+        create: {
+          tvShowId: tvShow.id,
+          tmdbId: season.id,
+          seasonNumber: season.season_number,
+          name: season.name ?? null,
+          overview: season.overview ?? null,
+          posterPath: season.poster_path ?? null,
+          airDate: season.air_date ?? null,
+          episodeCount: season.episode_count ?? null,
+          voteAverage: season.vote_average ?? null,
+        },
+        update: {
+          tmdbId: season.id,
+          name: season.name ?? null,
+          overview: season.overview ?? null,
+          posterPath: season.poster_path ?? null,
+          airDate: season.air_date ?? null,
+          episodeCount: season.episode_count ?? null,
+          voteAverage: season.vote_average ?? null,
+        },
+      });
+    }
+  }
+
+  // Upsert cast & crew
+  if (tmdb.aggregate_credits) {
+    await upsertTVShowCredits(tvShow.id, tmdb.aggregate_credits.cast ?? [], tmdb.aggregate_credits.crew ?? []);
+  }
+
+  return tvShow.id;
+}
+
+async function upsertTVShowCredits(
+  tvShowId: string,
+  cast: NonNullable<TMDBShowForSync["aggregate_credits"]>["cast"] & object[],
+  crew: NonNullable<TMDBShowForSync["aggregate_credits"]>["crew"] & object[]
+): Promise<void> {
+  const allPeople = [
+    ...cast.map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, known_for_department: c.known_for_department, popularity: c.popularity })),
+    ...crew.map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, known_for_department: c.known_for_department, popularity: c.popularity })),
+  ];
+  const uniquePeople = Array.from(new Map(allPeople.map((p) => [p.id, p])).values());
+
+  await Promise.all(
+    uniquePeople.map((p) =>
+      prisma.celebrity.upsert({
+        where: { tmdbId: p.id },
+        create: {
+          tmdbId: p.id,
+          name: p.name,
+          profilePath: p.profile_path ?? null,
+          knownForDepartment: p.known_for_department ?? null,
+          popularity: p.popularity ?? null,
+        },
+        update: {
+          name: p.name,
+          profilePath: p.profile_path ?? null,
+          knownForDepartment: p.known_for_department ?? null,
+          popularity: p.popularity ?? null,
+        },
+        select: { id: true },
+      })
+    )
+  );
+
+  const celebs = await prisma.celebrity.findMany({
+    where: { tmdbId: { in: uniquePeople.map((p) => p.id) } },
+    select: { id: true, tmdbId: true },
+  });
+  const celebMap = new Map(celebs.map((c) => [c.tmdbId, c.id]));
+
+  // Upsert cast — use first role's character
+  await Promise.all(
+    cast.map((member, i) => {
+      const celebId = celebMap.get(member.id);
+      if (!celebId) return Promise.resolve();
+      const character = member.roles?.[0]?.character ?? null;
+      return prisma.tVShowCast.upsert({
+        where: {
+          tvShowId_celebrityId_creditType_job: {
+            tvShowId,
+            celebrityId: celebId,
+            creditType: "cast",
+            job: "",
+          },
+        },
+        create: {
+          tvShowId,
+          celebrityId: celebId,
+          creditType: "cast",
+          job: "",
+          character,
+          castOrder: member.order ?? i,
+          episodeCount: member.total_episode_count ?? null,
+        },
+        update: {
+          character,
+          castOrder: member.order ?? i,
+          episodeCount: member.total_episode_count ?? null,
+        },
+      });
+    })
+  );
+
+  // Upsert crew — use first job
+  await Promise.all(
+    crew.map((member) => {
+      const celebId = celebMap.get(member.id);
+      if (!celebId) return Promise.resolve();
+      const job = member.jobs?.[0]?.job ?? "";
+      return prisma.tVShowCast.upsert({
+        where: {
+          tvShowId_celebrityId_creditType_job: {
+            tvShowId,
+            celebrityId: celebId,
+            creditType: "crew",
+            job,
+          },
+        },
+        create: {
+          tvShowId,
+          celebrityId: celebId,
+          creditType: "crew",
+          job,
+          department: member.department ?? null,
+          episodeCount: member.total_episode_count ?? null,
+        },
+        update: {
+          department: member.department ?? null,
+          episodeCount: member.total_episode_count ?? null,
+        },
+      });
+    })
+  );
+}
+
 // ─── Celebrity upsert ─────────────────────────────────────────────────────────
 
 export async function upsertCelebrity(tmdb: TMDBPersonForSync): Promise<string> {

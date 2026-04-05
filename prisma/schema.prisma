@@ -27,8 +27,10 @@ model User {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   ratings        MovieRating[]
+  tvShowRatings  TVShowRating[]
   profile        UserProfile?
   favoriteMovies UserFavoriteMovie[]
+  favoriteShows  UserFavoriteShow[]
   watchlistsOwned  Watchlist[]
   watchlistCollab  WatchlistCollaborator[]
   blogPosts      BlogPost[]
@@ -154,6 +156,7 @@ model Genre {
   id     Int    @id
   name   String @unique
   movies MovieGenre[]
+  tvShows TVShowGenre[]
 
   @@map("genres")
 }
@@ -184,6 +187,7 @@ model Celebrity {
   cachedAt           DateTime? @map("cached_at")
 
   movieRoles MovieCast[]
+  tvShowRoles TVShowCast[]
 
   @@map("celebrities")
 }
@@ -203,6 +207,205 @@ model MovieCast {
 
   @@unique([movieId, celebrityId, creditType, job])
   @@map("movie_cast")
+}
+
+// ─── TV Shows ─────────────────────────────────────────────────────────────────
+
+model TVShow {
+  id             String   @id @default(cuid())
+  tmdbId         Int      @unique @map("tmdb_id")
+  name           String
+  overview       String?  @db.Text
+  posterPath     String?  @map("poster_path")
+  backdropPath   String?  @map("backdrop_path")
+  firstAirDate   String?  @map("first_air_date")
+  lastAirDate    String?  @map("last_air_date")
+  status         String?  // "Returning Series", "Ended", "Canceled", etc.
+  numberOfSeasons  Int?   @map("number_of_seasons")
+  numberOfEpisodes Int?   @map("number_of_episodes")
+  episodeRunTime   Int?   @map("episode_run_time") // avg minutes
+  contentRating    String? @map("content_rating") // TV-Y, TV-G, TV-PG, TV-14, TV-MA
+  tagline        String?
+  popularity     Float?
+  voteAverage    Float?   @map("vote_average")
+  voteCount      Int?     @map("vote_count")
+  trailerKey     String?  @map("trailer_key")
+  networks       Json?    // [{ id, name, logo_path }]
+  cachedAt       DateTime? @map("cached_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  genres     TVShowGenre[]
+  cast       TVShowCast[]
+  seasons    TVSeason[]
+  ratings    TVShowRating[]
+  favoritedBy UserFavoriteShow[]
+  watchlistEntries WatchlistShow[]
+
+  @@map("tv_shows")
+}
+
+model TVSeason {
+  id            String   @id @default(cuid())
+  tvShowId      String   @map("tv_show_id")
+  tmdbId        Int      @map("tmdb_id") // TMDB season ID
+  seasonNumber  Int      @map("season_number")
+  name          String?
+  overview      String?  @db.Text
+  posterPath    String?  @map("poster_path")
+  airDate       String?  @map("air_date")
+  episodeCount  Int?     @map("episode_count")
+  voteAverage   Float?   @map("vote_average")
+
+  tvShow   TVShow      @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+  episodes TVEpisode[]
+
+  @@unique([tvShowId, seasonNumber])
+  @@map("tv_seasons")
+}
+
+model TVEpisode {
+  id            String   @id @default(cuid())
+  seasonId      String   @map("season_id")
+  tmdbId        Int      @map("tmdb_id") // TMDB episode ID
+  episodeNumber Int      @map("episode_number")
+  name          String?
+  overview      String?  @db.Text
+  stillPath     String?  @map("still_path") // episode screenshot
+  airDate       String?  @map("air_date")
+  runtime       Int?
+  voteAverage   Float?   @map("vote_average")
+  voteCount     Int?     @map("vote_count")
+
+  season TVSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, episodeNumber])
+  @@map("tv_episodes")
+}
+
+model TVShowGenre {
+  tvShowId String @map("tv_show_id")
+  genreId  Int    @map("genre_id")
+
+  tvShow TVShow @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+  genre  Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([tvShowId, genreId])
+  @@map("tv_show_genres")
+}
+
+model TVShowCast {
+  id          String  @id @default(cuid())
+  tvShowId    String  @map("tv_show_id")
+  celebrityId String  @map("celebrity_id")
+  creditType  String  @default("cast") @map("credit_type") // "cast" | "crew"
+  character   String?
+  job         String  @default("")
+  department  String?
+  castOrder   Int     @default(0) @map("cast_order")
+  episodeCount Int?   @map("episode_count") // how many episodes they appeared in
+
+  tvShow    TVShow    @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+  celebrity Celebrity @relation(fields: [celebrityId], references: [id], onDelete: Cascade)
+
+  @@unique([tvShowId, celebrityId, creditType, job])
+  @@map("tv_show_cast")
+}
+
+model UserFavoriteShow {
+  userId    String    @map("user_id")
+  tvShowId  String    @map("tv_show_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tvShow TVShow @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tvShowId])
+  @@map("user_favorite_shows")
+}
+
+model WatchlistShow {
+  id          String    @id @default(cuid())
+  watchlistId String    @map("watchlist_id")
+  tvShowId    String    @map("tv_show_id")
+  sortOrder   Int       @default(0) @map("sort_order")
+  isChecked   Boolean   @default(false) @map("is_checked")
+  checkedAt   DateTime? @map("checked_at")
+  addedAt     DateTime  @default(now()) @map("added_at")
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  tvShow    TVShow    @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, tvShowId])
+  @@map("watchlist_shows")
+}
+
+model TVShowRating {
+  id        String @id @default(cuid())
+  userId    String @map("user_id")
+  tvShowId  String @map("tv_show_id")
+
+  // "series" = overall show rating, or a specific season number
+  ratingScope   String  @default("series") @map("rating_scope") // "series" | "season"
+  seasonNumber  Int     @default(0) @map("season_number") // 0 for series-level, 1+ for seasons
+
+  // Story (weight 5)
+  plot               Float?
+  premiseOriginality Float? @map("premise_originality")
+  storytelling       Float?
+  characterDev       Float? @map("character_dev")
+  pacingClimax       Float? @map("pacing_climax")
+
+  // Production & Style (weight 3)
+  cinematography   Float?
+  locationCost     Float? @map("location_costuming")
+  realism          Float? @map("realism_believability")
+  artisticEffect   Float? @map("artistic_effect")
+  visualEffects    Float? @map("visual_effects")
+  musicSound       Float? @map("music_sound")
+
+  // Emotive Effect (weight 3)
+  overallEmotion Float? @map("overall_emotion")
+  relatability   Float?
+  meaning        Float?
+  movingness     Float?
+
+  // Acting & Casting (weight 3)
+  casting            Float?
+  actingQuality      Float? @map("acting_quality")
+  dialogueScripting  Float? @map("dialogue_scripting")
+  blockingChoreo     Float? @map("blocking_choreography")
+
+  // Pure Entertainment (weight 2)
+  appeal            Float?
+  superficialAllure Float? @map("superficial_allure")
+  choreography      Float?
+
+  // Optional overall
+  overallRating Float? @map("overall_rating")
+
+  // Cached computed scores
+  storyScore        Float? @map("story_score")
+  styleScore        Float? @map("style_score")
+  emotiveScore      Float? @map("emotive_score")
+  actingScore       Float? @map("acting_score")
+  entertainScore    Float? @map("entertainment_score")
+  ratistRating      Float? @map("ratist_rating")
+
+  reviewText       String?  @map("review_text")
+  reviewType       String   @default("standard") @map("review_type")
+  fieldComments    Json?    @map("field_comments")
+  categoryComments Json?    @map("category_comments")
+  hasSpoilers      Boolean  @default(false) @map("has_spoilers")
+  commentsDisabled Boolean  @default(false) @map("comments_disabled")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tvShow TVShow @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tvShowId, ratingScope, seasonNumber])
+  @@map("tv_show_ratings")
 }
 
 model MovieRating {
@@ -421,6 +624,7 @@ model Watchlist {
 
   user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   movies        WatchlistMovie[]
+  shows         WatchlistShow[]
   collaborators WatchlistCollaborator[]
 
   @@unique([userId, slug])

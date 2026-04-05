@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { loadWatchlistMovies } from "../route";
+import { loadWatchlistMovies, loadWatchlistShows } from "../route";
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -35,7 +35,11 @@ export async function GET(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Private watchlist" }, { status: 403 });
     }
 
-    const movies = user ? await loadWatchlistMovies(id, user.id) : await loadWatchlistMovies(id, watchlist.userId);
+    const userId = user?.id ?? watchlist.userId;
+    const [movies, shows] = await Promise.all([
+      loadWatchlistMovies(id, userId),
+      loadWatchlistShows(id),
+    ]);
 
     return NextResponse.json({
       watchlist: {
@@ -47,7 +51,7 @@ export async function GET(req: NextRequest, { params }: Props) {
         ownerUid: watchlist.user.firebaseUid,
         collaboratorCount: watchlist.collaborators.length,
       },
-      movies,
+      movies: [...movies, ...shows],
     });
   } catch (err) {
     console.error("Watchlist GET error:", err);

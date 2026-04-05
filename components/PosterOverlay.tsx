@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, Bookmark, BookmarkCheck, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useShowUserState } from "@/hooks/useShowUserState";
 import RatingBadge from "./RatingBadge";
 
 interface Props {
@@ -13,26 +14,39 @@ interface Props {
   releaseDate?: string | null;
   voteAverage?: number | null;
   showRatings?: boolean;
+  mediaType?: "movie" | "tv";
   children: React.ReactNode;
 }
 
-export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, showRatings = false, children }: Props) {
+export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, showRatings = false, mediaType = "movie", children }: Props) {
   const { user } = useAuth();
-  const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(tmdbId);
+  const movieState = useMovieUserState(mediaType === "movie" ? tmdbId : 0);
+  const showState = useShowUserState(mediaType === "tv" ? tmdbId : 0);
+
+  const state = mediaType === "movie" ? movieState : showState;
+  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = state;
+  const ratistRating = mediaType === "movie" ? movieState.ratistRating : null;
+  const estimatedRating = mediaType === "movie" ? movieState.estimatedRating : null;
+
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
 
   const communityScore = voteAverage && voteAverage > 0 ? voteAverage : null;
+
+  const apiBase = mediaType === "movie" ? `/api/movies/${tmdbId}` : `/api/shows/${tmdbId}`;
+  const bodyPayload = mediaType === "movie"
+    ? { title, poster_path: posterPath, release_date: releaseDate }
+    : { name: title, poster_path: posterPath, first_air_date: releaseDate };
 
   async function markSeen(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
     if (!user || markingS || seen) return;
     setMarkingS(true);
     const token = await user.getIdToken();
-    await fetch(`/api/movies/${tmdbId}/seen`, {
+    await fetch(`${apiBase}/seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title, poster_path: posterPath, release_date: releaseDate }),
+      body: JSON.stringify(bodyPayload),
     }).catch(() => null);
     persistSeen();
     setMarkingS(false);
@@ -43,10 +57,10 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
     if (!user || markingW || watchlisted) return;
     setMarkingW(true);
     const token = await user.getIdToken();
-    const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+    const res = await fetch(`${apiBase}/watchlist`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title, poster_path: posterPath, release_date: releaseDate }),
+      body: JSON.stringify(bodyPayload),
     }).catch(() => null);
     if (res?.ok) {
       const data = await res.json();

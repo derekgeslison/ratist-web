@@ -19,8 +19,8 @@ export async function GET(req: NextRequest) {
     const cursor = req.nextUrl.searchParams.get("cursor") ?? undefined;
     const loadAll = req.nextUrl.searchParams.get("all") === "1";
 
-    // Fetch ratings with pagination (or all if requested)
-    const allRatings = await prisma.movieRating.findMany({
+    // Fetch movie ratings with pagination (or all if requested)
+    const allMovieRatings = await prisma.movieRating.findMany({
       where: { userId: user.id },
       include: {
         movie: {
@@ -43,9 +43,29 @@ export async function GET(req: NextRequest) {
       }),
     });
 
-    const hasMore = !loadAll && allRatings.length > PAGE_SIZE;
-    const pageRatings = hasMore ? allRatings.slice(0, PAGE_SIZE) : allRatings;
-    const nextCursor = hasMore ? pageRatings[pageRatings.length - 1].id : null;
+    // Fetch TV show ratings (series-level only)
+    const allTVRatings = await prisma.tVShowRating.findMany({
+      where: { userId: user.id, ratingScope: "series" },
+      include: {
+        tvShow: {
+          select: {
+            id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true, voteAverage: true,
+            genres: { include: { genre: { select: { name: true } } } },
+            cast: {
+              where: { OR: [{ creditType: "cast" }, { creditType: "crew", job: "Director" }] },
+              select: { creditType: true, job: true, castOrder: true, celebrity: { select: { name: true } } },
+              orderBy: { castOrder: "asc" },
+              take: 15,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const hasMore = !loadAll && allMovieRatings.length > PAGE_SIZE;
+    const pageMovieRatings = hasMore ? allMovieRatings.slice(0, PAGE_SIZE) : allMovieRatings;
+    const nextCursor = hasMore ? pageMovieRatings[pageMovieRatings.length - 1].id : null;
 
     // Get watched dates
     const favorites = await prisma.userFavoriteMovie.findMany({
@@ -58,7 +78,7 @@ export async function GET(req: NextRequest) {
     });
     const watchedDateMap = new Map(favorites.map((f) => [f.movieId, f.watchedDate]));
 
-    const ratings = pageRatings.map((r) => {
+    const movieRatings = pageMovieRatings.map((r) => {
       const directors = r.movie.cast
         .filter((c) => c.creditType === "crew" && c.job === "Director")
         .map((c) => c.celebrity.name);
@@ -84,8 +104,44 @@ export async function GET(req: NextRequest) {
         ratingStatus: getRatingStatus(r as unknown as Record<string, unknown>),
         watchedDate: watchedDateMap.get(r.movieId)?.toISOString() ?? null,
         ratedAt: r.createdAt.toISOString(),
+        mediaType: "movie" as const,
       };
     });
+
+    const tvRatings = allTVRatings.map((r) => {
+      const directors = r.tvShow.cast
+        .filter((c) => c.creditType === "crew" && c.job === "Director")
+        .map((c) => c.celebrity.name);
+      const actors = r.tvShow.cast
+        .filter((c) => c.creditType === "cast")
+        .sort((a, b) => a.castOrder - b.castOrder)
+        .slice(0, 5)
+        .map((c) => c.celebrity.name);
+      return {
+        id: r.id,
+        tmdbId: r.tvShow.tmdbId,
+        title: r.tvShow.name,
+        posterPath: r.tvShow.posterPath,
+        year: r.tvShow.firstAirDate?.slice(0, 4) ?? "",
+        genres: r.tvShow.genres.map((g) => g.genre.name),
+        directors,
+        actors,
+        voteAverage: r.tvShow.voteAverage ?? null,
+        ratistRating: r.ratistRating,
+        overallRating: r.overallRating,
+        reviewText: r.reviewText,
+        reviewType: r.reviewType,
+        ratingStatus: getRatingStatus(r as unknown as Record<string, unknown>),
+        watchedDate: null,
+        ratedAt: r.createdAt.toISOString(),
+        mediaType: "tv" as const,
+      };
+    });
+
+    // Combine and sort by ratedAt descending
+    const ratings = [...movieRatings, ...tvRatings].sort(
+      (a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime()
+    );
 
     // Unrated seen movies (only on first page load, not paginated loads)
     let unrated: unknown[] = [];
@@ -112,11 +168,27 @@ export async function GET(req: NextRequest) {
     }
 
     // Total count for stats (always return this)
-    const totalCount = await prisma.movieRating.count({ where: { userId: user.id } });
-    const avgAgg = await prisma.movieRating.aggregate({
+    const movieCount = await prisma.movieRating.count({ where: { userId: user.id } });
+    const tvCount = await prisma.tVShowRating.count({ where: { userId: user.id, ratingScope: "series" } });
+    const totalCount = movieCount + tvCount;
+    const movieAvg = await prisma.movieRating.aggregate({
       where: { userId: user.id, ratistRating: { not: null } },
       _avg: { ratistRating: true },
+      _count: { ratistRating: true },
     });
+    const tvAvg = await prisma.tVShowRating.aggregate({
+      where: { userId: user.id, ratingScope: "series", ratistRating: { not: null } },
+      _avg: { ratistRating: true },
+      _count: { ratistRating: true },
+    });
+    const totalScored = (movieAvg._count.ratistRating ?? 0) + (tvAvg._count.ratistRating ?? 0);
+    const avgAgg = {
+      _avg: {
+        ratistRating: totalScored > 0
+          ? ((movieAvg._avg.ratistRating ?? 0) * (movieAvg._count.ratistRating ?? 0) + (tvAvg._avg.ratistRating ?? 0) * (tvAvg._count.ratistRating ?? 0)) / totalScored
+          : null,
+      },
+    };
 
     return NextResponse.json({
       ratings,

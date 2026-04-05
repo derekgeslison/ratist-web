@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv } from "lucide-react";
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
 
 const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"];
+const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"];
 
 const PER_PAGE_OPTIONS = [
   { value: "20", label: "20 / page" },
@@ -61,6 +62,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentRatingVal = searchParams.get("ratingVal") ?? "";
   const currentPerPage = searchParams.get("perPage") ?? "20";
   const currentTheaterStatus = searchParams.get("theaterStatus") ?? "";
+  const currentType = searchParams.get("type") ?? "all";
 
   // Local debounced state for text inputs
   const currentSearch = searchParams.get("search") ?? "";
@@ -110,10 +112,12 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     const view = searchParams.get("view");
     const search = searchParams.get("search");
     const perPage = searchParams.get("perPage");
+    const type = searchParams.get("type");
     if (sort) params.set("sort", sort);
     if (view) params.set("view", view);
     if (search) params.set("search", search);
     if (perPage) params.set("perPage", perPage);
+    if (type) params.set("type", type);
     router.push(`/movies?${params.toString()}`);
   }
 
@@ -190,6 +194,28 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
 
   return (
     <div className="mb-6">
+      {/* Content type toggle */}
+      <div className="flex items-center gap-1 mb-3">
+        {[
+          { value: "all", label: "All" },
+          { value: "movie", label: "Movies", icon: Film },
+          { value: "tv", label: "TV Shows", icon: Tv },
+        ].map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            onClick={() => update({ type: value === "all" ? null : value })}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              currentType === value
+                ? value === "tv" ? "bg-blue-600/20 border border-blue-500/40 text-blue-400" : "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 text-white"
+                : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]"
+            }`}
+          >
+            {Icon && <Icon className="w-3.5 h-3.5" />}
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Always-visible top bar */}
       <div className="flex items-center gap-2 flex-wrap mb-3">
         {/* Title search */}
@@ -262,7 +288,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
           </button>
         </div>
 
-        <p className="text-sm text-[var(--foreground-muted)]">{totalResults.toLocaleString()} movies</p>
+        <p className="text-sm text-[var(--foreground-muted)]">{totalResults.toLocaleString()} {currentType === "tv" ? "shows" : currentType === "movie" ? "movies" : "results"}</p>
       </div>
 
       {/* Active filter chips (when panel is closed) */}
@@ -422,12 +448,40 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               </div>
             </div>
 
-            {/* MPA Rating */}
+            {/* Content Rating */}
             <div>
               <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">MPA Rating</p>
               <div className="flex flex-wrap gap-1.5">
                 {MPAA_RATINGS.map((r) => (
-                  <button key={r} onClick={() => toggleMpaa(r)} className={`${chipBase} ${currentMpaa.includes(r) ? chipOn : chipOff}`}>
+                  <button
+                    key={r}
+                    onClick={() => currentType !== "all" && currentType !== "tv" && toggleMpaa(r)}
+                    title={currentType === "all" ? "Select Movies to filter by MPA rating" : currentType === "tv" ? "Switch to Movies to use MPA ratings" : undefined}
+                    className={`${chipBase} ${
+                      currentType === "all" || currentType === "tv"
+                        ? "border-[var(--border)] text-[var(--foreground-muted)] opacity-40 cursor-not-allowed"
+                        : currentMpaa.includes(r) ? chipOn : chipOff
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">TV Rating</p>
+              <div className="flex flex-wrap gap-1.5">
+                {TV_RATINGS.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => currentType === "tv" && toggleMpaa(r)}
+                    title={currentType === "all" ? "Select TV Shows to filter by TV rating" : currentType === "movie" ? "Switch to TV Shows to use TV ratings" : undefined}
+                    className={`${chipBase} ${
+                      currentType !== "tv"
+                        ? "border-[var(--border)] text-[var(--foreground-muted)] opacity-40 cursor-not-allowed"
+                        : currentMpaa.includes(r) ? chipOn : chipOff
+                    }`}
+                  >
                     {r}
                   </button>
                 ))}

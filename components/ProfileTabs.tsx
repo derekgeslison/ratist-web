@@ -22,6 +22,7 @@ interface RatedMovie {
   reviewText: string | null;
   createdAt: string;
   ratingStatus: "complete" | "incomplete" | "imported";
+  mediaType?: "movie" | "tv";
 }
 
 interface SeenMovie {
@@ -330,7 +331,7 @@ export default function ProfileTabs({
                 <h2 className="text-base font-semibold text-white mb-4">Recently Rated</h2>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {ratings.filter((r) => r.ratingStatus === "complete").slice(0, 12).map((r) => (
-                    <Link key={r.id} href={`/movies/${r.tmdbId}`} className="group">
+                    <Link key={r.id} href={`/${r.mediaType === "tv" ? "shows" : "movies"}/${r.tmdbId}`} className="group">
                       <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                         {r.posterPath ? (
                           <Image src={posterUrl(r.posterPath, "w92")} alt={r.title} fill sizes="80px" className="object-cover" />
@@ -526,7 +527,7 @@ export default function ProfileTabs({
               {ratings.map((r) => (
                 <Link
                   key={r.id}
-                  href={`/movies/${r.tmdbId}`}
+                  href={`/${r.mediaType === "tv" ? "shows" : "movies"}/${r.tmdbId}`}
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--surface)] transition-colors group"
                 >
                   <div className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">

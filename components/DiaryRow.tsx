@@ -24,13 +24,15 @@ interface Props {
   logId?: string | null;
   onDeleteRewatch?: (logId: string) => void;
   onEditNotes?: (logId: string, notes: string) => void;
+  mediaType?: "movie" | "tv";
 }
 
 export default function DiaryRow({
   tmdbId, title, posterPath, year, ratistRating, voteAverage,
   dayNumber, editable, dateValue, onDateChange, isRewatch, notes,
-  logId, onDeleteRewatch, onEditNotes,
+  logId, onDeleteRewatch, onEditNotes, mediaType,
 }: Props) {
+  const detailPath = mediaType === "tv" ? `/shows/${tmdbId}` : `/movies/${tmdbId}`;
   const [editingDate, setEditingDate] = useState(false);
   const [pendingDate, setPendingDate] = useState(dateValue ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
@@ -47,7 +49,7 @@ export default function DiaryRow({
       </div>
 
       {/* Poster */}
-      <Link href={`/movies/${tmdbId}`} className="relative w-9 h-[54px] shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+      <Link href={detailPath} className="relative w-9 h-[54px] shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
         {posterPath && (
           <Image src={posterUrl(posterPath, "w92")} alt={title} fill sizes="36px" className="object-cover" />
         )}
@@ -56,9 +58,12 @@ export default function DiaryRow({
       {/* Title + year + rewatch indicator + notes */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <Link href={`/movies/${tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+          <Link href={detailPath} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
             {title}
           </Link>
+          {mediaType === "tv" && (
+            <span className="shrink-0 px-1 py-0.5 text-[9px] font-bold uppercase rounded bg-blue-600/20 text-blue-400 leading-none">TV</span>
+          )}
           {isRewatch && (
             <span title="Rewatch"><RotateCcw className="w-3 h-3 text-[var(--foreground-muted)] shrink-0" /></span>
           )}
@@ -99,7 +104,7 @@ export default function DiaryRow({
           <RatingBadge type="ratist" score={ratistRating} size="sm" />
         ) : (
           <Link
-            href={`/movies/${tmdbId}/rate`}
+            href={`${detailPath}/rate`}
             className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
           >
             Rate

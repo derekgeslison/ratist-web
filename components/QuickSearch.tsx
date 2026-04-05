@@ -4,10 +4,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Film, User } from "lucide-react";
+import { Search, Film, Tv, User } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 
 interface QuickMovie { id: number; title: string; posterPath: string | null; year: string | null }
+interface QuickShow { id: number; name: string; posterPath: string | null; year: string | null }
 interface QuickPerson { id: number; name: string; profilePath: string | null; department: string }
 
 const TMDB_PROFILE = "https://image.tmdb.org/t/p/w45";
@@ -16,6 +17,7 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState<QuickMovie[]>([]);
+  const [shows, setShows] = useState<QuickShow[]>([]);
   const [people, setPeople] = useState<QuickPerson[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,16 +25,17 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const totalResults = movies.length + people.length;
+  const totalResults = movies.length + shows.length + people.length;
 
   const fetchResults = useCallback(async (q: string) => {
-    if (q.length < 2) { setMovies([]); setPeople([]); setOpen(false); return; }
+    if (q.length < 2) { setMovies([]); setShows([]); setPeople([]); setOpen(false); return; }
     setLoading(true);
     try {
       const res = await fetch(`/api/search/quick?q=${encodeURIComponent(q)}`);
       if (res.ok) {
         const data = await res.json();
         setMovies(data.movies ?? []);
+        setShows(data.shows ?? []);
         setPeople(data.people ?? []);
         setOpen(true);
         setSelectedIdx(-1);
@@ -76,8 +79,10 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
       e.preventDefault();
       if (selectedIdx < movies.length) {
         navigate(`/movies/${movies[selectedIdx].id}`);
-      } else if (selectedIdx < movies.length + people.length) {
-        navigate(`/celebrities/${people[selectedIdx - movies.length].id}`);
+      } else if (selectedIdx < movies.length + shows.length) {
+        navigate(`/shows/${shows[selectedIdx - movies.length].id}`);
+      } else if (selectedIdx < movies.length + shows.length + people.length) {
+        navigate(`/celebrities/${people[selectedIdx - movies.length - shows.length].id}`);
       } else {
         // "View all" selected
         navigate(`/search?q=${encodeURIComponent(query.trim())}`);
@@ -110,14 +115,14 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onFocus={() => { if (totalResults > 0 && query.length >= 2) setOpen(true); }}
-            placeholder="Search movies & people..."
+            placeholder="Search movies, shows & people..."
             className={inputClassName ?? "bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] w-44 lg:w-60 transition-all"}
           />
         </div>
       </form>
 
       {/* Dropdown */}
-      {open && (movies.length > 0 || people.length > 0) && (
+      {open && (movies.length > 0 || shows.length > 0 || people.length > 0) && (
         <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50 min-w-[280px]">
           {/* Movies */}
           {movies.length > 0 && (
@@ -149,9 +154,41 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
             </div>
           )}
 
+          {/* TV Shows */}
+          {shows.length > 0 && (
+            <div className={movies.length > 0 ? "border-t border-[var(--border)]" : ""}>
+              <p className="px-3 pt-2.5 pb-1 text-[10px] text-blue-400 uppercase tracking-wider font-medium flex items-center gap-1">
+                <Tv className="w-3 h-3" /> TV Shows
+              </p>
+              {shows.map((s, i) => (
+                <button
+                  key={s.id}
+                  onClick={() => navigate(`/shows/${s.id}`)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                    selectedIdx === movies.length + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
+                  }`}
+                >
+                  <div className="relative w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] shrink-0">
+                    {s.posterPath ? (
+                      <Image src={posterUrl(s.posterPath, "w92")} alt="" fill sizes="32px" className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex items-center gap-1.5">
+                    <div>
+                      <p className="text-sm text-white truncate">{s.name}</p>
+                      {s.year && <p className="text-xs text-[var(--foreground-muted)]">{s.year}</p>}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* People */}
           {people.length > 0 && (
-            <div className={movies.length > 0 ? "border-t border-[var(--border)]" : ""}>
+            <div className={(movies.length > 0 || shows.length > 0) ? "border-t border-[var(--border)]" : ""}>
               <p className="px-3 pt-2.5 pb-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium flex items-center gap-1">
                 <User className="w-3 h-3" /> People
               </p>
@@ -160,7 +197,7 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
                   key={p.id}
                   onClick={() => navigate(`/celebrities/${p.id}`)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
-                    selectedIdx === movies.length + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
+                    selectedIdx === movies.length + shows.length + i ? "bg-[var(--surface-2)]" : "hover:bg-[var(--surface-2)]"
                   }`}
                 >
                   <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">

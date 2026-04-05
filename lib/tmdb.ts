@@ -262,3 +262,182 @@ export async function discoverMovies(options: {
 export async function getGenres() {
   return tmdbFetch<{ genres: TMDBGenre[] }>("/genre/movie/list");
 }
+
+// ─── TV Shows ─────────────────────────────────────────────────────────────────
+
+export interface TMDBShow {
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  first_air_date: string;
+  last_air_date?: string;
+  status?: string;
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+  episode_run_time?: number[];
+  tagline?: string;
+  popularity: number;
+  vote_average: number;
+  vote_count: number;
+  genres?: { id: number; name: string }[];
+  networks?: { id: number; name: string; logo_path: string | null }[];
+  created_by?: { id: number; name: string; profile_path: string | null }[];
+  seasons?: TMDBSeason[];
+  videos?: { results: TMDBVideo[] };
+  aggregate_credits?: { cast: TMDBShowCastMember[]; crew: TMDBShowCrewMember[] };
+  content_ratings?: { results: TMDBContentRating[] };
+  images?: { backdrops: TMDBImage[]; posters: TMDBImage[] };
+}
+
+export interface TMDBSeason {
+  id: number;
+  season_number: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  air_date: string | null;
+  episode_count: number;
+  vote_average: number;
+  episodes?: TMDBEpisode[];
+}
+
+export interface TMDBEpisode {
+  id: number;
+  episode_number: number;
+  season_number: number;
+  name: string;
+  overview: string;
+  still_path: string | null;
+  air_date: string | null;
+  runtime: number | null;
+  vote_average: number;
+  vote_count: number;
+}
+
+export interface TMDBShowCastMember {
+  id: number;
+  name: string;
+  roles: { character: string; episode_count: number }[];
+  profile_path: string | null;
+  order: number;
+  total_episode_count: number;
+  known_for_department: string;
+}
+
+export interface TMDBShowCrewMember {
+  id: number;
+  name: string;
+  jobs: { job: string; episode_count: number }[];
+  profile_path: string | null;
+  department: string;
+  total_episode_count: number;
+  known_for_department: string;
+}
+
+export interface TMDBContentRating {
+  iso_3166_1: string;
+  rating: string;
+}
+
+export function getShowTrailerKey(show: TMDBShow): string | null {
+  const videos = show.videos?.results ?? [];
+  const trailer = videos.find(
+    (v) => v.type === "Trailer" && v.site === "YouTube" && v.official
+  ) ?? videos.find((v) => v.type === "Trailer" && v.site === "YouTube");
+  return trailer?.key ?? null;
+}
+
+export function getShowContentRating(show: TMDBShow): string | null {
+  const usRating = show.content_ratings?.results?.find((r) => r.iso_3166_1 === "US");
+  return usRating?.rating ?? null;
+}
+
+// TV API functions
+export async function getPopularShows(page = 1) {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>("/tv/popular", { page: String(page) });
+}
+
+export async function getTopRatedShows(page = 1) {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>("/tv/top_rated", { page: String(page) });
+}
+
+export async function getAiringTodayShows(page = 1) {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>("/tv/airing_today", { page: String(page) });
+}
+
+export async function getOnTheAirShows(page = 1) {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>("/tv/on_the_air", { page: String(page) });
+}
+
+export async function getShowDetails(tmdbId: number): Promise<TMDBShow> {
+  return tmdbFetch<TMDBShow>(`/tv/${tmdbId}`, {
+    append_to_response: "videos,aggregate_credits,content_ratings,images",
+  });
+}
+
+export async function getShowSeasonDetails(showTmdbId: number, seasonNumber: number): Promise<TMDBSeason> {
+  return tmdbFetch<TMDBSeason>(`/tv/${showTmdbId}/season/${seasonNumber}`);
+}
+
+export async function getShowWatchProviders(tmdbId: number) {
+  const data = await tmdbFetch<{ results: Record<string, { flatrate?: TMDBWatchProvider[]; rent?: TMDBWatchProvider[]; buy?: TMDBWatchProvider[] }> }>(`/tv/${tmdbId}/watch/providers`);
+  return data.results?.US ?? null;
+}
+
+export async function getShowRecommendations(tmdbId: number) {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>(`/tv/${tmdbId}/recommendations`);
+}
+
+export async function searchShows(query: string, page = 1) {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>("/search/tv", {
+    query,
+    page: String(page),
+    include_adult: "false",
+  });
+}
+
+export async function getShowGenres() {
+  return tmdbFetch<{ genres: TMDBGenre[] }>("/genre/tv/list");
+}
+
+export const TV_RATING_ORDER = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"];
+
+export async function discoverShows(options: {
+  query?: string;
+  genres?: string[];
+  genreMode?: "any" | "all";
+  sort?: string;
+  yearFrom?: string;
+  yearTo?: string;
+  ratingGte?: string;
+  ratingLte?: string;
+  page?: number;
+}) {
+  const TV_SORT_MAP: Record<string, string> = {
+    popular: "popularity.desc",
+    top_rated: "vote_average.desc",
+    newest: "first_air_date.desc",
+    oldest: "first_air_date.asc",
+    title_az: "name.asc",
+    title_za: "name.desc",
+  };
+  const sortBy = TV_SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";
+  const params: Record<string, string> = {
+    page: String(options.page ?? 1),
+    sort_by: sortBy,
+    "vote_count.gte": options.sort === "top_rated" ? "200" : "10",
+  };
+  if (options.query) params.with_text_query = options.query;
+  const genreIds = options.genres?.length ? options.genres : [];
+  if (genreIds.length > 0) {
+    params.with_genres = genreIds.join(options.genreMode === "all" ? "," : "|");
+  }
+  if (options.yearFrom) params["first_air_date.gte"] = `${options.yearFrom}-01-01`;
+  if (options.yearTo) params["first_air_date.lte"] = `${options.yearTo}-12-31`;
+  if (options.ratingGte) params["vote_average.gte"] = options.ratingGte;
+  if (options.ratingLte) params["vote_average.lte"] = options.ratingLte;
+
+  return tmdbFetch<TMDBPageResult<TMDBShow>>("/discover/tv", params);
+}

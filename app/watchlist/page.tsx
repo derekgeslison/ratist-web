@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
+  Film, Tv,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -63,6 +64,7 @@ interface WatchlistMovie {
   checkedAt: string | null;
   addedAt: string;
   sortOrder: number;
+  mediaType?: "movie" | "tv";
 }
 
 type SortKey = "added" | "title" | "year" | "rating" | "community";
@@ -83,12 +85,13 @@ export default function WatchlistPage() {
   const [sortKey, setSortKey] = useState<SortKey>("added");
   const [sortAsc, setSortAsc] = useState(false);
   const [seenFilter, setSeenFilter] = useState<SeenFilter>("all");
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [genreFilter, setGenreFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
   /* ── Add movie search ── */
   const [addMovieQuery, setAddMovieQuery] = useState("");
-  const [addMovieResults, setAddMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string }[]>([]);
+  const [addMovieResults, setAddMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string; mediaType: "movie" | "tv" }[]>([]);
   const [addingMovie, setAddingMovie] = useState<number | null>(null);
 
   /* ── UI state ── */
@@ -357,25 +360,39 @@ export default function WatchlistPage() {
     }
   }
 
-  /* ── Add movie search ── */
+  /* ── Add movie/show search ── */
   useEffect(() => {
     if (addMovieQuery.length < 2) { setAddMovieResults([]); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}`);
-      const data = await res.json();
-      setAddMovieResults(data.results ?? []);
+      const q = encodeURIComponent(addMovieQuery);
+      const [movieRes, tvRes] = await Promise.all([
+        fetch(`/api/tmdb/movie/search?q=${q}`),
+        fetch(`/api/tmdb/tv/search?q=${q}`),
+      ]);
+      const movieData = await movieRes.json();
+      const tvData = await tvRes.json();
+      const movies = (movieData.results ?? []).map((m: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...m, mediaType: "movie" as const }));
+      const shows = (tvData.results ?? []).map((s: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...s, mediaType: "tv" as const }));
+      // Interleave: alternate movie, show, to give balanced results
+      const combined: typeof movies = [];
+      const maxLen = Math.max(movies.length, shows.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (i < movies.length) combined.push(movies[i]);
+        if (i < shows.length) combined.push(shows[i]);
+      }
+      setAddMovieResults(combined.slice(0, 12));
     }, 300);
     return () => clearTimeout(t);
   }, [addMovieQuery]);
 
-  async function addMovieToList(m: { id: number; title: string; posterPath: string | null; releaseDate: string }) {
+  async function addMovieToList(m: { id: number; title: string; posterPath: string | null; releaseDate: string; mediaType: "movie" | "tv" }) {
     if (!user || !activeList || addingMovie) return;
     setAddingMovie(m.id);
     const token = await user.getIdToken();
     await fetch(`/api/watchlist/${activeList.id}/movies`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate }),
+      body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate, mediaType: m.mediaType }),
     });
     setAddingMovie(null);
     setAddMovieQuery("");
@@ -394,7 +411,8 @@ export default function WatchlistPage() {
     setListPickerMovie(movie);
     const token = await getToken();
     if (!token) return;
-    const res = await fetch(`/api/movies/${movie.tmdbId}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
+    const endpoint = (movie.mediaType === "tv") ? `/api/shows/${movie.tmdbId}/watchlist` : `/api/movies/${movie.tmdbId}/watchlist`;
+    const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
     setMovieLists(data.lists ?? []);
   }
@@ -424,7 +442,7 @@ export default function WatchlistPage() {
       await fetch(`/api/watchlist/${listId}/movies`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId: listPickerMovie.tmdbId, title: listPickerMovie.title, posterPath: listPickerMovie.posterPath }),
+        body: JSON.stringify({ tmdbId: listPickerMovie.tmdbId, title: listPickerMovie.title, posterPath: listPickerMovie.posterPath, mediaType: listPickerMovie.mediaType }),
       });
       setMovieLists((prev) => prev.map((l) => l.id === listId ? { ...l, hasMovie: true } : l));
       // Update count for the list it was added to
@@ -443,6 +461,7 @@ export default function WatchlistPage() {
   /* ── Filter + sort ── */
   const filtered = useMemo(() => {
     let list = movies;
+    if (mediaFilter !== "all") list = list.filter((m) => (m.mediaType ?? "movie") === mediaFilter);
     if (query) list = list.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()));
     if (seenFilter === "checked") list = list.filter((m) => m.isChecked);
     if (seenFilter === "unchecked") list = list.filter((m) => !m.isChecked);
@@ -461,7 +480,7 @@ export default function WatchlistPage() {
     });
 
     return list;
-  }, [movies, query, seenFilter, genreFilter, sortKey, sortAsc]);
+  }, [movies, query, seenFilter, mediaFilter, genreFilter, sortKey, sortAsc]);
 
   const canEdit = activeList ? (activeList.isOwner || activeList.myRole === "editor") : false;
   const checkedCount = movies.filter((m) => m.isChecked).length;
@@ -475,9 +494,9 @@ export default function WatchlistPage() {
         <Bookmark className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">My Watchlists</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-1">Organize the movies you want to watch.</p>
+      <p className="text-[var(--foreground-muted)] mb-1">Organize movies &amp; shows you want to watch.</p>
       <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline mb-6 inline-block">
-        View movies you&apos;ve already seen &rarr;
+        View what you&apos;ve already seen &rarr;
       </Link>
 
       {!user ? (
@@ -544,7 +563,7 @@ export default function WatchlistPage() {
                       <div key={inv.watchlistId} className="p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg">
                         <p className="text-xs text-white font-medium truncate">{inv.listName}</p>
                         <p className="text-[10px] text-[var(--foreground-muted)] mb-2">
-                          from {inv.ownerName} · {inv.movieCount} movie{inv.movieCount !== 1 ? "s" : ""} · {inv.role}
+                          from {inv.ownerName} · {inv.movieCount} item{inv.movieCount !== 1 ? "s" : ""} · {inv.role}
                         </p>
                         <div className="flex gap-1.5">
                           <button
@@ -622,7 +641,7 @@ export default function WatchlistPage() {
                       </p>
                     )}
                     <div className="flex gap-4 mt-1 text-xs text-[var(--foreground-muted)]">
-                      <span>{movies.length} movie{movies.length !== 1 ? "s" : ""}</span>
+                      <span>{movies.length} item{movies.length !== 1 ? "s" : ""}</span>
                       {checkedCount > 0 && <span className="text-green-400">{checkedCount} watched</span>}
                       {uncheckedCount > 0 && <span>{uncheckedCount} to go</span>}
                     </div>
@@ -682,7 +701,7 @@ export default function WatchlistPage() {
                       <input
                         value={addMovieQuery}
                         onChange={(e) => setAddMovieQuery(e.target.value)}
-                        placeholder="Search to add a movie..."
+                        placeholder="Search movies & shows to add..."
                         className="flex-1 bg-transparent text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none"
                       />
                       {addMovieQuery && (
@@ -702,8 +721,16 @@ export default function WatchlistPage() {
                               <div className="w-8 h-12 rounded overflow-hidden bg-[var(--surface-2)] flex-shrink-0">
                                 {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} width={32} height={48} className="object-cover w-full h-full" />}
                               </div>
-                              <div className="flex-1">
-                                <p className="text-sm text-white">{m.title}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-white flex items-center gap-1.5">
+                                  <span className="truncate">{m.title}</span>
+                                  {m.mediaType === "tv" && (
+                                    <span className="shrink-0 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5">
+                                      <Tv className="w-2.5 h-2.5" />
+                                      <span className="text-[8px] font-bold leading-none">TV</span>
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
                               </div>
                               {alreadyIn && <span className="text-[9px] text-[var(--foreground-muted)]">Already in list</span>}
@@ -767,6 +794,29 @@ export default function WatchlistPage() {
                 {showFilters && movies.length > 0 && (
                   <div className="flex flex-wrap gap-3 mb-4 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl">
                     <div>
+                      <label className="text-xs text-[var(--foreground-muted)] mb-1 block">Type</label>
+                      <div className="flex gap-1">
+                        {([
+                          { value: "all" as const, label: "All" },
+                          { value: "movie" as const, label: "Movies", icon: Film },
+                          { value: "tv" as const, label: "Shows", icon: Tv },
+                        ]).map(({ value, label, icon: Icon }) => (
+                          <button
+                            key={value}
+                            onClick={() => setMediaFilter(value)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              mediaFilter === value
+                                ? value === "tv" ? "bg-blue-600/20 border border-blue-500/40 text-blue-400" : "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 text-white"
+                                : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                            }`}
+                          >
+                            {Icon && <Icon className="w-3 h-3" />}
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
                       <label className="text-xs text-[var(--foreground-muted)] mb-1 block">Status</label>
                       <select
                         value={seenFilter}
@@ -791,8 +841,8 @@ export default function WatchlistPage() {
                         </select>
                       </div>
                     )}
-                    {(seenFilter !== "all" || genreFilter) && (
-                      <button onClick={() => { setSeenFilter("all"); setGenreFilter(""); }} className="self-end text-xs text-[var(--ratist-red)] hover:underline pb-1">
+                    {(seenFilter !== "all" || genreFilter || mediaFilter !== "all") && (
+                      <button onClick={() => { setSeenFilter("all"); setGenreFilter(""); setMediaFilter("all"); }} className="self-end text-xs text-[var(--ratist-red)] hover:underline pb-1">
                         Clear filters
                       </button>
                     )}
@@ -807,12 +857,12 @@ export default function WatchlistPage() {
                     {movies.length === 0 ? (
                       <>
                         <Bookmark className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                        <p className="mb-2">This list is empty.</p>
-                        <p className="text-sm">Browse movies and add them to this list.</p>
-                        <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse movies &rarr;</Link>
+                        <p className="mb-2">Nothing in this list yet.</p>
+                        <p className="text-sm">Search above or browse to add movies &amp; shows.</p>
+                        <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse &rarr;</Link>
                       </>
                     ) : (
-                      <p>No movies match your filters.</p>
+                      <p>Nothing matches your filters.</p>
                     )}
                   </div>
                 ) : (
@@ -864,7 +914,7 @@ export default function WatchlistPage() {
                           </>
                         ) : null}
 
-                        <Link href={`/movies/${movie.tmdbId}`} className={`flex flex-col ${movie.isChecked ? "opacity-60" : ""}`}>
+                        <Link href={`/${movie.mediaType === "tv" ? "shows" : "movies"}/${movie.tmdbId}`} className={`flex flex-col ${movie.isChecked ? "opacity-60" : ""}`}>
                           <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
                             movie.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
                           }`}>
@@ -872,6 +922,12 @@ export default function WatchlistPage() {
                               <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="120px" className="object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                            )}
+                            {movie.mediaType === "tv" && (
+                              <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
+                                <Tv className="w-2.5 h-2.5" />
+                                <span className="text-[8px] font-bold leading-none">TV</span>
+                              </div>
                             )}
                             {movie.isChecked && (
                               <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
@@ -1060,7 +1116,7 @@ export default function WatchlistPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}>
           <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-2xl p-6 mx-4 text-center">
             <h3 className="text-base font-semibold text-white mb-2">Delete &ldquo;{activeList.name}&rdquo;?</h3>
-            <p className="text-sm text-[var(--foreground-muted)] mb-5">This will permanently delete this list and remove all movies from it. This cannot be undone.</p>
+            <p className="text-sm text-[var(--foreground-muted)] mb-5">This will permanently delete this list and remove everything from it. This cannot be undone.</p>
             <div className="flex gap-3">
               <button onClick={deleteWatchlist} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 rounded-xl transition-colors">Delete</button>
               <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-xl transition-colors py-2.5">Cancel</button>

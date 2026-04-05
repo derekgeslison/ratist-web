@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText, Sparkles } from "lucide-react";
+import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText, Sparkles, Film, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -25,6 +25,7 @@ interface SeenMovie {
   watchedDate: string | null;
   isRewatch: boolean;
   notes: string | null;
+  mediaType?: "movie" | "tv";
 }
 
 type ViewMode = "month" | "calendar" | "all";
@@ -51,6 +52,7 @@ export default function SeenPage() {
   const [genreFilter, setGenreFilter] = useState("");
   const [ratingFilter, setRatingFilter] = useState<"" | "8+" | "6+" | "unrated">("");
   const [view, setView] = useState<ViewMode>("month");
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [sort, setSort] = useState<"date" | "title" | "rating">("date");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
@@ -126,6 +128,7 @@ export default function SeenPage() {
 
   const filtered = useMemo(() => {
     return movies.filter((m) => {
+      if (mediaFilter !== "all" && (m.mediaType ?? "movie") !== mediaFilter) return false;
       if (query && !m.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (genreFilter && !m.genres.includes(genreFilter)) return false;
       if (ratingFilter === "8+" && (m.ratistRating == null || m.ratistRating < 8)) return false;
@@ -133,7 +136,7 @@ export default function SeenPage() {
       if (ratingFilter === "unrated" && m.ratistRating != null) return false;
       return true;
     });
-  }, [movies, query, genreFilter, ratingFilter]);
+  }, [movies, query, genreFilter, ratingFilter, mediaFilter]);
 
   const datedMovies = useMemo(() => filtered.filter((m) => m.watchedDate != null), [filtered]);
   const undatedMovies = useMemo(() => filtered.filter((m) => m.watchedDate == null), [filtered]);
@@ -251,6 +254,7 @@ export default function SeenPage() {
           logId={m.logId}
           onDeleteRewatch={deleteRewatch}
           onEditNotes={editRewatchNotes}
+          mediaType={m.mediaType}
         />
       );
     });
@@ -295,7 +299,7 @@ export default function SeenPage() {
           {/* Stats */}
           <div className="flex items-center gap-4 mb-4 text-sm">
             <span className="text-white font-bold">{statsMovies.length}</span>
-            <span className="text-[var(--foreground-muted)]">movies{view !== "all" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
+            <span className="text-[var(--foreground-muted)]">{mediaFilter === "tv" ? "shows" : mediaFilter === "movie" ? "movies" : statsMovies.some((m) => m.mediaType === "tv") && statsMovies.some((m) => (m.mediaType ?? "movie") === "movie") ? "movies & shows" : statsMovies.some((m) => m.mediaType === "tv") ? "shows" : "movies"}{view !== "all" ? ` in ${MONTH_NAMES[calMonth]}` : ""}</span>
             {avgRating != null && (
               <>
                 <span className="text-[var(--foreground-muted)]">· avg</span>
@@ -317,6 +321,20 @@ export default function SeenPage() {
                   <Icon className="w-4 h-4" />
                 </button>
               ))}
+            </div>
+            <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden">
+              <button onClick={() => setMediaFilter("all")} title="All"
+                className={`px-2.5 py-2 text-xs font-medium transition-colors ${mediaFilter === "all" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                All
+              </button>
+              <button onClick={() => setMediaFilter("movie")} title="Movies"
+                className={`p-2 transition-colors ${mediaFilter === "movie" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                <Film className="w-4 h-4" />
+              </button>
+              <button onClick={() => setMediaFilter("tv")} title="TV Shows"
+                className={`p-2 transition-colors ${mediaFilter === "tv" ? "bg-blue-600 text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                <Tv className="w-4 h-4" />
+              </button>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
@@ -357,7 +375,7 @@ export default function SeenPage() {
               </div>
               <div className="space-y-2">
                 {throwbacks.map(({ yearsAgo, movie: m }) => (
-                  <Link key={`${m.id}-${yearsAgo}`} href={`/movies/${m.tmdbId}`} className="flex items-center gap-3 group">
+                  <Link key={`${m.id}-${yearsAgo}`} href={m.mediaType === "tv" ? `/shows/${m.tmdbId}` : `/movies/${m.tmdbId}`} className="flex items-center gap-3 group">
                     <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
                       {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="32px" className="object-cover" />}
                     </div>
@@ -385,7 +403,7 @@ export default function SeenPage() {
                 {view === "month" && monthMovies.length > 0 && user && (
                   <ShareButton
                     label="Share"
-                    text={`My ${MONTH_NAMES[calMonth]} ${calYear} in film: ${monthMovies.length} movie${monthMovies.length !== 1 ? "s" : ""} watched${avgRating != null ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check it out on The Ratist!`}
+                    text={`My ${MONTH_NAMES[calMonth]} ${calYear} in film: ${monthMovies.length} ${monthMovies.some((m) => m.mediaType === "tv") && monthMovies.some((m) => (m.mediaType ?? "movie") === "movie") ? "movies & shows" : monthMovies.some((m) => m.mediaType === "tv") ? "shows" : `movie${monthMovies.length !== 1 ? "s" : ""}`} watched${avgRating != null ? `, avg rating ${avgRating.toFixed(1)}` : ""}. Check it out on The Ratist!`}
                     url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/seen`}
                     cardImageUrl={`/api/og/month?userId=${encodeURIComponent(user.uid)}&year=${calYear}&month=${calMonth}`}
                   />
@@ -505,6 +523,7 @@ export default function SeenPage() {
                           logId={m.logId}
                           onDeleteRewatch={deleteRewatch}
                           onEditNotes={editRewatchNotes}
+                          mediaType={m.mediaType}
                         />
                       );
                     })}
@@ -533,6 +552,7 @@ export default function SeenPage() {
                       logId={m.logId}
                       onDeleteRewatch={deleteRewatch}
                       onEditNotes={editRewatchNotes}
+                      mediaType={m.mediaType}
                     />
                   );
                 })
@@ -556,6 +576,7 @@ export default function SeenPage() {
                       editable
                       dateValue=""
                       onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
+                      mediaType={m.mediaType}
                     />
                   ))}
                 </>
@@ -564,7 +585,7 @@ export default function SeenPage() {
           )}
 
           {filtered.length === 0 && movies.length > 0 && (
-            <div className="text-center py-12 text-[var(--foreground-muted)]"><p>No movies match your filters.</p></div>
+            <div className="text-center py-12 text-[var(--foreground-muted)]"><p>No entries match your filters.</p></div>
           )}
         </>
       )}

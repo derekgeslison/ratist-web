@@ -39,10 +39,15 @@ async function tmdbGet(path: string, params: Record<string, string> = {}) {
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
-    const {
-      genres = [], experience = "", runtime = "", era = "",
-      excludeGenres = [], page = 1, sort: userSort = "",
-    } = await req.json();
+    const body = await req.json();
+    const genres: string[] = body.genres ?? [];
+    const experienceArr: string[] = Array.isArray(body.experience) ? body.experience : (body.experience ? [body.experience] : []);
+    const runtimeArr: string[] = Array.isArray(body.runtime) ? body.runtime : (body.runtime ? [body.runtime] : []);
+    const eraArr: string[] = Array.isArray(body.era) ? body.era : (body.era ? [body.era] : []);
+    const excludeGenres: string[] = body.excludeGenres ?? [];
+    const page: number = body.page ?? 1;
+    const userSort: string = body.sort ?? "";
+    const mediaType: string = body.mediaType ?? "any";
 
     const { nameToId, idToName } = await getGenreMaps();
     const currentYear = new Date().getFullYear();
@@ -55,51 +60,67 @@ export async function POST(req: NextRequest) {
     let voteCountGte = "10";
     let popularityLte = "";
 
-    switch (experience) {
-      case "popular":
-        // Well-known, widely seen films — sorted by vote count (not trending)
-        sort = "vote_count.desc";
-        voteCountGte = "1000";
-        ratingGte = "6";
-        break;
-      case "hidden_gem":
-        sort = "vote_average.desc";
-        ratingGte = "7";
-        popularityLte = "30";
-        voteCountGte = "50";
-        break;
-      case "classic":
-        // Highly acclaimed — high votes + high rating, no year restriction
-        sort = "vote_average.desc";
-        ratingGte = "7.5";
-        voteCountGte = "500";
-        break;
-      case "random":
-        sort = "popularity.desc";
-        break;
+    // Experience: apply the first matching preference (priority order)
+    if (experienceArr.includes("hidden_gem")) {
+      sort = "vote_average.desc"; ratingGte = "7"; popularityLte = "30"; voteCountGte = "50";
+    } else if (experienceArr.includes("classic")) {
+      sort = "vote_average.desc"; ratingGte = "7.5"; voteCountGte = "500";
+    } else if (experienceArr.includes("popular")) {
+      sort = "vote_count.desc"; voteCountGte = "1000"; ratingGte = "6";
+    } else if (experienceArr.includes("random")) {
+      sort = "popularity.desc";
+    }
+    // If multiple selected, loosen constraints
+    if (experienceArr.length > 1) {
+      ratingGte = ratingGte ? "6" : "";
+      voteCountGte = "50";
+      popularityLte = "";
     }
 
-    // Era sets the year range independently from experience
-    switch (era) {
-      case "recent": yearFrom = String(currentYear - 3); break;
-      case "2000s": yearFrom = "2000"; break;
-      case "pre2000": yearTo = "1999"; break;
+    // Era: combine ranges from all selections
+    if (eraArr.length > 0) {
+      if (eraArr.includes("recent")) yearFrom = String(currentYear - 3);
+      if (eraArr.includes("2000s")) yearFrom = yearFrom || "2000";
+      if (eraArr.includes("pre2000")) yearTo = "1999";
+      // If both pre2000 and 2000s+ selected, it covers all eras — clear constraints
+      if (eraArr.includes("pre2000") && (eraArr.includes("2000s") || eraArr.includes("recent"))) {
+        yearFrom = ""; yearTo = "";
+      }
     }
 
     // User sort override
     if (userSort === "rating") sort = "vote_average.desc";
 
+    // Movie runtime: combine ranges from selections
     const runtimeParams: Record<string, string> = {};
-    switch (runtime) {
-      case "short": runtimeParams["with_runtime.lte"] = "100"; break;
-      case "standard": runtimeParams["with_runtime.gte"] = "90"; runtimeParams["with_runtime.lte"] = "140"; break;
-      case "long": runtimeParams["with_runtime.gte"] = "150"; break;
+    if (runtimeArr.length > 0 && !runtimeArr.includes("")) {
+      const hasShort = runtimeArr.includes("short");
+      const hasStandard = runtimeArr.includes("standard");
+      const hasLong = runtimeArr.includes("long");
+      if (hasShort && !hasStandard && !hasLong) runtimeParams["with_runtime.lte"] = "100";
+      else if (!hasShort && hasStandard && !hasLong) { runtimeParams["with_runtime.gte"] = "90"; runtimeParams["with_runtime.lte"] = "140"; }
+      else if (!hasShort && !hasStandard && hasLong) runtimeParams["with_runtime.gte"] = "150";
+      else if (hasShort && hasStandard && !hasLong) runtimeParams["with_runtime.lte"] = "140";
+      else if (!hasShort && hasStandard && hasLong) runtimeParams["with_runtime.gte"] = "90";
+      // if all three selected or short+long, no constraint needed
+    }
+    // TV episode runtime
+    const tvRuntimeParams: Record<string, string> = {};
+    if (runtimeArr.length > 0) {
+      const hasShortEp = runtimeArr.includes("short_ep");
+      const hasStdEp = runtimeArr.includes("standard_ep");
+      const hasLongEp = runtimeArr.includes("long_ep");
+      if (hasShortEp && !hasStdEp && !hasLongEp) tvRuntimeParams["with_runtime.lte"] = "35";
+      else if (!hasShortEp && hasStdEp && !hasLongEp) { tvRuntimeParams["with_runtime.gte"] = "35"; tvRuntimeParams["with_runtime.lte"] = "65"; }
+      else if (!hasShortEp && !hasStdEp && hasLongEp) tvRuntimeParams["with_runtime.gte"] = "55";
+      else if (hasShortEp && hasStdEp && !hasLongEp) tvRuntimeParams["with_runtime.lte"] = "65";
+      else if (!hasShortEp && hasStdEp && hasLongEp) tvRuntimeParams["with_runtime.gte"] = "35";
     }
 
     const genreIds = genres.map((g: string) => nameToId.get(g)).filter(Boolean).map(String);
     const excludeIds = excludeGenres.map((g: string) => nameToId.get(g)).filter(Boolean).map(String);
 
-    const actualPage = experience === "random" ? Math.floor(Math.random() * 10) + 1 : page;
+    const actualPage = experienceArr.includes("random") && experienceArr.length === 1 ? Math.floor(Math.random() * 10) + 1 : page;
 
     const params: Record<string, string> = {
       page: String(actualPage),
@@ -108,45 +129,99 @@ export async function POST(req: NextRequest) {
     };
     if (genreIds.length > 0) params.with_genres = genreIds.join("|");
     if (excludeIds.length > 0) params.without_genres = excludeIds.join(",");
-    if (yearFrom) params["primary_release_date.gte"] = `${yearFrom}-01-01`;
-    if (yearTo) params["primary_release_date.lte"] = `${yearTo}-12-31`;
+    const isTV = mediaType === "tv";
+    if (yearFrom) params[isTV ? "first_air_date.gte" : "primary_release_date.gte"] = `${yearFrom}-01-01`;
+    if (yearTo) params[isTV ? "first_air_date.lte" : "primary_release_date.lte"] = `${yearTo}-12-31`;
     if (ratingGte) params["vote_average.gte"] = ratingGte;
     if (popularityLte) params["popularity.lte"] = popularityLte;
     if (sort === "vote_average.desc" && !ratingGte) params["vote_count.gte"] = "200";
     Object.assign(params, runtimeParams);
 
-    // Discover
-    const discoverData = await tmdbGet("/discover/movie", params);
-    if (!discoverData) return NextResponse.json({ error: "TMDB error" }, { status: 502 });
+    // Discover — movie, TV, or both
+    const isBoth = mediaType === "any";
+    const tvParams = { ...params };
+    // Replace movie runtime with TV episode runtime
+    delete tvParams["with_runtime.lte"];
+    delete tvParams["with_runtime.gte"];
+    Object.assign(tvParams, tvRuntimeParams);
+    // TV uses different date params
+    if (yearFrom) { tvParams["first_air_date.gte"] = tvParams["primary_release_date.gte"]; delete tvParams["primary_release_date.gte"]; }
+    if (yearTo) { tvParams["first_air_date.lte"] = tvParams["primary_release_date.lte"]; delete tvParams["primary_release_date.lte"]; }
 
-    const movieIds: number[] = (discoverData.results ?? []).map((m: { id: number }) => m.id);
+    let discoverData: { results: Record<string, unknown>[]; total_pages: number };
 
-    // Batch fetch details (runtime, MPAA) + watch providers for all results
+    if (isBoth) {
+      // Fetch both movie and TV, interleave
+      const [movieDiscover, tvDiscover] = await Promise.all([
+        tmdbGet("/discover/movie", params),
+        tmdbGet("/discover/tv", tvParams),
+      ]);
+      const movieResults = (movieDiscover?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: "movie" }));
+      const tvResults = (tvDiscover?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: "tv" }));
+      // Interleave: 2 movies, 1 show pattern
+      const merged: Record<string, unknown>[] = [];
+      let mi = 0, ti = 0;
+      while (mi < movieResults.length || ti < tvResults.length) {
+        if (mi < movieResults.length) merged.push(movieResults[mi++]);
+        if (mi < movieResults.length) merged.push(movieResults[mi++]);
+        if (ti < tvResults.length) merged.push(tvResults[ti++]);
+      }
+      discoverData = { results: merged.slice(0, 20), total_pages: Math.max(movieDiscover?.total_pages ?? 1, tvDiscover?.total_pages ?? 1) };
+    } else {
+      const discoverEndpoint = isTV ? "/discover/tv" : "/discover/movie";
+      const fetchParams = isTV ? tvParams : params;
+      const raw = await tmdbGet(discoverEndpoint, fetchParams);
+      if (!raw) return NextResponse.json({ error: "TMDB error" }, { status: 502 });
+      discoverData = { results: (raw.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: isTV ? "tv" : "movie" })), total_pages: raw.total_pages ?? 1 };
+    }
+
+    const resultIds: number[] = discoverData.results.map((m) => m.id as number);
+    const resultMediaTypes: string[] = discoverData.results.map((m) => m._mediaType as string);
+
+    // Batch fetch details + watch providers (per-item media type aware)
     const [detailsArr, providersArr] = await Promise.all([
-      Promise.all(movieIds.slice(0, 20).map((id) => tmdbGet(`/movie/${id}`, { append_to_response: "release_dates" }))),
-      Promise.all(movieIds.slice(0, 20).map((id) => tmdbGet(`/movie/${id}/watch/providers`))),
+      Promise.all(resultIds.slice(0, 20).map((id, i) => {
+        const mt = resultMediaTypes[i];
+        const path = mt === "tv" ? `/tv/${id}` : `/movie/${id}`;
+        const append = mt === "tv" ? "content_ratings" : "release_dates";
+        return tmdbGet(path, { append_to_response: append });
+      })),
+      Promise.all(resultIds.slice(0, 20).map((id, i) => {
+        const mt = resultMediaTypes[i];
+        return tmdbGet(`/${mt === "tv" ? "tv" : "movie"}/${id}/watch/providers`);
+      })),
     ]);
 
     const detailsMap = new Map<number, { runtime: number | null; mpaa: string | null }>();
-    for (const d of detailsArr) {
+    for (let idx = 0; idx < detailsArr.length; idx++) {
+      const d = detailsArr[idx];
       if (!d) continue;
       let mpaa: string | null = null;
-      const usRelease = d.release_dates?.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
-      if (usRelease?.release_dates) {
-        // Check all US release date entries for a certification
-        for (const rd of usRelease.release_dates) {
-          if (rd.certification) { mpaa = rd.certification; break; }
+      const mt = resultMediaTypes[idx];
+      if (mt === "tv") {
+        const usRating = d.content_ratings?.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
+        if (usRating?.rating) mpaa = usRating.rating;
+        const avgRuntime = d.episode_run_time?.length
+          ? Math.round(d.episode_run_time.reduce((a: number, b: number) => a + b, 0) / d.episode_run_time.length)
+          : null;
+        detailsMap.set(d.id, { runtime: avgRuntime, mpaa });
+      } else {
+        const usRelease = d.release_dates?.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
+        if (usRelease?.release_dates) {
+          for (const rd of usRelease.release_dates) {
+            if (rd.certification) { mpaa = rd.certification; break; }
+          }
         }
+        detailsMap.set(d.id, { runtime: d.runtime ?? null, mpaa });
       }
-      detailsMap.set(d.id, { runtime: d.runtime ?? null, mpaa });
     }
 
     const providersMap = new Map<number, { stream: string[]; rent: string[] }>();
-    for (let i = 0; i < movieIds.length && i < 20; i++) {
+    for (let i = 0; i < resultIds.length && i < 20; i++) {
       const p = providersArr[i];
       if (!p?.results?.US) continue;
       const us = p.results.US;
-      providersMap.set(movieIds[i], {
+      providersMap.set(resultIds[i], {
         stream: (us.flatrate ?? []).map((s: { provider_name: string }) => s.provider_name).slice(0, 3),
         rent: (us.rent ?? []).map((s: { provider_name: string }) => s.provider_name).slice(0, 3),
       });
@@ -175,47 +250,59 @@ export async function POST(req: NextRequest) {
 
     // Build results
     let results = (discoverData.results ?? []).map((m: Record<string, unknown>) => {
-      const movieGenres = ((m.genre_ids as number[]) ?? []).map((id) => idToName.get(id)).filter(Boolean) as string[];
+      const mt = m._mediaType as string;
+      const itemGenres = ((m.genre_ids as number[]) ?? []).map((id) => idToName.get(id)).filter(Boolean) as string[];
       const details = detailsMap.get(m.id as number);
       const providers = providersMap.get(m.id as number);
 
-      // Match score: avg of user's genre preferences for this movie's genres
       let matchScore: number | null = null;
-      if (userGenrePrefs.size > 0 && movieGenres.length > 0) {
-        const scores = movieGenres.map((g) => userGenrePrefs.get(g) ?? 0).filter((s) => s > 0);
+      if (userGenrePrefs.size > 0 && itemGenres.length > 0) {
+        const scores = itemGenres.map((g) => userGenrePrefs.get(g) ?? 0).filter((s) => s > 0);
         if (scores.length > 0) matchScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
       }
 
       return {
         tmdbId: m.id as number,
-        title: m.title as string,
+        title: (mt === "tv" ? m.name : m.title) as string,
         posterPath: m.poster_path as string | null,
-        year: ((m.release_date as string) ?? "").slice(0, 4),
+        year: ((mt === "tv" ? m.first_air_date : m.release_date) as string ?? "").slice(0, 4),
         overview: m.overview as string,
         voteAverage: m.vote_average as number,
         popularity: m.popularity as number,
-        genres: movieGenres,
+        genres: itemGenres,
         runtime: details?.runtime ?? null,
         mpaaRating: details?.mpaa ?? null,
+        mediaType: mt,
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
-        reason: experience === "popular" ? "Popular pick"
-          : experience === "hidden_gem" ? "Hidden gem"
-          : experience === "classic" ? "Highly acclaimed"
-          : experience === "random" ? "Random pick"
+        reason: experienceArr.includes("popular") ? "Popular pick"
+          : experienceArr.includes("hidden_gem") ? "Hidden gem"
+          : experienceArr.includes("classic") ? "Highly acclaimed"
+          : experienceArr.includes("random") ? "Random pick"
           : "Recommended for you",
       };
     });
 
-    // Exclude seen/rated movies
+    // Exclude seen/rated content
     if (user) {
-      const [seenRows, ratedRows] = await Promise.all([
-        prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }),
-        prisma.movieRating.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }),
+      const [seenMovies, ratedMovies, seenShows, ratedShows] = await Promise.all([
+        (!isTV || isBoth) ? prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }) : Promise.resolve([]),
+        (!isTV || isBoth) ? prisma.movieRating.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }) : Promise.resolve([]),
+        (isTV || isBoth) ? prisma.userFavoriteShow.findMany({ where: { userId: user.id }, select: { tvShow: { select: { tmdbId: true } } } }) : Promise.resolve([]),
+        (isTV || isBoth) ? prisma.tVShowRating.findMany({ where: { userId: user.id }, select: { tvShow: { select: { tmdbId: true } } } }) : Promise.resolve([]),
       ]);
-      const excludeSet = new Set([...seenRows.map((s) => s.movie.tmdbId), ...ratedRows.map((r) => r.movie.tmdbId)]);
-      results = results.filter((r: { tmdbId: number }) => !excludeSet.has(r.tmdbId));
+      const movieExclude = new Set([
+        ...(seenMovies as { movie: { tmdbId: number } }[]).map((s) => s.movie.tmdbId),
+        ...(ratedMovies as { movie: { tmdbId: number } }[]).map((r) => r.movie.tmdbId),
+      ]);
+      const tvExclude = new Set([
+        ...(seenShows as { tvShow: { tmdbId: number } }[]).map((s) => s.tvShow.tmdbId),
+        ...(ratedShows as { tvShow: { tmdbId: number } }[]).map((r) => r.tvShow.tmdbId),
+      ]);
+      results = results.filter((r: { tmdbId: number; mediaType: string }) =>
+        r.mediaType === "tv" ? !tvExclude.has(r.tmdbId) : !movieExclude.has(r.tmdbId)
+      );
     }
 
     return NextResponse.json({

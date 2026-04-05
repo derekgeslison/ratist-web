@@ -85,6 +85,53 @@ interface TMDBMovie {
   vote_average: number;
 }
 
+interface TMDBShow {
+  id: number;
+  name: string;
+  poster_path: string | null;
+  first_air_date: string;
+  vote_average: number;
+}
+
+// 35 well-known classic TV shows
+const CLASSIC_SHOW_IDS = [
+  1396,   // Breaking Bad
+  1399,   // Game of Thrones
+  1668,   // Friends
+  2316,   // The Office (US)
+  1418,   // The Big Bang Theory
+  1402,   // The Walking Dead
+  4614,   // NCIS
+  456,    // The Simpsons
+  1421,   // Modern Family
+  60625,  // Rick and Morty
+  1100,   // How I Met Your Mother
+  2190,   // South Park
+  60059,  // Better Call Saul
+  63174,  // Lucifer
+  2734,   // Law & Order: SVU
+  46952,  // The Blacklist
+  1412,   // Arrow
+  44217,  // Vikings
+  1429,   // Attack on Titan
+  60735,  // The Flash
+  62286,  // Fear the Walking Dead
+  66732,  // Stranger Things
+  1398,   // The Sopranos
+  1438,   // The Wire
+  2382,   // Lost
+  4607,   // Lost in Space
+  1405,   // Dexter
+  2288,   // Prison Break
+  63247,  // Westworld
+  1416,   // Grey's Anatomy
+  1427,   // The 100
+  76479,  // The Boys
+  71712,  // The Good Doctor
+  61222,  // Peaky Blinders
+  69050,  // Riverdale
+];
+
 const TOTAL_STEPS = 4;
 
 function StepIndicator({ step }: { step: number }) {
@@ -116,11 +163,16 @@ export default function OnboardingPage() {
     Object.fromEntries(COMPONENTS.map((c) => [c.key, 5]))
   );
   // Step 3: mark seen
+  const [step3Tab, setStep3Tab] = useState<"movies" | "shows">("movies");
   const [recentMovies, setRecentMovies] = useState<TMDBMovie[]>([]);
   const [classicMovies, setClassicMovies] = useState<TMDBMovie[]>([]);
   const [seenMovieIds, setSeenMovieIds] = useState<Set<number>>(new Set());
+  const [recentShows, setRecentShows] = useState<TMDBShow[]>([]);
+  const [classicShows, setClassicShows] = useState<TMDBShow[]>([]);
+  const [seenShowIds, setSeenShowIds] = useState<Set<number>>(new Set());
   const [markingId, setMarkingId] = useState<number | null>(null);
   const [moviesLoading, setMoviesLoading] = useState(false);
+  const [showsLoading, setShowsLoading] = useState(false);
   // Step 4: rate one
   const [selectedForRating, setSelectedForRating] = useState<TMDBMovie | null>(null);
   const [quickRating, setQuickRating] = useState<number>(7);
@@ -152,6 +204,53 @@ export default function OnboardingPage() {
       setMoviesLoading(false);
     });
   }, [step]);
+
+  // Fetch shows for step 3
+  useEffect(() => {
+    if (step !== 3 || step3Tab !== "shows") return;
+    if (recentShows.length > 0) return; // already loaded
+    setShowsLoading(true);
+
+    const API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+    Promise.all([
+      fetch(`https://api.themoviedb.org/3/tv/popular?api_key=${API_KEY}&page=1`)
+        .then((r) => r.json())
+        .then((d) => (d?.results as TMDBShow[] ?? []).slice(0, 15))
+        .catch(() => [] as TMDBShow[]),
+      Promise.all(
+        CLASSIC_SHOW_IDS.map((id) =>
+          fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${API_KEY}`)
+            .then((r) => r.ok ? r.json() : null)
+            .catch(() => null)
+        )
+      ).then((results) => results.filter(Boolean) as TMDBShow[]),
+    ]).then(([recent, classics]) => {
+      setRecentShows(recent);
+      setClassicShows(classics);
+      setShowsLoading(false);
+    });
+  }, [step, step3Tab, recentShows.length]);
+
+  async function toggleSeenShow(show: TMDBShow) {
+    if (!user || markingId === show.id) return;
+    setMarkingId(show.id);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/shows/${show.id}/seen`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: show.name, poster_path: show.poster_path, first_air_date: show.first_air_date, noDate: true }),
+      });
+      const data = await res.json();
+      setSeenShowIds((prev) => {
+        const next = new Set(prev);
+        if (data.seen) next.add(show.id);
+        else next.delete(show.id);
+        return next;
+      });
+    } catch { /* continue */ }
+    setMarkingId(null);
+  }
 
   function toggleGenre(key: string) {
     setSelectedGenres((prev) => {
@@ -315,45 +414,101 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 3: Mark movies seen ── */}
+          {/* ── STEP 3: Mark movies & shows seen ── */}
           {step === 3 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-1">Which of these have you seen?</h2>
-              <p className="text-sm text-[var(--foreground-muted)] mb-1">
-                Click to mark movies you&apos;ve watched. This helps calibrate your profile right away.
+              <p className="text-sm text-[var(--foreground-muted)] mb-3">
+                Click to mark what you&apos;ve watched. This helps calibrate your profile right away.
               </p>
-              {seenMovieIds.size > 0 && (
-                <p className="text-sm text-green-400 mb-3">{seenMovieIds.size} marked ✓</p>
+
+              {/* Movies / Shows tab toggle */}
+              <div className="flex gap-1 mb-3">
+                <button
+                  onClick={() => setStep3Tab("movies")}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    step3Tab === "movies" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                  }`}
+                >
+                  Movies
+                </button>
+                <button
+                  onClick={() => setStep3Tab("shows")}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    step3Tab === "shows" ? "bg-blue-600 text-white" : "bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                  }`}
+                >
+                  TV Shows
+                </button>
+              </div>
+
+              {(seenMovieIds.size + seenShowIds.size) > 0 && (
+                <p className="text-sm text-green-400 mb-3">{seenMovieIds.size + seenShowIds.size} marked ✓</p>
               )}
-              {moviesLoading ? (
-                <p className="text-[var(--foreground-muted)] text-sm py-4 text-center">Loading movies…</p>
-              ) : (
-                <div className="max-h-96 overflow-y-auto pr-1 mb-4 space-y-4">
-                  {recentMovies.length > 0 && (
-                    <div>
-                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">Recent &amp; Popular</p>
-                      <div className="grid grid-cols-5 gap-2">
-                        {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={toggleSeen} />)}
-                      </div>
+
+              {/* Movies content */}
+              {step3Tab === "movies" && (
+                <>
+                  {moviesLoading ? (
+                    <p className="text-[var(--foreground-muted)] text-sm py-4 text-center">Loading movies…</p>
+                  ) : (
+                    <div className="max-h-96 overflow-y-auto pr-1 mb-4 space-y-4">
+                      {recentMovies.length > 0 && (
+                        <div>
+                          <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">Recent &amp; Popular</p>
+                          <div className="grid grid-cols-5 gap-2">
+                            {recentMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={toggleSeen} />)}
+                          </div>
+                        </div>
+                      )}
+                      {classicMovies.length > 0 && (
+                        <div>
+                          <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">All-Time Classics</p>
+                          <div className="grid grid-cols-5 gap-2">
+                            {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={toggleSeen} />)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                  {classicMovies.length > 0 && (
-                    <div>
-                      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">All-Time Classics</p>
-                      <div className="grid grid-cols-5 gap-2">
-                        {classicMovies.map((movie) => <MovieTile key={movie.id} movie={movie} isSeen={seenMovieIds.has(movie.id)} isMarking={markingId === movie.id} onMark={toggleSeen} />)}
-                      </div>
+                </>
+              )}
+
+              {/* Shows content */}
+              {step3Tab === "shows" && (
+                <>
+                  {showsLoading ? (
+                    <p className="text-[var(--foreground-muted)] text-sm py-4 text-center">Loading shows…</p>
+                  ) : (
+                    <div className="max-h-96 overflow-y-auto pr-1 mb-4 space-y-4">
+                      {recentShows.length > 0 && (
+                        <div>
+                          <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">Trending Now</p>
+                          <div className="grid grid-cols-5 gap-2">
+                            {recentShows.map((show) => <ShowTile key={show.id} show={show} isSeen={seenShowIds.has(show.id)} isMarking={markingId === show.id} onMark={toggleSeenShow} />)}
+                          </div>
+                        </div>
+                      )}
+                      {classicShows.length > 0 && (
+                        <div>
+                          <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sticky top-0 bg-[var(--surface)] py-0.5 z-10">All-Time Favorites</p>
+                          <div className="grid grid-cols-5 gap-2">
+                            {classicShows.map((show) => <ShowTile key={show.id} show={show} isSeen={seenShowIds.has(show.id)} isMarking={markingId === show.id} onMark={toggleSeenShow} />)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
+
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
                 <button
                   onClick={() => setStep(4)}
                   className="flex-grow py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2"
                 >
-                  {seenMovieIds.size > 0 ? `Continue with ${seenMovieIds.size} marked` : "Continue"} <ChevronRight className="w-4 h-4" />
+                  {(seenMovieIds.size + seenShowIds.size) > 0 ? `Continue with ${seenMovieIds.size + seenShowIds.size} marked` : "Continue"} <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
               <button onClick={() => setStep(4)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip for now</button>
@@ -538,6 +693,51 @@ function MovieTile({
           <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="80px" className="object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-xs p-1 text-center leading-tight">{movie.title}</div>
+        )}
+      </div>
+      {isSeen && (
+        <div className="absolute inset-0 bg-green-500/30 flex items-center justify-center">
+          <Check className="w-6 h-6 text-white drop-shadow" />
+        </div>
+      )}
+      {isMarking && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+      {!isSeen && !isMarking && (
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+          <Eye className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+      )}
+    </button>
+  );
+}
+
+function ShowTile({
+  show,
+  isSeen,
+  isMarking,
+  onMark,
+}: {
+  show: TMDBShow;
+  isSeen: boolean;
+  isMarking: boolean;
+  onMark: (s: TMDBShow) => void;
+}) {
+  return (
+    <button
+      onClick={() => onMark(show)}
+      disabled={isMarking}
+      className={`relative group rounded-lg overflow-hidden border-2 transition-all ${
+        isSeen ? "border-green-500 hover:border-red-400" : "border-transparent hover:border-blue-400"
+      }`}
+    >
+      <div className="aspect-[2/3] bg-[var(--surface-2)]">
+        {show.poster_path ? (
+          <Image src={posterUrl(show.poster_path, "w92")} alt={show.name} fill sizes="80px" className="object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-xs p-1 text-center leading-tight">{show.name}</div>
         )}
       </div>
       {isSeen && (

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-export const metadata: Metadata = { title: "Movies" };
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER } from "@/lib/tmdb";
+export const metadata: Metadata = { title: "Movies & TV" };
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, type TMDBShow } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
+import ShowCard from "@/components/ShowCard";
 import MovieListItem from "@/components/MovieListItem";
+import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import AdUnit from "@/components/AdUnit";
 
@@ -16,6 +18,12 @@ interface MovieResult {
   total_pages: number;
 }
 
+interface ShowResult {
+  results: TMDBShow[];
+  total_results: number;
+  total_pages: number;
+}
+
 export default async function MoviesPage({ searchParams }: Props) {
   const params = await searchParams;
   const view = params.view ?? "grid";
@@ -24,6 +32,9 @@ export default async function MoviesPage({ searchParams }: Props) {
   const perPage = [20, 50, 100].includes(Number(params.perPage)) ? Number(params.perPage) : 20;
   const tmdbPagesNeeded = Math.ceil(perPage / 20);
   const tmdbStartPage = (page - 1) * tmdbPagesNeeded + 1;
+
+  // Content type: "all" | "movie" | "tv"
+  const contentType = params.type ?? "all";
 
   // New multi-value filters
   const genres = params.genres?.split(",").filter(Boolean);
@@ -55,7 +66,21 @@ export default async function MoviesPage({ searchParams }: Props) {
   };
   const legacyDecade = params.decade ? DECADES[params.decade] : undefined;
 
-  async function fetchPages(fetcher: (p: number) => Promise<MovieResult>): Promise<MovieResult> {
+  async function fetchMoviePages(fetcher: (p: number) => Promise<MovieResult>): Promise<MovieResult> {
+    const responses = await Promise.all(
+      Array.from({ length: tmdbPagesNeeded }, (_, i) => fetcher(tmdbStartPage + i))
+    );
+    return {
+      results: responses.flatMap((r) => r.results).slice(0, perPage),
+      total_results: responses[0]?.total_results ?? 0,
+      total_pages: Math.min(
+        Math.ceil((responses[0]?.total_results ?? 0) / perPage),
+        Math.floor(500 / tmdbPagesNeeded)
+      ),
+    };
+  }
+
+  async function fetchShowPages(fetcher: (p: number) => Promise<ShowResult>): Promise<ShowResult> {
     const responses = await Promise.all(
       Array.from({ length: tmdbPagesNeeded }, (_, i) => fetcher(tmdbStartPage + i))
     );
@@ -84,36 +109,102 @@ export default async function MoviesPage({ searchParams }: Props) {
     minRating: params.rating,
   };
 
-  let result: MovieResult;
-  let pageTitle = "Movies";
+  let movieResult: MovieResult | null = null;
+  let showResult: ShowResult | null = null;
+  let pageTitle = "Movies & TV";
 
-  if (theaterStatus === "now_playing" && !hasFilters && !params.search) {
-    result = await fetchPages((p) => getNowPlayingMovies(p));
-    pageTitle = "Now Playing in Theaters";
-  } else if (theaterStatus === "upcoming" && !hasFilters && !params.search) {
-    result = await fetchPages((p) => getUpcomingMovies(p));
-    pageTitle = "Coming Soon";
-  } else if (params.search && !hasFilters && !theaterStatus) {
-    // Pure text search — use TMDB search API for better relevance ranking
-    result = await fetchPages((p) => searchMovies(params.search!, p));
-    pageTitle = `Search: "${params.search}"`;
-  } else if (params.search || hasFilters || theaterStatus) {
-    // Text search + filters combined, or filters only — use discover with optional text query
-    result = await fetchPages((p) =>
-      discoverMovies({ ...discoverOptions, query: params.search, page: p })
-    );
-    if (params.search) pageTitle = `Search: "${params.search}"`;
-    else if (theaterStatus === "now_playing") pageTitle = "Now Playing in Theaters";
-    else if (theaterStatus === "upcoming") pageTitle = "Coming Soon";
-  } else if (sort === "top_rated") {
-    result = await fetchPages((p) => getTopRatedMovies(p));
-    pageTitle = "Top Rated Movies";
-  } else {
-    result = await fetchPages((p) => getPopularMovies(p));
-    pageTitle = "Popular Movies";
+  const showMovies = contentType === "all" || contentType === "movie";
+  const showShows = contentType === "all" || contentType === "tv";
+
+  // Fetch movies
+  if (showMovies) {
+    if (theaterStatus === "now_playing" && !hasFilters && !params.search) {
+      movieResult = await fetchMoviePages((p) => getNowPlayingMovies(p));
+      pageTitle = "Now Playing in Theaters";
+    } else if (theaterStatus === "upcoming" && !hasFilters && !params.search) {
+      movieResult = await fetchMoviePages((p) => getUpcomingMovies(p));
+      pageTitle = "Coming Soon";
+    } else if (params.search && !hasFilters && !theaterStatus) {
+      movieResult = await fetchMoviePages((p) => searchMovies(params.search!, p));
+      pageTitle = `Search: "${params.search}"`;
+    } else if (params.search || hasFilters || theaterStatus) {
+      movieResult = await fetchMoviePages((p) =>
+        discoverMovies({ ...discoverOptions, query: params.search, page: p })
+      );
+      if (params.search) pageTitle = `Search: "${params.search}"`;
+      else if (theaterStatus === "now_playing") pageTitle = "Now Playing in Theaters";
+      else if (theaterStatus === "upcoming") pageTitle = "Coming Soon";
+    } else if (sort === "top_rated") {
+      movieResult = await fetchMoviePages((p) => getTopRatedMovies(p));
+      pageTitle = contentType === "movie" ? "Top Rated Movies" : "Top Rated";
+    } else {
+      movieResult = await fetchMoviePages((p) => getPopularMovies(p));
+      pageTitle = contentType === "movie" ? "Popular Movies" : "Popular";
+    }
   }
 
-  const genreList = await getGenres();
+  // Fetch shows
+  if (showShows && contentType === "tv") {
+    if (params.search && !hasFilters) {
+      showResult = await fetchShowPages((p) => searchShows(params.search!, p));
+      pageTitle = `Search: "${params.search}"`;
+    } else if (params.search || hasFilters) {
+      showResult = await fetchShowPages((p) =>
+        discoverShows({
+          genres: discoverOptions.genres,
+          genreMode: discoverOptions.genreMode,
+          sort,
+          yearFrom: discoverOptions.yearFrom,
+          yearTo: discoverOptions.yearTo,
+          ratingGte: discoverOptions.ratingGte,
+          ratingLte: discoverOptions.ratingLte,
+          page: p,
+          query: params.search,
+        })
+      );
+      if (params.search) pageTitle = `Search: "${params.search}"`;
+    } else if (sort === "top_rated") {
+      showResult = await fetchShowPages((p) => getTopRatedShows(p));
+      pageTitle = "Top Rated TV Shows";
+    } else {
+      showResult = await fetchShowPages((p) => getPopularShows(p));
+      pageTitle = "Popular TV Shows";
+    }
+  }
+
+  // For "all" mode with TV, also get popular shows to show after movies
+  if (contentType === "all" && !params.search && !hasFilters && !theaterStatus) {
+    showResult = await fetchShowPages((p) => getPopularShows(p));
+    pageTitle = "Movies & TV";
+  }
+
+  const genreList = await (contentType === "tv" ? getShowGenres() : getGenres());
+
+  // When filtering by a single actor, fetch their credits to show character names
+  let characterMap: Map<number, string> = new Map();
+  if (castIds?.length === 1) {
+    try {
+      const API_KEY = process.env.TMDB_API_KEY;
+      const creditsRes = await fetch(
+        `https://api.themoviedb.org/3/person/${castIds[0]}?api_key=${API_KEY}&append_to_response=movie_credits,tv_credits`,
+        { next: { revalidate: 3600 } }
+      );
+      if (creditsRes.ok) {
+        const creditsData = await creditsRes.json();
+        for (const c of creditsData.movie_credits?.cast ?? []) {
+          if (c.character) characterMap.set(c.id, c.character);
+        }
+        for (const c of creditsData.tv_credits?.cast ?? []) {
+          if (c.character) characterMap.set(c.id, c.character);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);
+  const totalPages = contentType === "tv"
+    ? (showResult?.total_pages ?? 1)
+    : (movieResult?.total_pages ?? 1);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -121,29 +212,58 @@ export default async function MoviesPage({ searchParams }: Props) {
 
       <MoviesFilterBar
         genres={genreList.genres}
-        totalResults={result.total_results}
+        totalResults={totalResults}
       />
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-4" />
 
-      {result.results.length === 0 ? (
-        <p className="text-[var(--foreground-muted)] text-center py-20">No movies found.</p>
-      ) : view === "list" ? (
-        <div className="flex flex-col divide-y divide-[var(--border)]">
-          {result.results.map((movie) => (
-            <MovieListItem key={movie.id} movie={movie} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-          {result.results.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))}
+      {/* Movie results */}
+      {movieResult && movieResult.results.length > 0 && (
+        <>
+          {contentType === "all" && <h2 className="text-lg font-semibold text-white mb-4">Movies</h2>}
+          {view === "list" ? (
+            <div className="flex flex-col divide-y divide-[var(--border)]">
+              {movieResult.results.map((movie) => (
+                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {movieResult.results.map((movie) => (
+                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Show results */}
+      {showResult && showResult.results.length > 0 && (
+        <div className={movieResult && movieResult.results.length > 0 ? "mt-10" : ""}>
+          {contentType === "all" && <h2 className="text-lg font-semibold text-white mb-4">TV Shows</h2>}
+          {view === "list" ? (
+            <div className="flex flex-col divide-y divide-[var(--border)]">
+              {showResult.results.map((show) => (
+                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {showResult.results.map((show) => (
+                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {result.total_pages > 1 && (
-        <Pagination current={page} total={result.total_pages} params={params} />
+      {/* No results */}
+      {(!movieResult || movieResult.results.length === 0) && (!showResult || showResult.results.length === 0) && (
+        <p className="text-[var(--foreground-muted)] text-center py-20">No results found.</p>
+      )}
+
+      {totalPages > 1 && (
+        <Pagination current={page} total={totalPages} params={params} />
       )}
     </div>
   );

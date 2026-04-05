@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -15,10 +15,11 @@ const GENRES = [
 ];
 
 const STEPS = [
+  { key: "mediaType", title: "What do you want to watch?", subtitle: "A movie, a show, or open to either?" },
   { key: "genres", title: "What are you in the mood for?", subtitle: "Pick one or more genres, or skip for a mix of everything." },
-  { key: "experience", title: "What kind of experience?", subtitle: "What type of movie are you looking for?" },
-  { key: "runtime", title: "How much time do you have?", subtitle: "Skip if you don't care about length." },
-  { key: "era", title: "Any era preference?", subtitle: "When was the movie made?" },
+  { key: "experience", title: "What kind of experience?", subtitle: "Select one or more, or skip for all." },
+  { key: "runtime", title: "How much time do you have?", subtitle: "Select one or more, or skip for any length." },
+  { key: "era", title: "Any era preference?", subtitle: "Select one or more, or skip for any era." },
   { key: "exclude", title: "Anything to avoid?", subtitle: "Tap genres you want excluded from results." },
 ] as const;
 
@@ -28,6 +29,7 @@ interface MovieResult {
   runtime: number | null; mpaaRating: string | null;
   streaming: string[]; rentBuy: string[];
   matchScore: number | null; reason: string;
+  mediaType?: "movie" | "tv";
 }
 
 type SortMode = "" | "rating" | "match";
@@ -43,51 +45,97 @@ function loadSaved() {
 
 export default function RecommendPage() {
   const { user } = useAuth();
-  const saved = loadSaved();
-  const [step, setStep] = useState(saved?.step ?? 0);
-  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set(saved?.selectedGenres ?? []));
-  const [experience, setExperience] = useState(saved?.experience ?? "");
-  const [runtime, setRuntime] = useState(saved?.runtime ?? "");
-  const [era, setEra] = useState(saved?.era ?? "");
-  const [excludeGenres, setExcludeGenres] = useState<Set<string>>(new Set(saved?.excludeGenres ?? []));
   const ALL_MPAA = ["G", "PG", "PG-13", "R", "NR"] as const;
-  const [mpaaSelected, setMpaaSelected] = useState<Set<string>>(new Set(saved?.mpaaSelected ?? ALL_MPAA));
+  const ALL_TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"] as const;
 
-  const [results, setResults] = useState<MovieResult[]>(saved?.results ?? []);
-  const [visibleCount, setVisibleCount] = useState(saved?.visibleCount ?? 5);
+  const [step, setStep] = useState(0);
+  const [mediaType, setMediaType] = useState<"movie" | "tv" | "any">("any");
+  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
+  const [experience, setExperience] = useState<Set<string>>(new Set());
+  const [runtime, setRuntime] = useState<Set<string>>(new Set());
+  const [era, setEra] = useState<Set<string>>(new Set());
+  const [excludeGenres, setExcludeGenres] = useState<Set<string>>(new Set());
+  const [mpaaSelected, setMpaaSelected] = useState<Set<string>>(new Set(ALL_MPAA));
+
+  const [results, setResults] = useState<MovieResult[]>([]);
+  const [visibleCount, setVisibleCount] = useState(5);
   const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(saved?.hasSearched ?? false);
-  const [currentPage, setCurrentPage] = useState(saved?.currentPage ?? 1);
-  const [totalPages, setTotalPages] = useState(saved?.totalPages ?? 1);
-  const [sortMode, setSortMode] = useState<SortMode>(saved?.sortMode ?? "");
-  const [watchlisted, setWatchlisted] = useState<Set<number>>(new Set(saved?.watchlisted ?? []));
+  const [hasSearched, setHasSearched] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortMode, setSortMode] = useState<SortMode>("");
+  const [watchlisted, setWatchlisted] = useState<Set<number>>(new Set());
+  const [resultMediaFilter, setResultMediaFilter] = useState<"all" | "movie" | "tv">("all");
+  const [tvRatingSelected, setTvRatingSelected] = useState<Set<string>>(new Set(ALL_TV_RATINGS));
   const [watchlistingId, setWatchlistingId] = useState<number | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore from sessionStorage on mount (avoids hydration mismatch)
+  useEffect(() => {
+    const saved = loadSaved();
+    if (saved) {
+      setStep(saved.step ?? 0);
+      setMediaType(saved.mediaType ?? "any");
+      setSelectedGenres(new Set(saved.selectedGenres ?? []));
+      setExperience(new Set(Array.isArray(saved.experience) ? saved.experience : []));
+      setRuntime(new Set(Array.isArray(saved.runtime) ? saved.runtime : []));
+      setEra(new Set(Array.isArray(saved.era) ? saved.era : []));
+      setExcludeGenres(new Set(saved.excludeGenres ?? []));
+      setMpaaSelected(new Set(saved.mpaaSelected ?? ALL_MPAA));
+      setResults(saved.results ?? []);
+      setVisibleCount(saved.visibleCount ?? 5);
+      setHasSearched(saved.hasSearched ?? false);
+      setCurrentPage(saved.currentPage ?? 1);
+      setTotalPages(saved.totalPages ?? 1);
+      setSortMode(saved.sortMode ?? "");
+      setWatchlisted(new Set(saved.watchlisted ?? []));
+      setResultMediaFilter(saved.resultMediaFilter ?? "all");
+      setTvRatingSelected(new Set(saved.tvRatingSelected ?? ALL_TV_RATINGS));
+    }
+    setHydrated(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeFilterCount = [
+    selectedGenres.size > 0,
+    experience.size > 0,
+    runtime.size > 0,
+    era.size > 0,
+    excludeGenres.size > 0,
+  ].filter(Boolean).length;
 
   // Persist state to sessionStorage
   useEffect(() => {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-        step, selectedGenres: [...selectedGenres], experience, runtime, era,
+        step, mediaType, selectedGenres: [...selectedGenres], experience: [...experience], runtime: [...runtime], era: [...era],
         excludeGenres: [...excludeGenres], mpaaSelected: [...mpaaSelected], results, visibleCount,
         hasSearched, currentPage, totalPages, sortMode, watchlisted: [...watchlisted],
+        resultMediaFilter, tvRatingSelected: [...tvRatingSelected],
       }));
     } catch {}
-  }, [step, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted]);
+  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected]);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
-  async function fetchResults(page = 1, append = false) {
+  async function fetchResults(page = 1, append = false, overrideMediaType?: string) {
     setLoading(true);
     const token = await getToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
 
+    const effectiveMediaType = overrideMediaType ?? mediaType;
     const res = await fetch("/api/tools/recommend", {
       method: "POST", headers,
       body: JSON.stringify({
-        genres: [...selectedGenres], experience, runtime, era,
+        genres: [...selectedGenres],
+        experience: [...experience],
+        runtime: [...runtime],
+        era: [...era],
         excludeGenres: [...excludeGenres], page,
         sort: sortMode === "rating" ? "rating" : "",
+        mediaType: effectiveMediaType,
       }),
     });
     if (res.ok) {
@@ -101,7 +149,15 @@ export default function RecommendPage() {
     setHasSearched(true);
   }
 
-  function handleSubmit() { fetchResults(1, false); }
+  function toggleSet<T>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) {
+    setter((prev) => { const s = new Set(prev); if (s.has(value)) s.delete(value); else s.add(value); return s; });
+  }
+
+  function handleSubmit() {
+    setResultMediaFilter(mediaType === "any" ? "all" : mediaType);
+    setFiltersOpen(false);
+    fetchResults(1, false);
+  }
 
   function handleSeeMore() {
     if (visibleCount < results.length) setVisibleCount((v: number) => v + 10);
@@ -111,23 +167,26 @@ export default function RecommendPage() {
   function handleShuffle() { fetchResults(Math.floor(Math.random() * Math.min(totalPages, 20)) + 1, false); }
 
   function handleStartOver() {
-    setStep(0); setSelectedGenres(new Set()); setExperience(""); setRuntime("");
-    setEra(""); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
+    setStep(0); setMediaType("any"); setSelectedGenres(new Set()); setExperience(new Set()); setRuntime(new Set());
+    setEra(new Set()); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
+    setFiltersOpen(false); setResultMediaFilter("all");
     setHasSearched(false); setVisibleCount(5); setSortMode("");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
-
-  function handleEditAnswers() { setHasSearched(false); setStep(0); }
 
   async function addToWatchlist(movie: MovieResult) {
     if (!user || watchlistingId) return;
     setWatchlistingId(movie.tmdbId);
     const token = await getToken();
     if (!token) { setWatchlistingId(null); return; }
-    const res = await fetch(`/api/movies/${movie.tmdbId}/watchlist`, {
+    const apiBase = movie.mediaType === "tv" ? `/api/shows/${movie.tmdbId}` : `/api/movies/${movie.tmdbId}`;
+    const bodyPayload = movie.mediaType === "tv"
+      ? { name: movie.title, poster_path: movie.posterPath }
+      : { title: movie.title, poster_path: movie.posterPath };
+    const res = await fetch(`${apiBase}/watchlist`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: movie.title, poster_path: movie.posterPath }),
+      body: JSON.stringify(bodyPayload),
     });
     if (res.ok) setWatchlisted((prev) => new Set(prev).add(movie.tmdbId));
     setWatchlistingId(null);
@@ -137,17 +196,31 @@ export default function RecommendPage() {
   function toggleExclude(g: string) { setExcludeGenres((p) => { const s = new Set(p); s.has(g) ? s.delete(g) : s.add(g); return s; }); }
 
   const allMpaaSelected = mpaaSelected.size === ALL_MPAA.length;
-  const filtered = allMpaaSelected
-    ? results
-    : results.filter((r) => {
+  const allTvRatingSelected = tvRatingSelected.size === ALL_TV_RATINGS.length;
+  const filtered = results.filter((r) => {
+    // Media type filter
+    if (resultMediaFilter !== "all" && r.mediaType !== resultMediaFilter) return false;
+    // Content rating filter
+    if (r.mediaType === "tv") {
+      if (!allTvRatingSelected) {
+        const rating = r.mpaaRating || "";
+        if (rating && !tvRatingSelected.has(rating)) return false;
+      }
+    } else {
+      if (!allMpaaSelected) {
         const rating = r.mpaaRating || "NR";
-        return mpaaSelected.has(rating);
-      });
+        if (!mpaaSelected.has(rating)) return false;
+      }
+    }
+    return true;
+  });
   const sorted = sortMode === "rating" ? [...filtered].sort((a, b) => b.voteAverage - a.voteAverage)
     : sortMode === "match" ? [...filtered].sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))
     : filtered;
 
   const isLastStep = step === STEPS.length - 1;
+
+  if (!hydrated) return null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -155,7 +228,7 @@ export default function RecommendPage() {
         <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">What Should I Watch?</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Answer a few quick questions and we&apos;ll find your next movie.</p>
+      <p className="text-[var(--foreground-muted)] mb-8">Answer a few quick questions and we&apos;ll find your next watch.</p>
 
       {!hasSearched ? (
         <>
@@ -172,6 +245,22 @@ export default function RecommendPage() {
             <p className="text-sm text-[var(--foreground-muted)] mb-6">{STEPS[step].subtitle}</p>
 
             {step === 0 && (
+              <div className="grid sm:grid-cols-3 gap-3">
+                {[
+                  { value: "movie" as const, label: "A Movie", desc: "Single film, defined runtime" },
+                  { value: "tv" as const, label: "A TV Show", desc: "Series to binge or follow" },
+                  { value: "any" as const, label: "Either!", desc: "Open to movies or shows" },
+                ].map((opt) => (
+                  <button key={opt.value} onClick={() => setMediaType(opt.value)}
+                    className={`text-left p-4 rounded-xl border transition-colors ${mediaType === opt.value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
+                    <p className="text-sm font-semibold text-white">{opt.label}</p>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {step === 1 && (
               <div className="flex flex-wrap gap-2">
                 {GENRES.map((g) => (
                   <button key={g} onClick={() => toggleGenre(g)}
@@ -182,33 +271,16 @@ export default function RecommendPage() {
               </div>
             )}
 
-            {step === 1 && (
+            {step === 2 && (
               <div className="grid sm:grid-cols-2 gap-3">
                 {[
                   { value: "popular", label: "Something popular", desc: "Trending and widely talked about" },
                   { value: "hidden_gem", label: "A hidden gem", desc: "Highly rated but lesser known" },
-                  { value: "classic", label: "A certified classic", desc: "Timeless films that defined cinema" },
+                  { value: "classic", label: "A certified classic", desc: "Timeless titles that defined the medium" },
                   { value: "random", label: "Surprise me!", desc: "Completely random — roll the dice" },
                 ].map((opt) => (
-                  <button key={opt.value} onClick={() => setExperience(opt.value)}
-                    className={`text-left p-4 rounded-xl border transition-colors ${experience === opt.value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
-                    <p className="text-sm font-semibold text-white">{opt.label}</p>
-                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="grid sm:grid-cols-2 gap-3">
-                {[
-                  { value: "short", label: "Quick watch", desc: "Under 100 minutes" },
-                  { value: "standard", label: "Standard", desc: "Around 90–140 minutes" },
-                  { value: "long", label: "I'm settling in", desc: "2.5 hours or more" },
-                  { value: "", label: "Doesn't matter", desc: "Any length is fine" },
-                ].map((opt) => (
-                  <button key={opt.value} onClick={() => setRuntime(opt.value)}
-                    className={`text-left p-4 rounded-xl border transition-colors ${runtime === opt.value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
+                  <button key={opt.value} onClick={() => toggleSet(setExperience, opt.value)}
+                    className={`text-left p-4 rounded-xl border transition-colors ${experience.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
                     <p className="text-sm font-semibold text-white">{opt.label}</p>
                     <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
                   </button>
@@ -218,14 +290,17 @@ export default function RecommendPage() {
 
             {step === 3 && (
               <div className="grid sm:grid-cols-2 gap-3">
-                {[
-                  { value: "recent", label: "Recent", desc: "Released in the last 3 years" },
-                  { value: "2000s", label: "2000s and newer", desc: "Modern filmmaking era" },
-                  { value: "pre2000", label: "Pre-2000", desc: "90s, 80s, and earlier" },
-                  { value: "", label: "Any era", desc: "Don't care when it was made" },
-                ].map((opt) => (
-                  <button key={opt.value} onClick={() => setEra(opt.value)}
-                    className={`text-left p-4 rounded-xl border transition-colors ${era === opt.value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
+                {(mediaType === "tv" ? [
+                  { value: "short_ep", label: "Short episodes", desc: "20–30 minutes per episode" },
+                  { value: "standard_ep", label: "Standard episodes", desc: "40–60 minutes per episode" },
+                  { value: "long_ep", label: "Long episodes", desc: "60+ minutes per episode" },
+                ] : [
+                  { value: "short", label: "Quick watch", desc: "Under 100 minutes" },
+                  { value: "standard", label: "Standard", desc: "Around 90–140 minutes" },
+                  { value: "long", label: "I'm settling in", desc: "2.5 hours or more" },
+                ]).map((opt) => (
+                  <button key={opt.value} onClick={() => toggleSet(setRuntime, opt.value)}
+                    className={`text-left p-4 rounded-xl border transition-colors ${runtime.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
                     <p className="text-sm font-semibold text-white">{opt.label}</p>
                     <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
                   </button>
@@ -234,6 +309,22 @@ export default function RecommendPage() {
             )}
 
             {step === 4 && (
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[
+                  { value: "recent", label: "Recent", desc: "Released in the last 3 years" },
+                  { value: "2000s", label: "2000s and newer", desc: "Modern era" },
+                  { value: "pre2000", label: "Pre-2000", desc: "90s, 80s, and earlier" },
+                ].map((opt) => (
+                  <button key={opt.value} onClick={() => toggleSet(setEra, opt.value)}
+                    className={`text-left p-4 rounded-xl border transition-colors ${era.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
+                    <p className="text-sm font-semibold text-white">{opt.label}</p>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {step === 5 && (
               <div className="flex flex-wrap gap-2">
                 {GENRES.filter((g) => !selectedGenres.has(g)).map((g) => (
                   <button key={g} onClick={() => toggleExclude(g)}
@@ -259,7 +350,7 @@ export default function RecommendPage() {
               {isLastStep ? (
                 <button onClick={handleSubmit} disabled={loading}
                   className="flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-6 py-2.5 rounded-full transition-colors disabled:opacity-50">
-                  <Sparkles className="w-4 h-4" /> {loading ? "Finding..." : "Find Movies"}
+                  <Sparkles className="w-4 h-4" /> {loading ? "Finding..." : mediaType === "tv" ? "Find Shows" : mediaType === "any" ? "Find Recommendations" : "Find Movies"}
                 </button>
               ) : (
                 <button onClick={() => setStep((s: number) => s + 1)}
@@ -273,7 +364,7 @@ export default function RecommendPage() {
       ) : (
         <div>
           {/* Results header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2 className="text-lg font-bold text-white">
               {results.length > 0 ? "Here's what we found" : "No results"}
             </h2>
@@ -282,18 +373,160 @@ export default function RecommendPage() {
                 className="flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors disabled:opacity-50">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Shuffle
               </button>
-              <button onClick={handleEditAnswers} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
-                Edit answers
-              </button>
               <button onClick={handleStartOver} className="text-sm text-[var(--ratist-red)] hover:underline">
                 Start over
               </button>
             </div>
           </div>
 
+          {/* Filters toggle */}
+          <button
+            onClick={() => setFiltersOpen((v) => !v)}
+            className="flex items-center gap-2 mb-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {filtersOpen && (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4 space-y-4">
+            {/* Genres */}
+            <div>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Genres</p>
+              <div className="flex flex-wrap gap-1.5">
+                {GENRES.map((g) => (
+                  <button key={g} onClick={() => { toggleSet(setSelectedGenres, g); }}
+                    className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-colors ${selectedGenres.has(g) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Experience */}
+            <div>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Experience</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { value: "popular", label: "Popular" },
+                  { value: "hidden_gem", label: "Hidden Gem" },
+                  { value: "classic", label: "Classic" },
+                  { value: "random", label: "Random" },
+                ].map((opt) => (
+                  <button key={opt.value} onClick={() => toggleSet(setExperience, opt.value)}
+                    className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-colors ${experience.has(opt.value) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Runtime */}
+            <div>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">
+                {resultMediaFilter === "tv" ? "Episode Length" : resultMediaFilter === "movie" ? "Runtime" : "Runtime / Episode Length"}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(resultMediaFilter === "tv" ? [
+                  { value: "short_ep", label: "Short (20-30m)" },
+                  { value: "standard_ep", label: "Standard (40-60m)" },
+                  { value: "long_ep", label: "Long (60m+)" },
+                ] : resultMediaFilter === "movie" ? [
+                  { value: "short", label: "< 100min" },
+                  { value: "standard", label: "90–140min" },
+                  { value: "long", label: "150min+" },
+                ] : [
+                  { value: "short", label: "Movie < 100min" },
+                  { value: "standard", label: "Movie 90–140min" },
+                  { value: "long", label: "Movie 150min+" },
+                  { value: "short_ep", label: "TV Short eps" },
+                  { value: "standard_ep", label: "TV Std eps" },
+                  { value: "long_ep", label: "TV Long eps" },
+                ]).map((opt) => (
+                  <button key={opt.value} onClick={() => toggleSet(setRuntime, opt.value)}
+                    className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-colors ${runtime.has(opt.value) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Era */}
+            <div>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Era</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { value: "recent", label: "Recent (3yr)" },
+                  { value: "2000s", label: "2000s+" },
+                  { value: "pre2000", label: "Pre-2000" },
+                ].map((opt) => (
+                  <button key={opt.value} onClick={() => toggleSet(setEra, opt.value)}
+                    className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-colors ${era.has(opt.value) ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Exclude genres */}
+            <div>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Avoid</p>
+              <div className="flex flex-wrap gap-1.5">
+                {GENRES.filter((g) => !selectedGenres.has(g)).map((g) => (
+                  <button key={g} onClick={() => toggleSet(setExcludeGenres, g)}
+                    className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-colors ${excludeGenres.has(g) ? "bg-red-500/10 border-red-500/30 text-red-400" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}>
+                    {excludeGenres.has(g) && <X className="w-2.5 h-2.5 inline mr-0.5" />}{g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Apply filters button */}
+            <button onClick={() => { fetchResults(1, false); setFiltersOpen(false); }} disabled={loading}
+              className="w-full py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
+              {loading ? "Updating..." : "Apply Filters"}
+            </button>
+          </div>
+          )}
+
           {/* Sort + filter bar */}
           {results.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
+              {/* Media type toggle */}
+              <div className="flex items-center gap-1">
+                {([
+                  { value: "all" as const, label: "All" },
+                  { value: "movie" as const, label: "Movies", icon: Film },
+                  { value: "tv" as const, label: "Shows", icon: Tv },
+                ]).map(({ value, label, icon: Icon }) => (
+                  <button key={value} onClick={() => {
+                    const prev = resultMediaFilter;
+                    setResultMediaFilter(value);
+                    // Clear incompatible runtime selections when switching media type
+                    if (value === "movie") setRuntime((p) => new Set([...p].filter((r) => !r.includes("_ep"))));
+                    else if (value === "tv") setRuntime((p) => new Set([...p].filter((r) => r.includes("_ep"))));
+                    // Re-fetch with the new media type since current results may not include it
+                    if (value !== prev) {
+                      const fetchType = value === "all" ? "any" : value;
+                      setMediaType(fetchType as "movie" | "tv" | "any");
+                      fetchResults(1, false, fetchType);
+                    }
+                  }}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium transition-colors ${
+                      resultMediaFilter === value
+                        ? value === "tv" ? "bg-blue-600/20 text-blue-400" : "bg-[var(--ratist-red)]/20 text-white"
+                        : "text-[var(--foreground-muted)] hover:text-white"
+                    }`}>
+                    {Icon && <Icon className="w-3 h-3" />}
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* Sort */}
               <div className="flex items-center gap-2">
                 <ArrowUpDown className="w-3 h-3 text-[var(--foreground-muted)]" />
                 {(["", "rating", "match"] as SortMode[]).map((s) => (
@@ -303,25 +536,43 @@ export default function RecommendPage() {
                   </button>
                 ))}
               </div>
+              {/* Content rating — movie ratings */}
               <div className="flex items-center gap-1">
-                <span className="text-[var(--foreground-muted)] mr-1">Rating:</span>
-                {ALL_MPAA.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setMpaaSelected((prev) => {
-                      const s = new Set(prev);
-                      if (s.has(r)) s.delete(r); else s.add(r);
-                      return s;
-                    })}
+                <span className="text-[var(--foreground-muted)] mr-1" title={resultMediaFilter === "all" ? "Filter by Movies or Shows to use rating filters" : ""}>
+                  {resultMediaFilter === "tv" ? "" : "MPA:"}
+                </span>
+                {resultMediaFilter !== "tv" && ALL_MPAA.map((r) => (
+                  <button key={r}
+                    onClick={() => resultMediaFilter !== "all" && setMpaaSelected((prev) => { const s = new Set(prev); if (s.has(r)) s.delete(r); else s.add(r); return s; })}
+                    title={resultMediaFilter === "all" ? "Select Movies to filter by MPA rating" : undefined}
                     className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
-                      mpaaSelected.has(r)
-                        ? "bg-[var(--ratist-red)]/15 border-[var(--ratist-red)]/30 text-white"
-                        : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] line-through opacity-50"
-                    }`}
-                  >
-                    {r === "NR" ? "NR" : r}
-                  </button>
+                      resultMediaFilter === "all"
+                        ? "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] opacity-40 cursor-not-allowed"
+                        : mpaaSelected.has(r)
+                          ? "bg-[var(--ratist-red)]/15 border-[var(--ratist-red)]/30 text-white"
+                          : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] line-through opacity-50"
+                    }`}>{r}</button>
                 ))}
+              </div>
+              {/* TV content rating */}
+              <div className="flex items-center gap-1">
+                {resultMediaFilter !== "movie" && (
+                  <>
+                    <span className="text-[var(--foreground-muted)] mr-1">TV:</span>
+                    {ALL_TV_RATINGS.map((r) => (
+                      <button key={r}
+                        onClick={() => resultMediaFilter !== "all" && setTvRatingSelected((prev) => { const s = new Set(prev); if (s.has(r)) s.delete(r); else s.add(r); return s; })}
+                        title={resultMediaFilter === "all" ? "Select Shows to filter by TV rating" : undefined}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                          resultMediaFilter === "all"
+                            ? "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] opacity-40 cursor-not-allowed"
+                            : tvRatingSelected.has(r)
+                              ? "bg-blue-500/15 border-blue-500/30 text-blue-400"
+                              : "bg-transparent border-[var(--border)] text-[var(--foreground-muted)] line-through opacity-50"
+                        }`}>{r}</button>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -329,11 +580,11 @@ export default function RecommendPage() {
           {loading && results.length === 0 ? (
             <div className="text-center py-16">
               <Sparkles className="w-10 h-10 mx-auto mb-4 text-[var(--ratist-red)] animate-pulse" />
-              <p className="text-[var(--foreground-muted)]">Finding your perfect movie...</p>
+              <p className="text-[var(--foreground-muted)]">Finding your perfect watch...</p>
             </div>
           ) : results.length === 0 ? (
             <div className="text-center py-16 text-[var(--foreground-muted)]">
-              <p className="mb-3">No movies matched your criteria. Try broadening your filters.</p>
+              <p className="mb-3">Nothing matched your criteria. Try broadening your filters.</p>
               <button onClick={handleStartOver} className="text-sm text-[var(--ratist-red)] hover:underline">Start over</button>
             </div>
           ) : (
@@ -342,7 +593,7 @@ export default function RecommendPage() {
                 {sorted.slice(0, visibleCount).map((movie, i) => (
                   <div key={`${movie.tmdbId}-${i}`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)]/50 transition-colors">
                     <div className="flex gap-4">
-                      <Link href={`/movies/${movie.tmdbId}`} className="relative w-16 h-24 shrink-0 rounded-lg overflow-hidden bg-[var(--surface-2)]">
+                      <Link href={`/${movie.mediaType === "tv" ? "shows" : "movies"}/${movie.tmdbId}`} className="relative w-16 h-24 shrink-0 rounded-lg overflow-hidden bg-[var(--surface-2)]">
                         {movie.posterPath ? (
                           <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="64px" className="object-cover" />
                         ) : (
@@ -352,7 +603,7 @@ export default function RecommendPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{movie.title}</Link>
+                            <Link href={`/${movie.mediaType === "tv" ? "shows" : "movies"}/${movie.tmdbId}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{movie.mediaType === "tv" && <Tv className="w-3.5 h-3.5 text-blue-400 inline mr-1" />}{movie.title}</Link>
                             <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)] mt-0.5">
                               <span>{movie.year}</span>
                               {movie.mpaaRating && <span className="border border-[var(--border)] rounded px-1 py-0.5 text-[10px]">{movie.mpaaRating}</span>}

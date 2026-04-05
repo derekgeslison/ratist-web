@@ -60,11 +60,14 @@ export default async function ProfilePage({ params }: Props) {
     avgRating,
     seenCount,
     watchlistCount,
+    tvRatingCount,
+    tvSeenCount,
     allRatings,
     seenMovies,
     watchlistMovies,
     userWatchlists,
     savedRankings,
+    allTVRatings,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
     prisma.movieRating.aggregate({
@@ -75,6 +78,8 @@ export default async function ProfilePage({ params }: Props) {
     prisma.watchlistMovie.count({
       where: { watchlist: { userId: user.id, isDefault: true } },
     }),
+    prisma.tVShowRating.count({ where: { userId: user.id, ratingScope: "series" } }),
+    prisma.userFavoriteShow.count({ where: { userId: user.id } }),
     prisma.movieRating.findMany({
       where: { userId: user.id },
       select: {
@@ -146,6 +151,33 @@ export default async function ProfilePage({ params }: Props) {
         movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
       },
       orderBy: { sortOrder: "asc" },
+    }),
+    prisma.tVShowRating.findMany({
+      where: { userId: user.id, ratingScope: "series" },
+      select: {
+        id: true,
+        tvShowId: true,
+        ratistRating: true,
+        overallRating: true,
+        reviewText: true,
+        reviewType: true,
+        createdAt: true,
+        plot: true, storytelling: true, pacingClimax: true,
+        cinematography: true, artisticEffect: true,
+        overallEmotion: true, relatability: true,
+        casting: true, actingQuality: true,
+        appeal: true,
+        tvShow: {
+          select: {
+            tmdbId: true,
+            name: true,
+            posterPath: true,
+            voteAverage: true,
+            genres: { include: { genre: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -240,8 +272,8 @@ export default async function ProfilePage({ params }: Props) {
             profileFirebaseUid={user.firebaseUid}
             profileUserId={user.id}
             inviteCode={user.inviteCode}
-            ratingCount={ratingCount}
-            seenCount={seenCount}
+            ratingCount={ratingCount + tvRatingCount}
+            seenCount={seenCount + tvSeenCount}
             avgRating={avgRatingValue}
             memberSince={user.createdAt.getFullYear()}
           />
@@ -252,17 +284,31 @@ export default async function ProfilePage({ params }: Props) {
 
       {/* Tabs */}
       <ProfileTabs
-        ratings={allRatings.map((r) => ({
-          id: r.id,
-          tmdbId: r.movie.tmdbId,
-          title: r.movie.title,
-          posterPath: r.movie.posterPath,
-          voteAverage: r.movie.voteAverage ?? null,
-          ratistRating: r.ratistRating,
-          reviewText: r.reviewText,
-          createdAt: r.createdAt.toISOString(),
-          ratingStatus: getRatingStatus(r),
-        }))}
+        ratings={[
+          ...allRatings.map((r) => ({
+            id: r.id,
+            tmdbId: r.movie.tmdbId,
+            title: r.movie.title,
+            posterPath: r.movie.posterPath,
+            voteAverage: r.movie.voteAverage ?? null,
+            ratistRating: r.ratistRating,
+            reviewText: r.reviewText,
+            createdAt: r.createdAt.toISOString(),
+            ratingStatus: getRatingStatus(r),
+          })),
+          ...allTVRatings.map((r) => ({
+            id: r.id,
+            tmdbId: r.tvShow.tmdbId,
+            title: r.tvShow.name,
+            posterPath: r.tvShow.posterPath,
+            voteAverage: r.tvShow.voteAverage ?? null,
+            ratistRating: r.ratistRating,
+            reviewText: r.reviewText,
+            createdAt: r.createdAt.toISOString(),
+            ratingStatus: getRatingStatus(r),
+            mediaType: "tv" as const,
+          })),
+        ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())}
         seenMovies={seenMovies.map((s) => ({
           tmdbId: s.movie.tmdbId,
           title: s.movie.title,
@@ -292,9 +338,9 @@ export default async function ProfilePage({ params }: Props) {
         similarUsers={similarUsers}
         profile={user.profile as Record<string, number> | null}
         stats={{
-          ratingCount,
+          ratingCount: ratingCount + tvRatingCount,
           avgRating: avgRatingValue,
-          seenCount,
+          seenCount: seenCount + tvSeenCount,
           watchlistCount,
           ratingDistribution,
           genreBreakdown,

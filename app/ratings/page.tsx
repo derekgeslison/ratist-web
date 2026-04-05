@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Star, Search, ArrowUpDown, Filter } from "lucide-react";
+import { Star, Search, ArrowUpDown, Filter, Film, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -26,6 +26,7 @@ interface UserRating {
   ratingStatus: "complete" | "incomplete" | "imported";
   watchedDate: string | null;
   ratedAt: string;
+  mediaType?: "movie" | "tv";
 }
 
 interface UnratedMovie {
@@ -63,6 +64,7 @@ export default function RatingsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [ratingRange, setRatingRange] = useState<"" | "8+" | "6+" | "4-">("");
   const [sort, setSort] = useState<SortBy>("rated");
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [unratedSort, setUnratedSort] = useState<"recent" | "title" | "year">("recent");
 
   useEffect(() => {
@@ -141,6 +143,7 @@ export default function RatingsPage() {
 
   const filtered = useMemo(() => {
     return ratings.filter((r) => {
+      if (mediaFilter !== "all" && (r.mediaType ?? "movie") !== mediaFilter) return false;
       if (query && !r.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (genreFilter && !r.genres.includes(genreFilter)) return false;
       if (yearFrom && r.year && r.year < yearFrom) return false;
@@ -156,7 +159,7 @@ export default function RatingsPage() {
       if (ratingRange === "4-" && (score == null || score >= 4)) return false;
       return true;
     });
-  }, [ratings, query, genreFilter, yearFrom, yearTo, directorFilter, actorFilter, statusFilter, ratingRange]);
+  }, [ratings, query, genreFilter, yearFrom, yearTo, directorFilter, actorFilter, statusFilter, ratingRange, mediaFilter]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -171,7 +174,7 @@ export default function RatingsPage() {
   const complete = ratings.filter((r) => r.ratingStatus === "complete").length;
   const incomplete = ratings.filter((r) => r.ratingStatus === "incomplete").length;
   const imported = ratings.filter((r) => r.ratingStatus === "imported").length;
-  const isFiltered = query || genreFilter || yearFrom || yearTo || directorFilter || actorFilter || statusFilter || ratingRange;
+  const isFiltered = query || genreFilter || yearFrom || yearTo || directorFilter || actorFilter || statusFilter || ratingRange || mediaFilter !== "all";
   const filteredWithScores = filtered.filter((r) => r.ratistRating != null);
   const filteredAvg = filteredWithScores.length > 0
     ? filteredWithScores.reduce((s, r) => s + r.ratistRating!, 0) / filteredWithScores.length
@@ -255,6 +258,17 @@ export default function RatingsPage() {
                 className="bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] w-40" />
             </div>
 
+            <div className="flex items-center gap-0.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-0.5">
+              {([["all", "All"], ["movie", "Movies"], ["tv", "Shows"]] as const).map(([val, label]) => (
+                <button key={val} onClick={() => setMediaFilter(val)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${mediaFilter === val ? "bg-[var(--ratist-red)]/20 text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                  {val === "movie" && <Film className="w-3 h-3" />}
+                  {val === "tv" && <Tv className="w-3 h-3" />}
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
               className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]">
               <option value="">All statuses</option>
@@ -320,7 +334,7 @@ export default function RatingsPage() {
 
             {isFiltered && (
               <button
-                onClick={() => { setQuery(""); setGenreFilter(""); setYearFrom(""); setYearTo(""); setDirectorFilter(""); setActorFilter(""); setStatusFilter(""); setRatingRange(""); }}
+                onClick={() => { setQuery(""); setGenreFilter(""); setYearFrom(""); setYearTo(""); setDirectorFilter(""); setActorFilter(""); setStatusFilter(""); setRatingRange(""); setMediaFilter("all"); }}
                 className="text-xs text-[var(--ratist-red)] hover:underline"
               >
                 Clear filters
@@ -345,17 +359,26 @@ export default function RatingsPage() {
             <div className="divide-y divide-[var(--border)]/10">
               {sorted.map((r) => {
                 const score = r.ratistRating ?? r.overallRating;
+                const isTv = r.mediaType === "tv";
+                const detailHref = isTv ? `/shows/${r.tmdbId}` : `/movies/${r.tmdbId}`;
                 return (
                   <div key={r.id} className="flex items-center gap-3 py-3 group">
-                    <Link href={`/movies/${r.tmdbId}`} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                    <Link href={detailHref} className="relative w-10 h-14 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
                       {r.posterPath && (
                         <Image src={posterUrl(r.posterPath, "w92")} alt={r.title} fill sizes="40px" className="object-cover" />
                       )}
                     </Link>
                     <div className="flex-1 min-w-0">
-                      <Link href={`/movies/${r.tmdbId}`} className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                        {r.title}
-                      </Link>
+                      <div className="flex items-center gap-1.5">
+                        <Link href={detailHref} className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                          {r.title}
+                        </Link>
+                        {isTv && (
+                          <span className="shrink-0 flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                            <Tv className="w-2.5 h-2.5" />TV
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
                         <span>{r.year}</span>
                         {r.reviewText && <span className="line-clamp-1 italic">· {r.reviewText}</span>}
@@ -365,11 +388,11 @@ export default function RatingsPage() {
                     {/* Status + score */}
                     <div className="flex items-center gap-2 shrink-0">
                       {r.ratingStatus === "incomplete" ? (
-                        <Link href={`/movies/${r.tmdbId}/rate`} className="text-xs font-semibold px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400 hover:bg-orange-400 hover:text-white transition-colors">
+                        <Link href={isTv ? `/shows/${r.tmdbId}/rate` : `/movies/${r.tmdbId}/rate`} className="text-xs font-semibold px-2 py-0.5 rounded-full border border-orange-400/50 text-orange-400 hover:bg-orange-400 hover:text-white transition-colors">
                           Complete →
                         </Link>
                       ) : r.ratingStatus === "imported" ? (
-                        <Link href={`/movies/${r.tmdbId}/rate`} className="flex items-center gap-1 group/tip relative">
+                        <Link href={isTv ? `/shows/${r.tmdbId}/rate` : `/movies/${r.tmdbId}/rate`} className="flex items-center gap-1 group/tip relative">
                           {score != null && (
                             <span className="text-sm font-bold" style={{ color: scoreColor(score) }}>{score.toFixed(1)}</span>
                           )}

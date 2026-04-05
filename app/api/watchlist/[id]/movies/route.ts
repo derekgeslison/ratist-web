@@ -25,22 +25,38 @@ export async function POST(req: NextRequest, { params }: Props) {
     const isEditor = watchlist.collaborators.some((c) => c.role === "editor" && c.status === "accepted");
     if (!isOwner && !isEditor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const { tmdbId, title, posterPath, releaseDate } = await req.json();
+    const { tmdbId, title, posterPath, releaseDate, mediaType } = await req.json();
     if (!tmdbId) return NextResponse.json({ error: "tmdbId required" }, { status: 400 });
 
-    // Ensure movie exists in DB
-    const movie = await prisma.movie.upsert({
-      where: { tmdbId: Number(tmdbId) },
-      create: { tmdbId: Number(tmdbId), title: title ?? "Unknown", posterPath: posterPath ?? null, releaseDate: releaseDate ?? null },
-      update: {},
-    });
+    if (mediaType === "tv") {
+      // Ensure TV show exists in DB
+      const tvShow = await prisma.tVShow.upsert({
+        where: { tmdbId: Number(tmdbId) },
+        create: { tmdbId: Number(tmdbId), name: title ?? "Unknown", posterPath: posterPath ?? null, firstAirDate: releaseDate ?? null },
+        update: {},
+      });
 
-    // Add to watchlist (ignore if already there)
-    await prisma.watchlistMovie.upsert({
-      where: { watchlistId_movieId: { watchlistId, movieId: movie.id } },
-      create: { watchlistId, movieId: movie.id },
-      update: {},
-    });
+      // Add to watchlist (ignore if already there)
+      await prisma.watchlistShow.upsert({
+        where: { watchlistId_tvShowId: { watchlistId, tvShowId: tvShow.id } },
+        create: { watchlistId, tvShowId: tvShow.id },
+        update: {},
+      });
+    } else {
+      // Ensure movie exists in DB
+      const movie = await prisma.movie.upsert({
+        where: { tmdbId: Number(tmdbId) },
+        create: { tmdbId: Number(tmdbId), title: title ?? "Unknown", posterPath: posterPath ?? null, releaseDate: releaseDate ?? null },
+        update: {},
+      });
+
+      // Add to watchlist (ignore if already there)
+      await prisma.watchlistMovie.upsert({
+        where: { watchlistId_movieId: { watchlistId, movieId: movie.id } },
+        create: { watchlistId, movieId: movie.id },
+        update: {},
+      });
+    }
 
     return NextResponse.json({ added: true });
   } catch (err) {
