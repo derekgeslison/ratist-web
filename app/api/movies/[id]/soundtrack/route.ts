@@ -64,22 +64,42 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ tracks: [] });
     }
 
-    // Find the best release — prefer highest track count, prefer ones with matching title
+    // Find the best release — prefer consumer soundtracks over expanded scores
     const titleLower = title.toLowerCase();
     const candidates = searchData.releases
       .filter((r) => {
         const rTitle = r.title.toLowerCase();
-        // Must contain the search title or be a close match
         return rTitle.includes(titleLower) || titleLower.includes(rTitle.replace(/\s*\(.*\)/, "").trim());
       })
-      .sort((a, b) => (b["track-count"] ?? 0) - (a["track-count"] ?? 0));
+      .map((r) => {
+        const rTitle = r.title.toLowerCase();
+        const count = r["track-count"] ?? 0;
+        let score = 0;
+
+        // Prefer releases with "soundtrack" or "music from" in title
+        if (rTitle.includes("soundtrack") || rTitle.includes("music from")) score += 50;
+        // Deprioritize releases with "score" in the title (these have cue sheets)
+        if (rTitle.includes("original score") || rTitle.includes("film score")) score -= 30;
+        // Deprioritize releases with "deluxe" or "complete" (often have alternate takes)
+        if (rTitle.includes("complete") || rTitle.includes("expanded")) score -= 20;
+
+        // Prefer a sweet spot of 8-45 tracks (typical consumer album)
+        if (count >= 8 && count <= 45) score += 40;
+        else if (count > 45) score -= (count - 45); // penalize massive releases
+        else if (count < 8 && count > 0) score += 10;
+
+        // Small bonus for having more tracks within the sweet spot
+        if (count >= 8 && count <= 45) score += Math.min(count, 30);
+
+        return { release: r, score };
+      })
+      .sort((a, b) => b.score - a.score);
 
     if (candidates.length === 0) {
       return NextResponse.json({ tracks: [] });
     }
 
-    // Get the best release's track listing
-    const bestRelease = candidates[0];
+    const bestRelease = candidates[0].release;
     await delay(1100); // MusicBrainz rate limit: 1 req/sec
 
     const releaseData = await mbFetch<{ media: MBMedia[]; title: string; date?: string }>(
@@ -113,13 +133,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       })
     );
 
-    // Filter out dialogue/interlude tracks (common in movie soundtracks)
+    // Deduplicate by normalizing titles (strip version/part numbers)
+    function normalizeTitle(t: string): string {
+      return t
+        .replace(/\s*\(Version \d+\)/gi, "")
+        .replace(/\s*\(Part \d+\)/gi, "")
+        .replace(/\s*\[.*?\]/g, "") // remove bracketed metadata like [1m3a]
+        .replace(/\s*Version \d+/gi, "")
+        .trim();
+    }
+
+    const seen = new Set<string>();
     const filtered = tracks.filter((t) => {
-      const lower = t.title.toLowerCase();
-      // Keep everything unless it's clearly a dialogue clip
+      // Remove very short tracks (likely transitions/cues)
       if (t.duration === "0:00" || t.duration === "0:01") return false;
+
+      // Deduplicate by normalized title + artist
+      const key = `${normalizeTitle(t.title).toLowerCase()}::${t.artist.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+
       return true;
-    });
+    }).map((t) => ({
+      ...t,
+      title: normalizeTitle(t.title), // clean up the display title too
+    }));
 
     return NextResponse.json({
       tracks: filtered,
