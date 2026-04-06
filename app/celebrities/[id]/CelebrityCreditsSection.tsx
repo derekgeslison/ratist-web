@@ -14,6 +14,7 @@ export interface Credit {
   vote_average: number;
   character?: string;
   job?: string;
+  department?: string;
   popularity: number;
   mediaType?: "movie" | "tv";
 }
@@ -39,6 +40,7 @@ export default function CelebrityCreditsSection({
     if (typeof window === "undefined" || !storageKey) return "all";
     try { return (sessionStorage.getItem(`${storageKey}-filter`) as "all" | "movie" | "tv") || "all"; } catch { return "all"; }
   });
+  const [roleFilter, setRoleFilter] = useState<string>("all");
 
   useEffect(() => {
     if (!storageKey) return;
@@ -52,7 +54,16 @@ export default function CelebrityCreditsSection({
   const hasShows = credits.some((c) => c.mediaType === "tv");
   const showToggle = hasMovies && hasShows;
 
-  const filtered = mediaFilter === "all" ? credits : credits.filter((c) => (c.mediaType ?? "movie") === mediaFilter);
+  // Collect unique roles/departments for crew filtering
+  const roles = type === "crew"
+    ? [...new Set(credits.map((c) => c.job).filter(Boolean))] as string[]
+    : [];
+  const showRoleFilter = roles.length > 1;
+
+  let filtered = mediaFilter === "all" ? credits : credits.filter((c) => (c.mediaType ?? "movie") === mediaFilter);
+  if (roleFilter !== "all" && type === "crew") {
+    filtered = filtered.filter((c) => c.job === roleFilter);
+  }
   const visible = filtered.slice(0, shown);
   const hasMore = shown < filtered.length;
 
@@ -77,6 +88,26 @@ export default function CelebrityCreditsSection({
               {Icon && <Icon className="w-3 h-3" />}
               {label}
             </button>
+          ))}
+        </div>
+      )}
+      {showRoleFilter && (
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+          <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mr-1">Role:</span>
+          <button
+            onClick={() => { setRoleFilter("all"); setShown(PAGE_SIZE); }}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+              roleFilter === "all" ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+            }`}
+          >All</button>
+          {roles.map((role) => (
+            <button
+              key={role}
+              onClick={() => { setRoleFilter(role); setShown(PAGE_SIZE); }}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                roleFilter === role ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >{role}</button>
           ))}
         </div>
       )}

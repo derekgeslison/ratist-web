@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Film, Clapperboard, Search } from "lucide-react";
+import { ArrowLeft, Film, Clapperboard, Search, ImageIcon } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +32,9 @@ interface TMDBPersonDetail {
   tv_credits: {
     cast: TVCastCredit[];
     crew: TVCrewCredit[];
+  };
+  images?: {
+    profiles: { file_path: string; width: number; height: number; vote_average: number }[];
   };
 }
 
@@ -81,7 +84,7 @@ interface CrewCredit {
 
 async function getPersonDetails(id: number): Promise<TMDBPersonDetail> {
   const res = await fetch(
-    `${BASE_URL}/person/${id}?api_key=${API_KEY}&append_to_response=movie_credits,tv_credits`,
+    `${BASE_URL}/person/${id}?api_key=${API_KEY}&append_to_response=movie_credits,tv_credits,images`,
     { next: { revalidate: 3600 } }
   );
   if (!res.ok) throw new Error("Not found");
@@ -197,11 +200,20 @@ export default async function CelebrityPage({ params }: Props) {
   const filmography = [...movieCastCredits, ...tvCastCredits]
     .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
 
-  // Directing credits (movies only for now)
-  const directingCredits = person.movie_credits.crew
-    .filter((c) => c.job === "Director")
-    .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime())
-    .map((c) => ({ ...c, mediaType: "movie" as const }));
+  // All crew credits (movies + TV) with deduplication
+  const seenCrewKeys = new Set<string>();
+  const allCrewCredits = [
+    ...person.movie_credits.crew.map((c) => ({ id: c.id, title: c.title, poster_path: c.poster_path, release_date: c.release_date, vote_average: c.vote_average, job: c.job, department: c.department, popularity: c.popularity, mediaType: "movie" as const })),
+    ...(person.tv_credits?.crew ?? []).map((c) => ({ id: c.id, title: c.name, poster_path: c.poster_path, release_date: c.first_air_date, vote_average: c.vote_average, job: c.job, department: c.department, popularity: c.popularity, mediaType: "tv" as const })),
+  ].filter((c) => {
+    const key = `${c.id}-${c.job}-${c.mediaType}`;
+    if (seenCrewKeys.has(key)) return false;
+    seenCrewKeys.add(key);
+    return true;
+  }).sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
+
+  // Photos
+  const photos = person.images?.profiles ?? [];
 
   const age = person.birthday
     ? Math.floor(
@@ -353,14 +365,44 @@ export default async function CelebrityPage({ params }: Props) {
         </section>
       )}
 
-      {/* Directing credits */}
-      {directingCredits.length > 0 && (
+      {/* Crew credits (Directing, Writing, Production, etc.) */}
+      {allCrewCredits.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Clapperboard className="w-5 h-5 text-[var(--ratist-red)]" /> Behind the Camera
+            <span className="text-sm font-normal text-[var(--foreground-muted)]">({allCrewCredits.length})</span>
+          </h2>
+          <CelebrityCreditsSection credits={allCrewCredits} type="crew" personId={person.id} />
+        </section>
+      )}
+
+      {/* Photos */}
+      {photos.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Clapperboard className="w-5 h-5 text-[var(--ratist-red)]" /> Directed
-            <span className="text-sm font-normal text-[var(--foreground-muted)]">({directingCredits.length})</span>
+            <ImageIcon className="w-5 h-5 text-[var(--ratist-red)]" /> Photos
+            <span className="text-sm font-normal text-[var(--foreground-muted)]">({photos.length})</span>
           </h2>
-          <CelebrityCreditsSection credits={directingCredits} type="crew" personId={person.id} />
+          <p className="text-xs text-[var(--foreground-muted)] mb-4">Click any image to view full size</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {photos.slice(0, 20).map((img, i) => (
+              <a
+                key={i}
+                href={`https://image.tmdb.org/t/p/original${img.file_path}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative aspect-[2/3] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors block"
+              >
+                <Image
+                  src={`https://image.tmdb.org/t/p/w342${img.file_path}`}
+                  alt={`${person.name} photo ${i + 1}`}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
+                  className="object-cover object-top"
+                />
+              </a>
+            ))}
+          </div>
         </section>
       )}
     </div>
