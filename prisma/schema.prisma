@@ -55,6 +55,7 @@ model User {
   hotTakeVotes   HotTakeVote[]
   moviePitches     MoviePitch[]
   moviePitchVotes  MoviePitchVote[]
+  cineqAttempts    CineQAttempt[]
   screeningSessionsHosted  ScreeningSession[]       @relation("screeningHost")
   screeningParticipations  ScreeningParticipant[]
   screeningPredictions     ScreeningPrediction[]
@@ -980,6 +981,40 @@ model HotTakeVote {
 
   @@id([userId, hotTakeId])
   @@map("hot_take_votes")
+}
+
+// ─── Cine-Q Quiz ─────────────────────────────────────────────────────────────
+
+model CineQDaily {
+  id         String   @id @default(cuid())
+  date       String   // "2026-04-06" (Pacific time)
+  mediaType  String   @map("media_type")  // "movie" | "tv" | "both"
+  difficulty String   // "easy" | "medium" | "hard"
+  questions  Json     // array of question objects (title, tmdbId, clues, options)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  attempts CineQAttempt[]
+
+  @@unique([date, mediaType, difficulty])
+  @@map("cineq_daily")
+}
+
+model CineQAttempt {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  dailyId    String?  @map("daily_id")  // null for practice mode
+  mediaType  String   @map("media_type")
+  difficulty String
+  mode       String   @default("daily") // "daily" | "practice"
+  rawScore   Float    @map("raw_score")
+  answers    Json     // array of { questionIndex, correct, timeElapsed, wrongGuesses }
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  daily CineQDaily? @relation(fields: [dailyId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dailyId]) // one attempt per user per daily quiz
+  @@map("cineq_attempts")
 }
 
 // Movie/Show Pitches
