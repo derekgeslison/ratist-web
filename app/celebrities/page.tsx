@@ -46,18 +46,17 @@ async function fetchPeople(
 }
 
 // Fetch all cast + crew for a specific movie — for "appeared in" filter
-async function fetchMovieCredits(movieId: string): Promise<TMDBPerson[]> {
-  const res = await fetch(
-    `${BASE_URL}/movie/${movieId}/credits?api_key=${API_KEY}`,
-    { next: { revalidate: 3600 } }
-  );
+async function fetchMediaCredits(mediaId: string, mediaType: string = "movie"): Promise<TMDBPerson[]> {
+  const endpoint = mediaType === "tv"
+    ? `${BASE_URL}/tv/${mediaId}/aggregate_credits?api_key=${API_KEY}`
+    : `${BASE_URL}/movie/${mediaId}/credits?api_key=${API_KEY}`;
+  const res = await fetch(endpoint, { next: { revalidate: 3600 } });
   if (!res.ok) return [];
   const data = await res.json();
 
   const seen = new Set<number>();
   const people: TMDBPerson[] = [];
 
-  // Cast first (ordered by billing), then crew
   for (const c of [...(data.cast ?? []), ...(data.crew ?? [])]) {
     if (!seen.has(c.id)) {
       seen.add(c.id);
@@ -135,9 +134,10 @@ export default async function CelebritiesPage({ searchParams }: Props) {
   let total_results: number;
   let total_pages: number;
 
+  const movieMediaType = params.movieMediaType ?? "movie";
   if (movie) {
-    // Use movie credits endpoint — returns full cast/crew, no pagination needed
-    const credits = await fetchMovieCredits(movie);
+    // Use credits endpoint — returns full cast/crew, no pagination needed
+    const credits = await fetchMediaCredits(movie, movieMediaType);
     people = credits;
     total_results = credits.length;
     total_pages = 1;

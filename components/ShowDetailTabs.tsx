@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import ShowCard from "./ShowCard";
 import {
   posterUrl,
   type TMDBShow,
@@ -481,25 +482,9 @@ export default function ShowDetailTabs({
           {recommendations.length > 0 && (
             <section>
               <h2 className="text-base font-semibold text-white mb-4">More Like This</h2>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {recommendations.slice(0, 12).map((s) => (
-                  <Link key={s.id} href={`/shows/${s.id}`} className="group flex flex-col">
-                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                      <Image
-                        src={posterUrl(s.poster_path, "w185")}
-                        alt={s.name}
-                        fill
-                        sizes="(max-width: 640px) 33vw, 15vw"
-                        className="object-cover"
-                      />
-                      <div className="absolute top-1.5 left-1.5 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
-                        <Tv className="w-2.5 h-2.5" />
-                        <span className="text-[8px] font-bold leading-none">TV</span>
-                      </div>
-                    </div>
-                    <p className="text-xs font-medium text-white line-clamp-1">{s.name}</p>
-                    <p className="text-[10px] text-[var(--foreground-muted)]">{s.first_air_date?.slice(0, 4) ?? "—"}</p>
-                  </Link>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {recommendations.slice(0, 10).map((s) => (
+                  <ShowCard key={s.id} show={s} />
                 ))}
               </div>
             </section>

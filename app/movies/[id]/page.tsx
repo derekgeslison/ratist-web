@@ -256,7 +256,7 @@ export default async function MovieDetailPage({ params }: Props) {
                 {movie.genres.map((g) => (
                   <Link
                     key={g.id}
-                    href={`/movies?genre=${g.id}`}
+                    href={`/movies?genres=${g.id}`}
                     className="text-xs px-3 py-1 rounded-full bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white transition-colors"
                   >
                     {g.name}

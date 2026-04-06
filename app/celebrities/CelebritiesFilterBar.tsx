@@ -24,6 +24,7 @@ interface MovieOption {
   title: string;
   poster_path: string | null;
   release_date: string;
+  mediaType: "movie" | "tv";
 }
 
 interface Props {
@@ -128,22 +129,27 @@ export default function CelebritiesFilterBar({ totalResults }: Props) {
     if (movieTimeout.current) clearTimeout(movieTimeout.current);
     if (q.length < 2) { setMovieResults([]); return; }
     movieTimeout.current = setTimeout(async () => {
-      const res = await fetch(
-        `https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`
-      );
-      const data = await res.json();
-      setMovieResults((data.results ?? []).slice(0, 5));
+      const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+      const [movieRes, tvRes] = await Promise.all([
+        fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(q)}&include_adult=false`).then((r) => r.json()).catch(() => ({ results: [] })),
+        fetch(`https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(q)}&include_adult=false`).then((r) => r.json()).catch(() => ({ results: [] })),
+      ]);
+      const movies = (movieRes.results ?? []).slice(0, 4).map((m: { id: number; title: string; poster_path: string | null; release_date: string }) => ({ ...m, mediaType: "movie" as const }));
+      const shows = (tvRes.results ?? []).slice(0, 3).map((s: { id: number; name: string; poster_path: string | null; first_air_date: string }) => ({
+        id: s.id, title: s.name, poster_path: s.poster_path, release_date: s.first_air_date ?? "", mediaType: "tv" as const,
+      }));
+      setMovieResults([...movies, ...shows]);
     }, 300);
   }
 
   function selectMovie(movie: MovieOption) {
     setMovieQuery("");
     setMovieResults([]);
-    update({ movie: String(movie.id), movieLabel: movie.title });
+    update({ movie: String(movie.id), movieLabel: movie.title, movieMediaType: movie.mediaType });
   }
 
   function clearMovie() {
-    update({ movie: null, movieLabel: null });
+    update({ movie: null, movieLabel: null, movieMediaType: null });
   }
 
   function toggleDept(dept: string) {
@@ -257,7 +263,7 @@ export default function CelebritiesFilterBar({ totalResults }: Props) {
 
           {/* Movie filter */}
           <div>
-            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Appeared In Movie</p>
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Appeared In</p>
             {currentMovie ? (
               <div className="flex items-center gap-1.5 bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/50 rounded-full px-3 py-1 text-sm text-white w-fit">
                 {currentMovieLabel || `Movie ID ${currentMovie}`}
@@ -269,7 +275,7 @@ export default function CelebritiesFilterBar({ totalResults }: Props) {
                 <input
                   value={movieQuery}
                   onChange={(e) => searchMoviesForFilter(e.target.value)}
-                  placeholder="Search for a movie…"
+                  placeholder="Search movie or show…"
                   className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:border-[var(--ratist-red)]"
                 />
                 {movieResults.length > 0 && (
@@ -281,8 +287,11 @@ export default function CelebritiesFilterBar({ totalResults }: Props) {
                         ) : (
                           <div className="w-6 h-9 rounded bg-[var(--surface-2)] shrink-0" />
                         )}
-                        <div>
-                          <p className="text-sm text-white">{m.title}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm text-white">{m.title}</p>
+                            {m.mediaType === "tv" && <span className="text-[8px] font-bold bg-blue-600/30 text-blue-400 px-1 py-0.5 rounded">TV</span>}
+                          </div>
                           {m.release_date && <p className="text-xs text-[var(--foreground-muted)]">{m.release_date.slice(0, 4)}</p>}
                         </div>
                       </button>
