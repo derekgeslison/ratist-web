@@ -75,7 +75,14 @@ export default function WatchlistPage() {
 
   /* ── Data state ── */
   const [watchlists, setWatchlists] = useState<WatchlistMeta[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return sessionStorage.getItem("ratist-watchlist-active") || null; } catch { return null; }
+  });
+  function setActiveId(id: string | null) {
+    setActiveIdState(id);
+    try { if (id) sessionStorage.setItem("ratist-watchlist-active", id); else sessionStorage.removeItem("ratist-watchlist-active"); } catch { /* ignore */ }
+  }
   const [movies, setMovies] = useState<WatchlistMovie[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMovies, setLoadingMovies] = useState(false);

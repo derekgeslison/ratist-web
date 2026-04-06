@@ -62,33 +62,34 @@ export default function MovieDetailTabs({
   rent,
   reviews,
 }: Props) {
-  function tabFromHash(): Tab {
-    if (typeof window === "undefined") return "Overview";
-    const hash = window.location.hash.slice(1).replace(/-/g, " ");
-    return TABS.find((t) => t.toLowerCase() === hash.toLowerCase()) ?? "Overview";
+  function tabToHash(tab: Tab): string {
+    return tab.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-").replace(/'/g, "");
   }
 
-  const [activeTab, setActiveTabState] = useState<Tab>(tabFromHash);
+  function hashToTab(): Tab {
+    if (typeof window === "undefined") return "Overview";
+    const hash = window.location.hash.slice(1);
+    if (!hash) return "Overview";
+    return TABS.find((t) => tabToHash(t) === hash) ?? "Overview";
+  }
+
+  const [activeTab, setActiveTabState] = useState<Tab>(hashToTab);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
 
-  // Sync tab from URL hash on back/forward navigation
   useEffect(() => {
-    function onHashChange() { setActiveTabState(tabFromHash()); }
-    window.addEventListener("hashchange", onHashChange);
-    window.addEventListener("popstate", onHashChange);
-    // Also check on mount in case initial state was wrong
-    setActiveTabState(tabFromHash());
-    return () => {
-      window.removeEventListener("hashchange", onHashChange);
-      window.removeEventListener("popstate", onHashChange);
-    };
+    function sync() { setActiveTabState(hashToTab()); }
+    window.addEventListener("hashchange", sync);
+    window.addEventListener("popstate", sync);
+    sync();
+    return () => { window.removeEventListener("hashchange", sync); window.removeEventListener("popstate", sync); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function setActiveTab(tab: Tab) {
     setActiveTabState(tab);
-    const hash = tab === "Overview" ? "" : `#${tab.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-").replace(/'/g, "")}`;
+    const hash = tab === "Overview" ? "" : `#${tabToHash(tab)}`;
     window.history.replaceState(null, "", hash || window.location.pathname + window.location.search);
   }
 

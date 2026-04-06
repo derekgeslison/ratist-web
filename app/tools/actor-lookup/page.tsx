@@ -154,42 +154,37 @@ function ActorLookupContent() {
     setContentQuery(""); setContentResults([]); setSelectedContent(null); setCastList(null);
   }
 
-  // Handle back navigation — restore previous state from sessionStorage
-  useEffect(() => {
-    function onPopState() {
-      try {
-        const s = JSON.parse(sessionStorage.getItem(LOOKUP_KEY) ?? "{}");
-        if (s.mode) setMode(s.mode);
-        if (s.mode === "content" || s.selectedContent) {
-          setSelectedPerson(null);
-          setSeenItems(null);
-          setSelectedContent(s.selectedContent ?? null);
-          setCastList(s.castList ?? null);
-        } else {
-          setSelectedPerson(s.selectedPerson ?? null);
-          setSeenItems(s.seenItems ?? null);
-          setSelectedContent(null);
-          setCastList(null);
-        }
-      } catch { /* ignore */ }
-    }
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  // When clicking a cast member from content-first mode, save the content state
+  // so that if the user navigates away and comes back, the person results show.
+  // The content state is preserved separately so a manual "back to cast list" works.
+  const [previousContentState, setPreviousContentState] = useState<{
+    selectedContent: ContentSearchResult | null;
+    castList: CastMember[] | null;
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return JSON.parse(sessionStorage.getItem(`${LOOKUP_KEY}-prev`) ?? "null"); } catch { return null; }
+  });
 
   function selectPersonFromCast(person: PersonResult) {
-    // Save current content state before switching, so back restores it
-    try {
-      sessionStorage.setItem(LOOKUP_KEY, JSON.stringify({
-        mode: "content", selectedContent, castList,
-      }));
-    } catch { /* ignore */ }
-    // Push a new history entry so back button works
-    window.history.pushState({ lookupMode: "person" }, "");
+    // Save current content state so user can go "back to cast list"
+    const prev = { selectedContent, castList };
+    setPreviousContentState(prev);
+    try { sessionStorage.setItem(`${LOOKUP_KEY}-prev`, JSON.stringify(prev)); } catch { /* ignore */ }
     setMode("person");
     setSelectedContent(null);
     setCastList(null);
     setTimeout(() => selectPerson(person), 0);
+  }
+
+  function backToCastList() {
+    if (!previousContentState) return;
+    setMode("content");
+    setSelectedContent(previousContentState.selectedContent);
+    setCastList(previousContentState.castList);
+    setSelectedPerson(null);
+    setSeenItems(null);
+    setPreviousContentState(null);
+    try { sessionStorage.removeItem(`${LOOKUP_KEY}-prev`); } catch { /* ignore */ }
   }
 
   // Auto-select person from URL params
@@ -272,7 +267,15 @@ function ActorLookupContent() {
 
           {selectedPerson && (
             <div>
-              <div className="mb-4">
+              <div className="flex items-center gap-4 mb-4">
+                {previousContentState && (
+                  <button
+                    onClick={backToCastList}
+                    className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  >
+                    &larr; Back to {previousContentState.selectedContent?.title ?? previousContentState.selectedContent?.name ?? "cast list"}
+                  </button>
+                )}
                 <Link
                   href={`/celebrities/${selectedPerson.id}`}
                   className="inline-flex items-center gap-1.5 text-sm text-[var(--ratist-red)] hover:underline"

@@ -60,22 +60,32 @@ function getWatchDateOrFallback(m: SeenEntry): Date {
   return getWatchDate(m) ?? new Date(m.seenAt);
 }
 
+const DIARY_KEY = "ratist-diary-state";
+
 export default function SeenPage() {
   const { user } = useAuth();
   const [movies, setMovies] = useState<SeenMovie[]>([]);
   const [episodeGroups, setEpisodeGroups] = useState<EpisodeGroup[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Restore view preferences from sessionStorage
+  const restored = typeof window !== "undefined" ? (() => { try { return JSON.parse(sessionStorage.getItem(DIARY_KEY) ?? "{}"); } catch { return {}; } })() : {};
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
   const [ratingFilter, setRatingFilter] = useState<"" | "8+" | "6+" | "unrated">("");
-  const [view, setView] = useState<ViewMode>("month");
-  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
-  const [sort, setSort] = useState<"date" | "title" | "rating">("date");
+  const [view, setView] = useState<ViewMode>(restored.view ?? "month");
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">(restored.mediaFilter ?? "all");
+  const [sort, setSort] = useState<"date" | "title" | "rating">(restored.sort ?? "date");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const now = new Date();
-  const [calYear, setCalYear] = useState(now.getFullYear());
-  const [calMonth, setCalMonth] = useState(now.getMonth());
+  const [calYear, setCalYear] = useState(restored.calYear ?? now.getFullYear());
+  const [calMonth, setCalMonth] = useState(restored.calMonth ?? now.getMonth());
+
+  // Persist view preferences
+  useEffect(() => {
+    try { sessionStorage.setItem(DIARY_KEY, JSON.stringify({ view, mediaFilter, sort, calYear, calMonth })); } catch { /* ignore */ }
+  }, [view, mediaFilter, sort, calYear, calMonth]);
 
   function refetchEpisodeGroups() {
     if (!user) return;
@@ -301,13 +311,13 @@ export default function SeenPage() {
 
   function prevMonth() {
     setSelectedDay(null);
-    if (calMonth === 0) { setCalMonth(11); setCalYear((y) => y - 1); }
-    else setCalMonth((m) => m - 1);
+    if (calMonth === 0) { setCalMonth(11); setCalYear((y: number) => y - 1); }
+    else setCalMonth((m: number) => m - 1);
   }
   function nextMonth() {
     setSelectedDay(null);
-    if (calMonth === 11) { setCalMonth(0); setCalYear((y) => y + 1); }
-    else setCalMonth((m) => m + 1);
+    if (calMonth === 11) { setCalMonth(0); setCalYear((y: number) => y + 1); }
+    else setCalMonth((m: number) => m + 1);
   }
 
   /** Render diary rows for a list of entries grouped by day, with day numbers on the left */
