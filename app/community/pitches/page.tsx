@@ -43,6 +43,7 @@ export default function PitchesPage() {
   const [error, setError] = useState("");
   const [votingId, setVotingId] = useState<string | null>(null);
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
+  const [expandedDesc, setExpandedDesc] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -196,9 +197,9 @@ export default function PitchesPage() {
           />
           <textarea
             value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value.slice(0, 1000))}
+            onChange={(e) => setNewDesc(e.target.value.slice(0, 5000))}
             placeholder="Describe your idea — premise, characters, tone, what makes it unique…"
-            rows={4}
+            rows={6}
             className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--foreground-muted)] resize-none focus:outline-none focus:border-emerald-400 mb-3"
           />
           <select
@@ -211,8 +212,8 @@ export default function PitchesPage() {
           </select>
 
           <div className="flex items-center justify-between">
-            <span className={`text-xs ${newDesc.length > 900 ? "text-emerald-400" : "text-[var(--foreground-muted)]"}`}>
-              {newDesc.length}/1000
+            <span className={`text-xs ${newDesc.length > 4500 ? "text-emerald-400" : "text-[var(--foreground-muted)]"}`}>
+              {newDesc.length}/5000
             </span>
             <div className="flex items-center gap-2">
               {error && <p className="text-red-400 text-xs">{error}</p>}
@@ -322,7 +323,27 @@ export default function PitchesPage() {
                       {isPopular && <Lightbulb className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
                     <h3 className="text-base font-semibold text-white mb-1">{item.title}</h3>
-                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-line">{item.description}</p>
+                    <div className="relative">
+                      <p className={`text-sm text-white/80 leading-relaxed whitespace-pre-line ${!expandedDesc.has(item.id) ? "line-clamp-2" : ""}`}>
+                        {item.description}
+                      </p>
+                      {item.description.length > 120 && !expandedDesc.has(item.id) && (
+                        <button
+                          onClick={() => setExpandedDesc((prev) => { const next = new Set(prev); next.add(item.id); return next; })}
+                          className="text-xs text-emerald-400 hover:underline mt-1"
+                        >
+                          See all
+                        </button>
+                      )}
+                      {expandedDesc.has(item.id) && item.description.length > 120 && (
+                        <button
+                          onClick={() => setExpandedDesc((prev) => { const next = new Set(prev); next.delete(item.id); return next; })}
+                          className="text-xs text-emerald-400 hover:underline mt-1"
+                        >
+                          Show less
+                        </button>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 mt-3">
                       <button
                         onClick={() => vote(item.id, 1)}

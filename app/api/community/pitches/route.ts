@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   if (!title?.trim()) return NextResponse.json({ error: "Title required" }, { status: 400 });
   if (!description?.trim()) return NextResponse.json({ error: "Description required" }, { status: 400 });
   if (title.length > 100) return NextResponse.json({ error: "Title max 100 characters" }, { status: 400 });
-  if (description.length > 1000) return NextResponse.json({ error: "Description max 1000 characters" }, { status: 400 });
+  if (description.length > 5000) return NextResponse.json({ error: "Description max 5000 characters" }, { status: 400 });
 
   const item = await prisma.moviePitch.create({
     data: {
