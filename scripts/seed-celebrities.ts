@@ -5,7 +5,8 @@
  * Fetches cast from top-rated and popular movies/shows across many pages,
  * then fetches person details to get birthday data.
  */
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
