@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 import PosterOverlay from "@/components/PosterOverlay";
+import MovieCard from "@/components/MovieCard";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -286,40 +287,14 @@ export default async function MovieDetailPage({ params }: Props) {
                 .map((part) => {
                   const isCurrent = part.id === movie.id;
                   return (
-                    <Link
-                      key={part.id}
-                      href={`/movies/${part.id}`}
-                      className={`shrink-0 w-28 group ${isCurrent ? "opacity-100" : "opacity-70 hover:opacity-100"} transition-opacity`}
-                    >
-                      <PosterOverlay tmdbId={part.id} title={part.title} posterPath={part.poster_path} releaseDate={part.release_date} voteAverage={part.vote_average} showRatings>
-                        <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] ${isCurrent ? "ring-2 ring-[var(--ratist-red)]" : "border border-[var(--border)]"}`}>
-                          {part.poster_path ? (
-                            <Image
-                              src={posterUrl(part.poster_path, "w185")}
-                              alt={part.title}
-                              fill
-                              sizes="112px"
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)] p-2 text-center">
-                              {part.title}
-                            </div>
-                          )}
-                          {isCurrent && (
-                            <div className="absolute top-1.5 left-1.5 bg-[var(--ratist-red)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-10">
-                              Current
-                            </div>
-                          )}
+                    <div key={part.id} className={`shrink-0 w-[140px] relative ${isCurrent ? "" : "opacity-70 hover:opacity-100"} transition-opacity`}>
+                      {isCurrent && (
+                        <div className="absolute top-1.5 left-1.5 bg-[var(--ratist-red)] text-white text-[9px] font-bold px-1.5 py-0.5 rounded z-20">
+                          Current
                         </div>
-                      </PosterOverlay>
-                      <p className="text-[11px] text-white mt-1.5 line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">
-                        {part.title}
-                      </p>
-                      <p className="text-[10px] text-[var(--foreground-muted)]">
-                        {part.release_date?.slice(0, 4) ?? "TBA"}
-                      </p>
-                    </Link>
+                      )}
+                      <MovieCard movie={part as TMDBMovie} />
+                    </div>
                   );
                 })}
             </div>
