@@ -462,7 +462,7 @@ export default function CineQPage() {
         </div>
 
         {/* Clues — fixed height container so answers never shift */}
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4" style={{ minHeight: 280 }}>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4 overflow-y-auto" style={{ height: 300 }}>
           {Array.from({ length: 5 }, (_, pi) => (
             <div key={pi} className={pi > 0 ? "mt-3 pt-3 border-t border-[var(--border)]" : ""}>
               {pi <= currentPhase ? (
