@@ -82,12 +82,6 @@ export default function HeroBanner({ movies }: Props) {
                 href={`/movies/${movie.id}`}
                 className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold text-sm px-5 py-2.5 rounded-full transition-colors"
               >
-                Rate It
-              </Link>
-              <Link
-                href={`/movies/${movie.id}`}
-                className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors border border-[var(--border)] hover:border-white px-5 py-2.5 rounded-full"
-              >
                 Explore Movie
               </Link>
             </div>
