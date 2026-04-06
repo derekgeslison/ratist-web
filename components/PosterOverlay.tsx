@@ -70,30 +70,32 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
   }
 
   return (
-    <div className="relative group/poster">
-      {children}
-      {user && (
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/poster:opacity-100 transition-opacity flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg">
-          <button
-            onClick={markSeen}
-            disabled={markingS || seen}
-            className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-              seen ? "bg-green-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
-            }`}
-          >
-            {seen ? <><Check className="w-3 h-3" /> Seen</> : <><Eye className="w-3 h-3" /> {markingS ? "..." : "Seen"}</>}
-          </button>
-          <button
-            onClick={addToWatchlist}
-            disabled={markingW || watchlisted}
-            className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-              watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
-            }`}
-          >
-            {watchlisted ? <><BookmarkCheck className="w-3 h-3" /> Listed</> : <><Bookmark className="w-3 h-3" /> {markingW ? "..." : "Watchlist"}</>}
-          </button>
-        </div>
-      )}
+    <div className="group/poster">
+      <div className="relative">
+        {children}
+        {user && (
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/poster:opacity-100 transition-opacity flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg z-10">
+            <button
+              onClick={markSeen}
+              disabled={markingS || seen}
+              className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                seen ? "bg-green-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+              }`}
+            >
+              {seen ? <><Check className="w-3 h-3" /> Seen</> : <><Eye className="w-3 h-3" /> {markingS ? "..." : "Seen"}</>}
+            </button>
+            <button
+              onClick={addToWatchlist}
+              disabled={markingW || watchlisted}
+              className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+              }`}
+            >
+              {watchlisted ? <><BookmarkCheck className="w-3 h-3" /> Listed</> : <><Bookmark className="w-3 h-3" /> {markingW ? "..." : "Watchlist"}</>}
+            </button>
+          </div>
+        )}
+      </div>
       {showRatings && (
         <div className="flex items-center gap-2 mt-0.5">
           <RatingBadge type="community" score={communityScore} size="sm" />
