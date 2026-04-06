@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Users, Sparkles, TrendingUp, Bookmark, AlertCircle } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Bookmark, AlertCircle, RefreshCw } from "lucide-react";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 
@@ -84,18 +84,24 @@ export default function ForYouPage() {
   const { user, loading } = useAuth();
   const [data, setData] = useState<FeedData | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchFeed = useCallback(async (isRefresh = false) => {
+    if (!user) { setFetching(false); return; }
+    if (isRefresh) setRefreshing(true); else setFetching(true);
+    try {
+      const token = await user.getIdToken();
+      const seed = Date.now();
+      const res = await fetch(`/api/feed/for-you?seed=${seed}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setData(await res.json());
+    } catch { /* ignore */ }
+    finally { setFetching(false); setRefreshing(false); }
+  }, [user]);
 
   useEffect(() => {
     if (loading) return;
-    if (!user) { setFetching(false); return; }
-    user.getIdToken().then((token) =>
-      fetch("/api/feed/for-you", { headers: { Authorization: `Bearer ${token}` } })
-    )
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setFetching(false));
-  }, [user, loading]);
+    fetchFeed();
+  }, [loading, fetchFeed]);
 
   if (loading || fetching) {
     return (
@@ -129,9 +135,19 @@ export default function ForYouPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
-      <div>
-        <h1 className="text-2xl font-bold text-white mb-1">For You</h1>
-        <p className="text-sm text-[var(--foreground-muted)]">Your personalized feed based on your taste, activity, and who you follow.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">For You</h1>
+          <p className="text-sm text-[var(--foreground-muted)]">Your personalized feed based on your taste, activity, and who you follow.</p>
+        </div>
+        <button
+          onClick={() => fetchFeed(true)}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
       {isEmpty && (
