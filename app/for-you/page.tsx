@@ -123,43 +123,38 @@ export default function ForYouPage() {
             <Users className="w-5 h-5 text-[var(--ratist-red)]" />
             <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
           </div>
-          <div className="space-y-3">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
             {data.followActivity.map((item) => (
               <Link
                 key={item.id}
                 href={`/${item.type === "tv" ? "shows" : "movies"}/${item.tmdbId}`}
-                className="flex gap-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors"
+                className="flex-shrink-0 w-32 group"
               >
-                <div className="relative w-12 h-[72px] shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
+                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] mb-2 border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                   {item.posterPath && (
-                    <Image src={posterUrl(item.posterPath, "w92")} alt={item.title} fill sizes="48px" className="object-cover" />
+                    <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="128px" className="object-cover" />
                   )}
                   {item.type === "tv" && (
-                    <div className="absolute top-0.5 left-0.5 bg-blue-600/90 text-white rounded px-0.5 py-0.5 flex items-center gap-0.5">
-                      <Tv className="w-2 h-2" />
+                    <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
+                      <Tv className="w-2.5 h-2.5" />
+                      <span className="text-[8px] font-bold leading-none">TV</span>
+                    </div>
+                  )}
+                  {item.rating != null && (
+                    <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1.5 py-0.5">
+                      <span className="text-xs font-bold" style={{ color: scoreColor(item.rating) }}>{item.rating.toFixed(1)}</span>
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    {item.user.avatarUrl ? (
-                      <Image src={item.user.avatarUrl} alt="" width={18} height={18} className="w-[18px] h-[18px] rounded-full object-cover" />
-                    ) : (
-                      <div className="w-[18px] h-[18px] rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-[8px] font-bold text-white">{item.user.name[0]}</div>
-                    )}
-                    <span className="text-xs font-medium text-white">{item.user.name}</span>
-                    <span className="text-xs text-[var(--foreground-muted)]">rated</span>
-                  </div>
-                  <p className="text-sm font-medium text-white line-clamp-1">{item.title}</p>
-                  {item.reviewSnippet && (
-                    <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2">&ldquo;{item.reviewSnippet}&rdquo;</p>
+                <p className="text-xs font-medium text-white line-clamp-1">{item.title}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {item.user.avatarUrl ? (
+                    <Image src={item.user.avatarUrl} alt="" width={14} height={14} className="w-3.5 h-3.5 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-3.5 h-3.5 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-[6px] font-bold text-white">{item.user.name[0]}</div>
                   )}
+                  <span className="text-[10px] text-[var(--foreground-muted)] line-clamp-1">{item.user.name}</span>
                 </div>
-                {item.rating != null && (
-                  <div className="flex items-center shrink-0">
-                    <span className="text-lg font-bold" style={{ color: scoreColor(item.rating) }}>{item.rating.toFixed(1)}</span>
-                  </div>
-                )}
               </Link>
             ))}
           </div>
