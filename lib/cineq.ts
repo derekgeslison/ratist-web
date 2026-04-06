@@ -57,32 +57,43 @@ interface TierConfig {
 function getTiers(difficulty: string): { tier: TierConfig; count: number }[] {
   if (difficulty === "easy") {
     return [
-      // 80% popular/top-rated
-      { tier: { voteMin: 3000, popSort: "popularity.desc", pages: [1, 2, 3, 4, 5] }, count: 8 },
-      // 20% moderately known
-      { tier: { voteMin: 1000, voteMax: 3000, popSort: "vote_average.desc", pages: [1, 2, 3], language: "en" }, count: 2 },
+      { tier: { voteMin: 5000, popSort: "popularity.desc", pages: [1, 2, 3, 4, 5] }, count: 8 },
+      { tier: { voteMin: 2000, voteMax: 5000, popSort: "vote_average.desc", pages: [1, 2, 3], language: "en" }, count: 2 },
     ];
   } else if (difficulty === "hard") {
     return [
-      // 20% popular
-      { tier: { voteMin: 3000, popSort: "popularity.desc", pages: [3, 4, 5, 6, 7] }, count: 2 },
-      // 40% somewhat known
-      { tier: { voteMin: 500, voteMax: 2000, popSort: "vote_average.desc", pages: [1, 2, 3, 4], language: "en" }, count: 4 },
-      // 40% lesser known (but still English, still reviewed)
-      { tier: { voteMin: 200, voteMax: 500, popSort: "vote_average.desc", pages: [1, 2, 3], language: "en" }, count: 4 },
+      { tier: { voteMin: 5000, popSort: "popularity.desc", pages: [3, 4, 5, 6, 7] }, count: 2 },
+      { tier: { voteMin: 1000, voteMax: 3000, popSort: "vote_average.desc", pages: [1, 2, 3, 4], language: "en" }, count: 4 },
+      { tier: { voteMin: 500, voteMax: 1000, popSort: "vote_average.desc", pages: [1, 2, 3], language: "en" }, count: 4 },
     ];
   } else {
-    // Medium: 50/50
     return [
-      // 50% popular
-      { tier: { voteMin: 2000, popSort: "popularity.desc", pages: [1, 2, 3, 4, 5] }, count: 5 },
-      // 50% moderately known
-      { tier: { voteMin: 500, voteMax: 2000, popSort: "vote_average.desc", pages: [1, 2, 3, 4], language: "en" }, count: 5 },
+      { tier: { voteMin: 3000, popSort: "popularity.desc", pages: [1, 2, 3, 4, 5] }, count: 5 },
+      { tier: { voteMin: 1000, voteMax: 3000, popSort: "vote_average.desc", pages: [1, 2, 3, 4], language: "en" }, count: 5 },
     ];
   }
 }
 
 // ─── TMDB fetchers ───────────────────────────────────────────────────────────
+
+// Validate a movie/show has enough data for all quiz phases
+function hasRequiredData(item: TMDBMovieFull | TMDBShowFull, type: "movie" | "tv"): boolean {
+  if (type === "movie") {
+    const m = item as TMDBMovieFull;
+    const director = m.credits?.crew?.find((c) => c.job === "Director")?.name;
+    const cast = m.credits?.cast?.sort((a, b) => a.order - b.order).slice(0, 2) ?? [];
+    const mpa = getMpaaRating(m);
+    const year = parseInt(m.release_date?.slice(0, 4) ?? "0", 10);
+    // Must have: title, year >=1960, director, at least 1 actor, rating or MPA, genres
+    return !!(m.title && year >= 1960 && director && cast.length >= 1 && (mpa || m.vote_average > 0) && m.genres?.length);
+  } else {
+    const s = item as TMDBShowFull;
+    const creator = s.created_by?.[0]?.name;
+    const cast = s.aggregate_credits?.cast?.sort((a, b) => a.order - b.order).slice(0, 2) ?? [];
+    const year = parseInt(s.first_air_date?.slice(0, 4) ?? "0", 10);
+    return !!(s.name && year >= 1960 && (creator || cast.length >= 1) && s.genres?.length);
+  }
+}
 
 async function fetchFromTier(
   type: "movie" | "tv",
@@ -92,10 +103,12 @@ async function fetchFromTier(
   const endpoint = type === "movie" ? "discover/movie" : "discover/tv";
   const voteMax = tier.voteMax ? `&vote_count.lte=${tier.voteMax}` : "";
   const langParam = tier.language ? `&with_original_language=${tier.language}` : "";
+  const dateKey = type === "movie" ? "primary_release_date" : "first_air_date";
+  const yearFloor = `&${dateKey}.gte=1960-01-01`;
 
   const pages = await Promise.all(
     tier.pages.map((p) =>
-      fetch(`${BASE}/${endpoint}?api_key=${API_KEY}&sort_by=${tier.popSort}&vote_count.gte=${tier.voteMin}${voteMax}${langParam}&page=${p}&include_adult=false`, { next: { revalidate: 86400 } })
+      fetch(`${BASE}/${endpoint}?api_key=${API_KEY}&sort_by=${tier.popSort}&vote_count.gte=${tier.voteMin}${voteMax}${langParam}${yearFloor}&page=${p}&include_adult=false`, { next: { revalidate: 86400 } })
         .then((r) => r.json())
         .catch(() => ({ results: [] }))
     )
@@ -113,7 +126,7 @@ async function fetchFromTier(
     )
   );
 
-  return detailed.filter(Boolean).slice(0, count);
+  return detailed.filter((item) => item && hasRequiredData(item, type)).slice(0, count);
 }
 
 async function fetchMoviePool(difficulty: string, count: number): Promise<TMDBMovieFull[]> {
@@ -182,32 +195,32 @@ function buildMovieClues(movie: TMDBMovieFull, difficulty: string): string[][] {
   const overview = movie.overview?.slice(0, 200) ?? "No description available";
   const overviewClue = overview + (movie.overview && movie.overview.length > 200 ? "…" : "");
   const bonuses = buildBonusClues(movie, cast);
-  const bonusClue = bonuses[0] ?? "No additional clues";
+  const bonusClue = bonuses[0] ?? "Think carefully...";
 
   if (difficulty === "easy") {
     // Easy: Year+Director → Lead actor+Genre → Rating+Supporting → Bonus → Overview
     return [
       [`Released in ${year}`, `Directed by ${director}`],
-      [cast[0] ? `Starring ${cast[0]}` : "Unknown lead", `Genre: ${genres}`],
-      [mpa ? `Rated ${mpa}` : "Rating unavailable", cast[1] ? `Also starring ${cast[1]}` : bonusClue],
+      [cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld", `Genre: ${genres}`],
+      [mpa ? `Rated ${mpa}` : "No rating available", cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
       [bonuses[0] ?? bonusClue, bonuses[1] ?? ""].filter(Boolean),
       [overviewClue],
     ];
   } else if (difficulty === "hard") {
     // Hard: Genre+Rating → Year → Supporting actor → Director+Lead actor → Bonus (no overview)
     return [
-      [`Genre: ${genres}`, mpa ? `Rated ${mpa}` : "Rating unavailable"],
+      [`Genre: ${genres}`, mpa ? `Rated ${mpa}` : "No rating available"],
       [`Released in ${year}`],
-      [cast[1] ? `Also starring ${cast[1]}` : bonusClue],
-      [`Directed by ${director}`, cast[0] ? `Starring ${cast[0]}` : "Unknown lead"],
+      [cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
+      [`Directed by ${director}`, cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
       [bonuses[0] ?? bonusClue],
     ];
   } else {
     // Medium: Genre+Director → Year+Supporting → Rating+Lead actor → Bonus → Overview
     return [
       [`Genre: ${genres}`, `Directed by ${director}`],
-      [`Released in ${year}`, cast[1] ? `Also starring ${cast[1]}` : bonusClue],
-      [mpa ? `Rated ${mpa}` : "Rating unavailable", cast[0] ? `Starring ${cast[0]}` : "Unknown lead"],
+      [`Released in ${year}`, cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
+      [mpa ? `Rated ${mpa}` : "No rating available", cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
       [bonuses[0] ?? bonusClue, bonuses[1] ?? ""].filter(Boolean),
       [overviewClue],
     ];
@@ -235,29 +248,29 @@ function buildShowClues(show: TMDBShowFull, difficulty: string): string[][] {
   if (show.number_of_seasons) bonuses.push(`${show.number_of_seasons} season${show.number_of_seasons !== 1 ? "s" : ""}`);
   if (cast[2]) bonuses.push(`Also features ${cast[2]}`);
   const shuffledBonuses = bonuses.sort(() => Math.random() - 0.5);
-  const bonusClue = shuffledBonuses[0] ?? "No additional clues";
+  const bonusClue = shuffledBonuses[0] ?? "Think carefully...";
 
   if (difficulty === "easy") {
     return [
       [`Aired: ${yearSpan}`, `Created by ${creator}`],
-      [cast[0] ? `Starring ${cast[0]}` : "Unknown lead", `Genre: ${genres}`],
-      [tvRating ? `Rated ${tvRating}` : "Rating unavailable", cast[1] ? `Also starring ${cast[1]}` : bonusClue],
+      [cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld", `Genre: ${genres}`],
+      [tvRating ? `Rated ${tvRating}` : "No rating available", cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
       [shuffledBonuses[0] ?? bonusClue, shuffledBonuses[1] ?? ""].filter(Boolean),
       [overviewClue],
     ];
   } else if (difficulty === "hard") {
     return [
-      [`Genre: ${genres}`, tvRating ? `Rated ${tvRating}` : "Rating unavailable"],
+      [`Genre: ${genres}`, tvRating ? `Rated ${tvRating}` : "No rating available"],
       [`Aired: ${yearSpan}`],
-      [cast[1] ? `Also starring ${cast[1]}` : bonusClue],
-      [`Created by ${creator}`, cast[0] ? `Starring ${cast[0]}` : "Unknown lead"],
+      [cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
+      [`Created by ${creator}`, cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
       [shuffledBonuses[0] ?? bonusClue],
     ];
   } else {
     return [
       [`Genre: ${genres}`, `Created by ${creator}`],
-      [`Aired: ${yearSpan}`, cast[1] ? `Also starring ${cast[1]}` : bonusClue],
-      [tvRating ? `Rated ${tvRating}` : "Rating unavailable", cast[0] ? `Starring ${cast[0]}` : "Unknown lead"],
+      [`Aired: ${yearSpan}`, cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
+      [tvRating ? `Rated ${tvRating}` : "No rating available", cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
       [shuffledBonuses[0] ?? bonusClue, shuffledBonuses[1] ?? ""].filter(Boolean),
       [overviewClue],
     ];

@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     if (!daily) return NextResponse.json({ entries: [] });
 
     const attempts = await prisma.cineQAttempt.findMany({
-      where: { dailyId: daily.id },
+      where: { dailyId: daily.id, status: "completed", rawScore: { gt: 0 } },
       select: {
         rawScore: true,
         createdAt: true,

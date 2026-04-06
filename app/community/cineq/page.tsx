@@ -9,7 +9,7 @@ import ShareButton from "@/components/ShareButton";
 import { playCountdownBeep, playDoubleDing, warmUpAudio } from "@/lib/screening";
 
 interface QuizQuestion { index: number; mediaType: string; phases: string[][]; options: string[]; answerIdx: number; }
-interface AnswerResult { questionIndex: number; selectedOption: string; timeElapsed: number; wrongGuesses: number; correct: boolean; points: number; answer: string | null; posterPath: string | null; }
+interface AnswerResult { questionIndex: number; selectedOption: string; timeElapsed: number; wrongGuesses: number; correct: boolean; points: number; posterPath: string | null; }
 interface Stats { weightedLifetime: number; avgRawScore: number; bestDailyScore: number; totalDailyQuizzes: number; totalPracticeQuizzes: number; accuracy: number; avgWrongGuessesPerQuiz: number; dailyStreak: number; playedToday: string[]; }
 
 const SECS = 25;
@@ -65,6 +65,10 @@ export default function CineQPage() {
   const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [quizError, setQuizError] = useState("");
 
+  // Mini leaderboard data
+  const [miniLeader, setMiniLeader] = useState<{ name: string; avatarUrl: string | null; firebaseUid: string; rawScore: number; difficulty: string; mediaType: string } | null>(null);
+  const [communityAvg, setCommunityAvg] = useState<number | null>(null);
+
   const fetchStats = useCallback(async () => {
     if (!user) return;
     const token = await user.getIdToken();
@@ -73,13 +77,45 @@ export default function CineQPage() {
   }, [user]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  // Warn before leaving during quiz
+  // Fetch mini leaderboard
   useEffect(() => {
-    if (screen !== "quiz" && screen !== "questionEnd" && screen !== "countdown" && screen !== "ready") return;
+    Promise.all(
+      ["movie", "tv", "both"].flatMap((mt) =>
+        ["easy", "medium", "hard"].map((d) =>
+          fetch(`/api/cineq/leaderboard?mediaType=${mt}&difficulty=${d}`).then((r) => r.json()).catch(() => ({ entries: [] }))
+        )
+      )
+    ).then((allResults) => {
+      let best: typeof miniLeader = null;
+      let totalScore = 0, totalCount = 0;
+      for (const result of allResults) {
+        for (const entry of result.entries ?? []) {
+          totalScore += entry.rawScore; totalCount++;
+          if (!best || entry.rawScore > best.rawScore) {
+            best = { ...entry.user, rawScore: entry.rawScore, difficulty: result.difficulty ?? "", mediaType: result.mediaType ?? "" };
+          }
+        }
+      }
+      setMiniLeader(best);
+      setCommunityAvg(totalCount > 0 ? Math.round(totalScore / totalCount * 10) / 10 : null);
+    });
+  }, []);
+
+  // Warn before leaving during quiz + save partial on unload
+  useEffect(() => {
+    if (screen !== "quiz" && screen !== "questionEnd" && screen !== "countdown") return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    const saveOnUnload = () => {
+      if (mode === "daily" && attemptId && answers.length > 0) {
+        // Fire-and-forget partial save via beacon
+        const payload = JSON.stringify({ dailyId, attemptId, mode, mediaType, difficulty, answers, partial: true });
+        navigator.sendBeacon?.("/api/cineq/submit", new Blob([payload], { type: "application/json" }));
+      }
+    };
     window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [screen]);
+    window.addEventListener("pagehide", saveOnUnload);
+    return () => { window.removeEventListener("beforeunload", handler); window.removeEventListener("pagehide", saveOnUnload); };
+  }, [screen, mode, attemptId, dailyId, mediaType, difficulty, answers]);
 
   // Countdown timer with sound
   useEffect(() => {
@@ -211,6 +247,31 @@ export default function CineQPage() {
 
         {quizError && <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-400">{quizError}</div>}
 
+        {/* Mini leaderboard */}
+        {miniLeader && (
+          <div className="bg-[var(--surface)] border border-pink-400/30 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy className="w-4 h-4 text-yellow-400" />
+              <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Today&apos;s Top Score</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {miniLeader.avatarUrl && <Image src={miniLeader.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover" />}
+                <div>
+                  <Link href={`/profile/${miniLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400">{miniLeader.name}</Link>
+                  <p className="text-xs text-[var(--foreground-muted)]">{miniLeader.rawScore.toFixed(1)} pts · {miniLeader.difficulty} · {miniLeader.mediaType === "both" ? "Both" : miniLeader.mediaType === "tv" ? "TV" : "Movies"}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                {communityAvg != null && <p className="text-xs text-[var(--foreground-muted)]">Community avg: <span className="text-white font-medium">{communityAvg}</span></p>}
+              </div>
+            </div>
+            <Link href="/community/cineq/leaderboard" className="block mt-3 text-center text-xs text-pink-400 hover:underline">
+              View Full Leaderboard →
+            </Link>
+          </div>
+        )}
+
         {stats && stats.totalDailyQuizzes > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
             {[
@@ -340,7 +401,7 @@ export default function CineQPage() {
     const diffLabel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 flex flex-col" style={{ minHeight: "calc(100vh - 80px)" }}>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         {/* Header bar */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
@@ -389,8 +450,8 @@ export default function CineQPage() {
           ))}
         </div>
 
-        {/* Options — pushed to bottom for stability */}
-        <div className="mt-auto">
+        {/* Options — stable position with moderate spacing */}
+        <div className="mt-6">
           <div className="grid grid-cols-2 gap-3">
             {q.options.map((option) => {
               const isDisabled = disabledOptions.has(option);
@@ -423,17 +484,28 @@ export default function CineQPage() {
     const lastAnswer = answers[answers.length - 1];
     const qPoints = isCorrect ? Math.max(0, Math.round((100 - (lastAnswer?.timeElapsed ?? SECS) * PTS_SEC - (lastAnswer?.wrongGuesses ?? 0) * WRONG_PEN) * 10) / 10) : 0;
 
+    const typeLabel2 = mediaType === "both" ? "Movies & TV" : mediaType === "tv" ? "TV Shows" : "Movies";
+    const diffLabel2 = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm text-[var(--foreground-muted)]">Question {currentQ + 1} of {questions.length}</span>
-          <span className="text-sm text-[var(--foreground-muted)]">Total: <span className="text-white font-bold">{runningTotal.toFixed(1)}</span></span>
-        </div>
-
-        <div className="text-center mb-5">
-          <p className={`text-3xl font-black ${isCorrect ? "text-emerald-400" : "text-red-400"}`}>
-            {isCorrect ? `+${qPoints.toFixed(1)}` : "Incorrect"}
-          </p>
+        {/* Styled header bar matching quiz screen */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-pink-400" />
+              <span className="text-xs text-[var(--foreground-muted)]">{typeLabel2} · {diffLabel2} · Q{currentQ + 1}/{questions.length}</span>
+            </div>
+          </div>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center justify-between">
+            <p className={`text-2xl font-black ${isCorrect ? "text-emerald-400" : "text-red-400"}`}>
+              {isCorrect ? `+${qPoints.toFixed(1)}` : "Incorrect"}
+            </p>
+            <div className="flex flex-col items-center">
+              <span className="text-xl font-black tabular-nums text-white">{runningTotal.toFixed(1)}</span>
+              <span className="text-[9px] text-[var(--foreground-muted)]">total</span>
+            </div>
+          </div>
         </div>
 
         {/* Options with correct highlighted */}
@@ -508,10 +580,9 @@ export default function CineQPage() {
           {results.results.map((r, i) => (
             <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${r.correct ? "border-green-500/30 bg-green-500/5" : "border-red-500/30 bg-red-500/5"}`}>
               <span className="text-sm font-bold text-[var(--foreground-muted)] w-6">{i + 1}</span>
-              {r.posterPath && <Image src={`https://image.tmdb.org/t/p/w92${r.posterPath}`} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />}
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-white truncate">{r.answer ?? "Unknown"}</p>
-                <p className="text-xs text-[var(--foreground-muted)]">{r.timeElapsed.toFixed(1)}s · {r.wrongGuesses} wrong</p>
+                <p className="text-sm text-white">Question {i + 1}</p>
+                <p className="text-xs text-[var(--foreground-muted)]">{r.timeElapsed.toFixed(1)}s · {r.wrongGuesses} wrong guess{r.wrongGuesses !== 1 ? "es" : ""}</p>
               </div>
               <span className={`text-sm font-bold ${r.correct ? "text-green-400" : "text-red-400"}`}>{r.correct ? `+${r.points.toFixed(1)}` : "0"}</span>
             </div>

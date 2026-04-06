@@ -21,16 +21,19 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true } });
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { dailyId, attemptId, mode, mediaType, difficulty, answers } = await req.json() as {
+    const body = await req.json();
+    const { dailyId, attemptId, mode, mediaType, difficulty, answers } = body as {
       dailyId?: string;
       attemptId?: string;
       mode: "daily" | "practice";
       mediaType: string;
       difficulty: string;
       answers: AnswerData[];
+      partial?: boolean;
     };
 
-    if (!answers || answers.length !== 10) {
+    const isPartial = body.partial === true;
+    if (!answers || (!isPartial && answers.length !== 10)) {
       return NextResponse.json({ error: "Must submit exactly 10 answers" }, { status: 400 });
     }
 
@@ -60,10 +63,11 @@ export async function POST(req: NextRequest) {
 
     let rawScore = 0;
     const results = answers.map((a) => {
-      const correct = questions ? a.selectedOption === questions[a.questionIndex]?.answer : true; // practice mode — trust client
+      const correctAnswer = questions ? questions[a.questionIndex]?.answer : null;
+      const correct = correctAnswer ? a.selectedOption === correctAnswer : (a.selectedOption !== ""); // practice: non-empty = guessed
       const timePoints = Math.max(0, 100 - a.timeElapsed * POINTS_PER_SEC);
       const penalty = a.wrongGuesses * WRONG_PENALTY;
-      const qScore = Math.max(0, Math.round((timePoints - penalty) * 10) / 10);
+      const qScore = correct ? Math.max(0, Math.round((timePoints - penalty) * 10) / 10) : 0;
       rawScore += qScore;
       return {
         questionIndex: a.questionIndex,
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest) {
         timeElapsed: a.timeElapsed,
         wrongGuesses: a.wrongGuesses,
         points: qScore,
-        answer: questions ? questions[a.questionIndex]?.answer : null,
+        // Don't send answer titles to client (anti-cheat for sharing)
         posterPath: questions ? questions[a.questionIndex]?.posterPath : null,
       };
     });
@@ -82,9 +86,10 @@ export async function POST(req: NextRequest) {
     // Save attempt — update in_progress for daily, create new for practice
     let attempt;
     if (mode === "daily" && attemptId) {
+      const status = isPartial ? "abandoned" : "completed";
       attempt = await prisma.cineQAttempt.update({
         where: { id: attemptId },
-        data: { rawScore, answers: results as unknown as never, status: "completed" },
+        data: { rawScore, answers: results as unknown as never, status },
       });
     } else {
       attempt = await prisma.cineQAttempt.create({
