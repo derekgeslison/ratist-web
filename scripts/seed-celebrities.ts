@@ -55,13 +55,14 @@ async function main() {
 
   console.log(`Total unique people to process: ${personIds.size}`);
 
-  // Fetch person details and cache
+  // Fetch person details and cache — small batches with rate limit delays
   const ids = Array.from(personIds);
   let saved = 0;
   let withBirthday = 0;
+  const BATCH = 10;
 
-  for (let i = 0; i < ids.length; i += 20) {
-    const batch = ids.slice(i, i + 20);
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = ids.slice(i, i + BATCH);
     const details = await Promise.all(
       batch.map((id) => fetchJSON(`https://api.themoviedb.org/3/person/${id}?api_key=${API_KEY}`))
     );
@@ -94,15 +95,15 @@ async function main() {
         });
         saved++;
         if (person.birthday) withBirthday++;
-      } catch { /* skip duplicates */ }
+      } catch { /* skip errors */ }
     }
 
-    if ((i + 20) % 200 === 0) {
-      console.log(`  Processed ${i + 20}/${ids.length} — ${saved} saved, ${withBirthday} with birthdays`);
+    if ((i + BATCH) % 100 === 0 || i + BATCH >= ids.length) {
+      console.log(`  Processed ${Math.min(i + BATCH, ids.length)}/${ids.length} — ${saved} saved, ${withBirthday} with birthdays`);
     }
 
-    // Small delay to respect TMDB rate limits
-    await new Promise((r) => setTimeout(r, 250));
+    // Respect TMDB rate limit (40 requests per 10 seconds)
+    await new Promise((r) => setTimeout(r, 300));
   }
 
   console.log(`\nDone! ${saved} celebrities cached, ${withBirthday} with birthday data.`);
