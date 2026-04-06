@@ -81,7 +81,7 @@ export default function CelebrityCreditsSection({
           ))}
         </div>
       )}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 mb-4">
         {visible.map((item, idx) => {
           const isTV = item.mediaType === "tv";
           const href = isTV ? `/shows/${item.id}` : `/movies/${item.id}`;
@@ -94,7 +94,7 @@ export default function CelebrityCreditsSection({
                       src={posterUrl(item.poster_path, "w185")}
                       alt={item.title}
                       fill
-                      sizes="120px"
+                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 185px"
                       className="object-cover"
                     />
                   ) : (
