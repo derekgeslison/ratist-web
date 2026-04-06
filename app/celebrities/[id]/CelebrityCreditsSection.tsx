@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Tv, Film as FilmIcon } from "lucide-react";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
@@ -13,8 +13,7 @@ export interface Credit {
   release_date: string;
   vote_average: number;
   character?: string;
-  job?: string;
-  department?: string;
+  jobs?: string[];       // all crew roles for this title
   popularity: number;
   mediaType?: "movie" | "tv";
 }
@@ -23,14 +22,12 @@ const PAGE_SIZE = 20;
 
 export default function CelebrityCreditsSection({
   credits,
-  type,
   personId,
 }: {
   credits: Credit[];
-  type: "cast" | "crew";
   personId?: number;
 }) {
-  const storageKey = personId ? `celeb-credits-${personId}-${type}` : null;
+  const storageKey = personId ? `celeb-credits-${personId}` : null;
 
   const [shown, setShown] = useState(() => {
     if (typeof window === "undefined" || !storageKey) return PAGE_SIZE;
@@ -52,24 +49,50 @@ export default function CelebrityCreditsSection({
 
   const hasMovies = credits.some((c) => c.mediaType !== "tv");
   const hasShows = credits.some((c) => c.mediaType === "tv");
-  const showToggle = hasMovies && hasShows;
+  const showMediaToggle = hasMovies && hasShows;
 
-  // Collect unique roles/departments for crew filtering
-  const roles = type === "crew"
-    ? [...new Set(credits.map((c) => c.job).filter(Boolean))] as string[]
-    : [];
-  const showRoleFilter = roles.length > 1;
+  // Collect unique roles for filtering: "Actor" if any have character, plus all crew jobs
+  const availableRoles = useMemo(() => {
+    const roles: string[] = [];
+    const hasActing = credits.some((c) => c.character);
+    if (hasActing) roles.push("Actor");
+    const jobSet = new Set<string>();
+    for (const c of credits) {
+      for (const j of c.jobs ?? []) {
+        if (!jobSet.has(j)) { jobSet.add(j); roles.push(j); }
+      }
+    }
+    return roles;
+  }, [credits]);
+  const showRoleFilter = availableRoles.length > 1;
 
+  // Apply media filter
   let filtered = mediaFilter === "all" ? credits : credits.filter((c) => (c.mediaType ?? "movie") === mediaFilter);
-  if (roleFilter !== "all" && type === "crew") {
-    filtered = filtered.filter((c) => c.job === roleFilter);
+
+  // Apply role filter
+  if (roleFilter === "Actor") {
+    filtered = filtered.filter((c) => c.character);
+  } else if (roleFilter !== "all") {
+    filtered = filtered.filter((c) => c.jobs?.includes(roleFilter));
   }
+
   const visible = filtered.slice(0, shown);
   const hasMore = shown < filtered.length;
 
+  // Determine display label for each credit based on active role filter
+  function getRoleLabel(item: Credit): string | undefined {
+    if (roleFilter === "all" || roleFilter === "Actor") {
+      // Default: show character name if they acted, otherwise first crew job
+      return item.character || item.jobs?.[0];
+    }
+    // Specific crew filter: show that role
+    return roleFilter;
+  }
+
   return (
     <div>
-      {showToggle && (
+      {/* Media type toggle */}
+      {showMediaToggle && (
         <div className="flex items-center gap-1 mb-4">
           {([
             { value: "all" as const, label: "All" },
@@ -91,6 +114,8 @@ export default function CelebrityCreditsSection({
           ))}
         </div>
       )}
+
+      {/* Role filter */}
       {showRoleFilter && (
         <div className="flex items-center gap-1.5 mb-4 flex-wrap">
           <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mr-1">Role:</span>
@@ -100,7 +125,7 @@ export default function CelebrityCreditsSection({
               roleFilter === "all" ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
             }`}
           >All</button>
-          {roles.map((role) => (
+          {availableRoles.map((role) => (
             <button
               key={role}
               onClick={() => { setRoleFilter(role); setShown(PAGE_SIZE); }}
@@ -111,14 +136,16 @@ export default function CelebrityCreditsSection({
           ))}
         </div>
       )}
+
+      {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
         {visible.map((item, idx) => {
           const isTV = item.mediaType === "tv";
-          const roleLabel = type === "cast" ? item.character : item.job;
+          const roleLabel = getRoleLabel(item);
           if (isTV) {
             return (
               <ShowCard
-                key={`${item.id}-${type}-tv-${idx}`}
+                key={`${item.id}-tv-${idx}`}
                 show={{ id: item.id, name: item.title, poster_path: item.poster_path, vote_average: item.vote_average, first_air_date: item.release_date, backdrop_path: null, overview: "", genre_ids: [], popularity: item.popularity, vote_count: 0 } as unknown as TMDBShow}
                 characterName={roleLabel}
               />
@@ -126,7 +153,7 @@ export default function CelebrityCreditsSection({
           }
           return (
             <MovieCard
-              key={`${item.id}-${type}-m-${idx}`}
+              key={`${item.id}-m-${idx}`}
               movie={{ id: item.id, title: item.title, poster_path: item.poster_path, vote_average: item.vote_average, release_date: item.release_date, backdrop_path: null, overview: "", genre_ids: [], popularity: item.popularity, vote_count: 0 } as unknown as TMDBMovie}
               characterName={roleLabel}
             />

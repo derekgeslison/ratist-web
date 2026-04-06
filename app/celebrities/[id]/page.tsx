@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Film, Clapperboard, Search, ImageIcon } from "lucide-react";
+import { ArrowLeft, Film, Search, ImageIcon } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
@@ -166,51 +166,45 @@ export default async function CelebrityPage({ params }: Props) {
     },
   }).catch(() => {});
 
-  // Deduplicate movie cast credits
-  const seenMovieIds = new Set<number>();
-  const movieCastCredits = person.movie_credits.cast
-    .filter((m) => { if (seenMovieIds.has(m.id)) return false; seenMovieIds.add(m.id); return true; })
-    .map((m) => ({
-      id: m.id,
-      title: m.title,
-      poster_path: m.poster_path,
-      release_date: m.release_date,
-      vote_average: m.vote_average,
-      character: m.character,
-      popularity: m.popularity,
-      mediaType: "movie" as const,
-    }));
+  // Build unified filmography: merge cast + crew per title, deduped by id+mediaType
+  type FilmEntry = {
+    id: number; title: string; poster_path: string | null; release_date: string;
+    vote_average: number; character?: string; jobs: string[]; popularity: number;
+    mediaType: "movie" | "tv";
+  };
+  const filmMap = new Map<string, FilmEntry>();
 
-  // Deduplicate TV cast credits
-  const seenTvIds = new Set<number>();
-  const tvCastCredits = (person.tv_credits?.cast ?? [])
-    .filter((s) => { if (seenTvIds.has(s.id)) return false; seenTvIds.add(s.id); return true; })
-    .map((s) => ({
-      id: s.id,
-      title: s.name,
-      poster_path: s.poster_path,
-      release_date: s.first_air_date,
-      vote_average: s.vote_average,
-      character: s.character,
-      popularity: s.popularity,
-      mediaType: "tv" as const,
-    }));
+  // Add movie cast
+  for (const m of person.movie_credits.cast) {
+    const key = `movie-${m.id}`;
+    const existing = filmMap.get(key);
+    if (existing) { if (m.character && !existing.character) existing.character = m.character; }
+    else filmMap.set(key, { id: m.id, title: m.title, poster_path: m.poster_path, release_date: m.release_date, vote_average: m.vote_average, character: m.character, jobs: [], popularity: m.popularity, mediaType: "movie" });
+  }
+  // Add TV cast
+  for (const s of person.tv_credits?.cast ?? []) {
+    const key = `tv-${s.id}`;
+    const existing = filmMap.get(key);
+    if (existing) { if (s.character && !existing.character) existing.character = s.character; }
+    else filmMap.set(key, { id: s.id, title: s.name, poster_path: s.poster_path, release_date: s.first_air_date, vote_average: s.vote_average, character: s.character, jobs: [], popularity: s.popularity, mediaType: "tv" });
+  }
+  // Add movie crew (merge jobs into existing entries or create new)
+  for (const c of person.movie_credits.crew) {
+    const key = `movie-${c.id}`;
+    const existing = filmMap.get(key);
+    if (existing) { if (!existing.jobs.includes(c.job)) existing.jobs.push(c.job); }
+    else filmMap.set(key, { id: c.id, title: c.title, poster_path: c.poster_path, release_date: c.release_date, vote_average: c.vote_average, jobs: [c.job], popularity: c.popularity, mediaType: "movie" });
+  }
+  // Add TV crew
+  for (const c of person.tv_credits?.crew ?? []) {
+    const key = `tv-${c.id}`;
+    const existing = filmMap.get(key);
+    if (existing) { if (!existing.jobs.includes(c.job)) existing.jobs.push(c.job); }
+    else filmMap.set(key, { id: c.id, title: c.name, poster_path: c.poster_path, release_date: c.first_air_date, vote_average: c.vote_average, jobs: [c.job], popularity: c.popularity, mediaType: "tv" });
+  }
 
-  // Combined filmography — sorted by year (newest first)
-  const filmography = [...movieCastCredits, ...tvCastCredits]
+  const filmography = [...filmMap.values()]
     .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
-
-  // All crew credits (movies + TV) with deduplication
-  const seenCrewKeys = new Set<string>();
-  const allCrewCredits = [
-    ...person.movie_credits.crew.map((c) => ({ id: c.id, title: c.title, poster_path: c.poster_path, release_date: c.release_date, vote_average: c.vote_average, job: c.job, department: c.department, popularity: c.popularity, mediaType: "movie" as const })),
-    ...(person.tv_credits?.crew ?? []).map((c) => ({ id: c.id, title: c.name, poster_path: c.poster_path, release_date: c.first_air_date, vote_average: c.vote_average, job: c.job, department: c.department, popularity: c.popularity, mediaType: "tv" as const })),
-  ].filter((c) => {
-    const key = `${c.id}-${c.job}-${c.mediaType}`;
-    if (seenCrewKeys.has(key)) return false;
-    seenCrewKeys.add(key);
-    return true;
-  }).sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
 
   // Photos
   const photos = person.images?.profiles ?? [];
@@ -222,9 +216,10 @@ export default async function CelebrityPage({ params }: Props) {
       )
     : null;
 
-  // TMDB avg from cast credits
-  const allMovieTmdbIds = movieCastCredits.map((m) => m.id);
-  const tmdbRatedMovies = movieCastCredits.filter((m) => m.vote_average > 0);
+  // TMDB avg from movie credits (for community rating calc)
+  const movieCredits = filmography.filter((f) => f.mediaType === "movie");
+  const allMovieTmdbIds = movieCredits.map((m) => m.id);
+  const tmdbRatedMovies = movieCredits.filter((m) => m.vote_average > 0);
   const tmdbAvg = tmdbRatedMovies.length > 0
     ? tmdbRatedMovies.reduce((sum, m) => sum + m.vote_average, 0) / tmdbRatedMovies.length
     : null;
@@ -361,18 +356,7 @@ export default async function CelebrityPage({ params }: Props) {
               Show all &rarr;
             </Link>
           </div>
-          <CelebrityCreditsSection credits={filmography} type="cast" personId={person.id} />
-        </section>
-      )}
-
-      {/* Crew credits (Directing, Writing, Production, etc.) */}
-      {allCrewCredits.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Clapperboard className="w-5 h-5 text-[var(--ratist-red)]" /> Behind the Camera
-            <span className="text-sm font-normal text-[var(--foreground-muted)]">({allCrewCredits.length})</span>
-          </h2>
-          <CelebrityCreditsSection credits={allCrewCredits} type="crew" personId={person.id} />
+          <CelebrityCreditsSection credits={filmography} personId={person.id} />
         </section>
       )}
 
