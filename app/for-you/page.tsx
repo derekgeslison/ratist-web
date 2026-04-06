@@ -1,58 +1,83 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { posterUrl } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
-import { Tv, Users, Sparkles, TrendingUp, Bookmark, AlertCircle, Star } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Bookmark, AlertCircle } from "lucide-react";
+import MovieCard from "@/components/MovieCard";
+import ShowCard from "@/components/ShowCard";
 
-interface FollowItem {
+interface MediaItem {
   type: "movie" | "tv";
-  id: string;
   tmdbId: number;
   title: string;
   posterPath: string | null;
-  rating: number | null;
-  reviewSnippet: string | null;
-  createdAt: string;
-  user: { name: string; firebaseUid: string; avatarUrl: string | null };
+  voteAverage: number;
+  releaseDate: string | null;
+  user?: { name: string; firebaseUid: string; avatarUrl: string | null };
 }
 
 interface BecauseYouLikedSection {
   source: { tmdbId: number; title: string; posterPath: string | null };
-  recs: { tmdbId: number; title: string; posterPath: string | null; voteAverage: number }[];
-}
-
-interface TrendingItem {
-  tmdbId: number;
-  title: string;
-  posterPath: string | null;
-  communityRating: number;
-  ratingCount: number;
-}
-
-interface WatchlistItem {
-  tmdbId: number;
-  title: string;
-  posterPath: string | null;
+  recs: MediaItem[];
 }
 
 interface IncompleteItem {
   tmdbId: number;
   title: string;
   posterPath: string | null;
+  voteAverage: number;
+  releaseDate: string | null;
   currentRating: number | null;
   reviewType: string;
 }
 
 interface FeedData {
-  followActivity: FollowItem[];
+  followActivity: MediaItem[];
   becauseYouLiked: BecauseYouLikedSection[];
-  trendingInCluster: TrendingItem[];
-  unwatchedWatchlist: WatchlistItem[];
+  trendingInCluster: MediaItem[];
+  unwatchedWatchlist: MediaItem[];
   completeTheRating: IncompleteItem[];
+}
+
+function toMovieProps(item: MediaItem) {
+  return {
+    id: item.tmdbId,
+    title: item.title,
+    poster_path: item.posterPath,
+    vote_average: item.voteAverage ?? 0,
+    release_date: item.releaseDate ?? "",
+    backdrop_path: null,
+    overview: "",
+    genre_ids: [],
+  };
+}
+
+function toShowProps(item: MediaItem) {
+  return {
+    id: item.tmdbId,
+    name: item.title,
+    poster_path: item.posterPath,
+    vote_average: item.voteAverage ?? 0,
+    first_air_date: item.releaseDate ?? "",
+    backdrop_path: null,
+    overview: "",
+    genre_ids: [],
+  };
+}
+
+function MediaGrid({ items }: { items: MediaItem[] }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+      {items.map((item) =>
+        item.type === "tv" ? (
+          <ShowCard key={`tv-${item.tmdbId}`} show={toShowProps(item) as never} />
+        ) : (
+          <MovieCard key={`movie-${item.tmdbId}`} movie={toMovieProps(item) as never} />
+        )
+      )}
+    </div>
+  );
 }
 
 export default function ForYouPage() {
@@ -74,7 +99,7 @@ export default function ForYouPage() {
 
   if (loading || fetching) {
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-2xl font-bold text-white mb-8">For You</h1>
         <p className="text-[var(--foreground-muted)] text-center py-20">Loading your personalized feed...</p>
       </div>
@@ -83,7 +108,7 @@ export default function ForYouPage() {
 
   if (!user) {
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-2xl font-bold text-white mb-4">For You</h1>
         <p className="text-[var(--foreground-muted)] mb-6">Your personalized feed of recommendations, activity, and things to watch.</p>
         <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-6 py-3 rounded-full transition-colors">
@@ -103,7 +128,7 @@ export default function ForYouPage() {
   const isEmpty = !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasIncomplete;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">For You</h1>
         <p className="text-sm text-[var(--foreground-muted)]">Your personalized feed based on your taste, activity, and who you follow.</p>
@@ -123,41 +148,7 @@ export default function ForYouPage() {
             <Users className="w-5 h-5 text-[var(--ratist-red)]" />
             <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-            {data.followActivity.map((item) => (
-              <Link
-                key={item.id}
-                href={`/${item.type === "tv" ? "shows" : "movies"}/${item.tmdbId}`}
-                className="flex-shrink-0 w-32 group"
-              >
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] mb-2 border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                  {item.posterPath && (
-                    <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="128px" className="object-cover" />
-                  )}
-                  {item.type === "tv" && (
-                    <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
-                      <Tv className="w-2.5 h-2.5" />
-                      <span className="text-[8px] font-bold leading-none">TV</span>
-                    </div>
-                  )}
-                  {item.rating != null && (
-                    <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1.5 py-0.5">
-                      <span className="text-xs font-bold" style={{ color: scoreColor(item.rating) }}>{item.rating.toFixed(1)}</span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs font-medium text-white line-clamp-1">{item.title}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  {item.user.avatarUrl ? (
-                    <Image src={item.user.avatarUrl} alt="" width={14} height={14} className="w-3.5 h-3.5 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-3.5 h-3.5 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-[6px] font-bold text-white">{item.user.name[0]}</div>
-                  )}
-                  <span className="text-[10px] text-[var(--foreground-muted)] line-clamp-1">{item.user.name}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <MediaGrid items={data.followActivity} />
         </section>
       )}
 
@@ -173,21 +164,7 @@ export default function ForYouPage() {
               </Link>
             </h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-            {section.recs.map((rec) => (
-              <Link key={rec.tmdbId} href={`/movies/${rec.tmdbId}`} className="flex-shrink-0 w-32 group">
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] mb-2 border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                  {rec.posterPath && (
-                    <Image src={posterUrl(rec.posterPath, "w185")} alt={rec.title} fill sizes="128px" className="object-cover" />
-                  )}
-                  <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1.5 py-0.5">
-                    <span className="text-xs font-bold" style={{ color: scoreColor(rec.voteAverage) }}>{rec.voteAverage.toFixed(1)}</span>
-                  </div>
-                </div>
-                <p className="text-xs font-medium text-white line-clamp-2">{rec.title}</p>
-              </Link>
-            ))}
-          </div>
+          <MediaGrid items={section.recs} />
         </section>
       ))}
 
@@ -198,23 +175,7 @@ export default function ForYouPage() {
             <TrendingUp className="w-5 h-5 text-[var(--ratist-red)]" />
             <h2 className="text-lg font-semibold text-white">Trending on The Ratist</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-            {data.trendingInCluster.map((item) => (
-              <Link key={item.tmdbId} href={`/movies/${item.tmdbId}`} className="flex-shrink-0 w-32 group">
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] mb-2 border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                  {item.posterPath && (
-                    <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="128px" className="object-cover" />
-                  )}
-                  <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1.5 py-0.5 flex items-center gap-1">
-                    <Star className="w-2.5 h-2.5 text-yellow-400" />
-                    <span className="text-xs font-bold text-white">{item.communityRating}</span>
-                  </div>
-                </div>
-                <p className="text-xs font-medium text-white line-clamp-2">{item.title}</p>
-                <p className="text-[10px] text-[var(--foreground-muted)]">{item.ratingCount} Ratist rating{item.ratingCount !== 1 ? "s" : ""}</p>
-              </Link>
-            ))}
-          </div>
+          <MediaGrid items={data.trendingInCluster} />
         </section>
       )}
 
@@ -225,18 +186,7 @@ export default function ForYouPage() {
             <Bookmark className="w-5 h-5 text-[var(--ratist-red)]" />
             <h2 className="text-lg font-semibold text-white">From Your Watchlist</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-            {data.unwatchedWatchlist.map((item) => (
-              <Link key={item.tmdbId} href={`/movies/${item.tmdbId}`} className="flex-shrink-0 w-32 group">
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] mb-2 border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                  {item.posterPath && (
-                    <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="128px" className="object-cover" />
-                  )}
-                </div>
-                <p className="text-xs font-medium text-white line-clamp-2">{item.title}</p>
-              </Link>
-            ))}
-          </div>
+          <MediaGrid items={data.unwatchedWatchlist} />
         </section>
       )}
 
@@ -250,27 +200,7 @@ export default function ForYouPage() {
           <p className="text-xs text-[var(--foreground-muted)] mb-3">
             These movies have quick ratings or incomplete reviews. Fill in the full breakdown to get a more accurate Ratist score.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {data.completeTheRating.map((item) => (
-              <Link key={item.tmdbId} href={`/movies/${item.tmdbId}/rate`} className="group">
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] mb-2 border border-orange-400/30 group-hover:border-orange-400 transition-colors">
-                  {item.posterPath && (
-                    <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="160px" className="object-cover" />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <span className="text-[10px] uppercase tracking-wider text-orange-300 font-semibold">
-                      {item.reviewType === "basic" ? "Quick rating" : "Incomplete"}
-                    </span>
-                    {item.currentRating != null && (
-                      <span className="text-sm font-bold text-white ml-2">{item.currentRating.toFixed(1)}</span>
-                    )}
-                  </div>
-                </div>
-                <p className="text-xs font-medium text-white line-clamp-1">{item.title}</p>
-              </Link>
-            ))}
-          </div>
+          <MediaGrid items={data.completeTheRating.map((item) => ({ ...item, type: "movie" as const }))} />
         </section>
       )}
     </div>

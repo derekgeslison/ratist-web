@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
 import AdUnit from "@/components/AdUnit";
+import PageShare from "@/components/PageShare";
 
 interface Props { params: Promise<{ userId: string }> }
 
@@ -340,6 +341,7 @@ export default async function ProfilePage({ params }: Props) {
           )}
         </div>
         <div className="flex-1">
+          <div className="flex items-start justify-between">
           <ProfileHeader
             userName={user.name}
             bio={user.bio}
@@ -352,6 +354,8 @@ export default async function ProfilePage({ params }: Props) {
             avgRating={avgRatingValue}
             memberSince={user.createdAt.getFullYear()}
           />
+          <PageShare title={`${user.name} on The Ratist`} />
+          </div>
         </div>
       </div>
 

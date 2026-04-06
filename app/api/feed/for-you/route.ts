@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true, ratistRating: true, overallRating: true, reviewText: true, createdAt: true,
             user: { select: { name: true, firebaseUid: true, avatarUrl: true } },
-            movie: { select: { tmdbId: true, title: true, posterPath: true } },
+            movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
           },
           orderBy: { createdAt: "desc" },
           take: 15,
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true, ratistRating: true, overallRating: true, reviewText: true, createdAt: true,
             user: { select: { name: true, firebaseUid: true, avatarUrl: true } },
-            tvShow: { select: { tmdbId: true, name: true, posterPath: true } },
+            tvShow: { select: { tmdbId: true, name: true, posterPath: true, firstAirDate: true } },
           },
           orderBy: { createdAt: "desc" },
           take: 10,
@@ -51,16 +51,14 @@ export async function GET(req: NextRequest) {
 
       followActivity = [
         ...movieRatings.map((r) => ({
-          type: "movie" as const, id: r.id, tmdbId: r.movie.tmdbId, title: r.movie.title,
-          posterPath: r.movie.posterPath, rating: r.ratistRating ?? r.overallRating,
-          reviewSnippet: r.reviewText?.slice(0, 120) ?? null,
-          createdAt: r.createdAt.toISOString(), user: r.user,
+          type: "movie" as const, tmdbId: r.movie.tmdbId, title: r.movie.title,
+          posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? 0,
+          releaseDate: r.movie.releaseDate, createdAt: r.createdAt.toISOString(), user: r.user,
         })),
         ...tvRatings.map((r) => ({
-          type: "tv" as const, id: r.id, tmdbId: r.tvShow.tmdbId, title: r.tvShow.name,
-          posterPath: r.tvShow.posterPath, rating: r.ratistRating ?? r.overallRating,
-          reviewSnippet: r.reviewText?.slice(0, 120) ?? null,
-          createdAt: r.createdAt.toISOString(), user: r.user,
+          type: "tv" as const, tmdbId: r.tvShow.tmdbId, title: r.tvShow.name,
+          posterPath: r.tvShow.posterPath, voteAverage: 0,
+          releaseDate: r.tvShow.firstAirDate, createdAt: r.createdAt.toISOString(), user: r.user,
         })),
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 15);
     }
@@ -95,9 +93,10 @@ export async function GET(req: NextRequest) {
         const data = await res.json();
         const recs = (data.results ?? [])
           .filter((m: { id: number; vote_average: number }) => !seenMovieIds.has(m.id) && m.vote_average >= 6)
-          .slice(0, 6)
-          .map((m: { id: number; title: string; poster_path: string | null; vote_average: number }) => ({
-            tmdbId: m.id, title: m.title, posterPath: m.poster_path, voteAverage: m.vote_average,
+          .slice(0, 5)
+          .map((m: { id: number; title: string; poster_path: string | null; vote_average: number; release_date?: string }) => ({
+            type: "movie" as const, tmdbId: m.id, title: m.title, posterPath: m.poster_path,
+            voteAverage: m.vote_average, releaseDate: m.release_date ?? null,
           }));
         if (recs.length > 0) {
           becauseYouLiked.push({ source: rated.movie, recs });
@@ -133,9 +132,9 @@ export async function GET(req: NextRequest) {
           .filter(([tmdbId]) => !seenMovieIds.has(tmdbId))
           .sort((a, b) => b[1].count - a[1].count)
           .slice(0, 10)
-          .map(([tmdbId, data]) => ({
-            tmdbId, title: data.title, posterPath: data.posterPath,
-            communityRating: Math.round(data.avgRating * 10) / 10, ratingCount: data.count,
+          .map(([tmdbId, d]) => ({
+            type: "movie" as const, tmdbId, title: d.title, posterPath: d.posterPath,
+            voteAverage: d.avgRating, releaseDate: null,
           }));
       }
     } catch { /* skip */ }
@@ -147,13 +146,15 @@ export async function GET(req: NextRequest) {
         movie: { tmdbId: { notIn: [...seenMovieIds] } },
       },
       select: {
-        movie: { select: { tmdbId: true, title: true, posterPath: true } },
+        movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
       },
       orderBy: { addedAt: "desc" },
-      take: 12,
+      take: 10,
     });
     const unwatchedWatchlist = watchlistItems.map((w) => ({
-      tmdbId: w.movie.tmdbId, title: w.movie.title, posterPath: w.movie.posterPath,
+      type: "movie" as const, tmdbId: w.movie.tmdbId, title: w.movie.title,
+      posterPath: w.movie.posterPath, voteAverage: w.movie.voteAverage ?? 0,
+      releaseDate: w.movie.releaseDate,
     }));
 
     // --- 5. Complete the rating ---
@@ -169,15 +170,16 @@ export async function GET(req: NextRequest) {
       },
       select: {
         id: true, overallRating: true, ratistRating: true, reviewType: true,
-        movie: { select: { tmdbId: true, title: true, posterPath: true } },
+        movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
       },
       orderBy: { updatedAt: "desc" },
-      take: 8,
+      take: 5,
     });
     const completeTheRating = incompleteRatings.map((r) => ({
-      tmdbId: r.movie.tmdbId, title: r.movie.title, posterPath: r.movie.posterPath,
-      currentRating: r.ratistRating ?? r.overallRating,
-      reviewType: r.reviewType,
+      type: "movie" as const, tmdbId: r.movie.tmdbId, title: r.movie.title,
+      posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? 0,
+      releaseDate: r.movie.releaseDate,
+      currentRating: r.ratistRating ?? r.overallRating, reviewType: r.reviewType,
     }));
 
     return NextResponse.json({
