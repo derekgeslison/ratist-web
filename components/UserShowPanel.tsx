@@ -58,6 +58,9 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
   const [markingSeen, setMarkingSeen] = useState(false);
   const [markingWL, setMarkingWL] = useState(false);
   const [showSeenModal, setShowSeenModal] = useState(false);
+  const [showListPicker, setShowListPicker] = useState(false);
+  const [allLists, setAllLists] = useState<{ id: string; name: string; isDefault: boolean; isOwned?: boolean; ownerName?: string; hasMovie: boolean }[]>([]);
+  const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   const count = communityAvg?.count ?? 0;
   const communityHybrid = hybridCommunityRating(tmdbScore, count, communityAvg?.ratistSum ?? null);
@@ -100,20 +103,69 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
     setMarkingSeen(false);
   }
 
-  async function toggleWatchlist() {
-    if (!user || markingWL) return;
-    setMarkingWL(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: showName, poster_path: posterPath }),
-    }).catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setWatchlisted(data.watchlisted ?? !watchlisted);
+  async function handleWatchlistClick() {
+    if (!user) return;
+    if (watchlisted) {
+      await openListPicker();
+    } else {
+      setMarkingWL(true);
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: showName, poster_path: posterPath }),
+      }).catch(() => null);
+      if (res?.ok) {
+        const data = await res.json();
+        setWatchlisted(data.watchlisted ?? true);
+        // Open list picker after adding
+        await openListPicker();
+      }
+      setMarkingWL(false);
     }
-    setMarkingWL(false);
+  }
+
+  async function openListPicker() {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/shows/${tmdbId}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.lists) {
+      setAllLists(data.lists);
+      setShowListPicker(true);
+    }
+  }
+
+  async function toggleListMembership(listId: string) {
+    if (!user) return;
+    setTogglingListId(listId);
+    const token = await user.getIdToken();
+    const list = allLists.find((l) => l.id === listId);
+    if (!list) { setTogglingListId(null); return; }
+
+    if (list.hasMovie) {
+      // Remove from this list
+      const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const entry = data.shows?.find((s: { tmdbId: number }) => s.tmdbId === tmdbId);
+      if (entry) {
+        await fetch(`/api/watchlist/${listId}/shows/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      }
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: false } : l);
+      setAllLists(updated);
+      setWatchlisted(updated.some((l) => l.hasMovie));
+    } else {
+      // Add to this list
+      await fetch(`/api/watchlist/${listId}/shows`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId, name: showName, posterPath }),
+      });
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: true } : l);
+      setAllLists(updated);
+      setWatchlisted(true);
+    }
+    setTogglingListId(null);
   }
 
   const ratistScore = userRating?.ratistRating ?? null;
@@ -196,17 +248,49 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
               >
                 {seen ? <><Check className="w-4 h-4" /> Seen</> : <><Eye className="w-4 h-4" /> {markingSeen ? "..." : "Mark Seen"}</>}
               </button>
-              <button
-                onClick={toggleWatchlist}
-                disabled={markingWL}
-                className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full border transition-colors ${
-                  watchlisted
-                    ? "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
-                    : "border-[var(--border)] bg-[var(--surface-2)] text-white hover:border-[var(--ratist-red)]"
-                }`}
-              >
-                {watchlisted ? <><BookmarkCheck className="w-4 h-4" /> Watchlisted</> : <><Bookmark className="w-4 h-4" /> {markingWL ? "..." : "Watchlist"}</>}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={handleWatchlistClick}
+                  disabled={markingWL}
+                  className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full border transition-colors ${
+                    watchlisted
+                      ? "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+                      : "border-[var(--border)] bg-[var(--surface-2)] text-white hover:border-[var(--ratist-red)]"
+                  }`}
+                >
+                  {watchlisted ? <><BookmarkCheck className="w-4 h-4" /> Watchlisted</> : <><Bookmark className="w-4 h-4" /> {markingWL ? "..." : "Watchlist"}</>}
+                </button>
+                {showListPicker && allLists.length > 0 && (
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl z-30 p-2">
+                    <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Manage watchlists</p>
+                    {allLists.map((list) => (
+                      <button
+                        key={list.id}
+                        onClick={() => toggleListMembership(list.id)}
+                        disabled={togglingListId === list.id}
+                        className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
+                      >
+                        <span className="text-white truncate">
+                          {list.name}
+                          {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
+                          {list.ownerName && <span className="text-[var(--foreground-muted)] text-xs ml-1">· {list.ownerName}</span>}
+                        </span>
+                        {list.hasMovie ? (
+                          <Check className="w-4 h-4 text-green-400 shrink-0" />
+                        ) : (
+                          <span className="w-4 h-4 border border-[var(--border)] rounded shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setShowListPicker(false)}
+                      className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-1 py-1 transition-colors"
+                    >
+                      Done
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-[var(--foreground-muted)]">

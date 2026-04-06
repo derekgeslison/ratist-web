@@ -74,7 +74,7 @@ export default function ShowCard({ show, characterName, streaming, rent }: Props
           <span className="text-[8px] font-bold leading-none">TV</span>
         </div>
         {user && (
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-end gap-2 pb-3">
             <button
               onClick={markSeen}
               disabled={markingS || seen}

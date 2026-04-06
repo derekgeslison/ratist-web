@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import MovieCard from "./MovieCard";
 import Image from "next/image";
 import Link from "next/link";
 import { Play, ArrowRight } from "lucide-react";
@@ -230,23 +231,9 @@ export default function MovieDetailTabs({
           {recommendations.length > 0 && (
             <section>
               <h2 className="text-base font-semibold text-white mb-4">More Like This</h2>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {recommendations.slice(0, 12).map((m) => (
-                  <Link key={m.id} href={`/movies/${m.id}`} className="group flex flex-col">
-                    <PosterOverlay tmdbId={m.id} title={m.title} posterPath={m.poster_path} releaseDate={m.release_date} voteAverage={m.vote_average} showRatings>
-                      <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                        <Image
-                          src={posterUrl(m.poster_path, "w185")}
-                          alt={m.title}
-                          fill
-                          sizes="(max-width: 640px) 33vw, 15vw"
-                          className="object-cover"
-                        />
-                      </div>
-                    </PosterOverlay>
-                    <p className="text-xs font-medium text-white line-clamp-1">{m.title}</p>
-                    <p className="text-[10px] text-[var(--foreground-muted)]">{m.release_date?.slice(0, 4) ?? "—"}</p>
-                  </Link>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {recommendations.slice(0, 10).map((m) => (
+                  <MovieCard key={m.id} movie={m} />
                 ))}
               </div>
             </section>
