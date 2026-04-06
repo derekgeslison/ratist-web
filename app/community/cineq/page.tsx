@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Brain, Film, Tv, Monitor, Trophy, Zap, ArrowLeft, RotateCcw, ChevronRight } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
+import { playCountdownBeep, playDoubleDing, warmUpAudio } from "@/lib/screening";
 
 interface QuizQuestion { index: number; mediaType: string; phases: string[][]; options: string[]; answerIdx: number; }
 interface AnswerResult { questionIndex: number; selectedOption: string; timeElapsed: number; wrongGuesses: number; correct: boolean; points: number; answer: string | null; posterPath: string | null; }
@@ -80,10 +81,11 @@ export default function CineQPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [screen]);
 
-  // Countdown timer
+  // Countdown timer with sound
   useEffect(() => {
     if (screen !== "countdown") return;
-    if (countdownSec <= 0) { setScreen("quiz"); return; }
+    if (countdownSec <= 0) { playDoubleDing(); setScreen("quiz"); return; }
+    playCountdownBeep();
     const t = setTimeout(() => setCountdownSec((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [screen, countdownSec]);
@@ -310,7 +312,7 @@ export default function CineQPage() {
         <h2 className="text-2xl font-bold text-white mb-2">Ready?</h2>
         <p className="text-[var(--foreground-muted)] mb-8">10 questions · 25 seconds each · {difficulty} difficulty</p>
         <button
-          onClick={() => startQuiz(mode, mediaType, difficulty)}
+          onClick={() => { warmUpAudio(); startQuiz(mode, mediaType, difficulty); }}
           disabled={loadingQuiz}
           className="px-8 py-4 bg-pink-600 hover:bg-pink-500 text-white text-lg font-bold rounded-xl transition-colors disabled:opacity-50"
         >
@@ -334,70 +336,80 @@ export default function CineQPage() {
   if (screen === "quiz" && questions[currentQ]) {
     const q = questions[currentQ];
     const timerPct = Math.max(0, (1 - timeElapsed / SECS) * 100);
+    const typeLabel = mediaType === "both" ? "Movies & TV" : mediaType === "tv" ? "TV Shows" : "Movies";
+    const diffLabel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
 
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-[var(--foreground-muted)]">Question {currentQ + 1} of {questions.length}</span>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[var(--foreground-muted)]">Total: <span className="text-white font-bold">{runningTotal.toFixed(1)}</span></span>
-            <span className={`text-lg font-mono font-bold ${timeElapsed > 20 ? "text-red-400" : timeElapsed > 15 ? "text-yellow-400" : "text-white"}`}>
-              {Math.max(0, SECS - timeElapsed).toFixed(1)}s
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 flex flex-col" style={{ minHeight: "calc(100vh - 80px)" }}>
+        {/* Header bar */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-pink-400" />
+              <span className="text-xs text-[var(--foreground-muted)]">{typeLabel} · {diffLabel} · {mode === "daily" ? "Daily" : "Practice"}</span>
+            </div>
+            <span className="text-xs text-[var(--foreground-muted)]">Q{currentQ + 1}/{questions.length}</span>
+          </div>
+
+          {/* Timer + Score bar */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-4">
+            <div className="flex-1">
+              <div className="h-2 bg-[var(--surface-2)] rounded-full">
+                <div className={`h-full rounded-full transition-all duration-100 ${timerPct > 40 ? "bg-emerald-500" : timerPct > 20 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${timerPct}%` }} />
+              </div>
+            </div>
+            <span className={`text-xl font-mono font-black tabular-nums w-16 text-right ${timeElapsed > 20 ? "text-red-400" : timeElapsed > 15 ? "text-yellow-400" : "text-white"}`}>
+              {Math.max(0, SECS - timeElapsed).toFixed(1)}
             </span>
+            <div className="border-l border-[var(--border)] pl-4 flex flex-col items-center">
+              <span className={`text-xl font-black tabular-nums ${potentialPoints > 60 ? "text-emerald-400" : potentialPoints > 30 ? "text-yellow-400" : "text-red-400"}`}>
+                {potentialPoints.toFixed(1)}
+              </span>
+              <span className="text-[9px] text-[var(--foreground-muted)]">pts</span>
+            </div>
+            <div className="border-l border-[var(--border)] pl-4 flex flex-col items-center">
+              <span className="text-xl font-black tabular-nums text-white">{runningTotal.toFixed(1)}</span>
+              <span className="text-[9px] text-[var(--foreground-muted)]">total</span>
+            </div>
           </div>
         </div>
 
-        {/* Timer bar */}
-        <div className="h-2 bg-[var(--surface-2)] rounded-full mb-6">
-          <div className={`h-full rounded-full transition-all duration-100 ${timerPct > 40 ? "bg-emerald-500" : timerPct > 20 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${timerPct}%` }} />
-        </div>
-
-        {/* Points */}
-        <div className="text-center mb-5">
-          <p className={`text-4xl font-black transition-colors ${potentialPoints > 60 ? "text-emerald-400" : potentialPoints > 30 ? "text-yellow-400" : "text-red-400"}`}>
-            {potentialPoints.toFixed(1)}
-          </p>
-          <p className="text-xs text-[var(--foreground-muted)]">Potential points</p>
-        </div>
-
-        {/* Clues */}
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-5">
-          {q.phases.slice(0, currentPhase + 1).map((phase, pi) => (
+        {/* Clues — fixed height with all 5 slots */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4">
+          {Array.from({ length: 5 }, (_, pi) => (
             <div key={pi} className={pi > 0 ? "mt-3 pt-3 border-t border-[var(--border)]" : ""}>
-              {phase.map((clue, ci) => (
-                <p key={ci} className={`text-sm ${pi === currentPhase ? "text-white font-medium" : "text-[var(--foreground-muted)]"}`}>{clue}</p>
-              ))}
+              {pi <= currentPhase ? (
+                q.phases[pi]?.map((clue, ci) => (
+                  <p key={ci} className={`text-sm ${pi === currentPhase ? "text-white font-medium" : "text-[var(--foreground-muted)]"}`}>{clue}</p>
+                ))
+              ) : (
+                <p className="text-sm text-[var(--foreground-muted)] opacity-20">???</p>
+              )}
             </div>
           ))}
-          {/* Phase placeholders */}
-          {currentPhase < 4 && (
-            <div className="mt-3 pt-3 border-t border-[var(--border)] flex gap-2">
-              {Array.from({ length: 4 - currentPhase }, (_, i) => (
-                <span key={i} className="text-[var(--foreground-muted)] opacity-30 text-sm">...</span>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Options */}
-        <div className="grid grid-cols-2 gap-3">
-          {q.options.map((option, oi) => {
-            const isDisabled = disabledOptions.has(option);
-            return (
-              <button
-                key={option}
-                onClick={() => handleGuess(option)}
-                disabled={isDisabled}
-                className={`p-3 rounded-xl text-sm font-medium transition-all text-left ${
-                  isDisabled
-                    ? "bg-red-900/20 text-red-400/50 border-2 border-red-500/20 line-through"
-                    : "bg-[var(--surface)] border-2 border-[var(--border)] text-white hover:border-pink-400"
-                }`}
-              >
-                {option}
-              </button>
-            );
-          })}
+        {/* Options — pushed to bottom for stability */}
+        <div className="mt-auto">
+          <div className="grid grid-cols-2 gap-3">
+            {q.options.map((option) => {
+              const isDisabled = disabledOptions.has(option);
+              return (
+                <button
+                  key={option}
+                  onClick={() => handleGuess(option)}
+                  disabled={isDisabled}
+                  className={`p-3 rounded-xl text-sm font-medium transition-all text-left ${
+                    isDisabled
+                      ? "bg-red-900/20 text-red-400/50 border-2 border-red-500/20 line-through"
+                      : "bg-[var(--surface)] border-2 border-[var(--border)] text-white hover:border-pink-400"
+                  }`}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
