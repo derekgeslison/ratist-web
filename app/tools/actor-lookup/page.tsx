@@ -16,26 +16,41 @@ interface SeenItem { tmdbId: number; title: string; posterPath: string | null; c
 
 type SearchMode = "person" | "content";
 
+const LOOKUP_KEY = "ratist-actor-lookup-state";
+
 function ActorLookupContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<SearchMode>("person");
+
+  // Restore from sessionStorage on mount
+  const restored = typeof window !== "undefined" ? (() => { try { return JSON.parse(sessionStorage.getItem(LOOKUP_KEY) ?? "{}"); } catch { return {}; } })() : {};
+
+  const [mode, setMode] = useState<SearchMode>(restored.mode ?? "person");
 
   // Person-first search
   const [personQuery, setPersonQuery] = useState("");
   const [personResults, setPersonResults] = useState<PersonResult[]>([]);
-  const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
-  const [seenItems, setSeenItems] = useState<SeenItem[] | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(restored.selectedPerson ?? null);
+  const [seenItems, setSeenItems] = useState<SeenItem[] | null>(restored.seenItems ?? null);
   const [loadingItems, setLoadingItems] = useState(false);
 
   // Content-first search
   const [contentQuery, setContentQuery] = useState("");
   const [contentResults, setContentResults] = useState<ContentSearchResult[]>([]);
-  const [selectedContent, setSelectedContent] = useState<ContentSearchResult | null>(null);
-  const [castList, setCastList] = useState<CastMember[] | null>(null);
+  const [selectedContent, setSelectedContent] = useState<ContentSearchResult | null>(restored.selectedContent ?? null);
+  const [castList, setCastList] = useState<CastMember[] | null>(restored.castList ?? null);
   const [loadingCast, setLoadingCast] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+
+  // Persist state to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(LOOKUP_KEY, JSON.stringify({
+        mode, selectedPerson, seenItems, selectedContent, castList,
+      }));
+    } catch { /* ignore */ }
+  }, [mode, selectedPerson, seenItems, selectedContent, castList]);
 
   async function searchPerson(q: string) {
     setPersonQuery(q);

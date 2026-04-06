@@ -148,15 +148,31 @@ function ScoreBar({ score, state }: { score: number | null; state: BarState }) {
   );
 }
 
+const MATCHUP_KEY = "ratist-matchup-state";
+
 export default function MatchupPage() {
-  const [mediaType, setMediaType] = useState<"movie" | "tv">("movie");
-  const [movie1, setMovie1] = useState<MovieResult | null>(null);
-  const [movie2, setMovie2] = useState<MovieResult | null>(null);
+  const [mediaType, setMediaType] = useState<"movie" | "tv">(() => {
+    if (typeof window === "undefined") return "movie";
+    try { const s = JSON.parse(sessionStorage.getItem(MATCHUP_KEY) ?? "{}"); return s.mediaType ?? "movie"; } catch { return "movie"; }
+  });
+  const [movie1, setMovie1] = useState<MovieResult | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return JSON.parse(sessionStorage.getItem(MATCHUP_KEY) ?? "{}")?.movie1 ?? null; } catch { return null; }
+  });
+  const [movie2, setMovie2] = useState<MovieResult | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return JSON.parse(sessionStorage.getItem(MATCHUP_KEY) ?? "{}")?.movie2 ?? null; } catch { return null; }
+  });
   const [data1, setData1] = useState<RatingBreakdown | null>(null);
   const [data2, setData2] = useState<RatingBreakdown | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+
+  // Persist selections to sessionStorage
+  useEffect(() => {
+    try { sessionStorage.setItem(MATCHUP_KEY, JSON.stringify({ mediaType, movie1, movie2 })); } catch { /* ignore */ }
+  }, [mediaType, movie1, movie2]);
 
   useEffect(() => {
     if (!movie1 || !movie2) return;

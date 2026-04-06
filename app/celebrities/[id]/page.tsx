@@ -349,7 +349,7 @@ export default async function CelebrityPage({ params }: Props) {
               Show all &rarr;
             </Link>
           </div>
-          <CelebrityCreditsSection credits={filmography} type="cast" />
+          <CelebrityCreditsSection credits={filmography} type="cast" personId={person.id} />
         </section>
       )}
 
@@ -360,7 +360,7 @@ export default async function CelebrityPage({ params }: Props) {
             <Clapperboard className="w-5 h-5 text-[var(--ratist-red)]" /> Directed
             <span className="text-sm font-normal text-[var(--foreground-muted)]">({directingCredits.length})</span>
           </h2>
-          <CelebrityCreditsSection credits={directingCredits} type="crew" />
+          <CelebrityCreditsSection credits={directingCredits} type="crew" personId={person.id} />
         </section>
       )}
     </div>

@@ -62,10 +62,21 @@ export default function MovieDetailTabs({
   rent,
   reviews,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("Overview");
+  const [activeTab, setActiveTabState] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "Overview";
+    const hash = window.location.hash.slice(1).replace(/-/g, " ");
+    const match = TABS.find((t) => t.toLowerCase() === hash.toLowerCase());
+    return match ?? "Overview";
+  });
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
+
+  function setActiveTab(tab: Tab) {
+    setActiveTabState(tab);
+    const hash = tab === "Overview" ? "" : `#${tab.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-").replace(/'/g, "")}`;
+    window.history.replaceState(null, "", hash || window.location.pathname + window.location.search);
+  }
 
   // Extract key crew roles
   const directors = crew.filter((c) => c.job === "Director");

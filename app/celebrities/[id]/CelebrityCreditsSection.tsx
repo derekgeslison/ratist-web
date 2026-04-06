@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Tv, Film as FilmIcon } from "lucide-react";
@@ -24,12 +24,30 @@ const PAGE_SIZE = 20;
 export default function CelebrityCreditsSection({
   credits,
   type,
+  personId,
 }: {
   credits: Credit[];
   type: "cast" | "crew";
+  personId?: number;
 }) {
-  const [shown, setShown] = useState(PAGE_SIZE);
-  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
+  const storageKey = personId ? `celeb-credits-${personId}-${type}` : null;
+
+  const [shown, setShown] = useState(() => {
+    if (typeof window === "undefined" || !storageKey) return PAGE_SIZE;
+    try { return Number(sessionStorage.getItem(`${storageKey}-shown`)) || PAGE_SIZE; } catch { return PAGE_SIZE; }
+  });
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">(() => {
+    if (typeof window === "undefined" || !storageKey) return "all";
+    try { return (sessionStorage.getItem(`${storageKey}-filter`) as "all" | "movie" | "tv") || "all"; } catch { return "all"; }
+  });
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      sessionStorage.setItem(`${storageKey}-shown`, String(shown));
+      sessionStorage.setItem(`${storageKey}-filter`, mediaFilter);
+    } catch { /* ignore */ }
+  }, [shown, mediaFilter, storageKey]);
 
   const hasMovies = credits.some((c) => c.mediaType !== "tv");
   const hasShows = credits.some((c) => c.mediaType === "tv");
