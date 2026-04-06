@@ -4,7 +4,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
-import { Brain, Film, Tv, Monitor, Clock, Trophy, Zap, ArrowLeft, ChevronRight, RotateCcw, Share2 } from "lucide-react";
+import { Brain, Film, Tv, Monitor, Clock, Trophy, Zap, ArrowLeft, RotateCcw } from "lucide-react";
+import ShareButton from "@/components/ShareButton";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export default function CineQPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Results
-  const [results, setResults] = useState<{ rawScore: number; weightedScore: number; difficultyMultiplier: number; results: AnswerResult[] } | null>(null);
+  const [results, setResults] = useState<{ attemptId?: string; rawScore: number; weightedScore: number; difficultyMultiplier: number; results: AnswerResult[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Loading
@@ -523,6 +524,18 @@ export default function CineQPage() {
             </div>
           ))}
         </div>
+
+        {/* Share */}
+        {results.attemptId && (
+          <div className="mb-6">
+            <ShareButton
+              label="Share Results"
+              text={`I scored ${results.rawScore.toFixed(1)}/1000 on Cine-Q (${typeLabel}, ${diffLabel})! ${results.results.filter((r) => r.correct).length}/10 correct. Can you beat my score?`}
+              url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/community/cineq`}
+              cardImageUrl={`/api/og/cineq?attemptId=${results.attemptId}`}
+            />
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">

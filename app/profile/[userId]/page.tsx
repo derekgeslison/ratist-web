@@ -215,6 +215,18 @@ export default async function ProfilePage({ params }: Props) {
     }),
   ]);
 
+  // Cine-Q stats
+  const cineqAttempts = await prisma.cineQAttempt.findMany({
+    where: { userId: user.id, mode: "daily" },
+    select: { rawScore: true, difficulty: true },
+  });
+  const cineqStats = cineqAttempts.length > 0 ? {
+    totalQuizzes: cineqAttempts.length,
+    weightedLifetime: Math.round(cineqAttempts.reduce((s, a) => s + a.rawScore * (a.difficulty === "hard" ? 2.0 : a.difficulty === "medium" ? 1.5 : 1.0), 0) * 10) / 10,
+    avgScore: Math.round(cineqAttempts.reduce((s, a) => s + a.rawScore, 0) / cineqAttempts.length * 10) / 10,
+    bestScore: Math.round(Math.max(...cineqAttempts.map((a) => a.rawScore)) * 10) / 10,
+  } : null;
+
   // Build episode groups for diary
   const showTmdbIds = [...new Set(episodesSeen.map((e) => e.showTmdbId))];
   const showMetaMap = new Map<number, { name: string; posterPath: string | null; year: string }>();
@@ -453,6 +465,7 @@ export default async function ProfilePage({ params }: Props) {
           };
         })}
         rankingsYear={currentYear}
+        cineqStats={cineqStats}
       />
     </div>
   );

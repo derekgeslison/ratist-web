@@ -114,6 +114,7 @@ interface Props {
   siteUrl?: string;
   savedRankings?: { tmdbId: number; title: string; posterPath: string | null; year: string; ratistRating: number | null }[];
   rankingsYear?: string;
+  cineqStats?: { totalQuizzes: number; weightedLifetime: number; avgScore: number; bestScore: number } | null;
 }
 
 const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Stats", "Rankings"] as const;
@@ -139,6 +140,7 @@ export default function ProfileTabs({
   siteUrl = "https://theratist.com",
   savedRankings = [],
   rankingsYear,
+  cineqStats,
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
@@ -535,6 +537,33 @@ export default function ProfileTabs({
               </div>
             )}
           </div>
+
+          {/* Cine-Q stats */}
+          {cineqStats && (
+            <div className="mt-8">
+              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <span className="text-lg">🧠</span> Cine-Q
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-white">{cineqStats.weightedLifetime.toLocaleString()}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">Lifetime Pts</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-white">{cineqStats.avgScore.toFixed(1)}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">Avg Score</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-white">{cineqStats.bestScore.toFixed(1)}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">Best Score</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-white">{cineqStats.totalQuizzes}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">Quizzes Played</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
