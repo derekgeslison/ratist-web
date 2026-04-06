@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Community Hub", description: "Join The Ratist community: submit hot takes, suggest recasts, find celebrity lookalikes, and engage with fellow movie lovers." };
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Trophy, RefreshCw, Flame } from "lucide-react";
+import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +41,14 @@ const HUB_FEATURES = [
     color: "text-orange-400",
     border: "hover:border-orange-400",
   },
+  {
+    href: "/community/pitches",
+    icon: Lightbulb,
+    title: "Pitches",
+    description: "Pitch your original movie or TV show ideas. The community votes on what they'd watch.",
+    color: "text-emerald-400",
+    border: "hover:border-emerald-400",
+  },
 ] as const;
 
 export default async function CommunityPage() {
@@ -73,7 +81,7 @@ export default async function CommunityPage() {
       <p className="text-[var(--foreground-muted)] mb-10">Where Ratist members argue, vote, and get weird about movies.</p>
 
       {/* Feature Cards */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-14">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
         {HUB_FEATURES.map(({ href, icon: Icon, title, description, color, border }) => (
           <Link
             key={href}

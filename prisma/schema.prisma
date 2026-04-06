@@ -53,6 +53,8 @@ model User {
   recastVotes    RecastVote[]
   hotTakes       HotTake[]
   hotTakeVotes   HotTakeVote[]
+  moviePitches     MoviePitch[]
+  moviePitchVotes  MoviePitchVote[]
   screeningSessionsHosted  ScreeningSession[]       @relation("screeningHost")
   screeningParticipations  ScreeningParticipant[]
   screeningPredictions     ScreeningPrediction[]
@@ -978,6 +980,34 @@ model HotTakeVote {
 
   @@id([userId, hotTakeId])
   @@map("hot_take_votes")
+}
+
+// Movie/Show Pitches
+model MoviePitch {
+  id          String   @id @default(cuid())
+  authorId    String   @map("author_id")
+  title       String   // pitch title (max 100)
+  description String   @db.Text // longer description (max 1000)
+  mediaType   String   @default("movie") @map("media_type") // "movie" | "tv"
+  genre       String?  // optional genre tag
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  author User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes  MoviePitchVote[]
+
+  @@map("movie_pitches")
+}
+
+model MoviePitchVote {
+  userId  String @map("user_id")
+  pitchId String @map("pitch_id")
+  value   Int    // 1 = upvote, -1 = downvote
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pitch MoviePitch @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, pitchId])
+  @@map("movie_pitch_votes")
 }
 
 // ─── Screening Room ───────────────────────────────────────────────────────────

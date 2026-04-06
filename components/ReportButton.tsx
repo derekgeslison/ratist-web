@@ -14,7 +14,7 @@ const REASONS = [
 ];
 
 interface Props {
-  targetType: "review" | "comment" | "forumPost" | "hotTake" | "recast" | "looksLike";
+  targetType: "review" | "comment" | "forumPost" | "hotTake" | "recast" | "looksLike" | "pitch";
   targetId: string;
 }
 

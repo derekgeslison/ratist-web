@@ -5,6 +5,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
   recast: { max: 2, windowDays: 3 },
   hotTake: { max: 2, windowDays: 3 },
   looksLike: { max: 2, windowDays: 3 },
+  moviePitch: { max: 2, windowDays: 3 },
 };
 
 /**
@@ -15,7 +16,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
 export async function checkCommunityRateLimit(
   userId: string,
   isAdmin: boolean,
-  featureType: "recast" | "hotTake" | "looksLike"
+  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch"
 ): Promise<string | null> {
   if (isAdmin) return null;
 
@@ -47,6 +48,10 @@ export async function checkCommunityRateLimit(
     recentCount = await prisma.looksLike.count({
       where: { creatorId: userId, createdAt: { gte: windowStart } },
     });
+  } else if (featureType === "moviePitch") {
+    recentCount = await prisma.moviePitch.count({
+      where: { authorId: userId, createdAt: { gte: windowStart } },
+    });
   }
 
   if (recentCount >= limits.max) {
@@ -54,6 +59,7 @@ export async function checkCommunityRateLimit(
       recast: "Recasts",
       hotTake: "Hot Takes",
       looksLike: "Looks Like pairs",
+      moviePitch: "Pitches",
     };
     return `To prevent spam, we limit users to ${limits.max} ${featureNames[featureType]} every ${limits.windowDays} days. Your submissions are also more likely to get engagement if you spread them out.`;
   }
