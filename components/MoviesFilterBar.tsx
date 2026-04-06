@@ -10,6 +10,39 @@ import { STREAMING_PROVIDERS, IMAGE_BASE_URL } from "@/lib/tmdb";
 const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"];
 const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"];
 
+// Genre ID mappings between movie and TV (TMDB uses different IDs for equivalent genres)
+const GENRE_MOVIE_TO_TV: Record<string, string[]> = {
+  "28": ["10759"],   // Action → Action & Adventure
+  "12": ["10759"],   // Adventure → Action & Adventure
+  "878": ["10765"],  // Science Fiction → Sci-Fi & Fantasy
+  "14": ["10765"],   // Fantasy → Sci-Fi & Fantasy
+  "10752": ["10768"], // War → War & Politics
+};
+const GENRE_TV_TO_MOVIE: Record<string, string[]> = {
+  "10759": ["28", "12"],   // Action & Adventure → Action + Adventure
+  "10765": ["878", "14"],  // Sci-Fi & Fantasy → Science Fiction + Fantasy
+  "10768": ["10752"],      // War & Politics → War
+};
+// Genre IDs that only exist on one side (no equivalent on the other)
+const MOVIE_ONLY_GENRES = new Set(["36", "27", "10402", "10749", "53", "10770"]); // History, Horror, Music, Romance, Thriller, TV Movie
+const TV_ONLY_GENRES = new Set(["10762", "10763", "10764", "10766", "10767"]);     // Kids, News, Reality, Soap, Talk
+
+function translateGenres(genres: string[], toTv: boolean): string[] {
+  const map = toTv ? GENRE_MOVIE_TO_TV : GENRE_TV_TO_MOVIE;
+  const dropSet = toTv ? MOVIE_ONLY_GENRES : TV_ONLY_GENRES;
+  const result = new Set<string>();
+  for (const gid of genres) {
+    if (map[gid]) {
+      for (const mapped of map[gid]) result.add(mapped);
+    } else if (!dropSet.has(gid)) {
+      // Keep genres that exist on both sides (e.g. Comedy, Drama, Animation)
+      result.add(gid);
+    }
+    // Genres in dropSet are silently removed (no equivalent on target side)
+  }
+  return [...result];
+}
+
 const PER_PAGE_OPTIONS = [
   { value: "20", label: "20 / page" },
   { value: "50", label: "50 / page" },
@@ -220,7 +253,16 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
         ].map(({ value, label, icon: Icon }) => (
           <button
             key={value}
-            onClick={() => update({ type: value === "all" ? null : value })}
+            onClick={() => {
+              const switchingToTv = value === "tv" && currentType !== "tv";
+              const switchingFromTv = value !== "tv" && currentType === "tv";
+              const updates: Record<string, string | null> = { type: value === "all" ? null : value };
+              if ((switchingToTv || switchingFromTv) && currentGenres.length > 0) {
+                const translated = translateGenres(currentGenres, switchingToTv);
+                updates.genres = translated.length > 0 ? translated.join(",") : null;
+              }
+              update(updates);
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               currentType === value
                 ? value === "tv" ? "bg-blue-600/20 border border-blue-500/40 text-blue-400" : "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 text-white"
