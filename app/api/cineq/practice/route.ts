@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       mediaType: q.mediaType,
       phases: q.phases,
       options: q.options,
+      answerIdx: q.options.indexOf(q.answer),
     }));
 
     return NextResponse.json({ mode: "practice", mediaType, difficulty, questions: safeQuestions });

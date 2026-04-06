@@ -13,6 +13,7 @@ interface QuizQuestion {
   mediaType: string;
   phases: string[][];
   options: string[];
+  answerIdx: number;
 }
 
 interface AnswerResult {
@@ -102,17 +103,42 @@ export default function CineQPage() {
         // Update phase
         const phase = Math.min(4, Math.floor(next / PHASE_INTERVAL));
         setCurrentPhase(phase);
-        // Time's up
+        // Time's up — record 0 points and advance
         if (next >= SECONDS_PER_QUESTION) {
           setAnswered(true);
           setSelectedOption(null);
           if (timerRef.current) clearInterval(timerRef.current);
         }
-        return next;
+        return Math.min(next, SECONDS_PER_QUESTION);
       });
     }, 100);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [screen, answered, quiz, currentQ]);
+
+  // Handle time expired — record 0 points and advance
+  useEffect(() => {
+    if (!answered || selectedOption !== null || !quiz) return;
+    // Time ran out with no correct answer
+    const q = quiz.questions[currentQ];
+    const answer = {
+      questionIndex: q.index,
+      selectedOption: "",
+      timeElapsed: SECONDS_PER_QUESTION,
+      wrongGuesses,
+    };
+    const newAnswers = [...answers, answer];
+    setAnswers(newAnswers);
+
+    setTimeout(() => {
+      if (currentQ + 1 < quiz.questions.length) {
+        setCurrentQ((c) => c + 1);
+        resetQuestion();
+      } else {
+        submitQuiz(newAnswers);
+      }
+    }, 1500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answered, selectedOption]);
 
   // Calculate current question potential points
   const potentialPoints = Math.max(0, Math.round((100 - timeElapsed * POINTS_PER_SEC - wrongGuesses * WRONG_PENALTY) * 10) / 10);
@@ -159,56 +185,42 @@ export default function CineQPage() {
 
   // ─── Handle answer ─────────────────────────────────────────────────────────
 
-  function handleOptionClick(option: string) {
+  function handleGuess(option: string) {
     if (answered || disabledOptions.has(option) || !quiz) return;
+    const q = quiz.questions[currentQ];
+    const isCorrect = q.options[q.answerIdx] === option;
 
-    // We don't know the correct answer client-side for daily, so we record everything
-    // and let the server score it. For now, record the selection.
-    // In practice mode, also trust the server.
-    setSelectedOption(option);
-    setAnswered(true);
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (isCorrect) {
+      // Correct! Lock in score and advance
+      setSelectedOption(option);
+      setAnswered(true);
+      if (timerRef.current) clearInterval(timerRef.current);
 
-    const qPoints = Math.max(0, Math.round((100 - timeElapsed * POINTS_PER_SEC - wrongGuesses * WRONG_PENALTY) * 10) / 10);
+      const qPoints = Math.max(0, Math.round((100 - timeElapsed * POINTS_PER_SEC - wrongGuesses * WRONG_PENALTY) * 10) / 10);
+      const answer = {
+        questionIndex: q.index,
+        selectedOption: option,
+        timeElapsed: Math.round(timeElapsed * 10) / 10,
+        wrongGuesses,
+      };
+      const newAnswers = [...answers, answer];
+      setAnswers(newAnswers);
+      setRunningTotal((prev) => Math.round((prev + qPoints) * 10) / 10);
 
-    const answer = {
-      questionIndex: quiz.questions[currentQ].index,
-      selectedOption: option,
-      timeElapsed: Math.round(timeElapsed * 10) / 10,
-      wrongGuesses,
-    };
-
-    const newAnswers = [...answers, answer];
-    setAnswers(newAnswers);
-    setRunningTotal((prev) => Math.round((prev + qPoints) * 10) / 10);
-
-    // Auto-advance after a brief delay
-    setTimeout(() => {
-      if (currentQ + 1 < quiz.questions.length) {
-        setCurrentQ((q) => q + 1);
-        resetQuestion();
-      } else {
-        submitQuiz(newAnswers);
-      }
-    }, 1500);
+      setTimeout(() => {
+        if (currentQ + 1 < quiz.questions.length) {
+          setCurrentQ((c) => c + 1);
+          resetQuestion();
+        } else {
+          submitQuiz(newAnswers);
+        }
+      }, 1500);
+    } else {
+      // Wrong — disable this option and deduct penalty
+      setWrongGuesses((w) => w + 1);
+      setDisabledOptions((prev) => new Set(prev).add(option));
+    }
   }
-
-  function handleWrongGuess(option: string) {
-    if (answered || disabledOptions.has(option)) return;
-    setWrongGuesses((w) => w + 1);
-    setDisabledOptions((prev) => new Set(prev).add(option));
-  }
-
-  // Since we don't send answers to client, each click is treated as an answer attempt.
-  // The server will tell us if it's correct. For the interactive UX, we'll submit
-  // the final selected option. Wrong guesses are tracked by clicking options that
-  // get disabled (the user keeps trying until they find the right one or time runs out).
-  // Actually, let's make it simpler: each click is a guess. If wrong, it disables
-  // and increments wrongGuesses. If it's the last option or time expires, it auto-submits.
-  // But we don't know which is correct client-side...
-  //
-  // Solution: Send all guesses to server. The "selectedOption" is the last one clicked.
-  // The server checks if it matches the answer.
 
   // ─── Submit quiz ───────────────────────────────────────────────────────────
 
@@ -362,7 +374,7 @@ export default function CineQPage() {
         </div>
 
         {/* Leaderboard link */}
-        <Link href="/tools/cineq/leaderboard" className="block mt-8 text-center text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
+        <Link href="/community/cineq/leaderboard" className="block mt-8 text-center text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
           View Daily Leaderboard →
         </Link>
       </div>
@@ -431,26 +443,27 @@ export default function CineQPage() {
 
         {/* Options */}
         <div className="grid grid-cols-2 gap-3">
-          {q.options.map((option) => {
+          {q.options.map((option, oi) => {
             const isDisabled = disabledOptions.has(option);
+            const isCorrectAnswer = oi === q.answerIdx;
             const isSelected = selectedOption === option;
+            const showCorrect = answered && isCorrectAnswer;
+            const showWrongSelected = answered && selectedOption === null && !isCorrectAnswer;
             return (
               <button
                 key={option}
-                onClick={() => {
-                  if (answered || isDisabled) return;
-                  // This is a guess — we don't know if correct client-side
-                  // Record as the answer (server will validate)
-                  handleOptionClick(option);
-                }}
-                onContextMenu={(e) => e.preventDefault()}
+                onClick={() => handleGuess(option)}
                 disabled={answered || isDisabled}
                 className={`p-3 rounded-xl text-sm font-medium transition-all text-left ${
-                  isSelected
-                    ? "bg-[var(--ratist-red)] text-white border-2 border-[var(--ratist-red)]"
-                    : isDisabled
-                      ? "bg-red-900/20 text-red-400/50 border-2 border-red-500/20 line-through"
-                      : "bg-[var(--surface)] border-2 border-[var(--border)] text-white hover:border-[var(--ratist-red)]"
+                  showCorrect
+                    ? "bg-green-600 text-white border-2 border-green-500"
+                    : isSelected
+                      ? "bg-green-600 text-white border-2 border-green-500"
+                      : isDisabled
+                        ? "bg-red-900/20 text-red-400/50 border-2 border-red-500/20 line-through"
+                        : answered
+                          ? "bg-[var(--surface)] border-2 border-[var(--border)] text-[var(--foreground-muted)] opacity-50"
+                          : "bg-[var(--surface)] border-2 border-[var(--border)] text-white hover:border-[var(--ratist-red)]"
                 }`}
               >
                 {option}

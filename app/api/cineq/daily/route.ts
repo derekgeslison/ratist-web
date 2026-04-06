@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
         mediaType: q.mediaType,
         phases: q.phases,
         options: q.options,
-        // answer NOT sent to client
+        answerIdx: q.options.indexOf(q.answer),
       };
     });
 
