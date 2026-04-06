@@ -80,9 +80,6 @@ export default async function HomePage() {
         {/* Personalized section */}
         <PersonalizedSection />
 
-        {/* From people you follow */}
-        <FollowingFeed />
-
         {/* Admin Spotlights */}
         {spotlights.length > 0 && (
           <section className="space-y-3">
@@ -179,6 +176,9 @@ export default async function HomePage() {
           movies={topRated.results.slice(0, 12)}
           viewAllHref="/movies?sort=top_rated"
         />
+
+        {/* From people you follow */}
+        <FollowingFeed />
 
         {/* The Ratist Method */}
         <section>

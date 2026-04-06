@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Copy, Check, UserPlus, UserCheck, Share2 } from "lucide-react";
+import { Copy, Check, UserPlus, UserCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 import CompareTasteButton from "./CompareTasteButton";
+import ShareButton from "./ShareButton";
 
 interface Props {
   userName: string;
@@ -31,7 +32,6 @@ export default function ProfileHeader({
   const [followerCount, setFollowerCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
-  const [shareMsg, setShareMsg] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -74,16 +74,9 @@ export default function ProfileHeader({
     setFollowLoading(false);
   }
 
-  function shareProfile() {
-    const url = window.location.href;
-    if (navigator.share) {
-      navigator.share({ title: `${userName} on The Ratist`, url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(url);
-      setShareMsg(true);
-      setTimeout(() => setShareMsg(false), 2000);
-    }
-  }
+  const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://www.theratist.com";
+  const profileUrl = `${siteUrl}/profile/${profileFirebaseUid}`;
+  const ogImageUrl = `${siteUrl}/api/og/profile?userId=${profileFirebaseUid}`;
 
   return (
     <div>
@@ -103,13 +96,6 @@ export default function ProfileHeader({
             {isFollowing ? <><UserCheck className="w-3.5 h-3.5" /> Following</> : <><UserPlus className="w-3.5 h-3.5" /> Follow</>}
           </button>
         )}
-        <button
-          onClick={shareProfile}
-          className="p-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors rounded"
-          title="Share profile"
-        >
-          {shareMsg ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
-        </button>
       </div>
 
       {/* Row 2: Bio */}
@@ -142,6 +128,11 @@ export default function ProfileHeader({
 
       {/* Row 4: Actions */}
       <div className="flex items-center gap-3 flex-wrap">
+        <ShareButton
+          text={`${userName} on The Ratist`}
+          url={profileUrl}
+          cardImageUrl={ogImageUrl}
+        />
         {!isPrivate && (
           <CompareTasteButton profileFirebaseUid={profileFirebaseUid} profileUserId={profileUserId} />
         )}
