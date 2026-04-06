@@ -102,14 +102,14 @@ export default function DiaryRow({
         )}
         {ratistRating != null ? (
           <RatingBadge type="ratist" score={ratistRating} size="sm" />
-        ) : (
+        ) : editable ? (
           <Link
             href={`${detailPath}/rate`}
             className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
           >
             Rate
           </Link>
-        )}
+        ) : null}
       </div>
 
       {/* Actions: edit date / delete rewatch */}

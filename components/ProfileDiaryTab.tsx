@@ -207,6 +207,7 @@ export default function ProfileDiaryTab({
                           ratistRating={m.ratistRating}
                           dayNumber={idx === 0 ? day : null}
                           mediaType={m.mediaType}
+                          editable={isOwnProfile}
                         />
                       );
                     })}

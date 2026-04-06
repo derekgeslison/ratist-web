@@ -198,9 +198,21 @@ export default function ForYouPage() {
             <h2 className="text-lg font-semibold text-white">Complete Your Rating</h2>
           </div>
           <p className="text-xs text-[var(--foreground-muted)] mb-3">
-            These movies have quick ratings or incomplete reviews. Fill in the full breakdown to get a more accurate Ratist score.
+            These have quick ratings or incomplete reviews. Fill in the full breakdown to get a more accurate Ratist score.
           </p>
-          <MediaGrid items={data.completeTheRating.map((item) => ({ ...item, type: "movie" as const }))} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {data.completeTheRating.map((item) => (
+              <div key={item.tmdbId} className="relative">
+                <MovieCard movie={toMovieProps({ ...item, type: "movie" }) as never} />
+                <Link
+                  href={`/movies/${item.tmdbId}/rate`}
+                  className="absolute top-2 right-2 z-10 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors hover:bg-orange-400 hover:text-black bg-black/70 border-orange-400/60 text-orange-300"
+                >
+                  {item.reviewType === "basic" ? "Quick rating" : "Incomplete"}
+                </Link>
+              </div>
+            ))}
+          </div>
         </section>
       )}
     </div>
