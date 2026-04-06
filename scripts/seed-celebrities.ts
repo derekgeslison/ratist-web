@@ -5,9 +5,12 @@
  * Fetches cast from top-rated and popular movies/shows across many pages,
  * then fetches person details to get birthday data.
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 const API_KEY = process.env.TMDB_API_KEY;
 if (!API_KEY) { console.error("TMDB_API_KEY not set"); process.exit(1); }
 
