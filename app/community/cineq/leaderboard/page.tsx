@@ -82,16 +82,20 @@ export default function CineQLeaderboardPage() {
                   const key = `${mt}-${diff}`;
                   const section = data[key];
                   const entries = section?.entries ?? [];
+                  const diffAvg = entries.length > 0 ? (entries.reduce((s, e) => s + e.rawScore, 0) / entries.length).toFixed(1) : "–";
                   return (
                     <div key={diff} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-                      <h3 className="text-sm font-semibold text-white mb-3 capitalize">{diff}</h3>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-white capitalize">{diff}</h3>
+                        <span className="text-[10px] text-[var(--foreground-muted)]">{entries.length} player{entries.length !== 1 ? "s" : ""} · avg {diffAvg}</span>
+                      </div>
                       {section?.loading ? (
                         <p className="text-xs text-[var(--foreground-muted)]">Loading...</p>
                       ) : entries.length === 0 ? (
                         <p className="text-xs text-[var(--foreground-muted)]">No entries yet</p>
                       ) : (
                         <div className="space-y-2">
-                          {entries.slice(0, 10).map((entry) => (
+                          {entries.slice(0, 3).map((entry) => (
                             <div key={entry.rank} className="flex items-center gap-2">
                               <span className={`text-xs font-bold w-5 text-center ${entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-gray-300" : entry.rank === 3 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
                                 {entry.rank}

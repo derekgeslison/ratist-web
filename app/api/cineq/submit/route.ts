@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       : null;
 
     const POINTS_PER_SEC = 4;
-    const WRONG_PENALTY = 25;
+    const WRONG_PENALTY = 20;
     const diffMultiplier = difficulty === "hard" ? 2.0 : difficulty === "medium" ? 1.5 : 1.0;
 
     let rawScore = 0;

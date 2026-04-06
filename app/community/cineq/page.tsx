@@ -14,7 +14,7 @@ interface Stats { weightedLifetime: number; avgRawScore: number; bestDailyScore:
 
 const SECS = 25;
 const PTS_SEC = 4;
-const WRONG_PEN = 25;
+const WRONG_PEN = 20;
 const PHASE_INT = 5;
 
 type Screen = "menu" | "pickDifficulty" | "ready" | "countdown" | "quiz" | "questionEnd" | "results";
@@ -119,15 +119,18 @@ export default function CineQPage() {
     return () => { window.removeEventListener("beforeunload", handler); window.removeEventListener("pagehide", saveOnUnload); };
   }, [screen, mode, attemptId, dailyId, mediaType, difficulty, answers]);
 
-  // Intercept in-app navigation (back button, link clicks)
+  // Intercept in-app navigation (back button)
   useEffect(() => {
     if (screen !== "quiz" && screen !== "questionEnd" && screen !== "countdown") return;
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       const msg = mode === "daily"
         ? "If you leave now, you won't be able to retake this daily quiz. Your current score will be saved. Are you sure?"
         : "If you leave now, you'll lose your progress on this practice quiz. Are you sure?";
-      if (!window.confirm(msg)) {
-        // Push state back to prevent navigation
+      if (window.confirm(msg)) {
+        // User confirmed — go back to menu
+        setScreen("menu"); setQuestions([]); setAnswers([]);
+      } else {
+        // User cancelled — re-push state to stay
         window.history.pushState(null, "", window.location.href);
       }
     };
@@ -266,30 +269,34 @@ export default function CineQPage() {
 
         {quizError && <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4 text-sm text-red-400">{quizError}</div>}
 
-        {/* Mini leaderboard */}
-        {miniLeader && (
-          <div className="bg-[var(--surface)] border border-pink-400/30 rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Trophy className="w-4 h-4 text-yellow-400" />
-              <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Today&apos;s Top Score</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {miniLeader.avatarUrl && <Image src={miniLeader.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover" />}
-                <div>
-                  <Link href={`/profile/${miniLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400">{miniLeader.name}</Link>
-                  <p className="text-xs text-[var(--foreground-muted)]">{miniLeader.rawScore.toFixed(1)} pts · {miniLeader.difficulty} · {miniLeader.mediaType === "both" ? "Both" : miniLeader.mediaType === "tv" ? "TV" : "Movies"}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                {communityAvg != null && <p className="text-xs text-[var(--foreground-muted)]">Community avg: <span className="text-white font-medium">{communityAvg}</span></p>}
-              </div>
-            </div>
-            <Link href="/community/cineq/leaderboard" className="block mt-3 text-center text-xs text-pink-400 hover:underline">
-              View Full Leaderboard →
-            </Link>
+        {/* Mini leaderboard — always visible */}
+        <div className="bg-[var(--surface)] border border-pink-400/30 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy className="w-4 h-4 text-yellow-400" />
+            <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Today&apos;s Top Score</span>
           </div>
-        )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {miniLeader ? (
+                <>
+                  {miniLeader.avatarUrl && <Image src={miniLeader.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover" />}
+                  <div>
+                    <Link href={`/profile/${miniLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400">{miniLeader.name}</Link>
+                    <p className="text-xs text-[var(--foreground-muted)]">{miniLeader.rawScore.toFixed(1)} pts · {miniLeader.difficulty} · {miniLeader.mediaType === "both" ? "Both" : miniLeader.mediaType === "tv" ? "TV" : "Movies"}</p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-[var(--foreground-muted)]">No scores yet today — be the first!</p>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-[var(--foreground-muted)]">Community avg: <span className="text-white font-medium">{communityAvg != null ? communityAvg : "–"}</span></p>
+            </div>
+          </div>
+          <Link href="/community/cineq/leaderboard" className="block mt-3 text-center text-xs text-pink-400 hover:underline">
+            View Full Leaderboard →
+          </Link>
+        </div>
 
         {stats && stats.totalDailyQuizzes > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -454,8 +461,8 @@ export default function CineQPage() {
           </div>
         </div>
 
-        {/* Clues — fixed height with all 5 slots */}
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4">
+        {/* Clues — fixed height container so answers never shift */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4" style={{ minHeight: 280 }}>
           {Array.from({ length: 5 }, (_, pi) => (
             <div key={pi} className={pi > 0 ? "mt-3 pt-3 border-t border-[var(--border)]" : ""}>
               {pi <= currentPhase ? (
@@ -469,8 +476,8 @@ export default function CineQPage() {
           ))}
         </div>
 
-        {/* Options — stable position with moderate spacing */}
-        <div className="mt-6">
+        {/* Options */}
+        <div>
           <div className="grid grid-cols-2 gap-3">
             {q.options.map((option) => {
               const isDisabled = disabledOptions.has(option);
@@ -513,7 +520,7 @@ export default function CineQPage() {
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <Brain className="w-4 h-4 text-pink-400" />
-              <span className="text-xs text-[var(--foreground-muted)]">{typeLabel2} · {diffLabel2} · Q{currentQ + 1}/{questions.length}</span>
+              <span className="text-xs text-[var(--foreground-muted)]">{typeLabel2} · {diffLabel2} · {mode === "daily" ? "Daily" : "Practice"} · Q{currentQ + 1}/{questions.length}</span>
             </div>
           </div>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 flex items-center justify-between">
