@@ -158,7 +158,32 @@ export default function ProfileTabs({
       ? [] // fully private = no tabs
       : TABS.filter((t) => tabVisibility[TAB_KEY_MAP[t]]);
 
-  const [activeTab, setActiveTab] = useState<Tab>(visibleTabs[0] ?? "Overview");
+  function tabFromHash(): Tab {
+    if (typeof window === "undefined") return visibleTabs[0] ?? "Overview";
+    const hash = window.location.hash.slice(1).toLowerCase();
+    const match = visibleTabs.find((t) => t.toLowerCase() === hash);
+    return match ?? visibleTabs[0] ?? "Overview";
+  }
+
+  const [activeTab, setActiveTabState] = useState<Tab>(tabFromHash);
+
+  useEffect(() => {
+    function onHashChange() { setActiveTabState(tabFromHash()); }
+    window.addEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onHashChange);
+    setActiveTabState(tabFromHash());
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onHashChange);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function setActiveTab(tab: Tab) {
+    setActiveTabState(tab);
+    const hash = tab === (visibleTabs[0] ?? "Overview") ? "" : `#${tab.toLowerCase()}`;
+    window.history.replaceState(null, "", hash || window.location.pathname + window.location.search);
+  }
   const profileUrl = `${siteUrl}/profile/${profileFirebaseUid}`;
   const currentYear = new Date().getFullYear().toString();
   const prevYear = (new Date().getFullYear() - 1).toString();

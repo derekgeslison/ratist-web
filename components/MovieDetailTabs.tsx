@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Play, ArrowRight } from "lucide-react";
@@ -62,15 +62,29 @@ export default function MovieDetailTabs({
   rent,
   reviews,
 }: Props) {
-  const [activeTab, setActiveTabState] = useState<Tab>(() => {
+  function tabFromHash(): Tab {
     if (typeof window === "undefined") return "Overview";
     const hash = window.location.hash.slice(1).replace(/-/g, " ");
-    const match = TABS.find((t) => t.toLowerCase() === hash.toLowerCase());
-    return match ?? "Overview";
-  });
+    return TABS.find((t) => t.toLowerCase() === hash.toLowerCase()) ?? "Overview";
+  }
+
+  const [activeTab, setActiveTabState] = useState<Tab>(tabFromHash);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
+
+  // Sync tab from URL hash on back/forward navigation
+  useEffect(() => {
+    function onHashChange() { setActiveTabState(tabFromHash()); }
+    window.addEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onHashChange);
+    // Also check on mount in case initial state was wrong
+    setActiveTabState(tabFromHash());
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onHashChange);
+    };
+  }, []);
 
   function setActiveTab(tab: Tab) {
     setActiveTabState(tab);

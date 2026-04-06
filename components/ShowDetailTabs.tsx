@@ -236,15 +236,28 @@ export default function ShowDetailTabs({
 }: Props) {
   const { user } = useAuth();
   const isLoggedIn = !!user;
-  const [activeTab, setActiveTabState] = useState<Tab>(() => {
+  function tabFromHash(): Tab {
     if (typeof window === "undefined") return "Overview";
     const hash = window.location.hash.slice(1).replace(/-/g, " ");
-    const match = TABS.find((t) => t.toLowerCase() === hash.toLowerCase());
-    return match ?? "Overview";
-  });
+    return TABS.find((t) => t.toLowerCase() === hash.toLowerCase()) ?? "Overview";
+  }
+
+  const [activeTab, setActiveTabState] = useState<Tab>(tabFromHash);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
+
+  // Sync tab from URL hash on back/forward navigation
+  useEffect(() => {
+    function onHashChange() { setActiveTabState(tabFromHash()); }
+    window.addEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onHashChange);
+    setActiveTabState(tabFromHash());
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onHashChange);
+    };
+  }, []);
 
   function setActiveTab(tab: Tab) {
     setActiveTabState(tab);

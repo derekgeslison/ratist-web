@@ -154,6 +154,44 @@ function ActorLookupContent() {
     setContentQuery(""); setContentResults([]); setSelectedContent(null); setCastList(null);
   }
 
+  // Handle back navigation — restore previous state from sessionStorage
+  useEffect(() => {
+    function onPopState() {
+      try {
+        const s = JSON.parse(sessionStorage.getItem(LOOKUP_KEY) ?? "{}");
+        if (s.mode) setMode(s.mode);
+        if (s.mode === "content" || s.selectedContent) {
+          setSelectedPerson(null);
+          setSeenItems(null);
+          setSelectedContent(s.selectedContent ?? null);
+          setCastList(s.castList ?? null);
+        } else {
+          setSelectedPerson(s.selectedPerson ?? null);
+          setSeenItems(s.seenItems ?? null);
+          setSelectedContent(null);
+          setCastList(null);
+        }
+      } catch { /* ignore */ }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  function selectPersonFromCast(person: PersonResult) {
+    // Save current content state before switching, so back restores it
+    try {
+      sessionStorage.setItem(LOOKUP_KEY, JSON.stringify({
+        mode: "content", selectedContent, castList,
+      }));
+    } catch { /* ignore */ }
+    // Push a new history entry so back button works
+    window.history.pushState({ lookupMode: "person" }, "");
+    setMode("person");
+    setSelectedContent(null);
+    setCastList(null);
+    setTimeout(() => selectPerson(person), 0);
+  }
+
   // Auto-select person from URL params
   useEffect(() => {
     const personId = searchParams.get("personId");
@@ -348,7 +386,7 @@ function ActorLookupContent() {
                     {castList.map((p) => (
                       <button
                         key={`${p.id}-${p.character ?? p.job}`}
-                        onClick={() => { switchMode("person"); setTimeout(() => selectPerson({ id: p.id, name: p.name, profile_path: p.profile_path, known_for_department: p.known_for_department ?? "Acting" }), 0); }}
+                        onClick={() => selectPersonFromCast({ id: p.id, name: p.name, profile_path: p.profile_path, known_for_department: p.known_for_department ?? "Acting" })}
                         className="group text-left"
                       >
                         <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
