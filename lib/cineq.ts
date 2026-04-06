@@ -82,16 +82,16 @@ function hasRequiredData(item: TMDBMovieFull | TMDBShowFull, type: "movie" | "tv
     const m = item as TMDBMovieFull;
     const director = m.credits?.crew?.find((c) => c.job === "Director")?.name;
     const cast = m.credits?.cast?.sort((a, b) => a.order - b.order).slice(0, 2) ?? [];
-    const mpa = getMpaaRating(m);
     const year = parseInt(m.release_date?.slice(0, 4) ?? "0", 10);
-    // Must have: title, year >=1960, director, at least 1 actor, rating or MPA, genres
-    return !!(m.title && year >= 1960 && director && cast.length >= 1 && (mpa || m.vote_average > 0) && m.genres?.length);
+    // Must have: title, year >=1960, director, at least 2 actors, genres, overview
+    return !!(m.title && year >= 1960 && director && cast.length >= 2 && m.genres?.length && m.overview);
   } else {
     const s = item as TMDBShowFull;
     const creator = s.created_by?.[0]?.name;
     const cast = s.aggregate_credits?.cast?.sort((a, b) => a.order - b.order).slice(0, 2) ?? [];
     const year = parseInt(s.first_air_date?.slice(0, 4) ?? "0", 10);
-    return !!(s.name && year >= 1960 && (creator || cast.length >= 1) && s.genres?.length);
+    // Must have: name, year >=1960, creator, at least 2 actors, genres, overview
+    return !!(s.name && year >= 1960 && creator && cast.length >= 2 && s.genres?.length && s.overview);
   }
 }
 
@@ -187,42 +187,38 @@ function buildBonusClues(movie: TMDBMovieFull, cast: string[]): string[] {
 // ─── Movie clue builders (difficulty-aware) ──────────────────────────────────
 
 function buildMovieClues(movie: TMDBMovieFull, difficulty: string): string[][] {
-  const year = movie.release_date?.slice(0, 4) ?? "Unknown year";
-  const genres = movie.genres?.map((g) => g.name).join(", ") ?? "Unknown genre";
+  const year = movie.release_date!.slice(0, 4);
+  const genres = movie.genres!.map((g) => g.name).join(", ");
   const mpa = getMpaaRating(movie);
-  const director = movie.credits?.crew?.find((c) => c.job === "Director")?.name ?? "Unknown";
-  const cast = movie.credits?.cast?.sort((a, b) => a.order - b.order).slice(0, 3).map((c) => c.name) ?? [];
-  const overview = movie.overview?.slice(0, 200) ?? "No description available";
-  const overviewClue = overview + (movie.overview && movie.overview.length > 200 ? "…" : "");
+  const director = movie.credits!.crew.find((c) => c.job === "Director")!.name;
+  const cast = movie.credits!.cast.sort((a, b) => a.order - b.order).slice(0, 3).map((c) => c.name);
+  const overview = movie.overview!.slice(0, 200) + (movie.overview!.length > 200 ? "…" : "");
   const bonuses = buildBonusClues(movie, cast);
-  const bonusClue = bonuses[0] ?? "Think carefully...";
 
   if (difficulty === "easy") {
-    // Easy: Year+Director → Lead actor+Genre → Rating+Supporting → Bonus → Overview
+    const p3 = mpa ? [`Rated ${mpa}`, `Co-starring ${cast[1]}`] : [`Co-starring ${cast[1]}`, bonuses[0] ?? `Released in ${year}`];
     return [
       [`Released in ${year}`, `Directed by ${director}`],
-      [cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld", `Genre: ${genres}`],
-      [mpa ? `Rated ${mpa}` : "No rating available", cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
-      [bonuses[0] ?? bonusClue, bonuses[1] ?? ""].filter(Boolean),
-      [overviewClue],
+      [`Starring ${cast[0]}`, `Genre: ${genres}`],
+      p3,
+      bonuses.slice(0, 2).length > 0 ? bonuses.slice(0, 2) : [`Released in ${year}`],
+      [overview],
     ];
   } else if (difficulty === "hard") {
-    // Hard: Genre+Rating → Year → Supporting actor → Director+Lead actor → Bonus (no overview)
     return [
-      [`Genre: ${genres}`, mpa ? `Rated ${mpa}` : "No rating available"],
+      [`Genre: ${genres}`, mpa ? `Rated ${mpa}` : `Released in ${year}`],
       [`Released in ${year}`],
-      [cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
-      [`Directed by ${director}`, cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
-      [bonuses[0] ?? bonusClue],
+      [`Co-starring ${cast[1]}`],
+      [`Directed by ${director}`, `Starring ${cast[0]}`],
+      bonuses.length > 0 ? [bonuses[0]] : [`Released in ${year}`],
     ];
   } else {
-    // Medium: Genre+Director → Year+Supporting → Rating+Lead actor → Bonus → Overview
     return [
       [`Genre: ${genres}`, `Directed by ${director}`],
-      [`Released in ${year}`, cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
-      [mpa ? `Rated ${mpa}` : "No rating available", cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
-      [bonuses[0] ?? bonusClue, bonuses[1] ?? ""].filter(Boolean),
-      [overviewClue],
+      [`Released in ${year}`, `Co-starring ${cast[1]}`],
+      [mpa ? `Rated ${mpa}` : (bonuses[0] ?? `Released in ${year}`), `Starring ${cast[0]}`],
+      bonuses.slice(0, 2).length > 0 ? bonuses.slice(0, 2) : [`Co-starring ${cast[1]}`],
+      [overview],
     ];
   }
 }
@@ -230,49 +226,47 @@ function buildMovieClues(movie: TMDBMovieFull, difficulty: string): string[][] {
 // ─── TV show clue builders (difficulty-aware) ────────────────────────────────
 
 function buildShowClues(show: TMDBShowFull, difficulty: string): string[][] {
-  const startYear = show.first_air_date?.slice(0, 4) ?? "Unknown";
-  const endYear = show.status === "Ended" || show.status === "Canceled" ? show.last_air_date?.slice(0, 4) ?? "Unknown" : "Present";
+  const startYear = show.first_air_date!.slice(0, 4);
+  const endYear = show.status === "Ended" || show.status === "Canceled" ? show.last_air_date?.slice(0, 4) ?? startYear : "Present";
   const yearSpan = startYear === endYear ? startYear : `${startYear}–${endYear}`;
-  const genres = show.genres?.map((g) => g.name).join(", ") ?? "Unknown genre";
+  const genres = show.genres!.map((g) => g.name).join(", ");
   const tvRating = getTvRating(show);
-  const creator = show.created_by?.[0]?.name ?? "Unknown";
-  const cast = show.aggregate_credits?.cast?.sort((a, b) => a.order - b.order).slice(0, 3).map((c) => c.name) ?? [];
+  const creator = show.created_by![0].name;
+  const cast = show.aggregate_credits!.cast.sort((a, b) => a.order - b.order).slice(0, 3).map((c) => c.name);
   const network = show.networks?.[0]?.name;
-  const overview = show.overview?.slice(0, 200) ?? "No description available";
-  const overviewClue = overview + (show.overview && show.overview.length > 200 ? "…" : "");
+  const overview = show.overview!.slice(0, 200) + (show.overview!.length > 200 ? "…" : "");
 
   const bonuses: string[] = [];
   if (show.tagline) bonuses.push(`Tagline: "${show.tagline}"`);
-  if (show.original_language && show.original_language !== "en") bonuses.push(`Original language: ${LANG_NAMES[show.original_language] ?? show.original_language}`);
   if (network) bonuses.push(`Network: ${network}`);
   if (show.number_of_seasons) bonuses.push(`${show.number_of_seasons} season${show.number_of_seasons !== 1 ? "s" : ""}`);
   if (cast[2]) bonuses.push(`Also features ${cast[2]}`);
   const shuffledBonuses = bonuses.sort(() => Math.random() - 0.5);
-  const bonusClue = shuffledBonuses[0] ?? "Think carefully...";
 
   if (difficulty === "easy") {
+    const p3 = tvRating ? [`Rated ${tvRating}`, `Co-starring ${cast[1]}`] : [`Co-starring ${cast[1]}`, shuffledBonuses[0] ?? `Aired: ${yearSpan}`];
     return [
       [`Aired: ${yearSpan}`, `Created by ${creator}`],
-      [cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld", `Genre: ${genres}`],
-      [tvRating ? `Rated ${tvRating}` : "No rating available", cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
-      [shuffledBonuses[0] ?? bonusClue, shuffledBonuses[1] ?? ""].filter(Boolean),
-      [overviewClue],
+      [`Starring ${cast[0]}`, `Genre: ${genres}`],
+      p3,
+      shuffledBonuses.slice(0, 2).length > 0 ? shuffledBonuses.slice(0, 2) : [`Aired: ${yearSpan}`],
+      [overview],
     ];
   } else if (difficulty === "hard") {
     return [
-      [`Genre: ${genres}`, tvRating ? `Rated ${tvRating}` : "No rating available"],
+      [`Genre: ${genres}`, tvRating ? `Rated ${tvRating}` : `Aired: ${yearSpan}`],
       [`Aired: ${yearSpan}`],
-      [cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
-      [`Created by ${creator}`, cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
-      [shuffledBonuses[0] ?? bonusClue],
+      [`Co-starring ${cast[1]}`],
+      [`Created by ${creator}`, `Starring ${cast[0]}`],
+      shuffledBonuses.length > 0 ? [shuffledBonuses[0]] : [`Aired: ${yearSpan}`],
     ];
   } else {
     return [
       [`Genre: ${genres}`, `Created by ${creator}`],
-      [`Aired: ${yearSpan}`, cast[1] ? `Co-starring ${cast[1]}` : bonusClue],
-      [tvRating ? `Rated ${tvRating}` : "No rating available", cast[0] ? `Starring ${cast[0]}` : "Lead actor withheld"],
-      [shuffledBonuses[0] ?? bonusClue, shuffledBonuses[1] ?? ""].filter(Boolean),
-      [overviewClue],
+      [`Aired: ${yearSpan}`, `Co-starring ${cast[1]}`],
+      [tvRating ? `Rated ${tvRating}` : (shuffledBonuses[0] ?? `Aired: ${yearSpan}`), `Starring ${cast[0]}`],
+      shuffledBonuses.slice(0, 2).length > 0 ? shuffledBonuses.slice(0, 2) : [`Co-starring ${cast[1]}`],
+      [overview],
     ];
   }
 }

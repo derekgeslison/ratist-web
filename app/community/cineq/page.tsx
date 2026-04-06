@@ -104,10 +104,12 @@ export default function CineQPage() {
   // Warn before leaving during quiz + save partial on unload
   useEffect(() => {
     if (screen !== "quiz" && screen !== "questionEnd" && screen !== "countdown") return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // Required for Chrome
+    };
     const saveOnUnload = () => {
       if (mode === "daily" && attemptId && answers.length > 0) {
-        // Fire-and-forget partial save via beacon
         const payload = JSON.stringify({ dailyId, attemptId, mode, mediaType, difficulty, answers, partial: true });
         navigator.sendBeacon?.("/api/cineq/submit", new Blob([payload], { type: "application/json" }));
       }
@@ -116,6 +118,23 @@ export default function CineQPage() {
     window.addEventListener("pagehide", saveOnUnload);
     return () => { window.removeEventListener("beforeunload", handler); window.removeEventListener("pagehide", saveOnUnload); };
   }, [screen, mode, attemptId, dailyId, mediaType, difficulty, answers]);
+
+  // Intercept in-app navigation (back button, link clicks)
+  useEffect(() => {
+    if (screen !== "quiz" && screen !== "questionEnd" && screen !== "countdown") return;
+    const handlePopState = (e: PopStateEvent) => {
+      const msg = mode === "daily"
+        ? "If you leave now, you won't be able to retake this daily quiz. Your current score will be saved. Are you sure?"
+        : "If you leave now, you'll lose your progress on this practice quiz. Are you sure?";
+      if (!window.confirm(msg)) {
+        // Push state back to prevent navigation
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+    window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [screen, mode]);
 
   // Countdown timer with sound
   useEffect(() => {
