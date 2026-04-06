@@ -56,6 +56,7 @@ export default function CineQPage() {
   const [answered, setAnswered] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clueBoxRef = useRef<HTMLDivElement>(null);
 
   // Countdown
   const [countdownSec, setCountdownSec] = useState(5);
@@ -164,6 +165,13 @@ export default function CineQPage() {
     }, 100);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [screen, answered, currentQ]);
+
+  // Auto-scroll clue box when new phase appears
+  useEffect(() => {
+    if (clueBoxRef.current) {
+      clueBoxRef.current.scrollTo({ top: clueBoxRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [currentPhase]);
 
   // 0 points → end question immediately
   const potentialPoints = Math.max(0, Math.round((100 - timeElapsed * PTS_SEC - wrongGuesses * WRONG_PEN) * 10) / 10);
@@ -462,7 +470,7 @@ export default function CineQPage() {
         </div>
 
         {/* Clues — fixed height container so answers never shift */}
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4 overflow-y-auto" style={{ height: 300 }}>
+        <div ref={clueBoxRef} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-4 overflow-y-auto" style={{ height: 300 }}>
           {Array.from({ length: 5 }, (_, pi) => (
             <div key={pi} className={pi > 0 ? "mt-3 pt-3 border-t border-[var(--border)]" : ""}>
               {pi <= currentPhase ? (
