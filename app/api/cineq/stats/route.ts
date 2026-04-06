@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const allAttempts = await prisma.cineQAttempt.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, status: "completed" },
       select: { rawScore: true, difficulty: true, mode: true, mediaType: true, createdAt: true, answers: true },
       orderBy: { createdAt: "desc" },
     });
@@ -68,9 +68,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Quizzes played today
+    // Quizzes played/started today (includes in_progress and abandoned to block retakes)
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-    const playedToday = dailyAttempts
+    const allTodayAttempts = await prisma.cineQAttempt.findMany({
+      where: { userId: user.id, mode: "daily" },
+      select: { mediaType: true, difficulty: true, createdAt: true },
+    });
+    const playedToday = allTodayAttempts
       .filter((a) => a.createdAt.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }) === today)
       .map((a) => `${a.mediaType}-${a.difficulty}`);
 

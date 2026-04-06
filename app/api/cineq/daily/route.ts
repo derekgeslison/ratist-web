@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid params" }, { status: 400 });
     }
 
-    // Check if user already completed this daily
+    // Check if user already started or completed this daily
     const existingDaily = await prisma.cineQDaily.findUnique({
       where: { date_mediaType_difficulty: { date: today, mediaType, difficulty } },
     });
@@ -37,7 +37,12 @@ export async function GET(req: NextRequest) {
         where: { userId_dailyId: { userId: user.id, dailyId: existingDaily.id } },
       });
       if (existingAttempt) {
-        return NextResponse.json({ error: "Already completed", alreadyPlayed: true, attempt: existingAttempt }, { status: 409 });
+        if (existingAttempt.status === "completed" || existingAttempt.status === "abandoned") {
+          return NextResponse.json({ error: "Already played", alreadyPlayed: true, attempt: existingAttempt }, { status: 409 });
+        }
+        // In progress — mark as abandoned (they refreshed/navigated away)
+        await prisma.cineQAttempt.update({ where: { id: existingAttempt.id }, data: { status: "abandoned" } });
+        return NextResponse.json({ error: "Quiz was abandoned. You cannot retake this daily quiz.", alreadyPlayed: true }, { status: 409 });
       }
     }
 
@@ -71,7 +76,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ dailyId: daily.id, date: today, mediaType, difficulty, questions: safeQuestions });
+    // Create in_progress attempt to prevent retake if they leave
+    const attempt = await prisma.cineQAttempt.create({
+      data: { userId: user.id, dailyId: daily.id, mediaType, difficulty, mode: "daily", status: "in_progress", rawScore: 0 },
+    });
+
+    return NextResponse.json({ dailyId: daily.id, attemptId: attempt.id, date: today, mediaType, difficulty, questions: safeQuestions });
   } catch (err) {
     console.error("CineQ daily error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

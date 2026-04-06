@@ -1006,8 +1006,9 @@ model CineQAttempt {
   mediaType  String   @map("media_type")
   difficulty String
   mode       String   @default("daily") // "daily" | "practice"
-  rawScore   Float    @map("raw_score")
-  answers    Json     // array of { questionIndex, correct, timeElapsed, wrongGuesses }
+  status     String   @default("completed") // "in_progress" | "completed" | "abandoned"
+  rawScore   Float    @default(0) @map("raw_score")
+  answers    Json?    // array of { questionIndex, correct, timeElapsed, wrongGuesses }
   createdAt  DateTime @default(now()) @map("created_at")
 
   user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)

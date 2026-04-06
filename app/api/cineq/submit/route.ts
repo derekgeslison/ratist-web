@@ -21,8 +21,9 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true } });
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { dailyId, mode, mediaType, difficulty, answers } = await req.json() as {
+    const { dailyId, attemptId, mode, mediaType, difficulty, answers } = await req.json() as {
       dailyId?: string;
+      attemptId?: string;
       mode: "daily" | "practice";
       mediaType: string;
       difficulty: string;
@@ -33,16 +34,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Must submit exactly 10 answers" }, { status: 400 });
     }
 
-    // For daily mode, verify the daily quiz and check for duplicate submission
+    // For daily mode, verify the daily quiz exists
     let daily: { id: string; questions: unknown } | null = null;
     if (mode === "daily" && dailyId) {
       daily = await prisma.cineQDaily.findUnique({ where: { id: dailyId } });
       if (!daily) return NextResponse.json({ error: "Daily quiz not found" }, { status: 404 });
 
-      const existing = await prisma.cineQAttempt.findUnique({
-        where: { userId_dailyId: { userId: user.id, dailyId: daily.id } },
-      });
-      if (existing) return NextResponse.json({ error: "Already submitted", alreadyPlayed: true }, { status: 409 });
+      // Verify the in_progress attempt exists and belongs to this user
+      if (attemptId) {
+        const existing = await prisma.cineQAttempt.findUnique({ where: { id: attemptId } });
+        if (!existing || existing.userId !== user.id || existing.status !== "in_progress") {
+          return NextResponse.json({ error: "Invalid attempt" }, { status: 400 });
+        }
+      }
     }
 
     // Score each answer server-side
@@ -75,18 +79,27 @@ export async function POST(req: NextRequest) {
     rawScore = Math.round(rawScore * 10) / 10;
     const weightedScore = Math.round(rawScore * diffMultiplier * 10) / 10;
 
-    // Save attempt
-    const attempt = await prisma.cineQAttempt.create({
-      data: {
-        userId: user.id,
-        dailyId: daily?.id ?? null,
-        mediaType,
-        difficulty,
-        mode,
-        rawScore,
-        answers: results as unknown as never,
-      },
-    });
+    // Save attempt — update in_progress for daily, create new for practice
+    let attempt;
+    if (mode === "daily" && attemptId) {
+      attempt = await prisma.cineQAttempt.update({
+        where: { id: attemptId },
+        data: { rawScore, answers: results as unknown as never, status: "completed" },
+      });
+    } else {
+      attempt = await prisma.cineQAttempt.create({
+        data: {
+          userId: user.id,
+          dailyId: daily?.id ?? null,
+          mediaType,
+          difficulty,
+          mode,
+          status: "completed",
+          rawScore,
+          answers: results as unknown as never,
+        },
+      });
+    }
 
     return NextResponse.json({
       attemptId: attempt.id,

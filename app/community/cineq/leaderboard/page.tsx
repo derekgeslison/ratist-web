@@ -13,104 +13,114 @@ interface LeaderboardEntry {
   completedAt: string;
 }
 
+interface SectionData {
+  entries: LeaderboardEntry[];
+  loading: boolean;
+}
+
 const MEDIA_TYPES = [
   { value: "movie", label: "Movies", icon: Film, color: "text-[var(--ratist-red)]" },
   { value: "tv", label: "TV Shows", icon: Tv, color: "text-blue-400" },
   { value: "both", label: "Both", icon: Monitor, color: "text-purple-400" },
 ];
-const DIFFICULTIES = [
-  { value: "easy", label: "Easy" },
-  { value: "medium", label: "Medium" },
-  { value: "hard", label: "Hard" },
-];
+const DIFFS = ["easy", "medium", "hard"];
 
 export default function CineQLeaderboardPage() {
-  const [mediaType, setMediaType] = useState("movie");
-  const [difficulty, setDifficulty] = useState("easy");
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState("");
+  const [data, setData] = useState<Record<string, SectionData>>({});
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/cineq/leaderboard?mediaType=${mediaType}&difficulty=${difficulty}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setEntries(data.entries ?? []);
-        setDate(data.date ?? "");
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [mediaType, difficulty]);
+    // Fetch all 9 leaderboards in parallel
+    const fetches: Promise<void>[] = [];
+    for (const mt of MEDIA_TYPES) {
+      for (const diff of DIFFS) {
+        const key = `${mt.value}-${diff}`;
+        fetches.push(
+          fetch(`/api/cineq/leaderboard?mediaType=${mt.value}&difficulty=${diff}`)
+            .then((r) => r.json())
+            .then((d) => setData((prev) => ({ ...prev, [key]: { entries: d.entries ?? [], loading: false } })))
+            .catch(() => setData((prev) => ({ ...prev, [key]: { entries: [], loading: false } })))
+        );
+        setData((prev) => ({ ...prev, [key]: { entries: [], loading: true } }));
+      }
+    }
+  }, []);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-      <Link href="/community/cineq" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      <Link href="/community/cineq" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-pink-400 mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Back to Cine-Q
       </Link>
 
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex items-center gap-3 mb-8">
         <Trophy className="w-6 h-6 text-yellow-400" />
         <h1 className="text-2xl font-bold text-white">Daily Leaderboard</h1>
       </div>
-      {date && <p className="text-sm text-[var(--foreground-muted)] mb-6">{new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {MEDIA_TYPES.map(({ value, label, icon: Icon, color }) => (
-          <button
-            key={value}
-            onClick={() => setMediaType(value)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-              mediaType === value ? `border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white` : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-            }`}
-          >
-            <Icon className={`w-3 h-3 ${mediaType === value ? color : ""}`} /> {label}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-2 mb-6">
-        {DIFFICULTIES.map(({ value, label }) => (
-          <button
-            key={value}
-            onClick={() => setDifficulty(value)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-              difficulty === value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white" : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {MEDIA_TYPES.map(({ value: mt, label, icon: Icon, color }) => {
+        const hasAnyEntries = DIFFS.some((d) => (data[`${mt}-${d}`]?.entries.length ?? 0) > 0);
+        const totalParticipants = new Set(DIFFS.flatMap((d) => (data[`${mt}-${d}`]?.entries ?? []).map((e) => e.user.firebaseUid))).size;
+        const allScores = DIFFS.flatMap((d) => (data[`${mt}-${d}`]?.entries ?? []).map((e) => e.rawScore));
+        const avgScore = allScores.length > 0 ? (allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
 
-      {loading ? (
-        <p className="text-[var(--foreground-muted)] text-center py-20">Loading...</p>
-      ) : entries.length === 0 ? (
-        <p className="text-[var(--foreground-muted)] text-center py-20">No one has played this quiz yet today. Be the first!</p>
-      ) : (
-        <div className="space-y-2">
-          {entries.map((entry) => (
-            <div key={entry.rank} className={`flex items-center gap-3 p-3 rounded-xl border ${entry.rank <= 3 ? "border-yellow-500/30 bg-yellow-500/5" : "border-[var(--border)] bg-[var(--surface)]"}`}>
-              <span className={`text-lg font-bold w-8 text-center ${entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-gray-300" : entry.rank === 3 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
-                {entry.rank}
-              </span>
-              <div className="relative w-8 h-8 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
-                {entry.user.avatarUrl ? (
-                  <Image src={entry.user.avatarUrl} alt="" fill sizes="32px" className="object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white bg-[var(--ratist-red)]">
-                    {(entry.user.name || "?")[0].toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <Link href={`/profile/${entry.user.firebaseUid}`} className="flex-1 min-w-0 text-sm font-medium text-white hover:text-[var(--ratist-red)] truncate">
-                {entry.user.name}
-              </Link>
-              <span className="text-sm font-bold text-white">{entry.rawScore.toFixed(1)}</span>
+        return (
+          <section key={mt} className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Icon className={`w-5 h-5 ${color}`} />
+              <h2 className="text-lg font-semibold text-white">{label}</h2>
+              {totalParticipants > 0 && (
+                <span className="text-xs text-[var(--foreground-muted)] ml-auto">
+                  {totalParticipants} participant{totalParticipants !== 1 ? "s" : ""} · avg {avgScore.toFixed(1)}
+                </span>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+
+            {!hasAnyEntries ? (
+              <p className="text-sm text-[var(--foreground-muted)] py-4">No one has played this quiz type today yet.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-3">
+                {DIFFS.map((diff) => {
+                  const key = `${mt}-${diff}`;
+                  const section = data[key];
+                  const entries = section?.entries ?? [];
+                  return (
+                    <div key={diff} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                      <h3 className="text-sm font-semibold text-white mb-3 capitalize">{diff}</h3>
+                      {section?.loading ? (
+                        <p className="text-xs text-[var(--foreground-muted)]">Loading...</p>
+                      ) : entries.length === 0 ? (
+                        <p className="text-xs text-[var(--foreground-muted)]">No entries yet</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {entries.slice(0, 10).map((entry) => (
+                            <div key={entry.rank} className="flex items-center gap-2">
+                              <span className={`text-xs font-bold w-5 text-center ${entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-gray-300" : entry.rank === 3 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
+                                {entry.rank}
+                              </span>
+                              <div className="relative w-5 h-5 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
+                                {entry.user.avatarUrl ? (
+                                  <Image src={entry.user.avatarUrl} alt="" fill sizes="20px" className="object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-pink-600">
+                                    {(entry.user.name || "?")[0].toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              <Link href={`/profile/${entry.user.firebaseUid}`} className="flex-1 text-xs text-white hover:text-pink-400 truncate">
+                                {entry.user.name}
+                              </Link>
+                              <span className="text-xs font-bold text-white">{entry.rawScore.toFixed(1)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

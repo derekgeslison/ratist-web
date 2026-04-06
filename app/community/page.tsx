@@ -59,7 +59,28 @@ const HUB_FEATURES = [
   },
 ] as const;
 
+function getPacificDate(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+}
+
 export default async function CommunityPage() {
+  // Fetch today's Cine-Q leader
+  let cineqLeader: { name: string; avatarUrl: string | null; firebaseUid: string; rawScore: number; difficulty: string } | null = null;
+  try {
+    const today = getPacificDate();
+    const todayDailies = await prisma.cineQDaily.findMany({ where: { date: today }, select: { id: true } });
+    if (todayDailies.length > 0) {
+      const topAttempt = await prisma.cineQAttempt.findFirst({
+        where: { dailyId: { in: todayDailies.map((d) => d.id) }, status: "completed" },
+        orderBy: { rawScore: "desc" },
+        select: { rawScore: true, difficulty: true, user: { select: { name: true, avatarUrl: true, firebaseUid: true } } },
+      });
+      if (topAttempt) {
+        cineqLeader = { ...topAttempt.user, rawScore: topAttempt.rawScore, difficulty: topAttempt.difficulty };
+      }
+    }
+  } catch { /* ignore */ }
+
   let users: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; _count: { ratings: number } }[] = [];
   let fetchError = false;
   try {
@@ -104,6 +125,31 @@ export default async function CommunityPage() {
           </Link>
         ))}
       </div>
+
+      {/* Cine-Q Daily Leader */}
+      {cineqLeader && (
+        <div className="bg-[var(--surface)] border border-pink-400/30 rounded-xl p-5 mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Brain className="w-5 h-5 text-pink-400" />
+              <div>
+                <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Today&apos;s Cine-Q Leader</p>
+                <div className="flex items-center gap-2 mt-1">
+                  {cineqLeader.avatarUrl && (
+                    <Image src={cineqLeader.avatarUrl} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover" />
+                  )}
+                  <Link href={`/profile/${cineqLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400">{cineqLeader.name}</Link>
+                  <span className="text-sm font-bold text-pink-400">{cineqLeader.rawScore.toFixed(1)} pts</span>
+                  <span className="text-xs text-[var(--foreground-muted)] capitalize">({cineqLeader.difficulty})</span>
+                </div>
+              </div>
+            </div>
+            <Link href="/community/cineq/leaderboard" className="text-xs text-[var(--foreground-muted)] hover:text-pink-400 transition-colors">
+              Full Leaderboard →
+            </Link>
+          </div>
+        </div>
+      )}
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-8" />
 
