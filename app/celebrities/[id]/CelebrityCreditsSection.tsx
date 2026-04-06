@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { Tv, Film as FilmIcon } from "lucide-react";
-import { posterUrl } from "@/lib/tmdb";
-import PosterOverlay from "@/components/PosterOverlay";
+import MovieCard from "@/components/MovieCard";
+import ShowCard from "@/components/ShowCard";
+import type { TMDBMovie, TMDBShow } from "@/lib/tmdb";
 
 export interface Credit {
   id: number;
@@ -81,38 +80,25 @@ export default function CelebrityCreditsSection({
           ))}
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 mb-4">
         {visible.map((item, idx) => {
           const isTV = item.mediaType === "tv";
-          const href = isTV ? `/shows/${item.id}` : `/movies/${item.id}`;
+          const roleLabel = type === "cast" ? item.character : item.job;
+          if (isTV) {
+            return (
+              <ShowCard
+                key={`${item.id}-${type}-tv-${idx}`}
+                show={{ id: item.id, name: item.title, poster_path: item.poster_path, vote_average: item.vote_average, first_air_date: item.release_date, backdrop_path: null, overview: "", genre_ids: [], popularity: item.popularity, vote_count: 0 } as unknown as TMDBShow}
+                characterName={roleLabel}
+              />
+            );
+          }
           return (
-            <Link key={`${item.id}-${type}-${item.mediaType ?? "m"}-${idx}`} href={href} className="group flex flex-col">
-              <PosterOverlay tmdbId={item.id} title={item.title} posterPath={item.poster_path} releaseDate={item.release_date} voteAverage={item.vote_average} mediaType={isTV ? "tv" : "movie"} showRatings>
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                  {item.poster_path ? (
-                    <Image
-                      src={posterUrl(item.poster_path, "w185")}
-                      alt={item.title}
-                      fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 185px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
-                  )}
-                  {isTV && (
-                    <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
-                      <Tv className="w-2.5 h-2.5" />
-                      <span className="text-[8px] font-bold leading-none">TV</span>
-                    </div>
-                  )}
-                </div>
-              </PosterOverlay>
-              <p className="text-xs font-medium text-white line-clamp-1 group-hover:text-[var(--ratist-red)] transition-colors">{item.title}</p>
-              {type === "cast" && item.character && <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{item.character}</p>}
-              {type === "crew" && item.job && <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{item.job}</p>}
-              <p className="text-xs text-[var(--foreground-muted)]">{item.release_date?.slice(0, 4)}</p>
-            </Link>
+            <MovieCard
+              key={`${item.id}-${type}-m-${idx}`}
+              movie={{ id: item.id, title: item.title, poster_path: item.poster_path, vote_average: item.vote_average, release_date: item.release_date, backdrop_path: null, overview: "", genre_ids: [], popularity: item.popularity, vote_count: 0 } as unknown as TMDBMovie}
+              characterName={roleLabel}
+            />
           );
         })}
       </div>
