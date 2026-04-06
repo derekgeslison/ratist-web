@@ -35,6 +35,14 @@ export async function POST(req: NextRequest, { params }: Props) {
     });
 
     if (existing) {
+      // Check if user has a rating — prevent unseen if rated
+      const hasRating = await prisma.movieRating.findUnique({
+        where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+        select: { id: true },
+      });
+      if (hasRating) {
+        return NextResponse.json({ error: "Cannot un-mark a movie as seen when you have a rating for it. Delete your rating first.", hasRating: true }, { status: 409 });
+      }
       await prisma.userFavoriteMovie.delete({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       });

@@ -39,6 +39,14 @@ export async function POST(req: NextRequest, { params }: Props) {
     });
 
     if (existing) {
+      // Check if user has a rating — prevent unseen if rated
+      const hasRating = await prisma.tVShowRating.findFirst({
+        where: { userId: user.id, tvShowId: tvShow.id },
+        select: { id: true },
+      });
+      if (hasRating) {
+        return NextResponse.json({ error: "Cannot un-mark a show as seen when you have a rating for it. Delete your rating first.", hasRating: true }, { status: 409 });
+      }
       await prisma.userFavoriteShow.delete({
         where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
       });

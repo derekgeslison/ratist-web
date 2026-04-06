@@ -87,16 +87,22 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
     return () => { cancelled = true; };
   }, [user, tmdbId, authLoading]);
 
+  const [seenError, setSeenError] = useState<string | null>(null);
+
   async function toggleSeen() {
     if (!user || markingSeen) return;
     setMarkingSeen(true);
+    setSeenError(null);
     const token = await user.getIdToken();
     const res = await fetch(`/api/shows/${tmdbId}/seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ name: showName, poster_path: posterPath }),
     }).catch(() => null);
-    if (res?.ok) {
+    if (res && !res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.hasRating) { setSeenError("You can't un-mark this as seen because you have a rating for it. Delete your rating first."); setTimeout(() => setSeenError(null), 5000); }
+    } else if (res?.ok) {
       const data = await res.json();
       setSeen(data.seen);
     }
@@ -248,6 +254,9 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
               >
                 {seen ? <><Check className="w-4 h-4" /> Seen</> : <><Eye className="w-4 h-4" /> {markingSeen ? "..." : "Mark Seen"}</>}
               </button>
+              {seenError && (
+                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{seenError}</p>
+              )}
               <div className="relative">
                 <button
                   onClick={handleWatchlistClick}

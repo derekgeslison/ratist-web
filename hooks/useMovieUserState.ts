@@ -36,7 +36,8 @@ export function useMovieUserState(movieId: number) {
 
   // These are called AFTER callers already hit the API — just update local state
   const markSeen = useCallback(() => setSeen(true), []);
+  const markUnseen = useCallback(() => setSeen(false), []);
   const setWatchlistState = useCallback((val: boolean) => setWatchlisted(val), []);
 
-  return { seen, watchlisted, ratistRating, estimatedRating, markSeen, setWatchlistState };
+  return { seen, watchlisted, ratistRating, estimatedRating, markSeen, markUnseen, setWatchlistState };
 }

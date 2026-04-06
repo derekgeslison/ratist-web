@@ -31,7 +31,8 @@ export function useShowUserState(showId: number) {
   }, [user, showId]);
 
   const markSeen = useCallback(() => setSeen(true), []);
+  const markUnseen = useCallback(() => setSeen(false), []);
   const setWatchlistState = useCallback((val: boolean) => setWatchlisted(val), []);
 
-  return { seen, watchlisted, ratistRating, markSeen, setWatchlistState };
+  return { seen, watchlisted, ratistRating, markSeen, markUnseen, setWatchlistState };
 }

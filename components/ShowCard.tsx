@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, Bookmark, BookmarkCheck, Check, Tv } from "lucide-react";
+import { Eye, EyeOff, Bookmark, BookmarkCheck, Check, Tv } from "lucide-react";
 import { posterUrl, type TMDBShow } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
 import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
@@ -20,21 +20,29 @@ interface Props {
 export default function ShowCard({ show, characterName, streaming, rent }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
-  const { seen, watchlisted, ratistRating, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
+  const { seen, watchlisted, ratistRating, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useShowUserState(show.id);
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
+  const [seenError, setSeenError] = useState<string | null>(null);
 
-  async function markSeen(e: React.MouseEvent) {
+  async function toggleSeen(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
-    if (!user || markingS || seen) return;
+    if (!user || markingS) return;
     setMarkingS(true);
+    setSeenError(null);
     const token = await user.getIdToken();
-    await fetch(`/api/shows/${show.id}/seen`, {
+    const res = await fetch(`/api/shows/${show.id}/seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ name: show.name, poster_path: show.poster_path, first_air_date: show.first_air_date }),
     }).catch(() => null);
-    persistSeen();
+    if (res && !res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.hasRating) { setSeenError("Remove your rating first to un-mark as seen"); setTimeout(() => setSeenError(null), 3000); }
+    } else if (res) {
+      const data = await res.json().catch(() => ({}));
+      if (data.seen) persistSeen(); else persistUnseen();
+    }
     setMarkingS(false);
   }
 
@@ -75,14 +83,19 @@ export default function ShowCard({ show, characterName, streaming, rent }: Props
         </div>
         {user && (
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-end gap-2 pb-3">
+            {seenError && (
+              <div className="absolute top-2 left-2 right-2 bg-red-900/90 text-white text-[10px] rounded-lg px-2 py-1.5 text-center z-20">
+                {seenError}
+              </div>
+            )}
             <button
-              onClick={markSeen}
-              disabled={markingS || seen}
+              onClick={toggleSeen}
+              disabled={markingS}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                seen ? "bg-green-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+                seen ? "bg-green-600/80 text-white hover:bg-red-600/80" : "bg-white/90 text-black hover:bg-white"
               }`}
             >
-              {seen ? <><Check className="w-3.5 h-3.5" /> Seen!</> : <><Eye className="w-3.5 h-3.5" /> {markingS ? "..." : "Mark Seen"}</>}
+              {seen ? <><EyeOff className="w-3.5 h-3.5" /> Unsee</> : <><Eye className="w-3.5 h-3.5" /> {markingS ? "..." : "Mark Seen"}</>}
             </button>
             <button
               onClick={addToWatchlist}

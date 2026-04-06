@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Bookmark, BookmarkCheck, Check } from "lucide-react";
+import { Eye, EyeOff, Bookmark, BookmarkCheck, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 import { useShowUserState } from "@/hooks/useShowUserState";
@@ -24,12 +24,13 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
   const showState = useShowUserState(mediaType === "tv" ? tmdbId : 0);
 
   const state = mediaType === "movie" ? movieState : showState;
-  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = state;
+  const { seen, watchlisted, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = state;
   const ratistRating = mediaType === "movie" ? movieState.ratistRating : null;
   const estimatedRating = mediaType === "movie" ? movieState.estimatedRating : null;
 
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
+  const [seenError, setSeenError] = useState<string | null>(null);
 
   const communityScore = voteAverage && voteAverage > 0 ? voteAverage : null;
 
@@ -38,17 +39,24 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
     ? { title, poster_path: posterPath, release_date: releaseDate }
     : { name: title, poster_path: posterPath, first_air_date: releaseDate };
 
-  async function markSeen(e: React.MouseEvent) {
+  async function toggleSeen(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
-    if (!user || markingS || seen) return;
+    if (!user || markingS) return;
     setMarkingS(true);
+    setSeenError(null);
     const token = await user.getIdToken();
-    await fetch(`${apiBase}/seen`, {
+    const res = await fetch(`${apiBase}/seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(bodyPayload),
     }).catch(() => null);
-    persistSeen();
+    if (res && !res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.hasRating) { setSeenError("Remove your rating first"); setTimeout(() => setSeenError(null), 3000); }
+    } else if (res) {
+      const data = await res.json().catch(() => ({}));
+      if (data.seen) persistSeen(); else persistUnseen();
+    }
     setMarkingS(false);
   }
 
@@ -75,14 +83,19 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
         {children}
         {user && (
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/poster:opacity-100 transition-opacity flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg z-10">
+            {seenError && (
+              <div className="absolute top-1 left-1 right-1 bg-red-900/90 text-white text-[9px] rounded px-1.5 py-1 text-center z-20">
+                {seenError}
+              </div>
+            )}
             <button
-              onClick={markSeen}
-              disabled={markingS || seen}
+              onClick={toggleSeen}
+              disabled={markingS}
               className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-                seen ? "bg-green-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+                seen ? "bg-green-600/80 text-white hover:bg-red-600/80" : "bg-white/90 text-black hover:bg-white"
               }`}
             >
-              {seen ? <><Check className="w-3 h-3" /> Seen</> : <><Eye className="w-3 h-3" /> {markingS ? "..." : "Seen"}</>}
+              {seen ? <><EyeOff className="w-3 h-3" /> Unsee</> : <><Eye className="w-3 h-3" /> {markingS ? "..." : "Seen"}</>}
             </button>
             <button
               onClick={addToWatchlist}
