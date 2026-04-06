@@ -64,26 +64,34 @@ export async function GET(req: NextRequest) {
     }
 
     // --- 2. "Because you liked X" ---
-    const topRated = await prisma.movieRating.findMany({
-      where: { userId: user.id, ratistRating: { gte: 8 } },
-      select: { movie: { select: { tmdbId: true, title: true, posterPath: true } }, ratistRating: true },
-      orderBy: { ratistRating: "desc" },
-      take: 3,
-    });
+    const [topRatedMovies, topRatedShows] = await Promise.all([
+      prisma.movieRating.findMany({
+        where: { userId: user.id, ratistRating: { gte: 8 } },
+        select: { movie: { select: { tmdbId: true, title: true, posterPath: true } }, ratistRating: true },
+        orderBy: { ratistRating: "desc" },
+        take: 2,
+      }),
+      prisma.tVShowRating.findMany({
+        where: { userId: user.id, ratistRating: { gte: 8 }, ratingScope: "series" },
+        select: { tvShow: { select: { tmdbId: true, name: true, posterPath: true } }, ratistRating: true },
+        orderBy: { ratistRating: "desc" },
+        take: 1,
+      }),
+    ]);
 
-    // For each top-rated movie, get TMDB recommendations
     const API_KEY = process.env.TMDB_API_KEY;
-    const becauseYouLiked: { source: { tmdbId: number; title: string; posterPath: string | null }; recs: { tmdbId: number; title: string; posterPath: string | null; voteAverage: number }[] }[] = [];
+    const becauseYouLiked: { source: { tmdbId: number; title: string; posterPath: string | null }; recs: unknown[] }[] = [];
 
-    // Get user's seen movie IDs to filter out
-    const seenMovieIds = new Set(
-      (await prisma.userFavoriteMovie.findMany({
-        where: { userId: user.id },
-        select: { movie: { select: { tmdbId: true } } },
-      })).map((s) => s.movie.tmdbId)
-    );
+    // Get user's seen IDs to filter out
+    const [seenMovieRows, seenShowRows] = await Promise.all([
+      prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }),
+      prisma.userFavoriteShow.findMany({ where: { userId: user.id }, select: { tvShow: { select: { tmdbId: true } } } }),
+    ]);
+    const seenMovieIds = new Set(seenMovieRows.map((s) => s.movie.tmdbId));
+    const seenShowIds = new Set(seenShowRows.map((s) => s.tvShow.tmdbId));
 
-    for (const rated of topRated) {
+    // Movie recommendations
+    for (const rated of topRatedMovies) {
       try {
         const res = await fetch(
           `https://api.themoviedb.org/3/movie/${rated.movie.tmdbId}/recommendations?api_key=${API_KEY}&page=1`,
@@ -98,64 +106,99 @@ export async function GET(req: NextRequest) {
             type: "movie" as const, tmdbId: m.id, title: m.title, posterPath: m.poster_path,
             voteAverage: m.vote_average, releaseDate: m.release_date ?? null,
           }));
-        if (recs.length > 0) {
-          becauseYouLiked.push({ source: rated.movie, recs });
-        }
+        if (recs.length > 0) becauseYouLiked.push({ source: rated.movie, recs });
       } catch { /* skip */ }
     }
 
-    // --- 3. Trending in your taste cluster ---
-    // Find users with similar taste (via persona similarity), get their recent high ratings
+    // TV show recommendations
+    for (const rated of topRatedShows) {
+      try {
+        const res = await fetch(
+          `https://api.themoviedb.org/3/tv/${rated.tvShow.tmdbId}/recommendations?api_key=${API_KEY}&page=1`,
+          { next: { revalidate: 86400 } }
+        );
+        if (!res.ok) continue;
+        const data = await res.json();
+        const recs = (data.results ?? [])
+          .filter((s: { id: number; vote_average: number }) => !seenShowIds.has(s.id) && s.vote_average >= 6)
+          .slice(0, 5)
+          .map((s: { id: number; name: string; poster_path: string | null; vote_average: number; first_air_date?: string }) => ({
+            type: "tv" as const, tmdbId: s.id, title: s.name, posterPath: s.poster_path,
+            voteAverage: s.vote_average, releaseDate: s.first_air_date ?? null,
+          }));
+        if (recs.length > 0) becauseYouLiked.push({ source: { tmdbId: rated.tvShow.tmdbId, title: rated.tvShow.name, posterPath: rated.tvShow.posterPath }, recs });
+      } catch { /* skip */ }
+    }
+
+    // --- 3. Trending on The Ratist ---
     let trendingInCluster: unknown[] = [];
     try {
-      {
-        // Get recent highly-rated movies from all users
-        const recentPopular = await prisma.movieRating.findMany({
+      const [recentMovies, recentShows] = await Promise.all([
+        prisma.movieRating.findMany({
           where: { createdAt: { gte: since30d }, ratistRating: { gte: 7.5 }, userId: { not: user.id } },
-          select: { movie: { select: { tmdbId: true, title: true, posterPath: true } }, ratistRating: true },
+          select: { movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } }, ratistRating: true },
           orderBy: { createdAt: "desc" },
           take: 100,
-        });
-        // Count how many users rated each movie highly
-        const movieCounts = new Map<number, { count: number; title: string; posterPath: string | null; avgRating: number; totalRating: number }>();
-        for (const r of recentPopular) {
-          const existing = movieCounts.get(r.movie.tmdbId);
-          if (existing) {
-            existing.count++;
-            existing.totalRating += r.ratistRating!;
-            existing.avgRating = existing.totalRating / existing.count;
-          } else {
-            movieCounts.set(r.movie.tmdbId, { count: 1, title: r.movie.title, posterPath: r.movie.posterPath, avgRating: r.ratistRating!, totalRating: r.ratistRating! });
-          }
-        }
-        trendingInCluster = [...movieCounts.entries()]
-          .filter(([tmdbId]) => !seenMovieIds.has(tmdbId))
-          .sort((a, b) => b[1].count - a[1].count)
-          .slice(0, 10)
-          .map(([tmdbId, d]) => ({
-            type: "movie" as const, tmdbId, title: d.title, posterPath: d.posterPath,
-            voteAverage: d.avgRating, releaseDate: null,
-          }));
+        }),
+        prisma.tVShowRating.findMany({
+          where: { createdAt: { gte: since30d }, ratistRating: { gte: 7.5 }, userId: { not: user.id }, ratingScope: "series" },
+          select: { tvShow: { select: { tmdbId: true, name: true, posterPath: true, firstAirDate: true } }, ratistRating: true },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
+      ]);
+
+      const mediaCounts = new Map<string, { type: "movie" | "tv"; count: number; title: string; posterPath: string | null; releaseDate: string | null; avgRating: number; totalRating: number; tmdbId: number }>();
+      for (const r of recentMovies) {
+        const key = `movie-${r.movie.tmdbId}`;
+        const existing = mediaCounts.get(key);
+        if (existing) { existing.count++; existing.totalRating += r.ratistRating!; existing.avgRating = existing.totalRating / existing.count; }
+        else mediaCounts.set(key, { type: "movie", count: 1, title: r.movie.title, posterPath: r.movie.posterPath, releaseDate: r.movie.releaseDate, avgRating: r.ratistRating!, totalRating: r.ratistRating!, tmdbId: r.movie.tmdbId });
       }
+      for (const r of recentShows) {
+        const key = `tv-${r.tvShow.tmdbId}`;
+        const existing = mediaCounts.get(key);
+        if (existing) { existing.count++; existing.totalRating += r.ratistRating!; existing.avgRating = existing.totalRating / existing.count; }
+        else mediaCounts.set(key, { type: "tv", count: 1, title: r.tvShow.name, posterPath: r.tvShow.posterPath, releaseDate: r.tvShow.firstAirDate, avgRating: r.ratistRating!, totalRating: r.ratistRating!, tmdbId: r.tvShow.tmdbId });
+      }
+
+      trendingInCluster = [...mediaCounts.values()]
+        .filter((d) => d.type === "movie" ? !seenMovieIds.has(d.tmdbId) : !seenShowIds.has(d.tmdbId))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+        .map((d) => ({
+          type: d.type, tmdbId: d.tmdbId, title: d.title, posterPath: d.posterPath,
+          voteAverage: d.avgRating, releaseDate: d.releaseDate,
+        }));
     } catch { /* skip */ }
 
     // --- 4. Unwatched from watchlist ---
-    const watchlistItems = await prisma.watchlistMovie.findMany({
-      where: {
-        watchlist: { userId: user.id },
-        movie: { tmdbId: { notIn: [...seenMovieIds] } },
-      },
-      select: {
-        movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
-      },
-      orderBy: { addedAt: "desc" },
-      take: 10,
-    });
-    const unwatchedWatchlist = watchlistItems.map((w) => ({
-      type: "movie" as const, tmdbId: w.movie.tmdbId, title: w.movie.title,
-      posterPath: w.movie.posterPath, voteAverage: w.movie.voteAverage ?? 0,
-      releaseDate: w.movie.releaseDate,
-    }));
+    const [watchlistMovies, watchlistShows] = await Promise.all([
+      prisma.watchlistMovie.findMany({
+        where: { watchlist: { userId: user.id }, movie: { tmdbId: { notIn: [...seenMovieIds] } } },
+        select: { movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } } },
+        orderBy: { addedAt: "desc" },
+        take: 8,
+      }),
+      prisma.watchlistShow.findMany({
+        where: { watchlist: { userId: user.id }, tvShow: { tmdbId: { notIn: [...seenShowIds] } } },
+        select: { tvShow: { select: { tmdbId: true, name: true, posterPath: true, firstAirDate: true } } },
+        orderBy: { addedAt: "desc" },
+        take: 4,
+      }),
+    ]);
+    const unwatchedWatchlist = [
+      ...watchlistMovies.map((w) => ({
+        type: "movie" as const, tmdbId: w.movie.tmdbId, title: w.movie.title,
+        posterPath: w.movie.posterPath, voteAverage: w.movie.voteAverage ?? 0,
+        releaseDate: w.movie.releaseDate,
+      })),
+      ...watchlistShows.map((w) => ({
+        type: "tv" as const, tmdbId: w.tvShow.tmdbId, title: w.tvShow.name,
+        posterPath: w.tvShow.posterPath, voteAverage: 0,
+        releaseDate: w.tvShow.firstAirDate,
+      })),
+    ];
 
     // --- 5. Complete the rating ---
     const incompleteRatings = await prisma.movieRating.findMany({

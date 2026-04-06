@@ -141,17 +141,6 @@ export default function ForYouPage() {
         </div>
       )}
 
-      {/* Following Activity */}
-      {hasFollowActivity && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-5 h-5 text-[var(--ratist-red)]" />
-            <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
-          </div>
-          <MediaGrid items={data.followActivity} />
-        </section>
-      )}
-
       {/* Because You Liked X */}
       {hasBecauseYouLiked && data.becauseYouLiked.map((section) => (
         <section key={section.source.tmdbId}>
@@ -187,6 +176,17 @@ export default function ForYouPage() {
             <h2 className="text-lg font-semibold text-white">From Your Watchlist</h2>
           </div>
           <MediaGrid items={data.unwatchedWatchlist} />
+        </section>
+      )}
+
+      {/* Following Activity */}
+      {hasFollowActivity && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-5 h-5 text-[var(--ratist-red)]" />
+            <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
+          </div>
+          <MediaGrid items={data.followActivity} />
         </section>
       )}
 
