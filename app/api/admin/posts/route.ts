@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
-    const { title, type = "BLOG", content, excerpt, coverImage, published = false } = body;
+    const { title, type = "BLOG", content, excerpt, coverImage, published = false, showAuthor = true } = body;
     if (!title || !content) return NextResponse.json({ error: "title and content required" }, { status: 400 });
 
     const slug = await uniqueSlug(slugify(title));
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
         excerpt: excerpt ?? null,
         coverImage: coverImage ?? null,
         published,
+        showAuthor,
       },
     });
 

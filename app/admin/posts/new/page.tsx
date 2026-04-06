@@ -24,6 +24,7 @@ function NewPostInner() {
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  const [showAuthor, setShowAuthor] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -37,7 +38,7 @@ function NewPostInner() {
       const res = await fetch("/api/admin/posts", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ title, type, content, excerpt: excerpt || null, coverImage: coverImage || null, published }),
+        body: JSON.stringify({ title, type, content, excerpt: excerpt || null, coverImage: coverImage || null, published, showAuthor }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -97,6 +98,15 @@ function NewPostInner() {
                 <Eye className="w-3.5 h-3.5" /> Published
               </button>
             </div>
+            <label className="flex items-center gap-2 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showAuthor}
+                onChange={(e) => setShowAuthor(e.target.checked)}
+                className="accent-[var(--ratist-red)] w-3.5 h-3.5"
+              />
+              <span className="text-sm text-[var(--foreground-muted)]">Show author name</span>
+            </label>
             {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
             <button
               onClick={save}

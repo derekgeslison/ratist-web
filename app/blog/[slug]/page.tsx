@@ -76,11 +76,11 @@ export default async function BlogPostPage({ params }: Props) {
       </div>
 
       <div className="flex items-center gap-3 mb-8 pb-8 border-b border-[var(--border)]">
-        {post.author.avatarUrl && (
+        {post.showAuthor !== false && post.author.avatarUrl && (
           <Image src={post.author.avatarUrl} alt="" width={36} height={36} className="rounded-full w-9 h-9 object-cover" />
         )}
         <div>
-          <p className="text-sm font-medium text-white">{post.author.name}</p>
+          {post.showAuthor !== false && <p className="text-sm font-medium text-white">{post.author.name}</p>}
           <p className="text-xs text-[var(--foreground-muted)] flex items-center gap-1">
             <Calendar className="w-3 h-3" /> {post.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
           </p>

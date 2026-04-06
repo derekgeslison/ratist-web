@@ -26,7 +26,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
 
   const posts = await prisma.blogPost.findMany({
     where: { type: "BLOG", published: true, ...searchFilter },
-    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, showAuthor: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
 
@@ -43,10 +43,11 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <BookOpen className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Blog</h1>
       </div>
+      <p className="text-[var(--foreground-muted)] mb-6">Articles, insights, and discussions about movies, TV shows, and the world of cinema.</p>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
         <form action="/blog" method="get" className="relative flex-1 w-full sm:w-auto">
@@ -95,12 +96,14 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
                 </h2>
                 {post.excerpt && <p className="text-sm text-[var(--foreground-muted)] line-clamp-3 mb-3">{post.excerpt}</p>}
                 <div className="flex items-center justify-between text-xs text-[var(--foreground-muted)]">
-                  <span className="flex items-center gap-1.5">
-                    {post.author.avatarUrl && (
-                      <Image src={post.author.avatarUrl} alt="" width={16} height={16} className="rounded-full w-4 h-4 object-cover" />
-                    )}
-                    {post.author.name}
-                  </span>
+                  {post.showAuthor !== false ? (
+                    <span className="flex items-center gap-1.5">
+                      {post.author.avatarUrl && (
+                        <Image src={post.author.avatarUrl} alt="" width={16} height={16} className="rounded-full w-4 h-4 object-cover" />
+                      )}
+                      {post.author.name}
+                    </span>
+                  ) : <span />}
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />

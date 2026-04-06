@@ -722,6 +722,7 @@ model BlogPost {
   excerpt    String?
   coverImage String?  @map("cover_image")
   published  Boolean  @default(false)
+  showAuthor Boolean  @default(true) @map("show_author")
   viewCount  Int      @default(0) @map("view_count")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

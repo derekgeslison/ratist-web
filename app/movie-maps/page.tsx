@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-export const metadata: Metadata = { title: "Movie Maps" };
+export const metadata: Metadata = { title: "Movie Maps", description: "Curated journeys through cinema — themed lists, chronological watches, and essential viewing guides." };
 import Link from "next/link";
 import Image from "next/image";
-import { Map, Search } from "lucide-react";
+import { Map, Calendar, Eye, MessageCircle, Search } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
+import AdUnit from "@/components/AdUnit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,23 @@ export default async function MovieMapsPage({ searchParams }: { searchParams: Pr
 
   const posts = await prisma.blogPost.findMany({
     where: { type: "MOVIE_MAP", published: true, ...searchFilter },
-    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, author: { select: { name: true, avatarUrl: true } } },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, showAuthor: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
 
+  const postIds = posts.map((p) => p.id);
+  const commentCounts = postIds.length > 0
+    ? await prisma.comment.groupBy({
+        by: ["targetId"],
+        where: { targetType: "blog", targetId: { in: postIds } },
+        _count: { id: true },
+      })
+    : [];
+  const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
+  const postsWithComments = posts.map((p) => ({ ...p, commentCount: commentMap[p.id] ?? 0 }));
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <Map className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Movie Maps</h1>
@@ -59,24 +71,61 @@ export default async function MovieMapsPage({ searchParams }: { searchParams: Pr
       </div>
 
       {posts.length === 0 ? (
-        <p className="text-[var(--foreground-muted)] text-center py-20">No maps yet.</p>
+        <p className="text-[var(--foreground-muted)] text-center py-20">No maps yet. Check back soon.</p>
       ) : (
+        <>
+        <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG ?? ""} format="auto" className="mb-6" />
+
         <div className="grid md:grid-cols-2 gap-6">
-          {posts.map((post) => (
-            <Link key={post.id} href={`/movie-maps/${post.slug}`} className="group bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)] transition-colors">
+          {postsWithComments.map((post) => (
+            <Link
+              key={post.id}
+              href={`/movie-maps/${post.slug}`}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)] transition-colors group"
+            >
               {post.coverImage && (
-                <div className="relative h-44 bg-[var(--surface-2)]">
+                <div className="relative h-48 bg-[var(--surface-2)]">
                   <Image src={post.coverImage} alt={post.title} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" />
                 </div>
               )}
               <div className="p-5">
-                <h2 className="text-base font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors mb-2 line-clamp-2">{post.title}</h2>
-                {post.excerpt && <p className="text-sm text-[var(--foreground-muted)] line-clamp-2 mb-3">{post.excerpt}</p>}
-                <p className="text-xs text-[var(--foreground-muted)]">By {post.author.name} · {new Date(post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+                <h2 className="text-base font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors mb-2 line-clamp-2">
+                  {post.title}
+                </h2>
+                {post.excerpt && <p className="text-sm text-[var(--foreground-muted)] line-clamp-3 mb-3">{post.excerpt}</p>}
+                <div className="flex items-center justify-between text-xs text-[var(--foreground-muted)]">
+                  {post.showAuthor !== false ? (
+                    <span className="flex items-center gap-1.5">
+                      {post.author.avatarUrl && (
+                        <Image src={post.author.avatarUrl} alt="" width={16} height={16} className="rounded-full w-4 h-4 object-cover" />
+                      )}
+                      {post.author.name}
+                    </span>
+                  ) : <span />}
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(post.createdAt).toLocaleDateString()}
+                    </span>
+                    {post.viewCount > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        {post.viewCount.toLocaleString()}
+                      </span>
+                    )}
+                    {post.commentCount > 0 && (
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />
+                        {post.commentCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </Link>
           ))}
         </div>
+        </>
       )}
     </div>
   );

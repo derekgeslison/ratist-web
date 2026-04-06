@@ -31,6 +31,7 @@ export default function EditPostPage() {
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  const [showAuthor, setShowAuthor] = useState(true);
   const [slug, setSlug] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,6 +54,7 @@ export default function EditPostPage() {
       setExcerpt(post.excerpt ?? "");
       setCoverImage(post.coverImage ?? "");
       setPublished(post.published);
+      setShowAuthor(post.showAuthor ?? true);
       setSlug(post.slug);
       setLoading(false);
     })();
@@ -66,7 +68,7 @@ export default function EditPostPage() {
     const res = await fetch(`/api/admin/posts/${id}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title, content, excerpt: excerpt || null, coverImage: coverImage || null, published }),
+      body: JSON.stringify({ title, content, excerpt: excerpt || null, coverImage: coverImage || null, published, showAuthor }),
     });
     if (!res.ok) {
       const d = await res.json();
@@ -129,6 +131,15 @@ export default function EditPostPage() {
                 <Eye className="w-3.5 h-3.5" /> Published
               </button>
             </div>
+            <label className="flex items-center gap-2 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showAuthor}
+                onChange={(e) => setShowAuthor(e.target.checked)}
+                className="accent-[var(--ratist-red)] w-3.5 h-3.5"
+              />
+              <span className="text-sm text-[var(--foreground-muted)]">Show author name</span>
+            </label>
             <p className="text-xs text-[var(--foreground-muted)] mb-3">Slug: <span className="text-white font-mono">{slug}</span></p>
             {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
             <button
