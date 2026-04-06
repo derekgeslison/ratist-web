@@ -103,8 +103,13 @@ export default function CelebrityCreditsSection({
       // Default: show character name if they acted, otherwise first crew job
       return item.character || item.jobs?.[0];
     }
-    // Specific crew filter: show the filter label (e.g. "Composer" not "Original Music Composer")
-    return roleFilter;
+    // Specific crew filter: show the actual matching job title from TMDB
+    const role = FILTERABLE_ROLES.find((r) => r.label === roleFilter);
+    if (role) {
+      const match = item.jobs?.find((j) => role.jobs.includes(j));
+      if (match) return match;
+    }
+    return item.jobs?.[0];
   }
 
   return (

@@ -239,24 +239,28 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
                   <><Star className="w-4 h-4" /> Rate Show</>
                 )}
               </Link>
-              <button
-                onClick={() => {
-                  if (seen) { toggleSeen(); return; }
-                  if (seasons && seasons.length > 0) { setShowSeenModal(true); return; }
-                  toggleSeen();
-                }}
-                disabled={markingSeen}
-                className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full border transition-colors ${
-                  seen
-                    ? "border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20"
-                    : "border-[var(--border)] bg-[var(--surface-2)] text-white hover:border-[var(--ratist-red)]"
-                }`}
-              >
-                {seen ? <><Check className="w-4 h-4" /> Seen</> : <><Eye className="w-4 h-4" /> {markingSeen ? "..." : "Mark Seen"}</>}
-              </button>
-              {seenError && (
-                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{seenError}</p>
-              )}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (seen) { toggleSeen(); return; }
+                    if (seasons && seasons.length > 0) { setShowSeenModal(true); return; }
+                    toggleSeen();
+                  }}
+                  disabled={markingSeen}
+                  className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full border transition-colors ${
+                    seen
+                      ? "border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20"
+                      : "border-[var(--border)] bg-[var(--surface-2)] text-white hover:border-[var(--ratist-red)]"
+                  }`}
+                >
+                  {seen ? <><Check className="w-4 h-4" /> Seen</> : <><Eye className="w-4 h-4" /> {markingSeen ? "..." : "Mark Seen"}</>}
+                </button>
+                {seenError && (
+                  <div className="absolute top-full left-0 mt-2 z-30 w-64 bg-[var(--surface)] border border-red-500/50 rounded-lg px-3 py-2 shadow-xl text-xs text-red-400">
+                    {seenError}
+                  </div>
+                )}
+              </div>
               <div className="relative">
                 <button
                   onClick={handleWatchlistClick}

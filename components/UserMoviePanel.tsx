@@ -282,24 +282,28 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
           {user && (
             <>
-              <button
-                onClick={toggleSeen}
-                disabled={togglingSeeen}
-                className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
-                  seen
-                    ? "bg-[var(--surface-2)] border border-green-500/50 text-green-400 hover:border-red-500/50 hover:text-red-400"
-                    : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white"
-                }`}
-              >
-                {seen ? (
-                  <><Eye className="w-4 h-4" /> Seen It</>
-                ) : (
-                  <><EyeOff className="w-4 h-4" /> Mark Seen</>
+              <div className="relative">
+                <button
+                  onClick={toggleSeen}
+                  disabled={togglingSeeen}
+                  className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
+                    seen
+                      ? "bg-[var(--surface-2)] border border-green-500/50 text-green-400 hover:border-red-500/50 hover:text-red-400"
+                      : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white"
+                  }`}
+                >
+                  {seen ? (
+                    <><Eye className="w-4 h-4" /> Seen It</>
+                  ) : (
+                    <><EyeOff className="w-4 h-4" /> Mark Seen</>
+                  )}
+                </button>
+                {seenError && (
+                  <div className="absolute top-full left-0 mt-2 z-30 w-64 bg-[var(--surface)] border border-red-500/50 rounded-lg px-3 py-2 shadow-xl text-xs text-red-400">
+                    {seenError}
+                  </div>
                 )}
-              </button>
-              {seenError && (
-                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{seenError}</p>
-              )}
+              </div>
               <div className="relative">
                 <button
                   onClick={handleWatchlistClick}
