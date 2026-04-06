@@ -78,6 +78,7 @@ export default function Navbar() {
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies & TV" },
+    ...(user ? [{ href: "/for-you", label: "For You" }] : []),
     { href: "/celebrities", label: "Celebrities" },
     { href: "/community", label: "Community" },
     { href: "/tools", label: "Tools" },

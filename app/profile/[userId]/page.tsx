@@ -34,12 +34,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { userId } = await params;
   const user = await prisma.user.findFirst({
     where: { OR: [{ id: userId }, { firebaseUid: userId }] },
-    select: { name: true },
+    select: { name: true, bio: true, firebaseUid: true },
   });
   if (!user) return { title: "Profile" };
+  const description = user.bio ?? `${user.name}'s movie and TV ratings on The Ratist`;
+  const ogImage = `https://www.theratist.com/api/og/profile?userId=${user.firebaseUid}`;
   return {
     title: user.name,
-    openGraph: { title: `${user.name}'s profile on The Ratist` },
+    description,
+    openGraph: {
+      title: `${user.name} — The Ratist`,
+      description,
+      images: [{ url: ogImage, width: 800, height: 420 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${user.name} — The Ratist`,
+      description,
+      images: [ogImage],
+    },
   };
 }
 

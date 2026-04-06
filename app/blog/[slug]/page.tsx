@@ -17,9 +17,24 @@ interface Props {
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const post = await prisma.blogPost.findUnique({ where: { slug, published: true } });
+  const post = await prisma.blogPost.findUnique({ where: { slug, published: true }, select: { title: true, excerpt: true, coverImage: true } });
   if (!post) return { title: "Post Not Found" };
-  return { title: post.title, description: post.excerpt ?? undefined };
+  const description = post.excerpt ?? undefined;
+  return {
+    title: post.title,
+    description,
+    openGraph: {
+      title: `${post.title} — The Ratist`,
+      description,
+      ...(post.coverImage ? { images: [{ url: post.coverImage }] } : {}),
+    },
+    twitter: {
+      card: post.coverImage ? "summary_large_image" : "summary",
+      title: `${post.title} — The Ratist`,
+      description,
+      ...(post.coverImage ? { images: [post.coverImage] } : {}),
+    },
+  };
 }
 
 export default async function BlogPostPage({ params }: Props) {
