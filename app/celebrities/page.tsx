@@ -17,7 +17,7 @@ interface TMDBPerson {
   profile_path: string | null;
   known_for_department: string;
   popularity: number;
-  known_for?: { id: number; title?: string; name?: string; media_type: string }[];
+  known_for?: { id: number; title?: string; name?: string; media_type: string; vote_count?: number }[];
   birthday?: string | null;
   movie_credits?: {
     cast: MovieCredit[];
@@ -30,6 +30,14 @@ interface MovieCredit {
   title: string;
   vote_average: number;
   popularity: number;
+}
+
+// Minimum vote count on known_for entries to filter out TMDB popularity noise
+const MIN_KNOWN_FOR_VOTES = 500;
+
+function isNotableEnough(person: TMDBPerson): boolean {
+  if (!person.known_for?.length) return false;
+  return person.known_for.some((k) => (k.vote_count ?? 0) >= MIN_KNOWN_FOR_VOTES);
 }
 
 // Fetch list of people (popular / name search)
@@ -141,22 +149,22 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     people = credits;
     total_results = credits.length;
     total_pages = 1;
-  } else if (dept && !q) {
-    // When filtering by department without a search query, overfetch from TMDB
-    // since popular people are heavily weighted toward actors
-    const overfetchPages = 10; // 200 people to filter from
+  } else if (!q) {
+    // Default popular browse (with optional dept filter) — overfetch and filter
+    // to remove TMDB popularity noise (obscure people with inflated scores)
+    const overfetchPages = 10; // 200 people pool
     const pageResponses = await Promise.all(
       Array.from({ length: overfetchPages }, (_, i) => fetchPeople("", i + 1))
     );
-    const allPeople = pageResponses.flatMap((r) => r.results);
-    const filtered = allPeople.filter((p) => p.known_for_department === dept);
+    let allPeople = pageResponses.flatMap((r) => r.results).filter(isNotableEnough);
+    if (dept) allPeople = allPeople.filter((p) => p.known_for_department === dept);
     // Manual pagination over filtered results
     const startIdx = (page - 1) * perPage;
-    people = filtered.slice(startIdx, startIdx + perPage);
-    total_results = filtered.length;
-    total_pages = Math.max(1, Math.ceil(filtered.length / perPage));
+    people = allPeople.slice(startIdx, startIdx + perPage);
+    total_results = allPeople.length;
+    total_pages = Math.max(1, Math.ceil(allPeople.length / perPage));
   } else {
-    // Fetch multiple TMDB pages to fill perPage quota
+    // Search query — show all results, no notability filter
     const tmdbPagesNeeded = Math.ceil(perPage / 20);
     const tmdbStartPage = (page - 1) * tmdbPagesNeeded + 1;
     const pageResponses = await Promise.all(
