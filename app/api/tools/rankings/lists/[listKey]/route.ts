@@ -62,14 +62,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ li
   }
 }
 
-/** POST — Add a movie to a custom ranking list */
+/** POST — Add a movie or TV show to a custom ranking list */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ listKey: string }> }) {
   try {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { listKey } = await params;
-    const { tmdbId, title, posterPath, releaseDate } = await req.json();
+    const { tmdbId, title, posterPath, releaseDate, mediaType } = await req.json();
     if (!tmdbId) return NextResponse.json({ error: "tmdbId required" }, { status: 400 });
 
     // Verify list exists
@@ -78,30 +78,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lis
     });
     if (!list) return NextResponse.json({ error: "List not found" }, { status: 404 });
 
-    // Ensure movie exists
-    const movie = await prisma.movie.upsert({
-      where: { tmdbId: Number(tmdbId) },
-      create: { tmdbId: Number(tmdbId), title: title ?? "Unknown", posterPath: posterPath ?? null, releaseDate: releaseDate ?? null },
-      update: {},
-    });
-
     // Get current max sortOrder
     const maxRank = await prisma.userMovieRanking.findFirst({
       where: { userId: user.id, listKey },
       orderBy: { sortOrder: "desc" },
       select: { sortOrder: true },
     });
+    const nextOrder = (maxRank?.sortOrder ?? -1) + 1;
 
-    // Add at end
-    await prisma.userMovieRanking.upsert({
-      where: { userId_movieId_listKey: { userId: user.id, movieId: movie.id, listKey } },
-      create: { userId: user.id, movieId: movie.id, listKey, sortOrder: (maxRank?.sortOrder ?? -1) + 1 },
-      update: {},
-    });
+    if (mediaType === "tv") {
+      // Ensure TV show exists
+      const show = await prisma.tVShow.upsert({
+        where: { tmdbId: Number(tmdbId) },
+        create: { tmdbId: Number(tmdbId), name: title ?? "Unknown", posterPath: posterPath ?? null, firstAirDate: releaseDate ?? null },
+        update: {},
+      });
+
+      await prisma.userMovieRanking.upsert({
+        where: { userId_tvShowId_listKey: { userId: user.id, tvShowId: show.id, listKey } },
+        create: { userId: user.id, tvShowId: show.id, listKey, sortOrder: nextOrder },
+        update: {},
+      });
+    } else {
+      // Ensure movie exists
+      const movie = await prisma.movie.upsert({
+        where: { tmdbId: Number(tmdbId) },
+        create: { tmdbId: Number(tmdbId), title: title ?? "Unknown", posterPath: posterPath ?? null, releaseDate: releaseDate ?? null },
+        update: {},
+      });
+
+      await prisma.userMovieRanking.upsert({
+        where: { userId_movieId_listKey: { userId: user.id, movieId: movie.id, listKey } },
+        create: { userId: user.id, movieId: movie.id, listKey, sortOrder: nextOrder },
+        update: {},
+      });
+    }
 
     return NextResponse.json({ added: true });
   } catch (err) {
-    console.error("Add movie to ranking list error:", err);
+    console.error("Add to ranking list error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

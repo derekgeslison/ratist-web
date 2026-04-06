@@ -52,19 +52,32 @@ export async function POST(req: NextRequest) {
       data: { userId: user.id, name: name.trim(), listKey },
     });
 
-    // If importing from a watchlist, copy movies
+    // If importing from a watchlist, copy movies and TV shows
     if (fromWatchlistId) {
-      const watchlistMovies = await prisma.watchlistMovie.findMany({
-        where: { watchlistId: fromWatchlistId },
-        orderBy: { addedAt: "asc" },
-        select: { movieId: true },
-      });
+      const [watchlistMovies, watchlistShows] = await Promise.all([
+        prisma.watchlistMovie.findMany({
+          where: { watchlistId: fromWatchlistId },
+          orderBy: { addedAt: "asc" },
+          select: { movieId: true },
+        }),
+        prisma.watchlistShow.findMany({
+          where: { watchlistId: fromWatchlistId },
+          orderBy: { addedAt: "asc" },
+          select: { tvShowId: true },
+        }),
+      ]);
 
-      if (watchlistMovies.length > 0) {
+      const allItems = [
+        ...watchlistMovies.map((wm) => ({ movieId: wm.movieId, tvShowId: null })),
+        ...watchlistShows.map((ws) => ({ movieId: null, tvShowId: ws.tvShowId })),
+      ];
+
+      if (allItems.length > 0) {
         await prisma.userMovieRanking.createMany({
-          data: watchlistMovies.map((wm, i) => ({
+          data: allItems.map((item, i) => ({
             userId: user.id,
-            movieId: wm.movieId,
+            movieId: item.movieId,
+            tvShowId: item.tvShowId,
             listKey,
             sortOrder: i,
           })),

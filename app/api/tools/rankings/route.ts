@@ -22,12 +22,15 @@ export async function GET(req: NextRequest) {
     // Check for saved rankings first
     const savedRankings = await prisma.userMovieRanking.findMany({
       where: { userId: user.id, listKey },
-      include: { movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } } },
+      include: {
+        movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } },
+        tvShow: { select: { id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true } },
+      },
       orderBy: { sortOrder: "asc" },
     });
 
     if (savedRankings.length > 0) {
-      const movieIds = new Set(savedRankings.map((r) => r.movieId));
+      const movieIds = new Set(savedRankings.filter((r) => r.movieId).map((r) => r.movieId!));
 
       // Fetch ratings for saved movies
       const ratings = await prisma.movieRating.findMany({
@@ -36,16 +39,32 @@ export async function GET(req: NextRequest) {
       });
       const ratingMap = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
 
-      const movies = savedRankings.map((r, idx) => ({
-        id: r.movieId,
-        tmdbId: r.movie.tmdbId,
-        title: r.movie.title,
-        posterPath: r.movie.posterPath,
-        year: r.movie.releaseDate?.slice(0, 4) ?? "",
-        ratistRating: ratingMap.get(r.movieId) ?? null,
-        seen: true,
-        rank: idx + 1,
-      }));
+      const movies = savedRankings.map((r, idx) => {
+        if (r.tvShow) {
+          return {
+            id: r.id,
+            tmdbId: r.tvShow.tmdbId,
+            title: r.tvShow.name,
+            posterPath: r.tvShow.posterPath,
+            year: r.tvShow.firstAirDate?.slice(0, 4) ?? "",
+            ratistRating: null as number | null,
+            mediaType: "tv" as const,
+            seen: true,
+            rank: idx + 1,
+          };
+        }
+        return {
+          id: r.id,
+          tmdbId: r.movie!.tmdbId,
+          title: r.movie!.title,
+          posterPath: r.movie!.posterPath,
+          year: r.movie!.releaseDate?.slice(0, 4) ?? "",
+          ratistRating: ratingMap.get(r.movieId!) ?? null,
+          mediaType: "movie" as const,
+          seen: true,
+          rank: idx + 1,
+        };
+      });
 
       // Find new movies not yet in the saved rankings (for non-custom lists)
       if (!listKey.startsWith("custom-")) {
@@ -144,15 +163,26 @@ export async function POST(req: NextRequest) {
     const user = await getUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { listKey, movieIds } = await req.json();
-    if (!listKey || !Array.isArray(movieIds)) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-    }
+    const { listKey, movieIds, items } = await req.json();
+    if (!listKey) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
     // Delete existing rankings for this list, then insert new ones
     await prisma.userMovieRanking.deleteMany({ where: { userId: user.id, listKey } });
 
-    if (movieIds.length > 0) {
+    // New format: items with mediaType info
+    if (Array.isArray(items) && items.length > 0) {
+      await prisma.userMovieRanking.createMany({
+        data: items.map((item: { id: string; mediaType?: string }, idx: number) => ({
+          userId: user.id,
+          movieId: item.mediaType === "tv" ? null : item.id,
+          tvShowId: item.mediaType === "tv" ? item.id : null,
+          listKey,
+          sortOrder: idx,
+        })),
+        skipDuplicates: true,
+      });
+    } else if (Array.isArray(movieIds) && movieIds.length > 0) {
+      // Legacy format: all movies
       await prisma.userMovieRanking.createMany({
         data: movieIds.map((movieId: string, idx: number) => ({
           userId: user.id,

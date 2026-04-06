@@ -31,17 +31,17 @@ export async function GET(request: Request) {
     });
 
     if (savedRankings.length > 0) {
-      const movieIds = savedRankings.map((r) => r.movieId);
+      const movieIds = savedRankings.filter((r) => r.movieId).map((r) => r.movieId!);
       const ratings = await prisma.movieRating.findMany({
         where: { userId: user.id, movieId: { in: movieIds } },
         select: { movieId: true, ratistRating: true },
       });
       const ratingMap = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
-      top10 = savedRankings.map((r) => ({
-        title: r.movie.title,
-        posterPath: r.movie.posterPath,
-        year: r.movie.releaseDate?.slice(0, 4) ?? "",
-        ratistRating: ratingMap.get(r.movieId) ?? null,
+      top10 = savedRankings.filter((r) => r.movie).map((r) => ({
+        title: r.movie!.title,
+        posterPath: r.movie!.posterPath,
+        year: r.movie!.releaseDate?.slice(0, 4) ?? "",
+        ratistRating: ratingMap.get(r.movieId!) ?? null,
       }));
     } else {
       // Fallback: rating-sorted

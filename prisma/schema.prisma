@@ -270,6 +270,7 @@ model TVShow {
   ratings    TVShowRating[]
   favoritedBy UserFavoriteShow[]
   watchlistEntries WatchlistShow[]
+  rankings         UserMovieRanking[]
 
   @@map("tv_shows")
 }
@@ -632,15 +633,19 @@ model UserWatchLog {
 }
 
 model UserMovieRanking {
-  userId    String @map("user_id")
-  movieId   String @map("movie_id")
-  listKey   String @default("all-time") @map("list_key") // "all-time" | "2024" | "2025" etc.
-  sortOrder Int    @map("sort_order")
+  id        String  @id @default(cuid())
+  userId    String  @map("user_id")
+  movieId   String? @map("movie_id")
+  tvShowId  String? @map("tv_show_id")
+  listKey   String  @default("all-time") @map("list_key") // "all-time" | "2024" | "2025" | "custom-..." etc.
+  sortOrder Int     @map("sort_order")
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie  Movie?  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  tvShow TVShow? @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
 
-  @@id([userId, movieId, listKey])
+  @@unique([userId, movieId, listKey])
+  @@unique([userId, tvShowId, listKey])
   @@map("user_movie_rankings")
 }
 

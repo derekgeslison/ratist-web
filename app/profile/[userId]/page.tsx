@@ -442,13 +442,13 @@ export default async function ProfilePage({ params }: Props) {
         isPrivate={user.isPrivate}
         publicTabs={user.publicTabs as Record<string, boolean> ?? {}}
         siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}
-        savedRankings={savedRankings.map((r) => {
+        savedRankings={savedRankings.filter((r) => r.movie).map((r) => {
           const rating = allRatings.find((ar) => ar.movieId === r.movieId);
           return {
-            tmdbId: r.movie.tmdbId,
-            title: r.movie.title,
-            posterPath: r.movie.posterPath,
-            year: r.movie.releaseDate?.slice(0, 4) ?? "",
+            tmdbId: r.movie!.tmdbId,
+            title: r.movie!.title,
+            posterPath: r.movie!.posterPath,
+            year: r.movie!.releaseDate?.slice(0, 4) ?? "",
             ratistRating: rating?.ratistRating ?? null,
           };
         })}

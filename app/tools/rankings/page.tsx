@@ -18,6 +18,7 @@ interface RankedMovie {
   posterPath: string | null;
   year: string;
   ratistRating: number | null;
+  mediaType?: "movie" | "tv";
   rank: number;
 }
 
@@ -85,8 +86,13 @@ function SortableItem({
       </div>
 
       <div className="flex-1 min-w-0">
-        <Link href={`/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] truncate block">{movie.title}</Link>
-        <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+        <Link href={movie.mediaType === "tv" ? `/shows/${movie.tmdbId}` : `/movies/${movie.tmdbId}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] truncate block">
+          {movie.title}
+        </Link>
+        <div className="flex items-center gap-1.5">
+          {movie.mediaType === "tv" && <span className="text-[9px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>}
+          <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+        </div>
       </div>
 
       {movie.ratistRating != null && (
@@ -122,9 +128,9 @@ export default function RankingsPage() {
   const [newListName, setNewListName] = useState("");
   const [creatingList, setCreatingList] = useState(false);
 
-  // Add movie search (for custom lists)
+  // Add movie/show search (for custom lists)
   const [addMovieQuery, setAddMovieQuery] = useState("");
-  const [addMovieResults, setAddMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string }[]>([]);
+  const [addMovieResults, setAddMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string; mediaType: "movie" | "tv" }[]>([]);
   const [addingMovie, setAddingMovie] = useState<number | null>(null);
 
   const isCustomList = filter.startsWith("custom-");
@@ -163,13 +169,19 @@ export default function RankingsPage() {
     });
   }, [user]);
 
-  // Add movie search
+  // Add movie/show search
   useEffect(() => {
     if (addMovieQuery.length < 2) { setAddMovieResults([]); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}`);
-      const data = await res.json();
-      setAddMovieResults(data.results ?? []);
+      const [movieRes, showRes] = await Promise.all([
+        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}`).then((r) => r.json()),
+        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(addMovieQuery)}`).then((r) => r.json()),
+      ]);
+      const combined = [
+        ...(movieRes.results ?? []).map((m: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...m, mediaType: "movie" as const })),
+        ...(showRes.results ?? []).map((s: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...s, mediaType: "tv" as const })),
+      ];
+      setAddMovieResults(combined);
     }, 300);
     return () => clearTimeout(t);
   }, [addMovieQuery]);
@@ -179,10 +191,14 @@ export default function RankingsPage() {
     try {
       const token = await user.getIdToken();
       const listKey = filter === "all" ? "all-time" : filter;
+      const hasShows = newMovies.some((m) => m.mediaType === "tv");
       const res = await fetch("/api/tools/rankings", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ listKey, movieIds: newMovies.map((m) => m.id) }),
+        body: JSON.stringify(hasShows
+          ? { listKey, items: newMovies.map((m) => ({ id: m.id, mediaType: m.mediaType ?? "movie" })) }
+          : { listKey, movieIds: newMovies.map((m) => m.id) }
+        ),
       });
       if (!res.ok) throw new Error("Failed to save rankings");
     } catch {
@@ -222,7 +238,7 @@ export default function RankingsPage() {
     setFilter(String(CURRENT_YEAR));
   }
 
-  async function addMovieToRanking(m: { id: number; title: string; posterPath: string | null; releaseDate: string }) {
+  async function addMovieToRanking(m: { id: number; title: string; posterPath: string | null; releaseDate: string; mediaType: "movie" | "tv" }) {
     if (!user || !isCustomList || addingMovie) return;
     setAddingMovie(m.id);
     try {
@@ -230,7 +246,7 @@ export default function RankingsPage() {
       const res = await fetch(`/api/tools/rankings/lists/${filter}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate }),
+        body: JSON.stringify({ tmdbId: m.id, title: m.title, posterPath: m.posterPath, releaseDate: m.releaseDate, mediaType: m.mediaType }),
       });
       if (!res.ok) throw new Error("Failed to add movie");
       setAddMovieQuery("");
@@ -388,7 +404,7 @@ export default function RankingsPage() {
               <div className="flex items-center gap-2 bg-[var(--surface)] border border-purple-500/30 rounded-xl px-3 py-2">
                 <Search className="w-4 h-4 text-purple-400" />
                 <input value={addMovieQuery} onChange={(e) => setAddMovieQuery(e.target.value)}
-                  placeholder="Search to add a movie to this list..."
+                  placeholder="Search to add a movie or show…"
                   className="flex-1 bg-transparent text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
                 {addMovieQuery && <button onClick={() => { setAddMovieQuery(""); setAddMovieResults([]); }}><X className="w-4 h-4 text-[var(--foreground-muted)]" /></button>}
               </div>
@@ -404,7 +420,10 @@ export default function RankingsPage() {
                           {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} width={32} height={48} className="object-cover w-full h-full" />}
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm text-white">{m.title}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm text-white">{m.title}</p>
+                            {m.mediaType === "tv" && <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>}
+                          </div>
                           <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
                         </div>
                         {alreadyIn && <span className="text-[9px] text-[var(--foreground-muted)]">Already in list</span>}
@@ -419,14 +438,14 @@ export default function RankingsPage() {
 
           {/* Total count */}
           {!loading && movies.length > 0 && (
-            <p className="text-xs text-[var(--foreground-muted)] mb-3">{movies.length} movie{movies.length !== 1 ? "s" : ""} ranked</p>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">{movies.length} item{movies.length !== 1 ? "s" : ""} ranked</p>
           )}
 
           {loading ? (
             <p className="text-[var(--foreground-muted)] text-center py-10">Loading your movies...</p>
           ) : movies.length === 0 ? (
             <p className="text-[var(--foreground-muted)] text-center py-10">
-              {isCustomList ? "No movies in this list yet. Use the search above to add some!" : <>No movies found for this filter. <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Rate or mark movies as seen.</Link></>}
+              {isCustomList ? "Nothing in this list yet. Use the search above to add movies or shows!" : <>No movies found for this filter. <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Rate or mark movies as seen.</Link></>}
             </p>
           ) : (() => {
             const visible = movies.slice(0, visibleCount);

@@ -43,7 +43,7 @@ export default async function PublicRankingsPage({ params }: Props) {
   });
 
   // Get ratings for score display
-  const movieIds = savedRankings.map((r) => r.movieId);
+  const movieIds = savedRankings.filter((r) => r.movieId).map((r) => r.movieId!);
   const ratings = movieIds.length > 0
     ? await prisma.movieRating.findMany({
         where: { userId: user.id, movieId: { in: movieIds } },
@@ -56,12 +56,12 @@ export default async function PublicRankingsPage({ params }: Props) {
   let movies: { tmdbId: number; title: string; posterPath: string | null; year: string; ratistRating: number | null }[];
 
   if (savedRankings.length > 0) {
-    movies = savedRankings.map((r) => ({
-      tmdbId: r.movie.tmdbId,
-      title: r.movie.title,
-      posterPath: r.movie.posterPath,
-      year: r.movie.releaseDate?.slice(0, 4) ?? "",
-      ratistRating: ratingMap.get(r.movieId) ?? null,
+    movies = savedRankings.filter((r) => r.movie).map((r) => ({
+      tmdbId: r.movie!.tmdbId,
+      title: r.movie!.title,
+      posterPath: r.movie!.posterPath,
+      year: r.movie!.releaseDate?.slice(0, 4) ?? "",
+      ratistRating: ratingMap.get(r.movieId!) ?? null,
     }));
   } else {
     const allRatings = await prisma.movieRating.findMany({
