@@ -47,6 +47,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   const providers = params.providers?.split(",").filter(Boolean);
   const showProviders = params.showProviders === "1";
   const language = params.language;
+  const keywords = params.keywords;
 
   const hasFilters = !!(
     genres?.length ||
@@ -56,6 +57,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     params.ratingVal ||
     providers?.length ||
     language ||
+    keywords ||
     // legacy
     params.genre || params.decade || params.rating
   );
@@ -112,6 +114,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
     providers,
     language,
+    keywords,
     genre: params.genre,
     minRating: params.rating,
   };
@@ -167,6 +170,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           ratingLte: discoverOptions.ratingLte,
           providers: discoverOptions.providers,
           language: discoverOptions.language,
+          keywords: discoverOptions.keywords,
           page: p,
           query: params.search,
         })

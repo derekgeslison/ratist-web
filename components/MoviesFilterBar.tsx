@@ -100,6 +100,8 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentProviders = searchParams.get("providers")?.split(",").filter(Boolean) ?? [];
   const currentShowProviders = searchParams.get("showProviders") === "1";
   const currentLanguage = searchParams.get("language") ?? "";
+  const currentKeywordIds = searchParams.get("keywords")?.split(",").filter(Boolean) ?? [];
+  const currentKeywordLabels = searchParams.get("keywordLabels")?.split(",").filter(Boolean) ?? [];
 
   // Local debounced state for text inputs
   const currentSearch = searchParams.get("search") ?? "";
@@ -118,15 +120,27 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const [actorResults, setActorResults] = useState<ActorOption[]>([]);
   const actorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Keyword search
+  const [keywordQuery, setKeywordQuery] = useState("");
+  const [keywordResults, setKeywordResults] = useState<{ id: number; name: string }[]>([]);
+  const keywordTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Cast filters derived from URL
   const castFilters = currentCastIds.map((id, i) => ({
     id: Number(id),
     name: currentCastLabels[i] ?? id,
   }));
 
+  // Keyword filters derived from URL
+  const keywordFilters = currentKeywordIds.map((id, i) => ({
+    id: Number(id),
+    name: currentKeywordLabels[i] ?? id,
+  }));
+
   const activeFilterCount = [
     currentGenres.length > 0,
     castFilters.length > 0,
+    keywordFilters.length > 0,
     currentYearFrom || currentYearTo,
     currentMpaa.length > 0,
     currentRatingVal,
@@ -215,6 +229,37 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
       );
       const data = await res.json();
       setActorResults((data.results ?? []).slice(0, 5));
+    }, 300);
+  }
+
+  function addKeyword(kw: { id: number; name: string }) {
+    if (currentKeywordIds.includes(String(kw.id))) return;
+    setKeywordQuery("");
+    setKeywordResults([]);
+    update({
+      keywords: [...currentKeywordIds, String(kw.id)].join(","),
+      keywordLabels: [...keywordFilters.map((k) => k.name), kw.name].join(","),
+    });
+  }
+
+  function removeKeyword(id: number) {
+    const remaining = keywordFilters.filter((k) => k.id !== id);
+    update({
+      keywords: remaining.length > 0 ? remaining.map((k) => String(k.id)).join(",") : null,
+      keywordLabels: remaining.length > 0 ? remaining.map((k) => k.name).join(",") : null,
+    });
+  }
+
+  async function searchKeywordsLocal(q: string) {
+    setKeywordQuery(q);
+    if (keywordTimeout.current) clearTimeout(keywordTimeout.current);
+    if (q.length < 2) { setKeywordResults([]); return; }
+    keywordTimeout.current = setTimeout(async () => {
+      const res = await fetch(
+        `https://api.themoviedb.org/3/search/keyword?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`
+      );
+      const data = await res.json();
+      setKeywordResults((data.results ?? []).slice(0, 8));
     }, 300);
   }
 
@@ -368,6 +413,12 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
             <span key={a.id} className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
               {a.name}
               <button onClick={() => removeCast(a.id)}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+            </span>
+          ))}
+          {keywordFilters.map((k) => (
+            <span key={k.id} className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
+              {k.name}
+              <button onClick={() => removeKeyword(k.id)}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           ))}
           {(currentYearFrom || currentYearTo) && (
@@ -533,6 +584,39 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
                         <p className="text-sm text-white">{a.name}</p>
                         {a.known_for_department && <p className="text-xs text-[var(--foreground-muted)]">{a.known_for_department}</p>}
                       </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Keywords */}
+          <div>
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Keywords / Tags</p>
+            {keywordFilters.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {keywordFilters.map((k) => (
+                  <span key={k.id} className="flex items-center gap-1.5 bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/50 rounded-full px-3 py-1 text-sm text-white">
+                    {k.name}
+                    <button onClick={() => removeKeyword(k.id)}><X className="w-3 h-3 text-[var(--foreground-muted)] hover:text-white" /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="relative max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-muted)]" />
+              <input
+                value={keywordQuery}
+                onChange={(e) => searchKeywordsLocal(e.target.value)}
+                placeholder="Search keywords (e.g. plot twist, dystopia)…"
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:border-[var(--ratist-red)]"
+              />
+              {keywordResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-20 overflow-hidden">
+                  {keywordResults.map((kw) => (
+                    <button key={kw.id} onClick={() => addKeyword(kw)} className="w-full px-3 py-2 hover:bg-[var(--surface-2)] transition-colors text-left text-sm text-white">
+                      {kw.name}
                     </button>
                   ))}
                 </div>
