@@ -239,6 +239,7 @@ export default function Navbar() {
                 <Link href="/seen" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Film Diary</Link>
                 <Link href="/ratings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Ratings</Link>
                 <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Watchlists</Link>
+                <Link href="/tools/rankings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Rankings</Link>
                 <Link href="/notifications" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors flex items-center gap-2">
                   Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadCount > 9 ? "9+" : unreadCount}</span>}
                 </Link>

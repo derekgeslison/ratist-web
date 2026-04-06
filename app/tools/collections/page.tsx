@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { posterUrl } from "@/lib/tmdb";
+import MovieCard from "@/components/MovieCard";
 
 interface CollectionMovie {
   id: string;
@@ -195,38 +195,21 @@ export default function CollectionsPage() {
 
                 {/* Movie grid */}
                 <div className="px-5 pb-4">
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {displayMovies.map((movie) => (
-                      <div key={movie.id} className="group relative">
-                        <Link href={`/movies/${movie.tmdbId}`}>
-                          <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)]">
-                            {movie.posterPath ? (
-                              <Image src={posterUrl(movie.posterPath, "w342")} alt={movie.title} fill sizes="150px" className="object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)] p-2 text-center">{movie.title}</div>
-                            )}
-                            {movie.voteAverage != null && movie.voteAverage > 0 && movie.voteAverage < 10 && (
-                              <div className="absolute top-1.5 right-1.5 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                ★ {movie.voteAverage.toFixed(1)}
-                              </div>
-                            )}
-                          </div>
-                        </Link>
-                        <p className="text-[10px] text-white mt-1.5 truncate">{movie.title}</p>
-                        <p className="text-[9px] text-[var(--foreground-muted)]">{movie.releaseDate?.slice(0, 4)}</p>
-
-                        {/* Quick actions on hover */}
-                        <div className="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                          <button
-                            onClick={(e) => { e.preventDefault(); addToDefaultWatchlist(movie); }}
-                            disabled={addingToWatchlist === movie.id}
-                            className="bg-black/70 text-white p-1 rounded hover:bg-[var(--ratist-red)] transition-colors"
-                            title="Add to watchlist"
-                          >
-                            <BookmarkPlus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
+                      <MovieCard
+                        key={movie.id}
+                        movie={{
+                          id: movie.tmdbId,
+                          title: movie.title,
+                          poster_path: movie.posterPath,
+                          vote_average: movie.voteAverage ?? 0,
+                          release_date: movie.releaseDate ?? "",
+                          backdrop_path: null,
+                          overview: "",
+                          genre_ids: [],
+                        } as never}
+                      />
                     ))}
                   </div>
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Search, Swords, X, ChevronDown, ChevronUp, Film, Tv } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
 
@@ -77,17 +78,18 @@ function MoviePicker({ label, onSelect, onClear, selected, mediaType = "movie" }
   }, [query, selected, mediaType]);
 
   if (selected) {
+    const detailHref = mediaType === "tv" ? `/shows/${selected.id}` : `/movies/${selected.id}`;
     return (
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className="relative w-32 rounded-xl overflow-hidden bg-[var(--surface-2)] shadow-lg" style={{ aspectRatio: "2/3" }}>
+        <Link href={detailHref} className="relative w-32 rounded-xl overflow-hidden bg-[var(--surface-2)] shadow-lg hover:ring-2 hover:ring-[var(--ratist-red)] transition-all" style={{ aspectRatio: "2/3" }}>
           {selected.posterPath ? (
             <Image src={`${TMDB_IMG}${selected.posterPath}`} alt={selected.title} fill sizes="128px" className="object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-xs p-2">{selected.title}</div>
           )}
-        </div>
+        </Link>
         <div>
-          <p className="text-sm font-semibold text-white">{selected.title}</p>
+          <Link href={detailHref} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">{selected.title}</Link>
           <p className="text-xs text-[var(--foreground-muted)]">{selected.releaseDate?.slice(0, 4)}</p>
         </div>
         <button onClick={() => { onClear(); setQuery(""); }} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
@@ -272,9 +274,9 @@ export default function MatchupPage() {
             <div className="grid grid-cols-[1fr_auto_1fr] gap-0 divide-y divide-[var(--border)]">
               {/* Header */}
               <div className="col-span-3 grid grid-cols-[1fr_120px_1fr] bg-[var(--surface-2)] px-4 py-3">
-                <p className="text-sm font-semibold text-white truncate">{data1.title}</p>
+                <Link href={mediaType === "tv" ? `/shows/${data1.tmdbId}` : `/movies/${data1.tmdbId}`} className="text-sm font-semibold text-white truncate hover:text-[var(--ratist-red)] transition-colors">{data1.title}</Link>
                 <p className="text-xs text-[var(--foreground-muted)] text-center self-center">Category</p>
-                <p className="text-sm font-semibold text-white truncate text-right">{data2.title}</p>
+                <Link href={mediaType === "tv" ? `/shows/${data2.tmdbId}` : `/movies/${data2.tmdbId}`} className="text-sm font-semibold text-white truncate text-right hover:text-[var(--ratist-red)] transition-colors">{data2.title}</Link>
               </div>
 
               {CATEGORIES.map(({ label, key, fields }) => {

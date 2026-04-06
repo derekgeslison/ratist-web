@@ -20,7 +20,7 @@ interface Props {
 export default function ShowListItem({ show, characterName, streaming, rent }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
-  const { seen, watchlisted, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
+  const { seen, watchlisted, ratistRating, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
   const [markingS, setMarkingS] = useState(false);
   const [markingW, setMarkingW] = useState(false);
 
@@ -120,7 +120,7 @@ export default function ShowListItem({ show, characterName, streaming, rent }: P
 
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <RatingBadge type="community" score={communityScore} size="sm" />
-        <RatingBadge type="ratist" score={null} size="sm" />
+        <RatingBadge type="ratist" score={ratistRating} size="sm" />
       </div>
     </Link>
   );
