@@ -56,6 +56,9 @@ model User {
   moviePitches     MoviePitch[]
   moviePitchVotes  MoviePitchVote[]
   cineqAttempts    CineQAttempt[]
+  movieClubMember  MovieClubMember?
+  movieClubRatings MovieClubRating[]
+  movieClubVotes   MovieClubVote[]
   screeningSessionsHosted  ScreeningSession[]       @relation("screeningHost")
   screeningParticipations  ScreeningParticipant[]
   screeningPredictions     ScreeningPrediction[]
@@ -177,6 +180,7 @@ model Movie {
   watchLog    UserWatchLog[]
   watchlistEntries WatchlistMovie[]
   rankings         UserMovieRanking[]
+  movieClubWeeks   MovieClubWeek[]
   screeningSessions ScreeningSession[]
 
   @@map("movies")
@@ -1016,6 +1020,82 @@ model CineQAttempt {
 
   @@unique([userId, dailyId]) // one attempt per user per daily quiz
   @@map("cineq_attempts")
+}
+
+// ─── Movie Club ──────────────────────────────────────────────────────────────
+
+model MovieClubWeek {
+  id            String   @id @default(cuid())
+  weekNumber    Int      @map("week_number") // sequential week count
+  startDate     String   @map("start_date")  // "2026-04-07" Monday of the week
+  endDate       String   @map("end_date")    // "2026-04-13" Sunday
+  status        String   @default("upcoming") // "upcoming" | "watching" | "discussion" | "archived"
+
+  // How the movie was picked
+  pickMethod    String   @default("random") @map("pick_method") // "admin" | "random" | "community_vote"
+  // For random picks: filter criteria used
+  pickFilters   Json?    @map("pick_filters") // { genre?, mpaRating?, provider?, yearFrom?, yearTo? }
+  // Teaser text shown before the week starts (e.g. "Random Horror Movie on Netflix")
+  pickTeaser    String?  @map("pick_teaser")
+
+  // The selected movie (null until picked/revealed)
+  movieId       String?  @map("movie_id")
+  movieTmdbId   Int?     @map("movie_tmdb_id")
+  movieTitle    String?  @map("movie_title")
+  moviePoster   String?  @map("movie_poster")
+
+  // Community vote candidates (for community_vote pick method)
+  voteCandidates Json?   @map("vote_candidates") // [{ tmdbId, title, posterPath }]
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  movie         Movie?   @relation(fields: [movieId], references: [id])
+  ratings       MovieClubRating[]
+  votes         MovieClubVote[]
+
+  @@unique([weekNumber])
+  @@map("movie_club_weeks")
+}
+
+model MovieClubMember {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@map("movie_club_members")
+}
+
+model MovieClubRating {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  weekId    String   @map("week_id")
+  rating    Float    // 1-10 quick rating for the club
+  comment   String?  @db.Text // optional short review
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week MovieClubWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekId])
+  @@map("movie_club_ratings")
+}
+
+model MovieClubVote {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  weekId    String   @map("week_id")
+  tmdbId    Int      @map("tmdb_id") // which candidate they voted for
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week MovieClubWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekId])
+  @@map("movie_club_votes")
 }
 
 // Movie/Show Pitches

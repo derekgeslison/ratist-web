@@ -375,8 +375,8 @@ export default function PitchesPage() {
                       </button>
                       {canDel && confirmingDeleteId !== item.id && (
                         <button onClick={() => setConfirmingDeleteId(item.id)}
-                          className="p-1.5 text-[var(--foreground-muted)] hover:text-red-400 transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
+                          className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" /> Delete
                         </button>
                       )}
                       <ReportButton targetType="pitch" targetId={item.id} />
