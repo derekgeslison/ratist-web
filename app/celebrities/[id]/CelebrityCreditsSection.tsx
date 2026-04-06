@@ -20,6 +20,29 @@ export interface Credit {
 
 const PAGE_SIZE = 20;
 
+// Roles that get their own filter chip. Order defines display order.
+// Some groups merge multiple TMDB job strings into one filter.
+const FILTERABLE_ROLES: { label: string; jobs: string[] }[] = [
+  { label: "Director", jobs: ["Director", "Co-Director"] },
+  { label: "Writer", jobs: ["Writer"] },
+  { label: "Screenplay", jobs: ["Screenplay"] },
+  { label: "Producer", jobs: ["Producer"] },
+  { label: "Executive Producer", jobs: ["Executive Producer"] },
+  { label: "Co-Producer", jobs: ["Co-Producer"] },
+  { label: "Creator", jobs: ["Creator"] },
+  { label: "Cinematography", jobs: ["Cinematography", "Director of Photography"] },
+  { label: "Editor", jobs: ["Editor"] },
+  { label: "Composer", jobs: ["Original Music Composer", "Music"] },
+  { label: "Production Design", jobs: ["Production Design"] },
+  { label: "Visual Effects", jobs: ["Visual Effects"] },
+];
+
+function matchesRoleFilter(credit: Credit, filterLabel: string): boolean {
+  const role = FILTERABLE_ROLES.find((r) => r.label === filterLabel);
+  if (!role) return false;
+  return credit.jobs?.some((j) => role.jobs.includes(j)) ?? false;
+}
+
 export default function CelebrityCreditsSection({
   credits,
   personId,
@@ -51,16 +74,13 @@ export default function CelebrityCreditsSection({
   const hasShows = credits.some((c) => c.mediaType === "tv");
   const showMediaToggle = hasMovies && hasShows;
 
-  // Collect unique roles for filtering: "Actor" if any have character, plus all crew jobs
+  // Collect available role filters: "Actor" + whichever filterable roles this person has
   const availableRoles = useMemo(() => {
     const roles: string[] = [];
-    const hasActing = credits.some((c) => c.character);
-    if (hasActing) roles.push("Actor");
-    const jobSet = new Set<string>();
-    for (const c of credits) {
-      for (const j of c.jobs ?? []) {
-        if (!jobSet.has(j)) { jobSet.add(j); roles.push(j); }
-      }
+    if (credits.some((c) => c.character)) roles.push("Actor");
+    const allJobs = new Set(credits.flatMap((c) => c.jobs ?? []));
+    for (const role of FILTERABLE_ROLES) {
+      if (role.jobs.some((j) => allJobs.has(j))) roles.push(role.label);
     }
     return roles;
   }, [credits]);
@@ -73,7 +93,7 @@ export default function CelebrityCreditsSection({
   if (roleFilter === "Actor") {
     filtered = filtered.filter((c) => c.character);
   } else if (roleFilter !== "all") {
-    filtered = filtered.filter((c) => c.jobs?.includes(roleFilter));
+    filtered = filtered.filter((c) => matchesRoleFilter(c, roleFilter));
   }
 
   const visible = filtered.slice(0, shown);
@@ -85,7 +105,7 @@ export default function CelebrityCreditsSection({
       // Default: show character name if they acted, otherwise first crew job
       return item.character || item.jobs?.[0];
     }
-    // Specific crew filter: show that role
+    // Specific crew filter: show the filter label (e.g. "Composer" not "Original Music Composer")
     return roleFilter;
   }
 
