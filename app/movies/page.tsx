@@ -46,6 +46,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   const theaterStatus = params.theaterStatus; // "now_playing" | "upcoming" | undefined
   const providers = params.providers?.split(",").filter(Boolean);
   const showProviders = params.showProviders === "1";
+  const language = params.language;
 
   const hasFilters = !!(
     genres?.length ||
@@ -54,6 +55,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     mpaaRatings.length ||
     params.ratingVal ||
     providers?.length ||
+    language ||
     // legacy
     params.genre || params.decade || params.rating
   );
@@ -109,6 +111,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
     ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
     providers,
+    language,
     genre: params.genre,
     minRating: params.rating,
   };
@@ -163,6 +166,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           ratingGte: discoverOptions.ratingGte,
           ratingLte: discoverOptions.ratingLte,
           providers: discoverOptions.providers,
+          language: discoverOptions.language,
           page: p,
           query: params.search,
         })

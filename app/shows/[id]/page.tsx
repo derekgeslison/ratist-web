@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Calendar, Tv } from "lucide-react";
+import { Clock, Calendar, Tv, Globe } from "lucide-react";
 import {
   getShowDetails,
   getShowWatchProviders,
@@ -11,6 +11,7 @@ import {
   backdropUrl,
   getShowTrailerKey,
   getShowContentRating,
+  languageName,
   type TMDBShow,
 } from "@/lib/tmdb";
 import UserShowPanel from "@/components/UserShowPanel";
@@ -201,6 +202,15 @@ export default async function ShowDetailPage({ params }: Props) {
               )}
               {show.networks && show.networks.length > 0 && (
                 <span>{show.networks.map((n) => n.name).join(", ")}</span>
+              )}
+              {show.original_language && show.original_language !== "en" && (
+                <Link
+                  href={`/movies?language=${show.original_language}&type=tv`}
+                  className="flex items-center gap-1 hover:text-white transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  {languageName(show.original_language)}
+                </Link>
               )}
             </div>
 

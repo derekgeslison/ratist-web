@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Search" };
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Film, User, Tv } from "lucide-react";
-import { type TMDBMovie as LibTMDBMovie } from "@/lib/tmdb";
+import { Search, Film, User, Tv, Tag } from "lucide-react";
+import { type TMDBMovie as LibTMDBMovie, searchKeywords, discoverMovies, discoverShows } from "@/lib/tmdb";
 import SearchFilters from "./SearchFilters";
 import MovieListItem from "@/components/MovieListItem";
 import ShowListItem from "@/components/ShowListItem";
@@ -12,7 +12,7 @@ import { Suspense } from "react";
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
-type TMDBMovie = LibTMDBMovie & { media_type: "movie" };
+type TMDBMovie = LibTMDBMovie & { media_type: "movie"; original_language?: string };
 interface TMDBShow {
   id: number;
   name: string;
@@ -23,6 +23,7 @@ interface TMDBShow {
   vote_average: number;
   vote_count: number;
   popularity: number;
+  original_language?: string;
   media_type: "tv";
 }
 interface TMDBPerson {
@@ -70,33 +71,60 @@ type TypeFilter = "all" | "movies" | "shows" | "people";
 type SortMode = "relevance" | "rating" | "az";
 
 interface Props {
-  searchParams: Promise<{ q?: string; type?: string; sort?: string; perPage?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; perPage?: string; language?: string }>;
 }
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q = "", type: typeParam = "all", sort: sortParam = "relevance", perPage: perPageParam } = await searchParams;
+  const { q = "", type: typeParam = "all", sort: sortParam = "relevance", perPage: perPageParam, language: langParam } = await searchParams;
+  const languageFilter = langParam ?? "";
 
   const typeFilter = (["all", "movies", "shows", "people"].includes(typeParam) ? typeParam : "all") as TypeFilter;
   const sortMode = (["relevance", "rating", "az"].includes(sortParam) ? sortParam : "relevance") as SortMode;
   const perPage = [20, 50, 100].includes(Number(perPageParam)) ? Number(perPageParam) : 20;
 
-  const { movies: rawMovies, shows: rawShows, people: rawPeople } = await searchAll(q, perPage);
+  const showMovies = typeFilter === "all" || typeFilter === "movies";
+  const showShows = typeFilter === "all" || typeFilter === "shows";
+  const showPeople = typeFilter === "all" || typeFilter === "people";
+  const showContent = showMovies || showShows;
+
+  const [{ movies: rawMovies, shows: rawShows, people: rawPeople }, keywordResults] = await Promise.all([
+    searchAll(q, perPage),
+    q.trim() && typeFilter !== "people"
+      ? searchKeywords(q).then(async (kw) => {
+          const top = kw.results.slice(0, 3);
+          if (top.length === 0) return [];
+          const keywordIds = top.map((k) => String(k.id)).join("|");
+          const [kwMovies, kwShows] = await Promise.all([
+            showMovies ? discoverMovies({ keywords: keywordIds, page: 1 }).catch(() => ({ results: [] as LibTMDBMovie[] })) : Promise.resolve({ results: [] as LibTMDBMovie[] }),
+            showShows ? discoverShows({ keywords: keywordIds, page: 1 }).catch(() => ({ results: [] as TMDBShow[] })) : Promise.resolve({ results: [] as TMDBShow[] }),
+          ]);
+          return [
+            ...kwMovies.results.slice(0, 10).map((m) => ({ type: "movie" as const, ...m })),
+            ...kwShows.results.slice(0, 5).map((s) => ({ type: "tv" as const, ...s })),
+          ];
+        })
+      : Promise.resolve([]),
+  ]);
 
   let movies = [...rawMovies];
+  if (languageFilter) movies = movies.filter((m) => m.original_language === languageFilter);
   if (sortMode === "rating") movies = movies.sort((a, b) => b.vote_average - a.vote_average);
   else if (sortMode === "az") movies = movies.sort((a, b) => a.title.localeCompare(b.title));
 
   let shows = [...rawShows];
+  if (languageFilter) shows = shows.filter((s) => s.original_language === languageFilter);
   if (sortMode === "rating") shows = shows.sort((a, b) => b.vote_average - a.vote_average);
   else if (sortMode === "az") shows = shows.sort((a, b) => a.name.localeCompare(b.name));
 
   let people = [...rawPeople];
   if (sortMode === "az") people = people.sort((a, b) => a.name.localeCompare(b.name));
 
-  const showMovies = typeFilter === "all" || typeFilter === "movies";
-  const showShows = typeFilter === "all" || typeFilter === "shows";
-  const showPeople = typeFilter === "all" || typeFilter === "people";
-  const showContent = showMovies || showShows; // combined movies & shows section
+  // Deduplicate keyword results against title-search results
+  const titleMovieIds = new Set(movies.map((m) => m.id));
+  const titleShowIds = new Set(shows.map((s) => s.id));
+  const uniqueKeywordResults = keywordResults.filter((item) =>
+    item.type === "movie" ? !titleMovieIds.has(item.id) : !titleShowIds.has(item.id)
+  );
 
   // Merge movies and shows into one list sorted by popularity for the "All" and combined views
   const contentItems: { type: "movie" | "tv"; id: number; title: string; popularity: number; data: TMDBMovie | TMDBShow }[] = [
@@ -107,7 +135,7 @@ export default async function SearchPage({ searchParams }: Props) {
   else if (sortMode === "az") contentItems.sort((a, b) => a.title.localeCompare(b.title));
   else contentItems.sort((a, b) => b.popularity - a.popularity); // relevance = popularity
 
-  const total = contentItems.length + (showPeople ? people.length : 0);
+  const total = contentItems.length + (showPeople ? people.length : 0) + uniqueKeywordResults.length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -175,6 +203,24 @@ export default async function SearchPage({ searchParams }: Props) {
                 <MovieListItem key={`m-${item.id}`} movie={item.data as TMDBMovie} />
               ) : (
                 <ShowListItem key={`s-${item.id}`} show={item.data as TMDBShow} />
+              )
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Keyword-based results */}
+      {uniqueKeywordResults.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Tag className="w-5 h-5 text-[var(--ratist-red)]" /> Related by Keyword
+          </h2>
+          <div className="flex flex-col divide-y divide-[var(--border)]">
+            {uniqueKeywordResults.map((item) =>
+              item.type === "movie" ? (
+                <MovieListItem key={`kw-m-${item.id}`} movie={item as unknown as TMDBMovie} />
+              ) : (
+                <ShowListItem key={`kw-s-${item.id}`} show={item as unknown as TMDBShow} />
               )
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
+import { LANGUAGES } from "@/lib/tmdb";
 
 type TypeFilter = "all" | "movies" | "shows" | "people";
 type SortMode = "relevance" | "rating" | "az";
@@ -27,7 +28,7 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
 
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if ((value === "20" && key === "perPage") || (value === "all" && key === "type") || (value === "relevance" && key === "sort")) {
+    if ((value === "20" && key === "perPage") || (value === "all" && key === "type") || (value === "relevance" && key === "sort") || (value === "" && key === "language")) {
       params.delete(key);
     } else {
       params.set(key, value);
@@ -110,6 +111,23 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
             ))}
           </select>
         </div>
+
+        {/* Language filter */}
+        {(currentType === "all" || currentType === "movies" || currentType === "shows") && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--foreground-muted)] shrink-0">Language:</span>
+            <select
+              value={searchParams.get("language") ?? ""}
+              onChange={(e) => updateParam("language", e.target.value)}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-full px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] transition-colors appearance-none cursor-pointer"
+            >
+              <option value="">Any</option>
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Per page select */}
         <div className="flex items-center gap-2">

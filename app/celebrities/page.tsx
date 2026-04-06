@@ -141,6 +141,20 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     people = credits;
     total_results = credits.length;
     total_pages = 1;
+  } else if (dept && !q) {
+    // When filtering by department without a search query, overfetch from TMDB
+    // since popular people are heavily weighted toward actors
+    const overfetchPages = 10; // 200 people to filter from
+    const pageResponses = await Promise.all(
+      Array.from({ length: overfetchPages }, (_, i) => fetchPeople("", i + 1))
+    );
+    const allPeople = pageResponses.flatMap((r) => r.results);
+    const filtered = allPeople.filter((p) => p.known_for_department === dept);
+    // Manual pagination over filtered results
+    const startIdx = (page - 1) * perPage;
+    people = filtered.slice(startIdx, startIdx + perPage);
+    total_results = filtered.length;
+    total_pages = Math.max(1, Math.ceil(filtered.length / perPage));
   } else {
     // Fetch multiple TMDB pages to fill perPage quota
     const tmdbPagesNeeded = Math.ceil(perPage / 20);
@@ -169,8 +183,8 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     ).catch(() => {});
   }
 
-  // Apply department filter
-  if (dept) {
+  // Apply department filter (skip if already filtered in overfetch branch above)
+  if (dept && (movie || q)) {
     people = people.filter((p) => p.known_for_department === dept);
   }
 

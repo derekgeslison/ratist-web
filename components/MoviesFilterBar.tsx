@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor } from "lucide-react";
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
-import { STREAMING_PROVIDERS, IMAGE_BASE_URL } from "@/lib/tmdb";
+import { STREAMING_PROVIDERS, IMAGE_BASE_URL, LANGUAGES } from "@/lib/tmdb";
 
 const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"];
 const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"];
@@ -99,6 +99,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentType = searchParams.get("type") ?? "all";
   const currentProviders = searchParams.get("providers")?.split(",").filter(Boolean) ?? [];
   const currentShowProviders = searchParams.get("showProviders") === "1";
+  const currentLanguage = searchParams.get("language") ?? "";
 
   // Local debounced state for text inputs
   const currentSearch = searchParams.get("search") ?? "";
@@ -131,6 +132,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentRatingVal,
     currentTheaterStatus,
     currentProviders.length > 0,
+    currentLanguage,
   ].filter(Boolean).length;
 
   function update(updates: Record<string, string | null>) {
@@ -402,6 +404,12 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               </span>
             ) : null;
           })}
+          {currentLanguage && (
+            <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
+              {LANGUAGES.find((l) => l.code === currentLanguage)?.name ?? currentLanguage}
+              <button onClick={() => update({ language: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+            </span>
+          )}
           <button onClick={clearAllFilters} className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
             Clear all
           </button>
@@ -453,6 +461,21 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Original Language */}
+          <div>
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Original Language</p>
+            <select
+              value={currentLanguage}
+              onChange={(e) => update({ language: e.target.value || null })}
+              className="bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded px-3 py-1.5 focus:outline-none focus:border-[var(--ratist-red)] max-w-xs"
+            >
+              <option value="">Any language</option>
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>{l.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Genres */}

@@ -27,6 +27,7 @@ export interface TMDBMovie {
   budget?: number;
   revenue?: number;
   status?: string;
+  original_language?: string;
   genres?: { id: number; name: string }[];
   belongs_to_collection?: { id: number; name: string; poster_path: string | null; backdrop_path: string | null } | null;
   videos?: { results: TMDBVideo[] };
@@ -248,6 +249,8 @@ export async function discoverMovies(options: {
   ratingGte?: string;
   ratingLte?: string;
   providers?: string[];
+  language?: string;
+  keywords?: string;
   page?: number;
   // legacy
   genre?: string;
@@ -280,6 +283,8 @@ export async function discoverMovies(options: {
     params.with_watch_providers = options.providers.join("|");
     params.watch_region = "US";
   }
+  if (options.language) params.with_original_language = options.language;
+  if (options.keywords) params.with_keywords = options.keywords;
 
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", params);
 }
@@ -306,6 +311,7 @@ export interface TMDBShow {
   popularity: number;
   vote_average: number;
   vote_count: number;
+  original_language?: string;
   genres?: { id: number; name: string }[];
   networks?: { id: number; name: string; logo_path: string | null }[];
   created_by?: { id: number; name: string; profile_path: string | null }[];
@@ -439,6 +445,8 @@ export async function discoverShows(options: {
   ratingGte?: string;
   ratingLte?: string;
   providers?: string[];
+  language?: string;
+  keywords?: string;
   page?: number;
 }) {
   const TV_SORT_MAP: Record<string, string> = {
@@ -468,6 +476,57 @@ export async function discoverShows(options: {
     params.with_watch_providers = options.providers.join("|");
     params.watch_region = "US";
   }
+  if (options.language) params.with_original_language = options.language;
+  if (options.keywords) params.with_keywords = options.keywords;
 
   return tmdbFetch<TMDBPageResult<TMDBShow>>("/discover/tv", params);
+}
+
+// ─── Language helpers ────────────────────────────────────────────────────────
+
+export const LANGUAGES: { code: string; name: string }[] = [
+  { code: "en", name: "English" },
+  { code: "es", name: "Spanish" },
+  { code: "fr", name: "French" },
+  { code: "de", name: "German" },
+  { code: "it", name: "Italian" },
+  { code: "pt", name: "Portuguese" },
+  { code: "ja", name: "Japanese" },
+  { code: "ko", name: "Korean" },
+  { code: "zh", name: "Chinese" },
+  { code: "hi", name: "Hindi" },
+  { code: "ar", name: "Arabic" },
+  { code: "ru", name: "Russian" },
+  { code: "th", name: "Thai" },
+  { code: "sv", name: "Swedish" },
+  { code: "da", name: "Danish" },
+  { code: "no", name: "Norwegian" },
+  { code: "fi", name: "Finnish" },
+  { code: "nl", name: "Dutch" },
+  { code: "pl", name: "Polish" },
+  { code: "tr", name: "Turkish" },
+  { code: "id", name: "Indonesian" },
+  { code: "tl", name: "Tagalog" },
+  { code: "te", name: "Telugu" },
+  { code: "ta", name: "Tamil" },
+  { code: "ml", name: "Malayalam" },
+  { code: "cn", name: "Cantonese" },
+];
+
+export function languageName(code: string): string {
+  return LANGUAGES.find((l) => l.code === code)?.name ?? code.toUpperCase();
+}
+
+// ─── Keyword search ──────────────────────────────────────────────────────────
+
+export interface TMDBKeyword {
+  id: number;
+  name: string;
+}
+
+export async function searchKeywords(query: string, page = 1) {
+  return tmdbFetch<TMDBPageResult<TMDBKeyword>>("/search/keyword", {
+    query,
+    page: String(page),
+  });
 }

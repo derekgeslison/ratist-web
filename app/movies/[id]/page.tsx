@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Calendar } from "lucide-react";
+import { Clock, Calendar, Globe } from "lucide-react";
 import {
   getMovieDetails,
   getWatchProviders,
@@ -12,6 +12,7 @@ import {
   backdropUrl,
   getTrailerKey,
   getMpaaRating,
+  languageName,
   type TMDBMovie,
   type TMDBCollection,
 } from "@/lib/tmdb";
@@ -248,6 +249,15 @@ export default async function MovieDetailPage({ params }: Props) {
                   <Clock className="w-3.5 h-3.5" />
                   {Math.floor(movie.runtime / 60)}h {movie.runtime % 60}m
                 </span>
+              )}
+              {movie.original_language && movie.original_language !== "en" && (
+                <Link
+                  href={`/movies?language=${movie.original_language}`}
+                  className="flex items-center gap-1 hover:text-white transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  {languageName(movie.original_language)}
+                </Link>
               )}
             </div>
 
