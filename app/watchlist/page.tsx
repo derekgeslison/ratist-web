@@ -6,8 +6,10 @@ import Link from "next/link";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
-  Film, Tv,
+  Film, Tv, Monitor,
 } from "lucide-react";
+import { STREAMING_PROVIDERS } from "@/lib/tmdb";
+import ProviderLogos from "@/components/ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -95,6 +97,42 @@ export default function WatchlistPage() {
   const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [genreFilter, setGenreFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  /* ── Streaming state ── */
+  const [showStreaming, setShowStreaming] = useState(false);
+  const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set());
+  const [providerData, setProviderData] = useState<Record<string, { flatrate: { name: string; logo: string }[]; rent: { name: string; logo: string }[] }>>({});
+  const [loadingProviders, setLoadingProviders] = useState(false);
+
+  // Fetch providers when streaming toggle is on
+  useEffect(() => {
+    if (!showStreaming || movies.length === 0) return;
+    // Only fetch for movies we don't already have data for
+    const needed = movies.filter((m) => !providerData[`${m.mediaType ?? "movie"}-${m.tmdbId}`]);
+    if (needed.length === 0) return;
+    setLoadingProviders(true);
+    fetch("/api/providers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: needed.map((m) => ({ tmdbId: m.tmdbId, mediaType: m.mediaType ?? "movie" })) }),
+    })
+      .then((r) => r.json())
+      .then((data) => setProviderData((prev) => ({ ...prev, ...(data.providers ?? {}) })))
+      .catch(() => {})
+      .finally(() => setLoadingProviders(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showStreaming, movies.length]);
+
+  function toggleProvider(providerShort: string) {
+    setSelectedProviders((prev) => {
+      const next = new Set(prev);
+      if (next.has(providerShort)) next.delete(providerShort); else next.add(providerShort);
+      // Auto-enable streaming display when a provider is selected
+      if (next.size > 0 && !showStreaming) setShowStreaming(true);
+      if (next.size === 0) setShowStreaming(false);
+      return next;
+    });
+  }
 
   /* ── Add movie search ── */
   const [addMovieQuery, setAddMovieQuery] = useState("");
@@ -532,6 +570,21 @@ export default function WatchlistPage() {
     if (seenFilter === "unchecked") list = list.filter((m) => !m.isChecked);
     if (genreFilter) list = list.filter((m) => m.genres.includes(genreFilter));
 
+    // Filter by selected streaming providers
+    if (selectedProviders.size > 0) {
+      const providerNames = new Set<string>();
+      for (const short of selectedProviders) {
+        const sp = STREAMING_PROVIDERS.find((p) => p.short === short);
+        if (sp) providerNames.add(sp.name);
+      }
+      list = list.filter((m) => {
+        const key = `${m.mediaType ?? "movie"}-${m.tmdbId}`;
+        const pd = providerData[key];
+        if (!pd) return false;
+        return pd.flatrate.some((p) => providerNames.has(p.name)) || pd.rent.some((p) => providerNames.has(p.name));
+      });
+    }
+
     list = [...list].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
@@ -545,7 +598,7 @@ export default function WatchlistPage() {
     });
 
     return list;
-  }, [movies, query, seenFilter, mediaFilter, genreFilter, sortKey, sortAsc]);
+  }, [movies, query, seenFilter, mediaFilter, genreFilter, sortKey, sortAsc, selectedProviders, providerData]);
 
   const canEdit = activeList ? (activeList.isOwner || activeList.myRole === "editor") : false;
   const checkedCount = movies.filter((m) => m.isChecked).length;
@@ -920,8 +973,40 @@ export default function WatchlistPage() {
                         </select>
                       </div>
                     )}
-                    {(seenFilter !== "all" || genreFilter || mediaFilter !== "all") && (
-                      <button onClick={() => { setSeenFilter("all"); setGenreFilter(""); setMediaFilter("all"); }} className="self-end text-xs text-[var(--ratist-red)] hover:underline pb-1">
+                    {/* Streaming */}
+                    <div className="w-full border-t border-[var(--border)] pt-3 mt-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <div
+                            onClick={() => { setShowStreaming(!showStreaming); if (showStreaming) setSelectedProviders(new Set()); }}
+                            className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${showStreaming ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${showStreaming ? "translate-x-4" : ""}`} />
+                          </div>
+                          <span className="text-xs text-[var(--foreground-muted)]">Show streaming</span>
+                        </label>
+                        {loadingProviders && <span className="text-xs text-[var(--foreground-muted)]">Loading...</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {STREAMING_PROVIDERS.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => toggleProvider(p.short as string)}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                              selectedProviders.has(p.short as string)
+                                ? "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 text-white"
+                                : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                            }`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={`https://image.tmdb.org/t/p/w45${p.logo}`} alt="" className="w-4 h-4 rounded" />
+                            {p.short}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {(seenFilter !== "all" || genreFilter || mediaFilter !== "all" || selectedProviders.size > 0) && (
+                      <button onClick={() => { setSeenFilter("all"); setGenreFilter(""); setMediaFilter("all"); setSelectedProviders(new Set()); setShowStreaming(false); }} className="self-end text-xs text-[var(--ratist-red)] hover:underline pb-1">
                         Clear filters
                       </button>
                     )}
@@ -1028,6 +1113,17 @@ export default function WatchlistPage() {
                               <RatingBadge type="ratist" score={movie.estimatedRating} size="sm" isEstimate />
                             ) : null}
                           </div>
+                          {showStreaming && (() => {
+                            const pd = providerData[`${movie.mediaType ?? "movie"}-${movie.tmdbId}`];
+                            if (!pd) return null;
+                            const stream = pd.flatrate;
+                            const rent = pd.rent;
+                            return stream.length > 0 ? (
+                              <div className="mt-0.5"><ProviderLogos providers={stream} size={16} label="Stream" /></div>
+                            ) : rent.length > 0 ? (
+                              <div className="mt-0.5"><ProviderLogos providers={rent} size={16} label="Rent" /></div>
+                            ) : null;
+                          })()}
                         </Link>
                       </div>
                     ))}

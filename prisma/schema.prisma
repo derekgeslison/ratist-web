@@ -161,6 +161,8 @@ model Movie {
   voteCount    Int?     @map("vote_count")
   trailerKey   String?  @map("trailer_key")
   status       String?
+  watchProviders    Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
+  providersUpdatedAt DateTime? @map("providers_updated_at")
   cachedAt     DateTime? @map("cached_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -256,6 +258,8 @@ model TVShow {
   voteCount      Int?     @map("vote_count")
   trailerKey     String?  @map("trailer_key")
   networks       Json?    // [{ id, name, logo_path }]
+  watchProviders    Json?     @map("watch_providers")
+  providersUpdatedAt DateTime? @map("providers_updated_at")
   cachedAt       DateTime? @map("cached_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")

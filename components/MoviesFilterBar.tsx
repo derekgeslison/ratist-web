@@ -399,7 +399,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
                     className="accent-[var(--ratist-red)] w-3 h-3"
                   />
                   <Monitor className="w-3 h-3" />
-                  Show on cards
+                  Show streaming
                 </label>
               )}
             </div>
