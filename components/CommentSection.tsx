@@ -181,13 +181,21 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
     });
   }
 
-  function renderComment(comment: CommentData, depth: number = 0, threadParentId?: string) {
+  function countAllReplies(c: CommentData): number {
+    let count = c.replies.length;
+    for (const r of c.replies) count += countAllReplies(r);
+    return count;
+  }
+
+  function renderComment(comment: CommentData, depth: number = 0, depth1ParentId?: string) {
     const isOwn = user?.uid === comment.user.firebaseUid;
     const canDeleteComment = isOwn || isAdmin;
     const isExpanded = expandedThreads.has(comment.id);
     const maxIndent = Math.min(depth, 2);
-    // At depth >= 2, replies go to the thread parent (depth 1) instead of creating deeper nesting
-    const replyTo = depth >= 2 && threadParentId ? threadParentId : comment.id;
+    // depth 0: reply creates thread 1 (attached to this comment)
+    // depth 1: reply creates thread 2 (attached to this comment)
+    // depth 2+: reply stays in thread 2 (attached to the depth-1 parent)
+    const replyTo = depth >= 2 && depth1ParentId ? depth1ParentId : comment.id;
 
     return (
       <div key={comment.id} className={depth > 0 ? `pl-3 border-l border-[var(--border)]/30` : ""} style={depth > 0 ? { marginLeft: `${maxIndent * 16}px` } : undefined}>
@@ -261,8 +269,8 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
               {user && <ReportButton targetType="comment" targetId={comment.id} />}
             </div>
 
-            {/* Reply input */}
-            {replyingTo === replyTo && replyTo === comment.id && (
+            {/* Reply input — shows on the comment that replyTo points to */}
+            {replyingTo === comment.id && (
               <div className="flex gap-2 mt-2">
                 <textarea
                   value={replyText}
@@ -291,9 +299,9 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
           <>
             <button onClick={() => toggleExpand(comment.id)} className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white ml-10 -mt-1 mb-1 transition-colors">
               {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {isExpanded ? "Hide replies" : `Show ${comment.replies.length} repl${comment.replies.length === 1 ? "y" : "ies"}`}
+              {(() => { const total = countAllReplies(comment); return isExpanded ? "Hide replies" : `Show ${total} repl${total === 1 ? "y" : "ies"}`; })()}
             </button>
-            {isExpanded && comment.replies.map((reply) => renderComment(reply, depth + 1, depth === 0 ? comment.id : threadParentId))}
+            {isExpanded && comment.replies.map((reply) => renderComment(reply, depth + 1, depth >= 1 ? (depth1ParentId ?? comment.id) : undefined))}
           </>
         )}
       </div>
