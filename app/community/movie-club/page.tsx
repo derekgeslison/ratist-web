@@ -182,7 +182,15 @@ export default function MovieClubPage() {
                     )}
 
                     {currentWeek.userRating != null && !currentWeek.canSeeDiscussion && (
-                      <p className="text-sm text-emerald-400">Your rating: <span className="font-bold">{currentWeek.userRating}/10</span> — discussion opens Friday 8pm ET</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-sm text-emerald-400">Your rating: <span className="font-bold">{currentWeek.userRating}/10</span></p>
+                        {currentWeek.status === "watching" && (
+                          <Link href={`/community/movie-club/week/${currentWeek.weekNumber}`} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+                            Edit review
+                          </Link>
+                        )}
+                        <span className="text-xs text-[var(--foreground-muted)]">Discussion opens Friday 8pm ET</span>
+                      </div>
                     )}
 
                     {!isMember && user && (

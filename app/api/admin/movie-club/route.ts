@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
-import { ensureUpcomingWeeks, pickRandomMovie } from "@/lib/movie-club";
+import { ensureUpcomingWeeks, pickRandomMovie, resolveVoteWinner } from "@/lib/movie-club";
 
 export const dynamic = "force-dynamic";
 
@@ -76,19 +76,39 @@ export async function PATCH(req: NextRequest) {
     data.moviePoster = moviePoster;
   }
 
-  // If switching to random and no movie yet, pick one
-  if (pickMethod === "random" && !movieTmdbId) {
-    const picked = await pickRandomMovie(pickFilters as Record<string, string> | null);
-    if (picked) {
-      const movie = await prisma.movie.upsert({
-        where: { tmdbId: picked.tmdbId },
-        create: { tmdbId: picked.tmdbId, title: picked.title, posterPath: picked.posterPath },
-        update: {},
-      });
-      data.movieId = movie.id;
-      data.movieTmdbId = picked.tmdbId;
-      data.movieTitle = picked.title;
-      data.moviePoster = picked.posterPath;
+  // If admin is moving a community_vote week to "watching" and no movie is explicitly set,
+  // resolve the vote winner automatically
+  if (status === "watching" && !movieTmdbId) {
+    const currentWeek = await prisma.movieClubWeek.findUnique({ where: { id: weekId } });
+    if (currentWeek?.pickMethod === "community_vote") {
+      await resolveVoteWinner(weekId);
+      // Re-fetch to get the resolved movie data
+      const resolved = await prisma.movieClubWeek.findUnique({ where: { id: weekId } });
+      if (resolved) {
+        // Merge status change with whatever resolveVoteWinner set
+        await prisma.movieClubWeek.update({ where: { id: weekId }, data: { status: "watching" } });
+        const final = await prisma.movieClubWeek.findUnique({ where: { id: weekId } });
+        return NextResponse.json({ week: final });
+      }
+    }
+  }
+
+  // If admin is moving a random week to "watching" and no movie set, pick one
+  if (status === "watching" && !movieTmdbId) {
+    const currentWeek = await prisma.movieClubWeek.findUnique({ where: { id: weekId } });
+    if (currentWeek?.pickMethod === "random" && !currentWeek.movieId) {
+      const picked = await pickRandomMovie(currentWeek.pickFilters as Record<string, string> | null);
+      if (picked) {
+        const movie = await prisma.movie.upsert({
+          where: { tmdbId: picked.tmdbId },
+          create: { tmdbId: picked.tmdbId, title: picked.title, posterPath: picked.posterPath },
+          update: {},
+        });
+        data.movieId = movie.id;
+        data.movieTmdbId = picked.tmdbId;
+        data.movieTitle = picked.title;
+        data.moviePoster = picked.posterPath;
+      }
     }
   }
 

@@ -26,6 +26,7 @@ export default function NominationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate: string }[]>([]);
   const [nominating, setNominating] = useState(false);
+  const [pendingNomination, setPendingNomination] = useState<{ id: number; title: string; posterPath: string | null } | null>(null);
   const [error, setError] = useState("");
 
   const fetchData = useCallback(async () => {
@@ -121,12 +122,29 @@ export default function NominationsPage() {
               className="w-full pl-9 pr-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]" />
           </div>
           {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
-          {searchResults.length > 0 && (
+
+          {/* Confirmation step */}
+          {pendingNomination && (
+            <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 rounded-lg p-3 mb-2 flex items-center gap-3">
+              {pendingNomination.posterPath && <Image src={posterUrl(pendingNomination.posterPath, "w92")} alt="" width={32} height={48} className="rounded shrink-0" />}
+              <div className="flex-1">
+                <p className="text-sm text-white font-medium">{pendingNomination.title}</p>
+                <p className="text-xs text-[var(--foreground-muted)]">Ready to nominate?</p>
+              </div>
+              <button onClick={() => { nominate(pendingNomination); setPendingNomination(null); }} disabled={nominating}
+                className="px-3 py-1.5 bg-[var(--ratist-red)] text-white text-xs font-semibold rounded-lg disabled:opacity-50">
+                {nominating ? "..." : "Submit"}
+              </button>
+              <button onClick={() => setPendingNomination(null)} className="text-xs text-[var(--foreground-muted)] hover:text-white">Cancel</button>
+            </div>
+          )}
+
+          {searchResults.length > 0 && !pendingNomination && (
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {searchResults.map((m) => {
                 const alreadyNominated = nominations.some((n) => n.tmdbId === m.id);
                 return (
-                  <button key={m.id} onClick={() => !alreadyNominated && nominate(m)} disabled={alreadyNominated || nominating}
+                  <button key={m.id} onClick={() => { if (!alreadyNominated) { setPendingNomination(m); setSearchResults([]); setSearchQuery(""); } }} disabled={alreadyNominated}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left ${alreadyNominated ? "opacity-40" : "hover:bg-[var(--surface-2)]"}`}>
                     {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />}
                     <div className="flex-1">

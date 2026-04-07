@@ -81,62 +81,57 @@ export async function ensureUpcomingWeeks(): Promise<void> {
 
 // ─── Status transitions ─────────────────────────────────────────────────────
 
-/** Run automatic status transitions based on current Eastern time */
+/** Run automatic status transitions based on current Eastern time.
+ *  Only transitions forward in the lifecycle. Never reverts status.
+ *  Admin can override status manually — auto-transitions only apply
+ *  when the current status matches the expected "from" state. */
 export async function runStatusTransitions(): Promise<void> {
   const now = getEasternNow();
   const today = formatDate(now);
-  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+  const dayOfWeek = now.getDay();
   const hour = now.getHours();
 
-  const allWeeks = await prisma.movieClubWeek.findMany({
+  // Only process weeks that might need transitioning
+  const activeWeeks = await prisma.movieClubWeek.findMany({
+    where: { status: { in: ["scheduled", "voting", "watching", "discussion"] } },
     orderBy: { weekNumber: "asc" },
   });
 
-  for (const week of allWeeks) {
-    // Archive past weeks: if it's a new Monday and this week's endDate has passed
+  for (const week of activeWeeks) {
+    // Archive: discussion phase ended (past end date)
     if (week.status === "discussion" && today > week.endDate) {
-      await prisma.movieClubWeek.update({
-        where: { id: week.id },
-        data: { status: "archived" },
-      });
+      await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "archived" } });
       continue;
     }
 
-    // Community vote weeks: start voting on Monday (or if startDate passed and still scheduled)
-    if (week.status === "scheduled" && week.pickMethod === "community_vote" && week.startDate <= today) {
-      await prisma.movieClubWeek.update({
-        where: { id: week.id },
-        data: { status: "voting" },
-      });
+    // Only auto-transition from "scheduled" — if admin already moved it to watching/discussion/etc, don't touch it
+    if (week.status === "scheduled" && week.startDate <= today) {
+      if (week.pickMethod === "community_vote") {
+        // Community vote: scheduled → voting
+        await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "voting" } });
+      } else {
+        // Random/Admin: scheduled → watching (auto-pick random if needed)
+        if (week.pickMethod === "random" && !week.movieId) {
+          await pickRandomAndAssign(week.id, week.pickFilters as Record<string, string> | null);
+        }
+        // Re-fetch to get updated movieId
+        const updated = await prisma.movieClubWeek.findUnique({ where: { id: week.id } });
+        if (updated?.movieId) {
+          await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "watching" } });
+        }
+      }
       continue;
     }
 
-    // Community vote: Wed 2am ET = auto-select winner and start watching
-    if (week.status === "voting" && dayOfWeek === 3 && hour >= 2) {
+    // Community vote: voting → watching (Wed 2am ET, resolve winner)
+    if (week.status === "voting" && dayOfWeek >= 3 && (dayOfWeek > 3 || hour >= 2)) {
       await resolveVoteAndStartWatching(week.id);
       continue;
     }
 
-    // Random/Admin weeks: Monday = start watching (auto-pick if random and no movie yet)
-    if (week.status === "scheduled" && week.startDate <= today && week.pickMethod !== "community_vote") {
-      if (week.pickMethod === "random" && !week.movieId) {
-        await pickRandomAndAssign(week.id, week.pickFilters as Record<string, string> | null);
-      }
-      if (week.movieId || week.movieTmdbId) {
-        await prisma.movieClubWeek.update({
-          where: { id: week.id },
-          data: { status: "watching" },
-        });
-      }
-      continue;
-    }
-
-    // Friday 8pm ET = open discussion
+    // Watching → Discussion (Fri 8pm ET)
     if (week.status === "watching" && dayOfWeek === 5 && hour >= 20) {
-      await prisma.movieClubWeek.update({
-        where: { id: week.id },
-        data: { status: "discussion" },
-      });
+      await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "discussion" } });
     }
   }
 }
@@ -196,6 +191,33 @@ async function pickRandomAndAssign(weekId: string, filters: Record<string, strin
 }
 
 // ─── Community vote resolution ───────────────────────────────────────────────
+
+/** Resolve the community vote winner and assign the movie (without changing status) */
+export async function resolveVoteWinner(weekId: string): Promise<void> {
+  const nominations = await prisma.movieClubNomination.findMany({
+    where: { weekId },
+    include: { _count: { select: { votes: true } } },
+  });
+
+  if (nominations.length === 0) {
+    await pickRandomAndAssign(weekId, null);
+    return;
+  }
+
+  const sorted = nominations.sort((a, b) => b._count.votes - a._count.votes || Math.random() - 0.5);
+  const winner = sorted[0];
+
+  const movie = await prisma.movie.upsert({
+    where: { tmdbId: winner.tmdbId },
+    create: { tmdbId: winner.tmdbId, title: winner.title, posterPath: winner.posterPath },
+    update: {},
+  });
+
+  await prisma.movieClubWeek.update({
+    where: { id: weekId },
+    data: { movieId: movie.id, movieTmdbId: winner.tmdbId, movieTitle: winner.title, moviePoster: winner.posterPath },
+  });
+}
 
 async function resolveVoteAndStartWatching(weekId: string): Promise<void> {
   // Count votes per nomination

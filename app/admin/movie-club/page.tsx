@@ -95,6 +95,7 @@ export default function AdminMovieClubPage() {
         pickTeaser: editTeaser.trim() || null,
         pickFilters: filters,
         ...(editPickMethod === "admin" && selectedMovie ? { movieTmdbId: selectedMovie.tmdbId, movieTitle: selectedMovie.title, moviePoster: selectedMovie.posterPath } : {}),
+        ...(editPickMethod === "random" && previewMovie ? { movieTmdbId: previewMovie.tmdbId, movieTitle: previewMovie.title, moviePoster: previewMovie.posterPath } : {}),
       }),
     });
     setEditingId(null);
