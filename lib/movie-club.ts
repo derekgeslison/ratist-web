@@ -59,8 +59,8 @@ export async function ensureUpcomingWeeks(): Promise<void> {
   const lastWeekNum = existing.length > 0 ? Math.max(...existing.map((w) => w.weekNumber)) : 0;
   let nextNum = lastWeekNum + 1;
 
-  // Generate this week + next 3 weeks (4 total)
-  for (let i = 0; i < 4; i++) {
+  // Generate this week + next 5 weeks (6 total)
+  for (let i = 0; i < 6; i++) {
     const monday = addDays(startFrom, i * 7);
     const startDate = formatDate(monday);
 

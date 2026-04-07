@@ -52,12 +52,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Upcoming weeks (show only 2 weeks ahead, starting after today)
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    // Upcoming weeks (scheduled only — voting weeks shown separately, watching/discussion are "current")
     const upcoming = await prisma.movieClubWeek.findMany({
-      where: { status: { in: ["scheduled", "voting"] }, startDate: { gt: today } },
+      where: { status: "scheduled" },
       orderBy: { startDate: "asc" },
-      take: 2,
+      take: 5,
       select: { id: true, weekNumber: true, startDate: true, pickMethod: true, pickTeaser: true },
     });
 

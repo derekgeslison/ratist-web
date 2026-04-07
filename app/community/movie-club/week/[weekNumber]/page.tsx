@@ -36,6 +36,7 @@ export default function MovieClubWeekPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const fetchWeek = useCallback(async () => {
     try {
@@ -84,6 +85,7 @@ export default function MovieClubWeekPage() {
       }
 
       setSubmitted(true);
+      setEditing(false);
       fetchWeek();
     }
     setSubmitting(false);
@@ -147,10 +149,10 @@ export default function MovieClubWeekPage() {
         </div>
       </div>
 
-      {/* Rate section */}
-      {isOpen && isMember && !submitted && (
+      {/* Rate section — show if not submitted, or if watching phase (for editing) */}
+      {isOpen && isMember && (!submitted || (week.status === "watching" && editing)) && (
         <section className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">Submit Your Review</h2>
+          <h2 className="text-lg font-semibold text-white mb-4">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <ScreeningRateForm
               onSubmit={handleSubmitRating}
@@ -162,10 +164,17 @@ export default function MovieClubWeekPage() {
       )}
 
       {/* Already rated */}
-      {submitted && userRating && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8">
-          <p className="text-sm text-emerald-400">You rated this movie <span className="font-bold">{userRating.rating}/10</span></p>
-          {userRating.reviewText && <p className="text-xs text-[var(--foreground-muted)] mt-1">{userRating.reviewText}</p>}
+      {submitted && userRating && !editing && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-emerald-400">You rated this movie <span className="font-bold">{userRating.rating}/10</span></p>
+            {userRating.reviewText && <p className="text-xs text-[var(--foreground-muted)] mt-1">{userRating.reviewText}</p>}
+          </div>
+          {week.status === "watching" && (
+            <button onClick={() => setEditing(true)} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+              Edit review
+            </button>
+          )}
         </div>
       )}
 
@@ -261,7 +270,7 @@ export default function MovieClubWeekPage() {
                   >
                     <p className="text-sm font-medium text-white">{prompt.text}</p>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-[var(--foreground-muted)]">{prompt.commentCount} {prompt.commentCount === 1 ? "reply" : "replies"}</span>
+                      <span className="text-xs text-[var(--foreground-muted)]">{prompt.commentCount} comment{prompt.commentCount !== 1 ? "s" : ""}</span>
                       <MessageCircle className="w-4 h-4 text-[var(--foreground-muted)]" />
                     </div>
                   </button>

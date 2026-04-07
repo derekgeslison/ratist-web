@@ -80,7 +80,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
     const superlatives = canSeeDiscussion ? await getSuperlatives(week.id) : [];
 
     // Comment counts for discussion prompts
-    const prompts = ["What surprised you about this movie?", "Best scene or moment?", "Would you recommend this to a friend?", "How does this compare to the director's other work?"];
+    const prompts = [
+      "What surprised you about this movie?",
+      "Best scene or moment?",
+      "What would you change about this movie if you could?",
+      "How does this compare to the director's other work?",
+      "Open Discussion",
+    ];
     const promptCommentCounts = canSeeDiscussion
       ? await Promise.all(prompts.map(async (_, i) => {
           const count = await prisma.comment.count({
