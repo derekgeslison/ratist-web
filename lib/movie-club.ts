@@ -99,8 +99,8 @@ export async function runStatusTransitions(): Promise<void> {
       continue;
     }
 
-    // Community vote weeks: Mon-Tue = voting phase
-    if (week.status === "scheduled" && week.pickMethod === "community_vote" && week.startDate === today && dayOfWeek === 1) {
+    // Community vote weeks: start voting on Monday (or if startDate passed and still scheduled)
+    if (week.status === "scheduled" && week.pickMethod === "community_vote" && week.startDate <= today) {
       await prisma.movieClubWeek.update({
         where: { id: week.id },
         data: { status: "voting" },
@@ -158,9 +158,16 @@ export async function pickRandomMovie(filters?: Record<string, string> | null): 
   if (filters?.mpaRating) { params.set("certification_country", "US"); params.set("certification", filters.mpaRating); }
 
   try {
-    const res = await fetch(`https://api.themoviedb.org/3/discover/movie?${params}`);
-    const data = await res.json();
-    const results = data.results ?? [];
+    let res = await fetch(`https://api.themoviedb.org/3/discover/movie?${params}`);
+    let data = await res.json();
+    let results = data.results ?? [];
+    // If random page returned 0 results, try page 1
+    if (results.length === 0) {
+      params.set("page", "1");
+      res = await fetch(`https://api.themoviedb.org/3/discover/movie?${params}`);
+      data = await res.json();
+      results = data.results ?? [];
+    }
     if (results.length === 0) return null;
     const pick = results[Math.floor(Math.random() * results.length)];
     return { tmdbId: pick.id, title: pick.title, posterPath: pick.poster_path, year: pick.release_date?.slice(0, 4) ?? "", voteAverage: pick.vote_average ?? 0 };

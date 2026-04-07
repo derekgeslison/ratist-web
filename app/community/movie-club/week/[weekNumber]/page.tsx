@@ -20,6 +20,7 @@ interface Prompt { text: string; commentCount: number; targetId: string; }
 interface WeekDetail {
   id: string; weekNumber: number; startDate: string; endDate: string; status: string;
   pickMethod: string; movieTmdbId: number | null; movieTitle: string | null; moviePoster: string | null;
+  movieYear?: string; movieRuntime?: string; movieMpaRating?: string; movieStreaming?: string[];
   participantCount: number; rewatchCount: number; avgRating: number | null;
   ratings: WeekRating[]; superlatives: Superlative[]; prompts: Prompt[];
 }
@@ -121,9 +122,17 @@ export default function MovieClubWeekPage() {
               {week.movieTitle ?? "TBA"}
             </Link>
           </h1>
-          <p className="text-sm text-[var(--foreground-muted)] mb-3">
-            <Calendar className="w-3.5 h-3.5 inline mr-1" />{week.startDate} — {week.endDate}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--foreground-muted)] mb-3">
+            {week.movieYear && <span>{week.movieYear}</span>}
+            {week.movieMpaRating && <span className="border border-[var(--border)] px-1.5 py-0.5 text-xs rounded font-semibold text-white">{week.movieMpaRating}</span>}
+            {week.movieRuntime && <span>{week.movieRuntime}</span>}
+            <span><Calendar className="w-3 h-3 inline mr-0.5" />{week.startDate} — {week.endDate}</span>
+          </div>
+          {week.movieStreaming && week.movieStreaming.length > 0 && (
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">
+              Streaming on: <span className="text-white">{week.movieStreaming.join(", ")}</span>
+            </p>
+          )}
           <div className="flex gap-4 text-sm">
             <span className="flex items-center gap-1 text-[var(--foreground-muted)]"><Users className="w-3.5 h-3.5" /> {week.participantCount} rated</span>
             {week.rewatchCount > 0 && <span className="text-[var(--foreground-muted)]">{week.rewatchCount} rewatch{week.rewatchCount !== 1 ? "es" : ""}</span>}

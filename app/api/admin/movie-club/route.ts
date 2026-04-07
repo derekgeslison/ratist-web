@@ -55,6 +55,14 @@ export async function PATCH(req: NextRequest) {
   if (pickFilters !== undefined) data.pickFilters = pickFilters;
   if (pickTeaser !== undefined) data.pickTeaser = pickTeaser;
 
+  // When switching to community_vote, clear any previously selected movie
+  if (pickMethod === "community_vote") {
+    data.movieId = null;
+    data.movieTmdbId = null;
+    data.movieTitle = null;
+    data.moviePoster = null;
+  }
+
   // Assign a specific movie
   if (movieTmdbId) {
     const movie = await prisma.movie.upsert({
