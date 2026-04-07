@@ -1,0 +1,156 @@
+"use client";
+
+import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
+import Link from "next/link";
+import { Ticket, Check, X, Star, BarChart3, MonitorPlay, Palette, Shield, Sparkles } from "lucide-react";
+
+const FEATURES = [
+  { name: "Rate & review movies and TV shows", free: true, pass: true },
+  { name: "Personal watchlists & rankings", free: true, pass: true },
+  { name: "Community features (Hot Takes, Recast, Pitches, etc.)", free: true, pass: true },
+  { name: "For You personalized recommendations", free: true, pass: true },
+  { name: "Movie Club participation", free: true, pass: true },
+  { name: "Cine-Q daily trivia", free: true, pass: true },
+  { name: "Join Screening Room sessions", free: true, pass: true },
+  { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay },
+  { name: "My Analytics (detailed viewing stats)", free: false, pass: true, icon: BarChart3 },
+  { name: "Collections (curated recommendations)", free: false, pass: true, icon: Sparkles },
+  { name: "Critics Mode (250+ reviews required)", free: false, pass: true, icon: Star },
+  { name: "Live Review feature", free: false, pass: true, icon: Star },
+  { name: "Custom profile themes & colors", free: false, pass: true, icon: Palette },
+  { name: "Ad-free experience", free: false, pass: true, icon: Shield },
+];
+
+export default function BackstagePassPage() {
+  const { user } = useAuth();
+  const { hasPass, loading } = useSubscription();
+  const [selectedPlan, setSelectedPlan] = useState<"monthly" | "annual">("annual");
+  const [checkingOut, setCheckingOut] = useState(false);
+
+  async function handleCheckout() {
+    if (!user) return;
+    setCheckingOut(true);
+    const token = await user.getIdToken();
+    const res = await fetch("/api/subscription/checkout", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: selectedPlan }),
+    });
+    if (res.ok) {
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    }
+    setCheckingOut(false);
+  }
+
+  async function handleManage() {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const res = await fetch("/api/subscription/portal", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Header */}
+      <div className="text-center mb-12">
+        <div className="inline-flex items-center gap-2 bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 rounded-full px-4 py-1.5 mb-4">
+          <Ticket className="w-4 h-4 text-[var(--ratist-red)]" />
+          <span className="text-sm font-semibold text-[var(--ratist-red)]">Backstage Pass</span>
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Unlock the Full Experience</h1>
+        <p className="text-lg text-[var(--foreground-muted)] max-w-xl mx-auto">
+          Get premium tools, host screening rooms, customize your profile, and enjoy The Ratist ad-free.
+        </p>
+      </div>
+
+      {/* Already subscribed */}
+      {hasPass && !loading && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 mb-8 text-center">
+          <p className="text-lg font-semibold text-emerald-400 mb-2">You have the Backstage Pass!</p>
+          <p className="text-sm text-[var(--foreground-muted)] mb-4">Enjoy all premium features.</p>
+          <button onClick={handleManage}
+            className="px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] transition-colors">
+            Manage Subscription
+          </button>
+        </div>
+      )}
+
+      {/* Pricing toggle */}
+      {!hasPass && !loading && (
+        <>
+          <div className="flex justify-center gap-3 mb-8">
+            <button
+              onClick={() => setSelectedPlan("monthly")}
+              className={`px-6 py-3 rounded-xl text-sm font-semibold transition-colors ${
+                selectedPlan === "monthly" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              $4 / month
+            </button>
+            <button
+              onClick={() => setSelectedPlan("annual")}
+              className={`px-6 py-3 rounded-xl text-sm font-semibold transition-colors relative ${
+                selectedPlan === "annual" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              $40 / year
+              <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">Save 17%</span>
+            </button>
+          </div>
+
+          <div className="text-center mb-8">
+            {user ? (
+              <button
+                onClick={handleCheckout}
+                disabled={checkingOut}
+                className="px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors disabled:opacity-50"
+              >
+                {checkingOut ? "Redirecting to checkout..." : `Get Backstage Pass — ${selectedPlan === "annual" ? "$40/year" : "$4/month"}`}
+              </button>
+            ) : (
+              <Link href="/auth/signin" className="inline-block px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors">
+                Sign in to subscribe
+              </Link>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Feature comparison table */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="grid grid-cols-[1fr_80px_80px] border-b border-[var(--border)] px-5 py-3">
+          <span className="text-sm font-semibold text-white">Feature</span>
+          <span className="text-sm font-semibold text-[var(--foreground-muted)] text-center">Free</span>
+          <span className="text-sm font-semibold text-[var(--ratist-red)] text-center">Backstage</span>
+        </div>
+        {FEATURES.map((f, i) => (
+          <div key={i} className={`grid grid-cols-[1fr_80px_80px] px-5 py-3 ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""}`}>
+            <span className="text-sm text-white">{f.name}</span>
+            <div className="flex justify-center">
+              {f.free ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />}
+            </div>
+            <div className="flex justify-center">
+              <Check className="w-4 h-4 text-[var(--ratist-red)]" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Success/cancel messages from Stripe redirect */}
+      {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("success") === "1" && (
+        <div className="mt-8 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center text-emerald-400">
+          Welcome to the Backstage Pass! Your premium features are now active.
+        </div>
+      )}
+    </div>
+  );
+}
