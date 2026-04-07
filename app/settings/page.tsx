@@ -459,22 +459,6 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {/* Auto-seen on watchlist check */}
-          <div className="flex items-center justify-between gap-4 mt-4">
-            <div>
-              <p className="text-sm font-medium text-white">Mark as seen when checked off watchlist</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                When on, checking off a movie or show from your watchlist also marks it as seen. Only applies to you, even on shared watchlists.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAutoSeenOnWatchlistCheck((v) => !v)}
-              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${autoSeenOnWatchlistCheck ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoSeenOnWatchlistCheck ? "translate-x-5" : "translate-x-0"}`} />
-            </button>
-          </div>
 
         {accountError && <p className="text-sm text-red-400 mt-3">{accountError}</p>}
 

@@ -98,6 +98,31 @@ export default function WatchlistPage() {
   const [genreFilter, setGenreFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
+  /* ── Auto-seen toggle ── */
+  const [autoSeenOnCheck, setAutoSeenOnCheck] = useState(false);
+
+  // Fetch user's auto-seen preference
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then((token) =>
+      fetch("/api/profile/me", { headers: { Authorization: `Bearer ${token}` } })
+    ).then((r) => r.json()).then((d) => {
+      if (d.user?.autoSeenOnWatchlistCheck != null) setAutoSeenOnCheck(d.user.autoSeenOnWatchlistCheck);
+    }).catch(() => {});
+  }, [user]);
+
+  async function toggleAutoSeen() {
+    if (!user) return;
+    const newVal = !autoSeenOnCheck;
+    setAutoSeenOnCheck(newVal);
+    const token = await user.getIdToken();
+    fetch("/api/profile/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ autoSeenOnWatchlistCheck: newVal }),
+    }).catch(() => {});
+  }
+
   /* ── Streaming state ── */
   const [showStreaming, setShowStreaming] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set());
@@ -613,9 +638,18 @@ export default function WatchlistPage() {
         <h1 className="text-2xl font-bold text-white">My Watchlists</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-1">Organize movies &amp; shows you want to watch.</p>
-      <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline mb-6 inline-block">
-        View what you&apos;ve already seen &rarr;
-      </Link>
+      <div className="flex items-center justify-between mb-6">
+        <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">
+          View what you&apos;ve already seen &rarr;
+        </Link>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <span className="text-xs text-[var(--foreground-muted)]">Mark as seen when checked off</span>
+          <button type="button" onClick={toggleAutoSeen}
+            className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${autoSeenOnCheck ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}>
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoSeenOnCheck ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
+        </label>
+      </div>
 
       {/* Error / success banners */}
       {error && (
