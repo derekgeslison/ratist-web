@@ -9,7 +9,8 @@ export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { weekId, rating, reviewText, reviewType, isRewatch } = await req.json();
+  const body = await req.json();
+  const { weekId, rating, reviewText, reviewType, isRewatch } = body;
   if (!weekId || !rating || rating < 1 || rating > 10) {
     return NextResponse.json({ error: "Valid weekId and rating (1-10) required" }, { status: 400 });
   }
@@ -31,6 +32,11 @@ export async function POST(req: NextRequest) {
     if (alreadySeen) detectedRewatch = true;
   }
 
+  // Store the full form data (all rubric scores) for prefilling the official review later
+  const formData = { ...body };
+  delete formData.weekId;
+  delete formData.isRewatch;
+
   const clubRating = await prisma.movieClubRating.upsert({
     where: { userId_weekId: { userId: user.id, weekId } },
     create: {
@@ -38,12 +44,14 @@ export async function POST(req: NextRequest) {
       rating: Number(rating),
       reviewText: reviewText?.trim() || null,
       reviewType: reviewType ?? "quick",
+      formData,
       isRewatch: detectedRewatch,
     },
     update: {
       rating: Number(rating),
       reviewText: reviewText?.trim() || null,
       reviewType: reviewType ?? "quick",
+      formData,
       isRewatch: detectedRewatch,
     },
   });

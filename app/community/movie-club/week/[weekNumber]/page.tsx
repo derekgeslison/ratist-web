@@ -31,7 +31,7 @@ export default function MovieClubWeekPage() {
   const { user } = useAuth();
   const [week, setWeek] = useState<WeekDetail | null>(null);
   const [isMember, setIsMember] = useState(false);
-  const [userRating, setUserRating] = useState<{ rating: number; reviewText: string | null; reviewType?: string } | null>(null);
+  const [userRating, setUserRating] = useState<{ rating: number; reviewText: string | null; reviewType?: string; formData?: Record<string, unknown> } | null>(null);
   const [canSeeDiscussion, setCanSeeDiscussion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -171,11 +171,11 @@ export default function MovieClubWeekPage() {
           {(week.status === "discussion" || week.status === "archived") && week.movieTmdbId && (
             <button
               onClick={() => {
-                sessionStorage.setItem(`screening-prefill-${week.movieTmdbId}`, JSON.stringify({
-                  overallRating: userRating.rating,
-                  reviewText: userRating.reviewText ?? "",
-                  reviewType: userRating.reviewType ?? "basic",
-                }));
+                // Pass the full form data (all rubric scores) for prefilling, matching Screening Room pattern
+                const prefillData = userRating.formData
+                  ? { ...userRating.formData }
+                  : { overallRating: userRating.rating, reviewText: userRating.reviewText ?? "", reviewType: userRating.reviewType ?? "basic" };
+                sessionStorage.setItem(`screening-prefill-${week.movieTmdbId}`, JSON.stringify(prefillData));
                 window.open(`/movies/${week.movieTmdbId}/rate`, "_blank");
               }}
               className="inline-flex items-center gap-1.5 text-xs text-[var(--ratist-red)] hover:underline mt-1"

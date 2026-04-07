@@ -66,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
       isMember = !!membership;
       const ur = await prisma.movieClubRating.findUnique({
         where: { userId_weekId: { userId: user.id, weekId: week.id } },
-        select: { rating: true, reviewText: true, reviewType: true },
+        select: { rating: true, reviewText: true, reviewType: true, formData: true },
       });
       userRating = ur;
     }

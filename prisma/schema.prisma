@@ -1072,8 +1072,9 @@ model MovieClubRating {
   rating       Float    // overall 1-10
   reviewText   String?  @db.Text @map("review_text")
   reviewType   String   @default("quick") @map("review_type") // "quick" | "standard"
+  formData     Json?    @map("form_data") // full rubric scores from ScreeningRateForm
   isRewatch    Boolean  @default(false) @map("is_rewatch")
-  madeOfficial Boolean  @default(false) @map("made_official") // linked to their real Ratist review
+  madeOfficial Boolean  @default(false) @map("made_official")
   createdAt    DateTime @default(now()) @map("created_at")
 
   user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
