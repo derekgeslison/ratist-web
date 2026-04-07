@@ -240,16 +240,16 @@ export async function GET(req: NextRequest) {
         movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
       },
       orderBy: { updatedAt: "desc" },
-      take: 5,
+      take: 20, // Fetch more so we can prioritize drafts after sorting
     });
-    // Sort: incomplete drafts first, then quick ratings
+    // Sort: incomplete drafts first, then quick ratings, then take 5
     const sortedIncomplete = incompleteRatings.sort((a, b) => {
       const aIsIncomplete = a.reviewType !== "basic" && a.ratistRating == null;
       const bIsIncomplete = b.reviewType !== "basic" && b.ratistRating == null;
       if (aIsIncomplete && !bIsIncomplete) return -1;
       if (!aIsIncomplete && bIsIncomplete) return 1;
       return 0;
-    });
+    }).slice(0, 5);
     const completeTheRating = sortedIncomplete.map((r) => ({
       type: "movie" as const, tmdbId: r.movie.tmdbId, title: r.movie.title,
       posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? 0,

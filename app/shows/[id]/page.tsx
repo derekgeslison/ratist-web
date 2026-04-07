@@ -153,7 +153,7 @@ export default async function ShowDetailPage({ params }: Props) {
         {/* Main info row */}
         <div className="flex gap-6 -mt-24 relative z-10 mb-8">
           {/* Poster */}
-          <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] self-start rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
+          <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] self-start mt-24 sm:mt-28 lg:mt-32 rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
             <Image
               src={posterUrl(show.poster_path, "w342")}
               alt={show.name}
