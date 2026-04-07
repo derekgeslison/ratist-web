@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Clapperboard, Calendar, Lock, Trophy, MessageCircle, Users } from "lucide-react";
+import { ArrowLeft, Clapperboard, Calendar, Lock, Trophy, MessageCircle, Users, HelpCircle } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import CommentSection from "@/components/CommentSection";
@@ -102,15 +102,19 @@ export default function MovieClubWeekPage() {
 
       {/* Movie header */}
       <div className="flex gap-5 mb-8">
-        {week.moviePoster && (
+        {week.moviePoster ? (
           <Link href={`/movies/${week.movieTmdbId}`} className="shrink-0">
             <Image src={posterUrl(week.moviePoster, "w185")} alt={week.movieTitle ?? ""} width={140} height={210} className="rounded-xl border border-[var(--border)]" />
           </Link>
+        ) : (
+          <div className="w-[140px] h-[210px] rounded-xl bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
+            <HelpCircle className="w-12 h-12 text-[var(--foreground-muted)]" />
+          </div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Clapperboard className="w-4 h-4 text-[var(--ratist-red)]" />
-            <span className="text-xs text-[var(--foreground-muted)]">Week {week.weekNumber}</span>
+            <span className="text-xs text-[var(--foreground-muted)]">Movie Club</span>
             <span className={`text-[10px] px-2 py-0.5 rounded-full ${
               week.status === "watching" ? "text-green-400 bg-green-500/10" :
               week.status === "discussion" ? "text-blue-400 bg-blue-500/10" :
@@ -257,7 +261,7 @@ export default function MovieClubWeekPage() {
                   >
                     <p className="text-sm font-medium text-white">{prompt.text}</p>
                     <div className="flex items-center gap-2 shrink-0">
-                      {prompt.commentCount > 0 && <span className="text-xs text-[var(--foreground-muted)]">{prompt.commentCount}</span>}
+                      <span className="text-xs text-[var(--foreground-muted)]">{prompt.commentCount} {prompt.commentCount === 1 ? "reply" : "replies"}</span>
                       <MessageCircle className="w-4 h-4 text-[var(--foreground-muted)]" />
                     </div>
                   </button>

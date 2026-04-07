@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
-import { Clapperboard, Pencil, X, Dice5, UserCheck, Vote, Eye } from "lucide-react";
+import { Clapperboard, Pencil, X, Dice5, UserCheck, Vote, Eye, HelpCircle } from "lucide-react";
 import { posterUrl, STREAMING_PROVIDERS, LANGUAGES } from "@/lib/tmdb";
 
 interface Week {
@@ -151,10 +151,16 @@ export default function AdminMovieClubPage() {
             <div key={w.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
               {/* Week header */}
               <div className="p-4 flex items-center gap-3">
-                {w.moviePoster && <Image src={posterUrl(w.moviePoster, "w92")} alt="" width={32} height={48} className="rounded w-8 h-12 object-cover shrink-0" />}
+                {w.moviePoster ? (
+                  <Image src={posterUrl(w.moviePoster, "w92")} alt="" width={32} height={48} className="rounded w-8 h-12 object-cover shrink-0" />
+                ) : (
+                  <div className="w-8 h-12 rounded bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                    <HelpCircle className="w-4 h-4 text-[var(--foreground-muted)]" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-sm font-medium text-white">Week {w.weekNumber}</span>
+                    <span className="text-sm font-medium text-white">{w.startDate} — {w.endDate}</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusColor(w.status)}`}>{w.status}</span>
                     <span className="text-[10px] text-[var(--foreground-muted)]">{w.pickMethod}</span>
                   </div>
