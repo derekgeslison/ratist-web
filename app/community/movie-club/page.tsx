@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import BackstagePassGate from "@/components/BackstagePassGate";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Clapperboard, Users, Calendar, MessageCircle, Clock, Lock, Star, HelpCircle } from "lucide-react";
@@ -72,6 +73,7 @@ export default function MovieClubPage() {
   const totalDiscussionComments = 0; // TODO: fetch from API
 
   return (
+    <BackstagePassGate feature="Movie Club">
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/community" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Community Hub
@@ -277,5 +279,6 @@ export default function MovieClubPage() {
         </>
       )}
     </div>
+    </BackstagePassGate>
   );
 }

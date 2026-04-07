@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { BarChart3, Film, Clock, TrendingUp, Star, Users, Target, Zap, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import BackstagePassGate from "@/components/BackstagePassGate";
 import { scoreColor } from "@/lib/ratings";
 import ShareButton from "@/components/ShareButton";
 
@@ -158,6 +159,7 @@ export default function AnalyticsPage() {
   }
 
   return (
+    <BackstagePassGate feature="My Analytics" showTeaser>
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <BarChart3 className="w-6 h-6 text-[var(--ratist-red)]" />
@@ -863,5 +865,6 @@ export default function AnalyticsPage() {
         </>
       )}
     </div>
+    </BackstagePassGate>
   );
 }

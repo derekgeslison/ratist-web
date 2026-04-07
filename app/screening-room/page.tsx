@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { MonitorPlay, Plus, LogIn, Users, Film, Calendar, Trash2 } from "lucide-react";
+import { MonitorPlay, Plus, LogIn, Users, Film, Calendar, Trash2, Lock, Ticket } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w92";
 
@@ -38,6 +39,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function ScreeningRoomDashboard() {
   const { user } = useAuth();
+  const { hasPass } = useSubscription();
   const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,10 +140,17 @@ export default function ScreeningRoomDashboard() {
             <Plus className="w-4 h-4 text-[var(--ratist-red)]" /> Start a Screening Room
           </h2>
           <p className="text-sm text-[var(--foreground-muted)] mb-4">Create a room and invite friends with a code.</p>
-          <button onClick={createSession} disabled={creating}
-            className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 w-full">
-            {creating ? "Creating..." : "Create Room"}
-          </button>
+          {hasPass ? (
+            <button onClick={createSession} disabled={creating}
+              className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 w-full">
+              {creating ? "Creating..." : "Create Room"}
+            </button>
+          ) : (
+            <Link href="/backstage-pass"
+              className="flex items-center justify-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors w-full hover:border-[var(--ratist-red)] hover:text-white">
+              <Ticket className="w-4 h-4" /> Backstage Pass required to host
+            </Link>
+          )}
         </div>
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
           <h2 className="text-base font-semibold text-white mb-2 flex items-center gap-2">

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import BackstagePassGate from "@/components/BackstagePassGate";
 import MovieCard from "@/components/MovieCard";
 
 interface CollectionMovie {
@@ -136,6 +137,7 @@ export default function CollectionsPage() {
   }
 
   return (
+    <BackstagePassGate feature="Collections" showTeaser>
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
@@ -227,5 +229,6 @@ export default function CollectionsPage() {
         </div>
       )}
     </div>
+    </BackstagePassGate>
   );
 }

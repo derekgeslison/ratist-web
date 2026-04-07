@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Check, Save, Upload, X, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
@@ -561,6 +562,21 @@ export default function SettingsPage() {
           </span>
         )}
       </div>
+
+      {/* ── Subscription ── */}
+      <section className="mb-10">
+        <h2 className="text-lg font-bold text-white mb-1">Subscription</h2>
+        <p className="text-sm text-[var(--foreground-muted)] mb-4">Manage your Backstage Pass membership.</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+          <Link href="/backstage-pass" className="flex items-center justify-between group">
+            <div>
+              <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors">Backstage Pass</p>
+              <p className="text-xs text-[var(--foreground-muted)]">Premium features, ad-free, custom themes, and more</p>
+            </div>
+            <span className="text-sm text-[var(--ratist-red)] font-semibold">View Plans →</span>
+          </Link>
+        </div>
+      </section>
 
       {/* ── Notification Preferences ── */}
       <section className="mb-10">

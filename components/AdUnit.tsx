@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useSubscription } from "@/hooks/useSubscription";
 
 interface Props {
   slot: string;
@@ -22,10 +23,11 @@ const PUBLISHER_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
  * The publisher ID and slot IDs must be set in environment variables.
  */
 export default function AdUnit({ slot, format = "auto", className = "" }: Props) {
+  const { hasPass } = useSubscription();
   const pushed = useRef(false);
 
   useEffect(() => {
-    if (!PUBLISHER_ID || pushed.current) return;
+    if (!PUBLISHER_ID || pushed.current || hasPass) return;
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
       pushed.current = true;
@@ -34,7 +36,7 @@ export default function AdUnit({ slot, format = "auto", className = "" }: Props)
     }
   }, []);
 
-  if (!PUBLISHER_ID) return null;
+  if (!PUBLISHER_ID || hasPass) return null;
 
   const style: React.CSSProperties =
     format === "rectangle"
