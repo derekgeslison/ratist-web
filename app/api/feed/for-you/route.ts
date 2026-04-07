@@ -242,7 +242,15 @@ export async function GET(req: NextRequest) {
       orderBy: { updatedAt: "desc" },
       take: 5,
     });
-    const completeTheRating = incompleteRatings.map((r) => ({
+    // Sort: incomplete drafts first, then quick ratings
+    const sortedIncomplete = incompleteRatings.sort((a, b) => {
+      const aIsIncomplete = a.reviewType !== "basic" && a.ratistRating == null;
+      const bIsIncomplete = b.reviewType !== "basic" && b.ratistRating == null;
+      if (aIsIncomplete && !bIsIncomplete) return -1;
+      if (!aIsIncomplete && bIsIncomplete) return 1;
+      return 0;
+    });
+    const completeTheRating = sortedIncomplete.map((r) => ({
       type: "movie" as const, tmdbId: r.movie.tmdbId, title: r.movie.title,
       posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? 0,
       releaseDate: r.movie.releaseDate,

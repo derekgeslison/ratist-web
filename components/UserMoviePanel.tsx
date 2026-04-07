@@ -299,7 +299,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
           {user && (
             <>
-              <div className="relative">
+              <div className="relative flex items-center gap-1">
                 <button
                   onClick={toggleSeen}
                   disabled={togglingSeeen}
@@ -315,20 +315,19 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                     <><EyeOff className="w-4 h-4" /> Mark Seen</>
                   )}
                 </button>
-                {seenError && (
-                  <div className="absolute top-full left-0 mt-2 z-30 w-64 bg-[var(--surface)] border border-red-500/50 rounded-lg px-3 py-2 shadow-xl text-xs text-red-400">
-                    {seenError}
-                  </div>
-                )}
-                {/* Date picker */}
                 {seen && (
                   <button
                     onClick={() => setShowDatePicker(!showDatePicker)}
                     title="Set watched date"
-                    className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors"
+                    className="p-1 text-[var(--foreground-muted)] hover:text-white transition-colors"
                   >
-                    <CalendarDays className="w-4 h-4" />
+                    <CalendarDays className="w-3.5 h-3.5" />
                   </button>
+                )}
+                {seenError && (
+                  <div className="absolute top-full left-0 mt-2 z-30 w-64 bg-[var(--surface)] border border-red-500/50 rounded-lg px-3 py-2 shadow-xl text-xs text-red-400">
+                    {seenError}
+                  </div>
                 )}
                 {showDatePicker && (
                   <div className="absolute top-full left-0 mt-2 z-30 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-xl">

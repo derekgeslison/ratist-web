@@ -39,6 +39,8 @@ const TOOLS = [
   },
 ];
 
+export const revalidate = 3600; // Revalidate home page every hour
+
 export default async function HomePage() {
   const [popular, topRated, nowPlaying, upcoming, popularShows, spotlights] = await Promise.all([
     getPopularMovies(),
