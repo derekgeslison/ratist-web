@@ -23,11 +23,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
       include: {
         ratings: {
           select: {
-            id: true, rating: true, reviewText: true, reviewType: true, isRewatch: true, createdAt: true,
+            id: true, rating: true, reviewText: true, reviewType: true, formData: true, isRewatch: true, createdAt: true,
             user: { select: { firebaseUid: true, name: true, avatarUrl: true } },
+            reactions: { select: { userId: true, value: true, user: { select: { firebaseUid: true } } } },
           },
           orderBy: { createdAt: "asc" },
         },
+        rewatchPolls: { select: { vote: true, user: { select: { firebaseUid: true } } } },
         _count: { select: { ratings: true } },
       },
     });
@@ -96,6 +98,74 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
         }))
       : prompts.map(() => 0);
 
+    // Rating distribution (1-2, 3-4, 5-6, 7-8, 9-10)
+    const ratingDistribution = canSeeDiscussion ? [
+      { range: "1-2", count: week.ratings.filter((r) => r.rating >= 1 && r.rating < 3).length },
+      { range: "3-4", count: week.ratings.filter((r) => r.rating >= 3 && r.rating < 5).length },
+      { range: "5-6", count: week.ratings.filter((r) => r.rating >= 5 && r.rating < 7).length },
+      { range: "7-8", count: week.ratings.filter((r) => r.rating >= 7 && r.rating < 9).length },
+      { range: "9-10", count: week.ratings.filter((r) => r.rating >= 9).length },
+    ] : [];
+
+    // Category breakdown (averages from standard reviews with formData)
+    const standardReviews = canSeeDiscussion
+      ? week.ratings.filter((r) => r.reviewType === "standard" && r.formData)
+      : [];
+    const categoryFields = {
+      Story: ["plot", "premiseOriginality", "storytelling", "characterDev", "pacingClimax"],
+      Style: ["cinematography", "locationCost", "realism", "artisticEffect", "visualEffects", "musicSound"],
+      Emotive: ["overallEmotion", "relatability", "meaning", "movingness"],
+      Acting: ["casting", "actingQuality", "dialogueScripting", "blockingChoreo"],
+      Entertainment: ["appeal", "superficialAllure", "choreography"],
+    };
+    const categoryBreakdown = canSeeDiscussion && standardReviews.length > 0
+      ? Object.entries(categoryFields).map(([cat, fields]) => {
+          let total = 0, count = 0;
+          for (const r of standardReviews) {
+            const fd = r.formData as Record<string, unknown>;
+            for (const f of fields) {
+              if (fd[f] != null && typeof fd[f] === "number") { total += fd[f] as number; count++; }
+            }
+          }
+          return { category: cat, avgScore: count > 0 ? Math.round(total / count * 10) / 10 : null };
+        })
+      : [];
+
+    // Rewatch poll results
+    const rewatchPollResults = canSeeDiscussion
+      ? { yes: week.rewatchPolls.filter((p) => p.vote === "yes").length, no: week.rewatchPolls.filter((p) => p.vote === "no").length, maybe: week.rewatchPolls.filter((p) => p.vote === "maybe").length }
+      : null;
+    const userRewatchVote = user ? week.rewatchPolls.find((p) => p.user.firebaseUid === user.firebaseUid)?.vote ?? null : null;
+
+    // Trivia (from TMDB data)
+    const trivia: string[] = [];
+    if (canSeeDiscussion && week.movieTmdbId) {
+      try {
+        const tmdbKey = process.env.TMDB_API_KEY;
+        const detRes = await fetch(`https://api.themoviedb.org/3/movie/${week.movieTmdbId}?api_key=${tmdbKey}`, { next: { revalidate: 86400 } });
+        if (detRes.ok) {
+          const det = await detRes.json();
+          if (det.budget && det.budget > 0) trivia.push(`Budget: $${(det.budget / 1e6).toFixed(0)}M`);
+          if (det.revenue && det.revenue > 0) trivia.push(`Box Office: $${det.revenue >= 1e9 ? (det.revenue / 1e9).toFixed(1) + "B" : (det.revenue / 1e6).toFixed(0) + "M"}`);
+          if (det.budget && det.revenue && det.budget > 0) trivia.push(`ROI: ${((det.revenue / det.budget) * 100).toFixed(0)}%`);
+          if (det.production_companies?.length) trivia.push(`Studio: ${det.production_companies.map((c: { name: string }) => c.name).slice(0, 2).join(", ")}`);
+          if (det.production_countries?.length) trivia.push(`Filmed in: ${det.production_countries.map((c: { name: string }) => c.name).slice(0, 2).join(", ")}`);
+          if (det.spoken_languages?.length > 1) trivia.push(`Languages: ${det.spoken_languages.map((l: { english_name: string }) => l.english_name).join(", ")}`);
+          if (det.vote_average) trivia.push(`TMDB Rating: ${det.vote_average.toFixed(1)}/10 (${det.vote_count?.toLocaleString()} votes)`);
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Enrich ratings with reaction counts for the response
+    const enrichedRatings = canSeeDiscussion
+      ? week.ratings.map((r) => {
+          const agreeCount = r.reactions.filter((x) => x.value === "agree").length;
+          const disagreeCount = r.reactions.filter((x) => x.value === "disagree").length;
+          const userReaction = user ? r.reactions.find((x) => x.user.firebaseUid === user.firebaseUid)?.value ?? null : null;
+          return { ...r, reactions: undefined, agreeCount, disagreeCount, userReaction };
+        })
+      : [];
+
     return NextResponse.json({
       week: {
         id: week.id,
@@ -114,12 +184,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
         participantCount: week._count.ratings,
         rewatchCount: week.ratings.filter((r) => r.isRewatch).length,
         avgRating: canSeeDiscussion ? avgRating : null,
-        ratings: canSeeDiscussion ? week.ratings : [],
+        ratings: enrichedRatings,
         superlatives,
         prompts: prompts.map((text, i) => ({ text, commentCount: promptCommentCounts[i], targetId: `${week.id}_prompt_${i}` })),
+        ratingDistribution,
+        categoryBreakdown,
+        rewatchPoll: rewatchPollResults,
+        trivia,
       },
       isMember,
       userRating,
+      userRewatchVote,
       canSeeDiscussion,
     });
   } catch (err) {

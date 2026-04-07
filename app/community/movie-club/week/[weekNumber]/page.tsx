@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Clapperboard, Calendar, Lock, Trophy, MessageCircle, Users, HelpCircle } from "lucide-react";
+import { ArrowLeft, Clapperboard, Calendar, Lock, Trophy, MessageCircle, Users, HelpCircle, ThumbsUp, ThumbsDown, BarChart3, RefreshCw, Lightbulb } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import CommentSection from "@/components/CommentSection";
@@ -13,15 +13,22 @@ import CommentSection from "@/components/CommentSection";
 interface WeekRating {
   id: string; rating: number; reviewText: string | null; reviewType: string;
   isRewatch: boolean; createdAt: string;
+  agreeCount: number; disagreeCount: number; userReaction: string | null;
   user: { firebaseUid: string; name: string; avatarUrl: string | null };
 }
 interface Superlative { label: string; userName: string; userAvatar: string | null; userUid: string; value: string; }
 interface Prompt { text: string; commentCount: number; targetId: string; }
+interface RatingDist { range: string; count: number; }
+interface CategoryBreakdown { category: string; avgScore: number | null; }
 interface WeekDetail {
   id: string; weekNumber: number; startDate: string; endDate: string; status: string;
   pickMethod: string; movieTmdbId: number | null; movieTitle: string | null; moviePoster: string | null;
   movieYear?: string; movieRuntime?: string; movieMpaRating?: string; movieStreaming?: string[];
   participantCount: number; rewatchCount: number; avgRating: number | null;
+  ratingDistribution?: RatingDist[];
+  categoryBreakdown?: CategoryBreakdown[];
+  rewatchPoll?: { yes: number; no: number; maybe: number } | null;
+  trivia?: string[];
   ratings: WeekRating[]; superlatives: Superlative[]; prompts: Prompt[];
 }
 
@@ -39,6 +46,8 @@ export default function MovieClubWeekPage() {
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
   const [editing, setEditing] = useState(searchParams.get("edit") === "1");
   const [justMarkedSeen, setJustMarkedSeen] = useState(false);
+  const [userRewatchVote, setUserRewatchVote] = useState<string | null>(null);
+  const [rewatchPoll, setRewatchPoll] = useState<{ yes: number; no: number; maybe: number } | null>(null);
 
   const fetchWeek = useCallback(async () => {
     try {
@@ -52,6 +61,8 @@ export default function MovieClubWeekPage() {
         setUserRating(data.userRating);
         setCanSeeDiscussion(data.canSeeDiscussion);
         setSubmitted(!!data.userRating);
+        setUserRewatchVote(data.userRewatchVote ?? null);
+        if (data.week?.rewatchPoll) setRewatchPoll(data.week.rewatchPoll);
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -83,6 +94,32 @@ export default function MovieClubWeekPage() {
       fetchWeek();
     }
     setSubmitting(false);
+  }
+
+  async function voteRewatch(vote: string) {
+    if (!user || !week) return;
+    const token = await user.getIdToken();
+    const res = await fetch("/api/movie-club/rewatch-poll", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ weekId: week.id, vote }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setUserRewatchVote(vote);
+      setRewatchPoll(data.results);
+    }
+  }
+
+  async function reactToReview(ratingId: string, value: string) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const res = await fetch("/api/movie-club/reaction", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ratingId, value }),
+    });
+    if (res.ok) fetchWeek();
   }
 
   if (loading) return <div className="max-w-3xl mx-auto px-4 py-12 text-center text-[var(--foreground-muted)]">Loading...</div>;
@@ -249,6 +286,89 @@ export default function MovieClubWeekPage() {
             </section>
           )}
 
+          {/* Rating Distribution */}
+          {week.ratingDistribution && week.ratingDistribution.some((d) => d.count > 0) && (
+            <section>
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-[var(--ratist-red)]" /> Rating Distribution
+              </h2>
+              <div className="flex items-end gap-2 h-24 mb-2">
+                {week.ratingDistribution.map((d) => {
+                  const maxCount = Math.max(...week.ratingDistribution!.map((x) => x.count), 1);
+                  const pct = (d.count / maxCount) * 100;
+                  return (
+                    <div key={d.range} className="flex-1 flex flex-col items-center gap-1">
+                      <span className="text-xs text-white font-bold">{d.count}</span>
+                      <div className="w-full rounded-t" style={{ height: `${Math.max(pct, 4)}%`, backgroundColor: d.count > 0 ? "var(--ratist-red)" : "var(--surface-2)" }} />
+                      <span className="text-[10px] text-[var(--foreground-muted)]">{d.range}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Category Breakdown */}
+          {week.categoryBreakdown && week.categoryBreakdown.length > 0 && week.categoryBreakdown.some((c) => c.avgScore != null) && (
+            <section>
+              <h2 className="text-lg font-semibold text-white mb-4">Category Breakdown</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                {week.categoryBreakdown.map((c) => (
+                  <div key={c.category} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+                    <p className="text-xs text-[var(--foreground-muted)] mb-1">{c.category}</p>
+                    <p className="text-lg font-bold text-white">{c.avgScore?.toFixed(1) ?? "–"}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Would You Rewatch? Poll */}
+          <section>
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-[var(--ratist-red)]" /> Would You Rewatch?
+            </h2>
+            <div className="flex gap-3 mb-3">
+              {(["yes", "no", "maybe"] as const).map((opt) => (
+                <button key={opt} onClick={() => voteRewatch(opt)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    userRewatchVote === opt
+                      ? opt === "yes" ? "bg-green-600 text-white" : opt === "no" ? "bg-red-600 text-white" : "bg-yellow-600 text-white"
+                      : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                  }`}
+                >
+                  {opt === "yes" ? "Yes" : opt === "no" ? "No" : "Maybe"}
+                </button>
+              ))}
+            </div>
+            {rewatchPoll && (rewatchPoll.yes + rewatchPoll.no + rewatchPoll.maybe > 0) && (() => {
+              const total = rewatchPoll.yes + rewatchPoll.no + rewatchPoll.maybe;
+              return (
+                <div className="flex gap-1 h-6 rounded-full overflow-hidden">
+                  {rewatchPoll.yes > 0 && <div className="bg-green-600 flex items-center justify-center" style={{ width: `${(rewatchPoll.yes / total) * 100}%` }}><span className="text-[10px] text-white font-bold">{Math.round((rewatchPoll.yes / total) * 100)}%</span></div>}
+                  {rewatchPoll.maybe > 0 && <div className="bg-yellow-600 flex items-center justify-center" style={{ width: `${(rewatchPoll.maybe / total) * 100}%` }}><span className="text-[10px] text-white font-bold">{Math.round((rewatchPoll.maybe / total) * 100)}%</span></div>}
+                  {rewatchPoll.no > 0 && <div className="bg-red-600 flex items-center justify-center" style={{ width: `${(rewatchPoll.no / total) * 100}%` }}><span className="text-[10px] text-white font-bold">{Math.round((rewatchPoll.no / total) * 100)}%</span></div>}
+                </div>
+              );
+            })()}
+          </section>
+
+          {/* Trivia Corner */}
+          {week.trivia && week.trivia.length > 0 && (
+            <section>
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Lightbulb className="w-5 h-5 text-yellow-400" /> Trivia Corner
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {week.trivia.map((fact, i) => (
+                  <div key={i} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+                    <p className="text-sm text-white">{fact}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Community Ratings */}
           <section>
             <h2 className="text-lg font-semibold text-white mb-4">Community Ratings</h2>
@@ -263,7 +383,17 @@ export default function MovieClubWeekPage() {
                       {r.isRewatch && <span className="text-[9px] text-[var(--foreground-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">Rewatch</span>}
                       {r.reviewType === "standard" && <span className="text-[9px] text-[var(--ratist-red)] bg-[var(--ratist-red)]/10 px-1.5 py-0.5 rounded">Full Review</span>}
                     </div>
-                    {r.reviewText && <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{r.reviewText}</p>}
+                    {r.reviewText && <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-2">{r.reviewText}</p>}
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => reactToReview(r.id, "agree")}
+                        className={`flex items-center gap-1 text-xs transition-colors ${r.userReaction === "agree" ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}>
+                        <ThumbsUp className="w-3 h-3" /> {r.agreeCount > 0 && r.agreeCount}
+                      </button>
+                      <button onClick={() => reactToReview(r.id, "disagree")}
+                        className={`flex items-center gap-1 text-xs transition-colors ${r.userReaction === "disagree" ? "text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400"}`}>
+                        <ThumbsDown className="w-3 h-3" /> {r.disagreeCount > 0 && r.disagreeCount}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

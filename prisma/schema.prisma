@@ -60,6 +60,8 @@ model User {
   movieClubRatings      MovieClubRating[]
   movieClubNominations  MovieClubNomination[]
   movieClubNomVotes     MovieClubNominationVote[]
+  movieClubRewatchPolls MovieClubRewatchPoll[]
+  movieClubReactions    MovieClubReviewReaction[]
   screeningSessionsHosted  ScreeningSession[]       @relation("screeningHost")
   screeningParticipations  ScreeningParticipant[]
   screeningPredictions     ScreeningPrediction[]
@@ -1049,6 +1051,7 @@ model MovieClubWeek {
   movie         Movie?    @relation(fields: [movieId], references: [id])
   ratings       MovieClubRating[]
   nominations   MovieClubNomination[]
+  rewatchPolls  MovieClubRewatchPoll[]
 
   @@unique([weekNumber])
   @@map("movie_club_weeks")
@@ -1077,8 +1080,9 @@ model MovieClubRating {
   madeOfficial Boolean  @default(false) @map("made_official")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  week MovieClubWeek  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week      MovieClubWeek           @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  reactions MovieClubReviewReaction[]
 
   @@unique([userId, weekId])
   @@map("movie_club_ratings")
@@ -1112,6 +1116,32 @@ model MovieClubNominationVote {
 
   @@unique([nominationId, userId])
   @@map("movie_club_nomination_votes")
+}
+
+model MovieClubRewatchPoll {
+  id       String @id @default(cuid())
+  userId   String @map("user_id")
+  weekId   String @map("week_id")
+  vote     String // "yes" | "no" | "maybe"
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week MovieClubWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekId])
+  @@map("movie_club_rewatch_polls")
+}
+
+model MovieClubReviewReaction {
+  id       String @id @default(cuid())
+  userId   String @map("user_id")
+  ratingId String @map("rating_id")
+  value    String // "agree" | "disagree"
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating MovieClubRating @relation(fields: [ratingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ratingId])
+  @@map("movie_club_review_reactions")
 }
 
 // Movie/Show Pitches
