@@ -250,27 +250,15 @@ export async function GET(req: NextRequest) {
     }));
 
     // --- 6. Top Picks For You (personalized estimates) ---
-    let topPicks: { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; estimatedRating: number }[] = [];
+    let topPicks: { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; communityRatistAvg?: number | null; estimatedRating: number }[] = [];
     try {
-      // Get popular movies with Ratist community ratings that user hasn't seen or rated
-      const candidateMovies = await prisma.movie.findMany({
-        where: {
-          id: { notIn: [...seenMovieIds].map((tmdbId) => {
-            // seenMovieIds are tmdbIds, we need internal IDs — use a subquery approach instead
-            return ""; // placeholder
-          }) },
-        },
-        select: { id: true },
-        take: 0, // placeholder
-      }).catch(() => []);
-
-      // Better approach: get movies that have community ratings and user hasn't seen
+      // Get movies that have at least 1 community Ratist rating
       const ratedMovieIds = await prisma.movieRating.groupBy({
         by: ["movieId"],
+        where: { ratistRating: { not: null } },
         _count: { ratistRating: true },
-        having: { ratistRating: { _count: { gte: 3 } } },
         orderBy: { _count: { ratistRating: "desc" } },
-        take: 200,
+        take: 300,
       });
 
       // Filter out movies user has already seen or rated
