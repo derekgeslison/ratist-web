@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { getBatchScoreEstimates } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -248,7 +249,83 @@ export async function GET(req: NextRequest) {
       currentRating: r.ratistRating ?? r.overallRating, reviewType: r.reviewType,
     }));
 
+    // --- 6. Top Picks For You (personalized estimates) ---
+    let topPicks: { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; estimatedRating: number }[] = [];
+    try {
+      // Get popular movies with Ratist community ratings that user hasn't seen or rated
+      const candidateMovies = await prisma.movie.findMany({
+        where: {
+          id: { notIn: [...seenMovieIds].map((tmdbId) => {
+            // seenMovieIds are tmdbIds, we need internal IDs — use a subquery approach instead
+            return ""; // placeholder
+          }) },
+        },
+        select: { id: true },
+        take: 0, // placeholder
+      }).catch(() => []);
+
+      // Better approach: get movies that have community ratings and user hasn't seen
+      const ratedMovieIds = await prisma.movieRating.groupBy({
+        by: ["movieId"],
+        _count: { ratistRating: true },
+        having: { ratistRating: { _count: { gte: 3 } } },
+        orderBy: { _count: { ratistRating: "desc" } },
+        take: 200,
+      });
+
+      // Filter out movies user has already seen or rated
+      const userRatedIds = new Set(
+        (await prisma.movieRating.findMany({ where: { userId: user.id }, select: { movieId: true } })).map((r) => r.movieId)
+      );
+      const userSeenIds = new Set(
+        (await prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movieId: true } })).map((r) => r.movieId)
+      );
+      const excludeIds = new Set([...userRatedIds, ...userSeenIds]);
+
+      const candidateIds = ratedMovieIds
+        .map((r) => r.movieId)
+        .filter((id) => !excludeIds.has(id))
+        .slice(0, 100);
+
+      if (candidateIds.length > 0) {
+        const estimates = await getBatchScoreEstimates(user.id, candidateIds);
+        const movieDetails = await prisma.movie.findMany({
+          where: { id: { in: candidateIds } },
+          select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true },
+        });
+        const detailMap = new Map(movieDetails.map((m) => [m.id, m]));
+
+        // Get community Ratist averages for display
+        const communityAvgs = await prisma.movieRating.groupBy({
+          by: ["movieId"],
+          where: { movieId: { in: candidateIds }, ratistRating: { not: null } },
+          _avg: { ratistRating: true },
+        });
+        const avgMap = new Map(communityAvgs.map((c) => [c.movieId, c._avg.ratistRating]));
+
+        topPicks = candidateIds
+          .map((id) => {
+            const est = estimates.get(id);
+            const detail = detailMap.get(id);
+            if (!est || !detail) return null;
+            return {
+              tmdbId: detail.tmdbId,
+              title: detail.title,
+              posterPath: detail.posterPath,
+              releaseDate: detail.releaseDate,
+              voteAverage: detail.voteAverage,
+              communityRatistAvg: avgMap.get(id) ? Math.round(avgMap.get(id)! * 10) / 10 : null,
+              estimatedRating: est,
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b!.estimatedRating - a!.estimatedRating)
+          .slice(0, 30) as typeof topPicks;
+      }
+    } catch (e) { console.error("Top picks error:", e); }
+
     return NextResponse.json({
+      topPicks,
       followActivity,
       becauseYouLiked,
       trendingInCluster,
