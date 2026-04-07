@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle, Trash2, Tv } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
@@ -40,6 +40,7 @@ interface MovieResult {
   title: string;
   posterPath: string | null;
   releaseDate: string;
+  mediaType?: "movie" | "tv";
 }
 
 function PersonSearch({ label, onSelect, onClear }: { label: string; onSelect: (p: PersonResult) => void; onClear: () => void }) {
@@ -105,7 +106,10 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
         fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
         fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
       ]);
-      setResults([...(movieRes.results ?? []), ...(showRes.results ?? [])]);
+      setResults([
+        ...(movieRes.results ?? []).map((m: MovieResult) => ({ ...m, mediaType: "movie" as const })),
+        ...(showRes.results ?? []).map((s: MovieResult) => ({ ...s, mediaType: "tv" as const })),
+      ]);
     }, 300);
     return () => clearTimeout(t);
   }, [query, selected]);
@@ -124,7 +128,7 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
       ) : (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-          <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search movie…"
+          <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search movie or TV show…"
             className="w-full pl-9 pr-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-blue-400" />
         </div>
       )}
@@ -134,8 +138,13 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
             <button key={m.id} onClick={() => { setSelected(m); setResults([]); onSelect(m); }}
               className="flex items-center gap-3 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
               {m.posterPath && <Image src={`${TMDB_POSTER}${m.posterPath}`} alt={m.title} width={20} height={30} className="rounded object-cover shrink-0" style={{ width: 20, height: 30 }} />}
-              <div>
-                <p className="text-sm text-white">{m.title}</p>
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm text-white">{m.title}</p>
+                  {m.mediaType === "tv" && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none"><Tv className="w-2.5 h-2.5" />TV</span>
+                  )}
+                </div>
                 <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
               </div>
             </button>
@@ -309,7 +318,7 @@ export default function RecastPage() {
           </button>
         )}
       </div>
-      <p className="text-[var(--foreground-muted)] mb-6">Who should have played that role? Submit your ideal recast and vote on others.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Who should have played that role? Pick a movie or TV show, submit your ideal recast, and vote on others.</p>
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, X, Users } from "lucide-react";
+import { Search, X, Users, Tv } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
 
@@ -188,7 +188,7 @@ export default function SharedCastPage() {
             onClick={() => switchMode(m)}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${mode === m ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
           >
-            {m === "movies-to-people" ? "Movies → Find People" : "People → Find Movies"}
+            {m === "movies-to-people" ? "Movies & Shows → Find People" : "People → Find Movies & Shows"}
           </button>
         ))}
       </div>
@@ -199,7 +199,7 @@ export default function SharedCastPage() {
         <input
           value={query}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder={`Search for a ${mode === "movies-to-people" ? "movie" : "person"} to add (${selected.length}/${maxSelected})…`}
+          placeholder={`Search for a ${mode === "movies-to-people" ? "movie or show" : "person"} to add (${selected.length}/${maxSelected})…`}
           disabled={selected.length >= maxSelected}
           className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] disabled:opacity-50"
         />
@@ -210,8 +210,13 @@ export default function SharedCastPage() {
                 {(r.poster_path || r.profile_path) ? (
                   <Image src={posterUrl(r.poster_path ?? r.profile_path ?? null, "w92")} alt="" width={32} height={48} className="rounded w-8 h-12 object-cover shrink-0" />
                 ) : <div className="w-8 h-12 rounded bg-[var(--surface-2)] shrink-0" />}
-                <div>
-                  <p className="text-sm text-white">{r.title ?? r.name}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm text-white">{r.title ?? r.name}</p>
+                    {(r as { media_type?: string }).media_type === "tv" && (
+                      <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>
+                    )}
+                  </div>
                   {r.release_date && <p className="text-xs text-[var(--foreground-muted)]">{r.release_date.slice(0, 4)}</p>}
                 </div>
               </button>
@@ -226,6 +231,9 @@ export default function SharedCastPage() {
           {selected.map((item) => (
             <div key={item.id} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--ratist-red)] rounded-full px-3 py-1.5 text-sm text-white">
               {item.title ?? item.name}
+              {(item as { media_type?: string }).media_type === "tv" && (
+                <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>
+              )}
               <button onClick={() => removeItem(item.id)} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-3 h-3" /></button>
             </div>
           ))}
@@ -241,14 +249,14 @@ export default function SharedCastPage() {
               {n} of {selected.length}
             </button>
           ))}
-          <span>{mode === "movies-to-people" ? "selected movies" : "of the selected people"}</span>
+          <span>{mode === "movies-to-people" ? "selected movies/shows" : "of the selected people"}</span>
         </div>
       )}
 
       {/* Status / empty state */}
       {selected.length < 2 && (
         <p className="text-[var(--foreground-muted)] text-sm py-6">
-          Add at least 2 {mode === "movies-to-people" ? "movies" : "people"} to see shared connections.
+          Add at least 2 {mode === "movies-to-people" ? "movies or shows" : "people"} to see shared connections.
         </p>
       )}
 
@@ -294,7 +302,7 @@ export default function SharedCastPage() {
                   label="Share"
                   text={mode === "movies-to-people"
                     ? `${results.length} cast & crew member${results.length !== 1 ? "s" : ""} appearing in${overlapText} ${selected.map((s) => s.title ?? s.name).join(", ")} — found on The Ratist!`
-                    : `${results.length} movie${results.length !== 1 ? "s" : ""} featuring${overlapText} ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
+                    : `${results.length} title${results.length !== 1 ? "s" : ""} featuring${overlapText} ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
                   }
                   url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
                   cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&ids=${selected.map((s) => s.id).join(",")}&count=${results.length}&overlap=${minOverlap}&total=${selected.length}${callout ? `&callout=${encodeURIComponent(callout)}` : ""}${yearRange ? `&years=${encodeURIComponent(yearRange)}` : ""}`}
@@ -395,8 +403,10 @@ function MoviesTable({ results, selected }: { results: MovieResult[]; selected: 
                   </div>
                   <div>
                     <span className="text-white group-hover:text-[var(--ratist-red)] font-medium text-sm block line-clamp-1">{movie.title}</span>
-                    <span className="text-xs text-[var(--foreground-muted)]">
-                      {movie.mediaType === "tv" && <span className="text-blue-400 mr-1">TV</span>}
+                    <span className="text-xs text-[var(--foreground-muted)] flex items-center gap-1">
+                      {movie.mediaType === "tv" && (
+                        <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none"><Tv className="w-2.5 h-2.5" />TV</span>
+                      )}
                       {movie.release_date && movie.release_date.slice(0, 4)}
                     </span>
                   </div>
