@@ -24,25 +24,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const isEditor = wl.collaborators.some((c) => c.role === "editor" && c.status === "accepted");
     if (!isOwner && !isEditor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const { movieIds, showIds } = await req.json();
+    const { items } = await req.json();
 
-    // Update movie sort orders
-    if (Array.isArray(movieIds)) {
-      for (let i = 0; i < movieIds.length; i++) {
-        await prisma.watchlistMovie.updateMany({
-          where: { id: movieIds[i], watchlistId },
-          data: { sortOrder: i },
-        });
-      }
-    }
-
-    // Update show sort orders
-    if (Array.isArray(showIds)) {
-      for (let i = 0; i < showIds.length; i++) {
-        await prisma.watchlistShow.updateMany({
-          where: { id: showIds[i], watchlistId },
-          data: { sortOrder: i },
-        });
+    // items is an array of { id, mediaType } in the desired order
+    // Both movies and shows get a unified sortOrder based on combined position
+    if (Array.isArray(items)) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i] as { id: string; mediaType?: string };
+        if (item.mediaType === "tv") {
+          await prisma.watchlistShow.updateMany({
+            where: { id: item.id, watchlistId },
+            data: { sortOrder: i },
+          });
+        } else {
+          await prisma.watchlistMovie.updateMany({
+            where: { id: item.id, watchlistId },
+            data: { sortOrder: i },
+          });
+        }
       }
     }
 

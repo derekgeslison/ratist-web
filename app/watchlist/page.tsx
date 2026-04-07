@@ -194,14 +194,10 @@ export default function WatchlistPage() {
   async function saveReorder() {
     if (!user || !activeId) return;
     const token = await user.getIdToken();
-    // Send ALL items in order — the API updates sortOrder for each
-    const allIds = reorderItems.map((m) => ({ id: m.id, mediaType: m.mediaType ?? "movie" }));
-    const movieEntries = allIds.filter((m) => m.mediaType !== "tv");
-    const showEntries = allIds.filter((m) => m.mediaType === "tv");
     await fetch(`/api/watchlist/${activeId}/reorder`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ movieIds: movieEntries.map((m) => m.id), showIds: showEntries.map((m) => m.id) }),
+      body: JSON.stringify({ items: reorderItems.map((m) => ({ id: m.id, mediaType: m.mediaType ?? "movie" })) }),
     });
     setReorderMode(false);
     setSortKey("custom");
