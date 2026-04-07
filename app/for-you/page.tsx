@@ -116,6 +116,8 @@ export default function ForYouPage() {
     fetchFeed();
   }, [loading, fetchFeed]);
 
+  const [showAllPicks, setShowAllPicks] = useState(false);
+
   if (loading || fetching) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -136,8 +138,6 @@ export default function ForYouPage() {
       </div>
     );
   }
-
-  const [showAllPicks, setShowAllPicks] = useState(false);
 
   if (!data) return null;
 
