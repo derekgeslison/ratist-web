@@ -54,14 +54,23 @@ interface Props {
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   submitting: boolean;
   submitted: boolean;
-  initialData?: { overallRating?: number; reviewText?: string; reviewType?: string };
+  initialData?: Record<string, unknown>;
 }
 
 export default function ScreeningRateForm({ onSubmit, submitting, submitted, initialData }: Props) {
   const [mode, setMode] = useState<ReviewMode>((initialData?.reviewType as ReviewMode) ?? "standard");
-  const [values, setValues] = useState<Record<string, number | null>>({});
-  const [overallRating, setOverallRating] = useState<number | null>(initialData?.overallRating ?? null);
-  const [reviewText, setReviewText] = useState(initialData?.reviewText ?? "");
+  const [values, setValues] = useState<Record<string, number | null>>(() => {
+    if (!initialData) return {};
+    const loaded: Record<string, number | null> = {};
+    for (const cat of Object.values(CRITERIA)) {
+      for (const field of cat.fields) {
+        if (initialData[field.key] != null) loaded[field.key] = Number(initialData[field.key]);
+      }
+    }
+    return loaded;
+  });
+  const [overallRating, setOverallRating] = useState<number | null>(initialData?.overallRating != null ? Number(initialData.overallRating) : null);
+  const [reviewText, setReviewText] = useState(String(initialData?.reviewText ?? ""));
   const [editing, setEditing] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     Object.fromEntries(Object.keys(CRITERIA).map((k) => [k, true]))

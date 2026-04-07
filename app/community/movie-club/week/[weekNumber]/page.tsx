@@ -68,10 +68,9 @@ export default function MovieClubWeekPage() {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
+        ...data,
         weekId: week.id,
         rating: data.overallRating,
-        reviewText: data.reviewText ?? null,
-        reviewType: data.reviewType ?? "quick",
       }),
     });
 
@@ -150,7 +149,7 @@ export default function MovieClubWeekPage() {
               onSubmit={handleSubmitRating}
               submitting={submitting}
               submitted={editing ? false : submitted}
-              initialData={editing && userRating ? { overallRating: userRating.rating, reviewText: userRating.reviewText ?? undefined, reviewType: userRating.reviewType } : undefined}
+              initialData={editing && userRating ? (userRating.formData as Record<string, unknown> ?? { overallRating: userRating.rating, reviewText: userRating.reviewText ?? "", reviewType: userRating.reviewType ?? "quick" }) : undefined}
             />
           </div>
         </section>
