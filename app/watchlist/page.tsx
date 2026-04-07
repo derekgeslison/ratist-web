@@ -122,8 +122,8 @@ export default function WatchlistPage() {
 
   /* ── Filter / sort state ── */
   const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("added");
-  const [sortAsc, setSortAsc] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("custom");
+  const [sortAsc, setSortAsc] = useState(true);
   const [seenFilter, setSeenFilter] = useState<SeenFilter>("all");
   const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [genreFilter, setGenreFilter] = useState("");
@@ -157,6 +157,11 @@ export default function WatchlistPage() {
   /* ── Reorder mode ── */
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderItems, setReorderItems] = useState<WatchlistMovie[]>([]);
+  const reorderSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   function enterReorder() {
     setReorderItems([...movies].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
@@ -1022,7 +1027,6 @@ export default function WatchlistPage() {
                         className="appearance-none bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-3 pr-8 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] cursor-pointer"
                       >
                         <option value="custom">Custom Order</option>
-                        <option value="added">Date Added</option>
                         <option value="title">Title</option>
                         <option value="year">Year</option>
                         <option value="rating">Ratist Rating</option>
@@ -1162,7 +1166,7 @@ export default function WatchlistPage() {
                         </button>
                       </div>
                     </div>
-                    <DndContext sensors={useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))} collisionDetection={closestCenter} onDragEnd={handleReorderDragEnd}>
+                    <DndContext sensors={reorderSensors} collisionDetection={closestCenter} onDragEnd={handleReorderDragEnd}>
                       <SortableContext items={reorderItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                         <div className="space-y-1">
                           {reorderItems.map((item, idx) => (

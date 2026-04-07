@@ -86,8 +86,13 @@ export async function POST(req: NextRequest, { params }: Props) {
         where: { watchlistId_movieId: { watchlistId: defaultList.id, movieId: movie.id } },
       });
     } else {
+      // Add at end of custom order
+      const maxOrder = await prisma.watchlistMovie.aggregate({
+        where: { watchlistId: defaultList.id },
+        _max: { sortOrder: true },
+      });
       await prisma.watchlistMovie.create({
-        data: { watchlistId: defaultList.id, movieId: movie.id },
+        data: { watchlistId: defaultList.id, movieId: movie.id, sortOrder: (maxOrder._max.sortOrder ?? -1) + 1 },
       });
     }
 
