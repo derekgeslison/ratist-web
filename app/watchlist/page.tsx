@@ -123,6 +123,42 @@ export default function WatchlistPage() {
     }).catch(() => {});
   }
 
+  /* ── Reorder mode ── */
+  const [reorderMode, setReorderMode] = useState(false);
+  const [reorderItems, setReorderItems] = useState<WatchlistMovie[]>([]);
+
+  function enterReorder() {
+    setReorderItems([...movies].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
+    setReorderMode(true);
+  }
+
+  function moveItem(from: number, to: number) {
+    setReorderItems((items) => {
+      const arr = [...items];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      return arr;
+    });
+  }
+
+  async function saveReorder() {
+    if (!user || !activeId) return;
+    const token = await user.getIdToken();
+    const movieEntries = reorderItems.filter((m) => m.mediaType !== "tv");
+    const showEntries = reorderItems.filter((m) => m.mediaType === "tv");
+    await fetch(`/api/watchlist/${activeId}/reorder`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ movieIds: movieEntries.map((m) => m.id), showIds: showEntries.map((m) => m.id) }),
+    });
+    setReorderMode(false);
+    // Refresh
+    setLoadingMovies(true);
+    const res = await fetch(`/api/watchlist?listId=${activeId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) { const data = await res.json(); setMovies(data.movies ?? []); }
+    setLoadingMovies(false);
+  }
+
   /* ── Streaming state ── */
   const [showStreaming, setShowStreaming] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<Set<string>>(new Set());
@@ -838,6 +874,13 @@ export default function WatchlistPage() {
                             <Star className="w-4 h-4" />
                           </button>
                           <button
+                            onClick={enterReorder}
+                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
+                            title="Reorder items"
+                          >
+                            <ArrowUpDown className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => setShowDeleteConfirm(true)}
                             className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
                             title="Delete list"
@@ -1047,8 +1090,45 @@ export default function WatchlistPage() {
                   </div>
                 )}
 
+                {/* Reorder mode */}
+                {reorderMode && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-white">Reorder Items</h3>
+                      <div className="flex gap-2">
+                        <button onClick={saveReorder} className="px-3 py-1.5 bg-[var(--ratist-red)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors">
+                          Save Order
+                        </button>
+                        <button onClick={() => setReorderMode(false)} className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--foreground-muted)] rounded-lg hover:text-white transition-colors">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {reorderItems.map((item, idx) => (
+                        <div key={item.id} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2">
+                          <span className="text-xs font-bold text-[var(--foreground-muted)] w-6 text-center">{idx + 1}</span>
+                          <div className="flex flex-col shrink-0">
+                            <button onClick={() => idx > 0 && moveItem(idx, idx - 1)} disabled={idx === 0}
+                              className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▲</button>
+                            <button onClick={() => idx < reorderItems.length - 1 && moveItem(idx, idx + 1)} disabled={idx === reorderItems.length - 1}
+                              className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▼</button>
+                          </div>
+                          {item.posterPath && (
+                            <Image src={posterUrl(item.posterPath, "w92")} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white truncate">{item.title}</p>
+                            {item.mediaType === "tv" && <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Movie grid */}
-                {loadingMovies ? (
+                {reorderMode ? null : loadingMovies ? (
                   <p className="text-[var(--foreground-muted)] text-center py-10">Loading&hellip;</p>
                 ) : filtered.length === 0 ? (
                   <div className="text-center py-16 text-[var(--foreground-muted)]">

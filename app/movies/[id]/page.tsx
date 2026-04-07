@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Calendar, Globe } from "lucide-react";
+import { Clock, Calendar, Globe, Ticket } from "lucide-react";
 import {
   getMovieDetails,
   getWatchProviders,
@@ -157,6 +157,11 @@ export default async function MovieDetailPage({ params }: Props) {
   const trailerKey = getTrailerKey(movie);
   const mpaaRating = getMpaaRating(movie);
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
+
+  // Check if movie is currently in theaters (released within last 8 weeks)
+  const releaseDate = movie.release_date ? new Date(movie.release_date) : null;
+  const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
+  const isInTheaters = releaseDate && releaseDate >= eightWeeksAgo && releaseDate <= new Date();
   const cast = movie.credits?.cast ?? [];
   const crew = movie.credits?.crew ?? [];
   const images = movie.images?.backdrops ?? [];
@@ -274,6 +279,19 @@ export default async function MovieDetailPage({ params }: Props) {
                   </Link>
                 ))}
               </div>
+            )}
+
+            {/* In Theaters — showtimes link */}
+            {isInTheaters && (
+              <a
+                href={`https://www.fandango.com/search?q=${encodeURIComponent(movie.title)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 mb-4 bg-[var(--surface)] border border-orange-400/50 rounded-full text-sm font-semibold text-orange-400 hover:bg-orange-400/10 transition-colors"
+              >
+                <Ticket className="w-4 h-4" />
+                Find Showtimes & Tickets
+              </a>
             )}
 
             <UserMoviePanel
