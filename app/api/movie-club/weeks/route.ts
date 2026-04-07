@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
+import { ensureUpcomingWeeks, runStatusTransitions, getSuperlatives } from "@/lib/movie-club";
 
 export const dynamic = "force-dynamic";
 
@@ -9,44 +10,66 @@ async function getUser(req: NextRequest) {
   if (!auth?.startsWith("Bearer ")) return null;
   const decoded = await adminAuth.verifyIdToken(auth.slice(7)).catch(() => null);
   if (!decoded) return null;
-  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true } });
+  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, firebaseUid: true } });
 }
 
-/** GET — get current + recent weeks for the movie club page */
+/** GET — get weeks for the movie club page. Also triggers auto-generation and transitions. */
 export async function GET(req: NextRequest) {
   try {
+    // Auto-generate upcoming weeks and run status transitions
+    await ensureUpcomingWeeks().catch(() => {});
+    await runStatusTransitions().catch(() => {});
+
     const user = await getUser(req);
 
+    // Get active + recent weeks (watching, discussion, archived)
     const weeks = await prisma.movieClubWeek.findMany({
-      where: { status: { not: "upcoming" } },
+      where: { status: { in: ["watching", "discussion", "archived"] } },
       orderBy: { weekNumber: "desc" },
-      take: 10,
+      take: 12,
       include: {
         ratings: {
-          select: { rating: true, comment: true, createdAt: true, user: { select: { firebaseUid: true, name: true, avatarUrl: true } } },
+          select: {
+            rating: true, reviewText: true, reviewType: true, isRewatch: true, createdAt: true,
+            user: { select: { firebaseUid: true, name: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: "asc" },
         },
-        _count: { select: { ratings: true, votes: true } },
+        _count: { select: { ratings: true } },
       },
     });
 
-    // Also get upcoming weeks (for "next week" teaser)
+    // Voting weeks (community_vote in voting status)
+    const votingWeeks = await prisma.movieClubWeek.findMany({
+      where: { status: "voting" },
+      include: {
+        nominations: {
+          include: {
+            user: { select: { firebaseUid: true, name: true } },
+            _count: { select: { votes: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+
+    // Upcoming weeks (show only 2 weeks ahead)
     const upcoming = await prisma.movieClubWeek.findMany({
-      where: { status: "upcoming" },
+      where: { status: "scheduled" },
       orderBy: { weekNumber: "asc" },
-      take: 3,
+      take: 2,
       select: { id: true, weekNumber: true, startDate: true, pickMethod: true, pickTeaser: true },
     });
 
-    // Check membership
+    // Membership
     let isMember = false;
-    let memberCount = 0;
     if (user) {
       const membership = await prisma.movieClubMember.findUnique({ where: { userId: user.id } });
       isMember = !!membership;
     }
-    memberCount = await prisma.movieClubMember.count();
+    const memberCount = await prisma.movieClubMember.count();
 
-    // Check user's ratings for current weeks
+    // User's ratings
     const userRatings = user
       ? await prisma.movieClubRating.findMany({
           where: { userId: user.id, weekId: { in: weeks.map((w) => w.id) } },
@@ -55,29 +78,79 @@ export async function GET(req: NextRequest) {
       : [];
     const userRatingMap = Object.fromEntries(userRatings.map((r) => [r.weekId, r.rating]));
 
-    // User's votes for community_vote weeks
-    const userVotes = user
-      ? await prisma.movieClubVote.findMany({
-          where: { userId: user.id, weekId: { in: weeks.map((w) => w.id) } },
-          select: { weekId: true, tmdbId: true },
+    // User's nomination votes
+    const userNomVotes = user
+      ? await prisma.movieClubNominationVote.findMany({
+          where: { userId: user.id },
+          select: { nominationId: true },
         })
       : [];
-    const userVoteMap = Object.fromEntries(userVotes.map((v) => [v.weekId, v.tmdbId]));
+    const userNomVoteSet = new Set(userNomVotes.map((v) => v.nominationId));
 
-    const enrichedWeeks = weeks.map((w) => {
+    // Enrich weeks
+    const enrichedWeeks = await Promise.all(weeks.map(async (w) => {
       const avgRating = w.ratings.length > 0
         ? Math.round(w.ratings.reduce((s, r) => s + r.rating, 0) / w.ratings.length * 10) / 10
         : null;
-      return {
-        ...w,
-        avgRating,
-        participantCount: w._count.ratings,
-        userRating: userRatingMap[w.id] ?? null,
-        userVote: userVoteMap[w.id] ?? null,
-      };
-    });
 
-    return NextResponse.json({ weeks: enrichedWeeks, upcoming, isMember, memberCount });
+      // Only include ratings in discussion phase, and only if user has submitted
+      const userHasRated = !!userRatingMap[w.id];
+      const showRatings = w.status === "discussion" || w.status === "archived";
+      const canSeeDiscussion = showRatings && (userHasRated || w.status === "archived");
+
+      const superlatives = canSeeDiscussion ? await getSuperlatives(w.id) : [];
+
+      return {
+        id: w.id,
+        weekNumber: w.weekNumber,
+        startDate: w.startDate,
+        endDate: w.endDate,
+        status: w.status,
+        pickMethod: w.pickMethod,
+        pickTeaser: w.pickTeaser,
+        movieTmdbId: w.movieTmdbId,
+        movieTitle: w.movieTitle,
+        moviePoster: w.moviePoster,
+        avgRating: canSeeDiscussion ? avgRating : null,
+        participantCount: w._count.ratings,
+        rewatchCount: w.ratings.filter((r) => r.isRewatch).length,
+        userRating: userRatingMap[w.id] ?? null,
+        ratings: canSeeDiscussion ? w.ratings : [],
+        superlatives,
+        canSeeDiscussion,
+      };
+    }));
+
+    // Enrich voting weeks
+    const enrichedVoting = votingWeeks.map((w) => ({
+      ...w,
+      nominations: w.nominations.map((n) => ({
+        id: n.id,
+        tmdbId: n.tmdbId,
+        title: n.title,
+        posterPath: n.posterPath,
+        submittedBy: n.user.name,
+        voteCount: n._count.votes,
+        userVoted: userNomVoteSet.has(n.id),
+      })),
+    }));
+
+    // Count how many votes the user has cast this week (max 3)
+    let userVoteCount = 0;
+    if (user && votingWeeks.length > 0) {
+      userVoteCount = await prisma.movieClubNominationVote.count({
+        where: { userId: user.id, nomination: { weekId: { in: votingWeeks.map((w) => w.id) } } },
+      });
+    }
+
+    return NextResponse.json({
+      weeks: enrichedWeeks,
+      votingWeeks: enrichedVoting,
+      upcoming,
+      isMember,
+      memberCount,
+      userVoteCount,
+    });
   } catch (err) {
     console.error("Movie club weeks error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
