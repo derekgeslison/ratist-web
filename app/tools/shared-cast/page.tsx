@@ -178,7 +178,7 @@ export default function SharedCastPage() {
         <Users className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Shared Cast & Crew</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-6">Discover connections between movies and the people who made them.</p>
+      <p className="text-[var(--foreground-muted)] mb-6">Discover connections between movies, TV shows, and the people who made them.</p>
 
       {/* Mode toggle */}
       <div className="flex gap-2 mb-6">

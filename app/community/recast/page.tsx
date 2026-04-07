@@ -118,7 +118,7 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
 
   return (
     <div className="relative">
-      <label className="text-xs text-[var(--foreground-muted)] mb-1 block">Movie</label>
+      <label className="text-xs text-[var(--foreground-muted)] mb-1 block">Movie or TV Show</label>
       {selected ? (
         <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-2)] border border-blue-400/50 rounded-lg">
           {selected.posterPath && <Image src={`${TMDB_POSTER}${selected.posterPath}`} alt={selected.title} width={20} height={30} className="rounded object-cover shrink-0" style={{ width: 20, height: 30 }} />}
