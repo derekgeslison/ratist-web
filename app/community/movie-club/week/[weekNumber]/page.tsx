@@ -146,10 +146,11 @@ export default function MovieClubWeekPage() {
           <h2 className="text-lg font-semibold text-white mb-4">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <ScreeningRateForm
+              key={editing ? "edit" : "new"}
               onSubmit={handleSubmitRating}
               submitting={submitting}
               submitted={editing ? false : submitted}
-              initialData={editing && userRating ? (userRating.formData as Record<string, unknown> ?? { overallRating: userRating.rating, reviewText: userRating.reviewText ?? "", reviewType: userRating.reviewType ?? "quick" }) : undefined}
+              initialData={editing && userRating ? ((userRating.formData as Record<string, unknown>) ?? { overallRating: userRating.rating, reviewText: userRating.reviewText ?? "", reviewType: userRating.reviewType ?? "quick" }) : undefined}
             />
           </div>
         </section>
