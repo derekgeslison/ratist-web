@@ -20,7 +20,7 @@ interface VotingWeek {
   id: string; weekNumber: number; startDate: string; pickTeaser: string | null;
   nominations: { id: string; tmdbId: number; title: string; posterPath: string | null; voteCount: number }[];
 }
-interface UpcomingWeek { id: string; weekNumber: number; startDate: string; pickMethod: string; pickTeaser: string | null; revealEarly?: boolean; movieTitle?: string | null; moviePoster?: string | null; movieTmdbId?: number | null; }
+interface UpcomingWeek { id: string; weekNumber: number; startDate: string; pickMethod: string; pickTeaser: string | null; revealEarly?: boolean; movieTitle?: string | null; moviePoster?: string | null; movieTmdbId?: number | null; movieYear?: string | null; }
 
 export default function MovieClubPage() {
   const { user } = useAuth();
@@ -238,7 +238,7 @@ export default function MovieClubPage() {
                     )}
                     <div className="flex-1">
                       <p className="text-sm text-white font-medium">
-                        {w.revealEarly && w.movieTitle ? w.movieTitle : (w.pickTeaser || "???")}
+                        {w.revealEarly && w.movieTitle ? `${w.movieTitle}${w.movieYear ? ` (${w.movieYear})` : ""}` : (w.pickTeaser || "???")}
                       </p>
                       <p className="text-xs text-[var(--foreground-muted)]">Starts {w.startDate}</p>
                     </div>
@@ -254,7 +254,7 @@ export default function MovieClubPage() {
             <section>
               <h2 className="text-sm font-semibold text-white mb-3">Past Weeks</h2>
               <div className="space-y-2">
-                {pastWeeks.map((w) => (
+                {pastWeeks.slice(0, 3).map((w) => (
                   <Link key={w.id} href={`/community/movie-club/week/${w.weekNumber}`}
                     className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)]/30 transition-colors">
                     {w.moviePoster ? (

@@ -76,15 +76,6 @@ export default function MovieClubWeekPage() {
     });
 
     if (res.ok) {
-      // If they chose to make it official (standard review), also save to the movie's rating
-      if (data.reviewType === "standard" && week.movieTmdbId) {
-        await fetch(`/api/movies/${week.movieTmdbId}/rate`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }).catch(() => {});
-      }
-
       setSubmitted(true);
       setEditing(false);
       fetchWeek();
@@ -153,8 +144,7 @@ export default function MovieClubWeekPage() {
       {/* Rate section — show if not submitted, or if watching phase (for editing) */}
       {isOpen && isMember && (!submitted || (week.status === "watching" && editing)) && (
         <section className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-2">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
-          <p className="text-xs text-[var(--foreground-muted)] mb-4">Use the &ldquo;Standard&rdquo; tab to submit your full Ratist review — it will also count as your official review for this movie.</p>
+          <h2 className="text-lg font-semibold text-white mb-4">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <ScreeningRateForm
               onSubmit={handleSubmitRating}
@@ -167,15 +157,23 @@ export default function MovieClubWeekPage() {
 
       {/* Already rated */}
       {submitted && userRating && !editing && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 flex items-center justify-between">
-          <div>
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8">
+          <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-emerald-400">You rated this movie <span className="font-bold">{userRating.rating}/10</span></p>
-            {userRating.reviewText && <p className="text-xs text-[var(--foreground-muted)] mt-1">{userRating.reviewText}</p>}
+            {week.status === "watching" && (
+              <button onClick={() => setEditing(true)} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+                Edit review
+              </button>
+            )}
           </div>
-          {week.status === "watching" && (
-            <button onClick={() => setEditing(true)} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
-              Edit review
-            </button>
+          {userRating.reviewText && <p className="text-xs text-[var(--foreground-muted)] mb-2">{userRating.reviewText}</p>}
+          {(week.status === "discussion" || week.status === "archived") && week.movieTmdbId && (
+            <Link
+              href={`/movies/${week.movieTmdbId}/rate?overallRating=${userRating.rating}${userRating.reviewText ? `&reviewText=${encodeURIComponent(userRating.reviewText)}` : ""}&source=movieclub`}
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--ratist-red)] hover:underline mt-1"
+            >
+              Make this your official Ratist review →
+            </Link>
           )}
         </div>
       )}

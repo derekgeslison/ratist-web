@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   await ensureUpcomingWeeks().catch(() => {});
 
   const weeks = await prisma.movieClubWeek.findMany({
-    orderBy: { startDate: "asc" },
+    orderBy: { startDate: "desc" },
     include: {
       _count: { select: { ratings: true, nominations: true } },
     },
