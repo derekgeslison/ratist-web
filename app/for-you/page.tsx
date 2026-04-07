@@ -137,6 +137,8 @@ export default function ForYouPage() {
     );
   }
 
+  const [showAllPicks, setShowAllPicks] = useState(false);
+
   if (!data) return null;
 
   const hasTopPicks = (data.topPicks?.length ?? 0) > 0;
@@ -146,7 +148,6 @@ export default function ForYouPage() {
   const hasWatchlist = data.unwatchedWatchlist.length > 0;
   const hasIncomplete = data.completeTheRating.length > 0;
   const isEmpty = !hasTopPicks && !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasIncomplete;
-  const [showAllPicks, setShowAllPicks] = useState(false);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
