@@ -229,10 +229,10 @@ export async function GET(req: NextRequest) {
       where: {
         userId: user.id,
         OR: [
-          // Quick ratings (basic mode — has overallRating but no pillar scores)
+          // Incomplete standard/critic ratings (drafts — started but not finalized)
+          { reviewType: { in: ["standard", "critic"] }, ratistRating: null },
+          // Quick ratings (basic mode — has rating but no pillar scores)
           { reviewType: "basic", ratistRating: { not: null } },
-          // Incomplete standard ratings (missing required fields)
-          { reviewType: { in: ["standard", "critic"] }, ratistRating: null, overallRating: { not: null } },
         ],
       },
       select: {
