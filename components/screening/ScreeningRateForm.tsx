@@ -54,13 +54,14 @@ interface Props {
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   submitting: boolean;
   submitted: boolean;
+  initialData?: { overallRating?: number; reviewText?: string; reviewType?: string };
 }
 
-export default function ScreeningRateForm({ onSubmit, submitting, submitted }: Props) {
-  const [mode, setMode] = useState<ReviewMode>("standard");
+export default function ScreeningRateForm({ onSubmit, submitting, submitted, initialData }: Props) {
+  const [mode, setMode] = useState<ReviewMode>((initialData?.reviewType as ReviewMode) ?? "standard");
   const [values, setValues] = useState<Record<string, number | null>>({});
-  const [overallRating, setOverallRating] = useState<number | null>(null);
-  const [reviewText, setReviewText] = useState("");
+  const [overallRating, setOverallRating] = useState<number | null>(initialData?.overallRating ?? null);
+  const [reviewText, setReviewText] = useState(initialData?.reviewText ?? "");
   const [editing, setEditing] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     Object.fromEntries(Object.keys(CRITERIA).map((k) => [k, true]))

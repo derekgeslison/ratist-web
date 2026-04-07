@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Clapperboard, Users, Calendar, ChevronRight, MessageCircle, Clock, Lock, Star, HelpCircle } from "lucide-react";
+import { ArrowLeft, Clapperboard, Users, Calendar, MessageCircle, Clock, Lock, Star, HelpCircle } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 
 interface Week {
@@ -242,7 +242,6 @@ export default function MovieClubPage() {
                       </p>
                       <p className="text-xs text-[var(--foreground-muted)]">Starts {w.startDate}</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[var(--foreground-muted)]" />
                   </div>
                 ))}
               </div>

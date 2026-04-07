@@ -31,7 +31,7 @@ export default function MovieClubWeekPage() {
   const { user } = useAuth();
   const [week, setWeek] = useState<WeekDetail | null>(null);
   const [isMember, setIsMember] = useState(false);
-  const [userRating, setUserRating] = useState<{ rating: number; reviewText: string | null } | null>(null);
+  const [userRating, setUserRating] = useState<{ rating: number; reviewText: string | null; reviewType?: string } | null>(null);
   const [canSeeDiscussion, setCanSeeDiscussion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -150,6 +150,7 @@ export default function MovieClubWeekPage() {
               onSubmit={handleSubmitRating}
               submitting={submitting}
               submitted={editing ? false : submitted}
+              initialData={editing && userRating ? { overallRating: userRating.rating, reviewText: userRating.reviewText ?? undefined, reviewType: userRating.reviewType } : undefined}
             />
           </div>
         </section>
@@ -168,12 +169,19 @@ export default function MovieClubWeekPage() {
           </div>
           {userRating.reviewText && <p className="text-xs text-[var(--foreground-muted)] mb-2">{userRating.reviewText}</p>}
           {(week.status === "discussion" || week.status === "archived") && week.movieTmdbId && (
-            <Link
-              href={`/movies/${week.movieTmdbId}/rate?overallRating=${userRating.rating}${userRating.reviewText ? `&reviewText=${encodeURIComponent(userRating.reviewText)}` : ""}&source=movieclub`}
+            <button
+              onClick={() => {
+                sessionStorage.setItem(`screening-prefill-${week.movieTmdbId}`, JSON.stringify({
+                  overallRating: userRating.rating,
+                  reviewText: userRating.reviewText ?? "",
+                  reviewType: userRating.reviewType ?? "basic",
+                }));
+                window.open(`/movies/${week.movieTmdbId}/rate`, "_blank");
+              }}
               className="inline-flex items-center gap-1.5 text-xs text-[var(--ratist-red)] hover:underline mt-1"
             >
               Make this your official Ratist review →
-            </Link>
+            </button>
           )}
         </div>
       )}
