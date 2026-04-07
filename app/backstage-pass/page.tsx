@@ -12,12 +12,10 @@ const FEATURES = [
   { name: "Community features (Hot Takes, Recast, Pitches, etc.)", free: true, pass: true },
   { name: "For You personalized recommendations", free: true, pass: true },
   { name: "Cine-Q daily trivia", free: true, pass: true },
-  { name: "What Should I Watch? quiz", free: true, pass: true },
-  { name: "Shared Cast & Crew finder", free: true, pass: true },
-  { name: "The Matchup comparison tool", free: true, pass: true },
+  { name: "Cinephile tools (What Should I Watch?, Shared Cast & Crew, The Matchup, and more)", free: true, pass: true },
   { name: "Join Screening Room sessions", free: true, pass: true },
-  { name: "Movie Club", free: false, pass: true, icon: Star },
   { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay },
+  { name: "Movie Club", free: false, pass: true, icon: Star },
   { name: "My Analytics (detailed viewing stats)", free: false, pass: true, icon: BarChart3 },
   { name: "Collections (curated recommendations)", free: false, pass: true, icon: Sparkles },
   { name: "Critics Mode (250+ reviews required)", free: false, pass: true, icon: Star },
@@ -97,7 +95,7 @@ export default function BackstagePassPage() {
                 selectedPlan === "monthly" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
               }`}
             >
-              $4 / month
+              $3.99 / month
             </button>
             <button
               onClick={() => setSelectedPlan("annual")}
@@ -105,7 +103,7 @@ export default function BackstagePassPage() {
                 selectedPlan === "annual" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
               }`}
             >
-              $40 / year
+              $39.99 / year
               <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">Save 17%</span>
             </button>
           </div>
@@ -117,7 +115,7 @@ export default function BackstagePassPage() {
                 disabled={checkingOut}
                 className="px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors disabled:opacity-50"
               >
-                {checkingOut ? "Redirecting to checkout..." : `Get Backstage Pass — ${selectedPlan === "annual" ? "$40/year" : "$4/month"}`}
+                {checkingOut ? "Redirecting to checkout..." : `Get Backstage Pass — ${selectedPlan === "annual" ? "$39.99/year" : "$3.99/month"}`}
               </button>
             ) : (
               <Link href="/auth/signin" className="inline-block px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors">

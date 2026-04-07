@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay } from "lucide-react";
+import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay, Lock } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 
 export const metadata: Metadata = { title: "Cinephile Tools", description: "Movie and TV show tools: find shared cast between films, look up actor filmographies, create rankings, get personalized recommendations, and more." };
@@ -53,14 +53,16 @@ const TOOLS = [
     icon: Sparkles,
     title: "Collections",
     desc: "Personalized recommendations based on your taste. Discover hidden gems, fill blind spots, and find titles from directors you love.",
+    premium: true,
   },
   {
     href: "/tools/analytics",
     icon: BarChart3,
     title: "My Analytics",
     desc: "Deep insights into your viewing habits. Genre breakdowns, director/actor affinities, rating trends, contrarian score, and custom reports.",
+    premium: true,
   },
-];
+] as const;
 
 export default function ToolsPage() {
   return (
@@ -82,7 +84,14 @@ export default function ToolsPage() {
               href={tool.href}
               className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 hover:border-[var(--ratist-red)] transition-colors group"
             >
-              <Icon className="w-8 h-8 text-[var(--ratist-red)] mb-3" />
+              <div className="flex items-center justify-between mb-3">
+                <Icon className="w-8 h-8 text-[var(--ratist-red)]" />
+                {"premium" in tool && tool.premium && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-[var(--ratist-red)] bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 px-2 py-0.5 rounded-full">
+                    <Lock className="w-2.5 h-2.5" /> BACKSTAGE
+                  </span>
+                )}
+              </div>
               <h2 className="text-base font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors mb-2">
                 {tool.title}
               </h2>

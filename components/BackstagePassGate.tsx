@@ -44,7 +44,7 @@ export default function BackstagePassGate({ children, feature, showTeaser, messa
             <Ticket className="w-4 h-4" />
             Get the Backstage Pass
           </Link>
-          <p className="text-xs text-[var(--foreground-muted)] mt-3">Starting at $4/month</p>
+          <p className="text-xs text-[var(--foreground-muted)] mt-3">Starting at $3.99/month</p>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Community Hub", description: "Join The Ratist community: submit hot takes, suggest recasts, find celebrity lookalikes, and engage with fellow movie lovers." };
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard } from "lucide-react";
+import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, Lock } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +64,7 @@ const HUB_FEATURES = [
     description: "Watch a new movie each week with the community. Rate it, discuss it, compare your takes.",
     color: "text-[var(--ratist-red)]",
     border: "hover:border-[var(--ratist-red)]",
+    premium: true,
   },
 ] as const;
 
@@ -119,19 +120,29 @@ export default async function CommunityPage() {
 
       {/* Feature Cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
-        {HUB_FEATURES.map(({ href, icon: Icon, title, description, color, border }) => (
+        {HUB_FEATURES.map((feature) => {
+          const { href, icon: Icon, title, description, color, border } = feature;
+          const isPremium = "premium" in feature && (feature as { premium?: boolean }).premium;
+          return (
           <Link
             key={href}
             href={href}
             className={`group flex flex-col gap-3 p-5 bg-[var(--surface)] border border-[var(--border)] rounded-xl ${border} transition-colors`}
           >
-            <Icon className={`w-6 h-6 ${color}`} />
+            <div className="flex items-center justify-between">
+              <Icon className={`w-6 h-6 ${color}`} />
+              {isPremium && (
+                <span className="flex items-center gap-1 text-[9px] font-bold text-[var(--ratist-red)] bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 px-2 py-0.5 rounded-full">
+                  <Lock className="w-2.5 h-2.5" /> BACKSTAGE
+                </span>
+              )}
+            </div>
             <div>
               <h2 className={`text-base font-semibold text-white group-hover:${color} transition-colors mb-1`}>{title}</h2>
               <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{description}</p>
             </div>
           </Link>
-        ))}
+        ); })}
       </div>
 
       {/* Cine-Q Daily Leader */}
