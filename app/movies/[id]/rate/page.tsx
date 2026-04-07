@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { posterUrl } from "@/lib/tmdb";
 import LiveReview from "@/components/LiveReview";
+import Link from "next/link";
+import { Lock, Ticket } from "lucide-react";
 
 type ReviewMode = "basic" | "standard" | "critic";
 
@@ -90,6 +93,8 @@ export default function RateMoviePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { hasPass } = useSubscription();
+  const [standardReviewCount, setStandardReviewCount] = useState(0);
   const [movie, setMovie] = useState<MovieInfo | null>(null);
   const [values, setValues] = useState<Record<string, number | null>>({});
   const [reviewText, setReviewText] = useState("");
@@ -110,6 +115,16 @@ export default function RateMoviePage() {
   // Critic mode comments
   const [fieldComments, setFieldComments] = useState<Record<string, string>>({});
   const [categoryComments, setCategoryComments] = useState<Record<string, string>>({});
+
+  // Fetch standard review count for critic mode eligibility
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then((token) =>
+      fetch("/api/subscription/status", { headers: { Authorization: `Bearer ${token}` } })
+    ).then((r) => r.json()).then((d) => {
+      setStandardReviewCount(d.standardReviewCount ?? 0);
+    }).catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -319,26 +334,48 @@ export default function RateMoviePage() {
             { key: "basic" as ReviewMode, label: "Quick", desc: "Overall score only" },
             { key: "standard" as ReviewMode, label: "Ratist", desc: "Full breakdown" },
             { key: "critic" as ReviewMode, label: "Critic", desc: "With commentary" },
-          ]).map(({ key, label, desc }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setMode(key)}
-              className={`flex-1 py-3 px-2 text-center transition-colors ${
-                mode === key
-                  ? "bg-[var(--ratist-red)] text-white"
-                  : "bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white"
-              }`}
-            >
-              <span className="text-sm font-semibold block">{label}</span>
-              <span className={`text-[10px] block mt-0.5 ${mode === key ? "text-white/70" : "text-[var(--foreground-muted)]"}`}>{desc}</span>
-            </button>
-          ))}
+          ]).map(({ key, label, desc }) => {
+            const criticLocked = key === "critic" && (!hasPass || standardReviewCount < 250);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { if (!criticLocked) setMode(key); }}
+                className={`flex-1 py-3 px-2 text-center transition-colors ${
+                  criticLocked
+                    ? "bg-[var(--surface-2)] text-[var(--foreground-muted)] opacity-50 cursor-not-allowed"
+                    : mode === key
+                      ? "bg-[var(--ratist-red)] text-white"
+                      : "bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white"
+                }`}
+                title={criticLocked ? (!hasPass ? "Backstage Pass required" : `${250 - standardReviewCount} more Ratist reviews needed`) : undefined}
+              >
+                <span className="text-sm font-semibold block">{criticLocked && "🔒 "}{label}</span>
+                <span className={`text-[10px] block mt-0.5 ${mode === key ? "text-white/70" : "text-[var(--foreground-muted)]"}`}>
+                  {criticLocked ? (!hasPass ? "Backstage Pass" : `${standardReviewCount}/250 reviews`) : desc}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Live Review tool (critic mode only) */}
-      {mode === "critic" && <LiveReview movieId={id} />}
+      {/* Live Review tool (standard & critic modes, Backstage Pass required) */}
+      {mode !== "basic" && (
+        hasPass ? (
+          <LiveReview movieId={id} />
+        ) : (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-white">Live Review</p>
+              <p className="text-xs text-[var(--foreground-muted)]">Record your thoughts in real-time as you watch</p>
+            </div>
+            <Link href="/backstage-pass" className="flex items-center gap-1.5 text-xs text-[var(--ratist-red)] hover:underline">
+              <Ticket className="w-3.5 h-3.5" /> Backstage Pass
+            </Link>
+          </div>
+        )
+      )}
 
       {/* Controls row (only for standard/critic) */}
       {mode !== "basic" && (
