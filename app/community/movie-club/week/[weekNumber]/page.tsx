@@ -38,6 +38,7 @@ export default function MovieClubWeekPage() {
   const [submitted, setSubmitted] = useState(false);
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
   const [editing, setEditing] = useState(searchParams.get("edit") === "1");
+  const [justMarkedSeen, setJustMarkedSeen] = useState(false);
 
   const fetchWeek = useCallback(async () => {
     try {
@@ -75,6 +76,8 @@ export default function MovieClubWeekPage() {
     });
 
     if (res.ok) {
+      const result = await res.json();
+      if (result.markedAsSeen) setJustMarkedSeen(true);
       setSubmitted(true);
       setEditing(false);
       fetchWeek();
@@ -168,6 +171,9 @@ export default function MovieClubWeekPage() {
             )}
           </div>
           {userRating.reviewText && <p className="text-xs text-[var(--foreground-muted)] mb-2">{userRating.reviewText}</p>}
+          {justMarkedSeen && (
+            <p className="text-xs text-emerald-400/70 mb-2">This movie has been marked as seen on your profile.</p>
+          )}
           {(week.status === "discussion" || week.status === "archived") && week.movieTmdbId && (
             <button
               onClick={() => {

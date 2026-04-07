@@ -65,5 +65,19 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ rating: clubRating });
+  // Mark the movie as seen for this user (if not already)
+  let markedAsSeen = false;
+  if (week.movieId) {
+    const alreadySeen = await prisma.userFavoriteMovie.findUnique({
+      where: { userId_movieId: { userId: user.id, movieId: week.movieId } },
+    });
+    if (!alreadySeen) {
+      await prisma.userFavoriteMovie.create({
+        data: { userId: user.id, movieId: week.movieId, watchedDate: new Date() },
+      });
+      markedAsSeen = true;
+    }
+  }
+
+  return NextResponse.json({ rating: clubRating, markedAsSeen });
 }
