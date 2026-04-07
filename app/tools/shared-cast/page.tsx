@@ -86,7 +86,7 @@ export default function SharedCastPage() {
       const res = await fetch("/api/tools/shared-cast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: currentMode, ids: sel.map((s) => s.id), minOverlap: overlap }),
+        body: JSON.stringify({ mode: currentMode, ids: sel.map((s) => s.id), mediaTypes: sel.map((s) => (s as { media_type?: string }).media_type ?? "movie"), minOverlap: overlap }),
         signal: abortRef.current.signal,
       });
       if (!res.ok) {
@@ -125,12 +125,22 @@ export default function SharedCastPage() {
   async function handleSearch(q: string) {
     setQuery(q);
     if (q.length < 2) { setSearchResults([]); return; }
-    const type = mode === "movies-to-people" ? "movie" : "person";
     try {
-      const res = await fetch(`https://api.themoviedb.org/3/search/${type}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`);
-      if (!res.ok) { setSearchResults([]); return; }
-      const data = await res.json();
-      setSearchResults((data.results ?? []).slice(0, 8));
+      if (mode === "movies-to-people") {
+        // Search both movies and TV shows
+        const [movieRes, showRes] = await Promise.all([
+          fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`).then((r) => r.json()),
+          fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`).then((r) => r.json()),
+        ]);
+        const movies = (movieRes.results ?? []).slice(0, 5).map((m: { id: number; title: string; poster_path: string | null; release_date?: string }) => ({ ...m, media_type: "movie" }));
+        const shows = (showRes.results ?? []).slice(0, 5).map((s: { id: number; name: string; poster_path: string | null; first_air_date?: string }) => ({ ...s, title: s.name, release_date: s.first_air_date, media_type: "tv" }));
+        setSearchResults([...movies, ...shows].slice(0, 8));
+      } else {
+        const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`);
+        if (!res.ok) { setSearchResults([]); return; }
+        const data = await res.json();
+        setSearchResults((data.results ?? []).slice(0, 8));
+      }
     } catch {
       setSearchResults([]);
     }

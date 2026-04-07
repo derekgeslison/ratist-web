@@ -20,11 +20,16 @@ interface CombinedCreditsResponse {
 
 export async function POST(req: NextRequest) {
   try {
-    const { mode, ids, minOverlap = 2 } = await req.json();
+    const { mode, ids, mediaTypes, minOverlap = 2 } = await req.json();
 
     if (mode === "movies-to-people") {
       const settled = await Promise.allSettled(
-        ids.map((id: number) => tmdb<CreditsResponse>(`/movie/${id}/credits`))
+        ids.map((id: number, i: number) => {
+          const mt = mediaTypes?.[i] ?? "movie";
+          return mt === "tv"
+            ? tmdb<CreditsResponse>(`/tv/${id}/credits`)
+            : tmdb<CreditsResponse>(`/movie/${id}/credits`);
+        })
       );
       const creditsArr = settled.map((r) => r.status === "fulfilled" ? r.value : null);
 

@@ -16,25 +16,25 @@ const TOOLS = [
   {
     icon: Swords,
     title: "The Matchup",
-    description: "Pick two movies and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
+    description: "Pick two movies or shows and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
     href: "/tools/matchup",
   },
   {
     icon: Users,
     title: "Shared Cast & Crew",
-    description: "Discover who worked across your favorite films. Search any two movies to reveal shared cast and crew.",
+    description: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share.",
     href: "/tools/shared-cast",
   },
   {
     icon: Film,
     title: "What Else Do I Know Them From?",
-    description: "Search an actor or director and see only the movies you've personally seen or rated.",
+    description: "Search an actor or director and see only the movies and shows you've personally seen or rated.",
     href: "/tools/actor-lookup",
   },
   {
     icon: Sparkles,
     title: "What Should I Watch?",
-    description: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized recommendations.",
+    description: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized movie and TV show recommendations.",
     href: "/tools/recommend",
   },
 ];

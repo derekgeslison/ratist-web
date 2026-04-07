@@ -101,9 +101,11 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
   useEffect(() => {
     if (selected || query.length < 2) { setResults([]); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      setResults(data.results ?? []);
+      const [movieRes, showRes] = await Promise.all([
+        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+      ]);
+      setResults([...(movieRes.results ?? []), ...(showRes.results ?? [])]);
     }, 300);
     return () => clearTimeout(t);
   }, [query, selected]);

@@ -32,8 +32,30 @@ const DIFFS = [
 
 export default function CineQPage() {
   const { user, loading: authLoading } = useAuth();
-  const [screen, setScreen] = useState<Screen>("menu");
+  const [screen, setScreenRaw] = useState<Screen>("menu");
   const [stats, setStats] = useState<Stats | null>(null);
+
+  // Push history state on screen change so browser back works
+  function setScreen(s: Screen) {
+    setScreenRaw(s);
+    if (s !== "menu") {
+      window.history.pushState({ screen: s }, "", window.location.href);
+    }
+  }
+
+  useEffect(() => {
+    const handlePop = () => {
+      // Go back to the previous logical screen
+      setScreenRaw((current) => {
+        if (current === "pickDifficulty") return "menu";
+        if (current === "ready") return "pickDifficulty";
+        if (current === "results") return "menu";
+        return "menu";
+      });
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, []);
 
   // Setup
   const [mode, setMode] = useState<"daily" | "practice">("daily");
@@ -376,7 +398,7 @@ export default function CineQPage() {
     const typeInfo = TYPES.find((t) => t.value === mediaType);
     return (
       <div className="max-w-md mx-auto px-4 py-12 text-center">
-        <button onClick={() => setScreen("menu")} className="text-sm text-[var(--foreground-muted)] hover:text-white mb-6 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
+        <button onClick={() => { setScreenRaw("menu"); window.history.back(); }} className="text-sm text-[var(--foreground-muted)] hover:text-white mb-6 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
         <h2 className="text-xl font-bold text-white mb-2">Choose Difficulty</h2>
         <p className="text-sm text-[var(--foreground-muted)] mb-6">{typeInfo?.label} · {mode === "daily" ? "Daily Challenge" : "Practice"}</p>
         <div className="space-y-3">
