@@ -39,7 +39,7 @@ export default function AdminMovieClubPage() {
   const [editYearFrom, setEditYearFrom] = useState("");
   const [editYearTo, setEditYearTo] = useState("");
   const [movieSearch, setMovieSearch] = useState("");
-  const [movieResults, setMovieResults] = useState<{ id: number; title: string; posterPath: string | null }[]>([]);
+  const [movieResults, setMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate?: string }[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<{ tmdbId: number; title: string; posterPath: string | null } | null>(null);
   const [previewMovie, setPreviewMovie] = useState<{ tmdbId: number; title: string; posterPath: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -110,7 +110,7 @@ export default function AdminMovieClubPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "preview_random",
-        filters: { genre: editGenre || undefined, mpaRating: editMpa || undefined, provider: editProvider || undefined, yearFrom: editYearFrom || undefined, yearTo: editYearTo || undefined },
+        filters: Object.fromEntries(Object.entries({ genre: editGenre, mpaRating: editMpa, provider: editProvider, yearFrom: editYearFrom, yearTo: editYearTo }).filter(([, v]) => v)),
       }),
     });
     if (res.ok) { const data = await res.json(); setPreviewMovie(data.movie); }
@@ -218,7 +218,11 @@ export default function AdminMovieClubPage() {
                           <Eye className="w-3.5 h-3.5" /> Preview Random Pick
                         </button>
                         {previewMovie && (
-                          <span className="text-xs text-white">→ <strong>{previewMovie.title}</strong></span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-white">→</span>
+                            {previewMovie.posterPath && <Image src={posterUrl(previewMovie.posterPath, "w92")} alt="" width={24} height={36} className="rounded" />}
+                            <span className="text-xs text-white"><strong>{previewMovie.title}</strong> {(previewMovie as { year?: string }).year ? `(${(previewMovie as { year?: string }).year})` : ""} {(previewMovie as { voteAverage?: number }).voteAverage ? `· ${(previewMovie as { voteAverage?: number }).voteAverage?.toFixed(1)}/10` : ""}</span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -242,7 +246,9 @@ export default function AdminMovieClubPage() {
                           {movieResults.map((m) => (
                             <button key={m.id} onClick={() => { setSelectedMovie({ tmdbId: m.id, title: m.title, posterPath: m.posterPath }); setMovieResults([]); setMovieSearch(""); }}
                               className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--surface-2)] text-left text-sm text-white">
-                              {m.title}
+                              {m.posterPath && <Image src={posterUrl(m.posterPath, "w92")} alt="" width={24} height={36} className="rounded shrink-0" />}
+                              <span>{m.title}</span>
+                              {m.releaseDate && <span className="text-xs text-[var(--foreground-muted)]">({m.releaseDate.slice(0, 4)})</span>}
                             </button>
                           ))}
                         </div>

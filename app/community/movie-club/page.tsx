@@ -4,37 +4,32 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Clapperboard, Users, Star, Calendar, ChevronRight, MessageCircle, Clock, Lock, Trophy } from "lucide-react";
+import { ArrowLeft, Clapperboard, Users, Calendar, ChevronRight, MessageCircle, Clock, Lock, Star, HelpCircle } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 
-interface WeekRating {
-  rating: number; reviewText: string | null; reviewType: string; isRewatch: boolean; createdAt: string;
-  user: { firebaseUid: string; name: string; avatarUrl: string | null };
-}
-interface Superlative { label: string; userName: string; userAvatar: string | null; userUid: string; value: string; }
 interface Week {
   id: string; weekNumber: number; startDate: string; endDate: string; status: string;
   pickMethod: string; pickTeaser: string | null;
   movieTmdbId: number | null; movieTitle: string | null; moviePoster: string | null;
   avgRating: number | null; participantCount: number; rewatchCount: number;
-  userRating: number | null; ratings: WeekRating[]; superlatives: Superlative[];
-  canSeeDiscussion: boolean;
+  userRating: number | null; canSeeDiscussion: boolean;
+  ratings: { user: { firebaseUid: string } }[];
+}
+interface VotingWeek {
+  id: string; weekNumber: number; startDate: string; pickTeaser: string | null;
+  nominations: { id: string; tmdbId: number; title: string; posterPath: string | null; voteCount: number }[];
 }
 interface UpcomingWeek { id: string; weekNumber: number; startDate: string; pickMethod: string; pickTeaser: string | null; }
 
 export default function MovieClubPage() {
   const { user } = useAuth();
   const [weeks, setWeeks] = useState<Week[]>([]);
+  const [votingWeeks, setVotingWeeks] = useState<VotingWeek[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingWeek[]>([]);
   const [isMember, setIsMember] = useState(false);
   const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
-
-  // Review form
-  const [ratingInput, setRatingInput] = useState("");
-  const [reviewText, setReviewText] = useState("");
-  const [submittingRating, setSubmittingRating] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -44,6 +39,7 @@ export default function MovieClubPage() {
       if (res.ok) {
         const data = await res.json();
         setWeeks(data.weeks ?? []);
+        setVotingWeeks(data.votingWeeks ?? []);
         setUpcoming(data.upcoming ?? []);
         setIsMember(data.isMember ?? false);
         setMemberCount(data.memberCount ?? 0);
@@ -66,29 +62,13 @@ export default function MovieClubPage() {
   async function leaveClub() {
     if (!user || !window.confirm("Leave the Movie Club?")) return;
     const token = await user.getIdToken();
-    const res = await fetch("/api/movie-club/join", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) { setIsMember(false); setMemberCount((c) => c - 1); }
-  }
-
-  async function submitRating(weekId: string) {
-    if (!user || !ratingInput) return;
-    const rating = parseFloat(ratingInput);
-    if (isNaN(rating) || rating < 1 || rating > 10) return;
-    setSubmittingRating(true);
-    const token = await user.getIdToken();
-    const res = await fetch("/api/movie-club/rate", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ weekId, rating, reviewText: reviewText.trim() || null, reviewType: "quick" }),
-    });
-    if (res.ok) { setRatingInput(""); setReviewText(""); fetchData(); }
-    setSubmittingRating(false);
+    await fetch("/api/movie-club/join", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    setIsMember(false); setMemberCount((c) => c - 1);
   }
 
   const currentWeek = weeks.find((w) => w.status === "watching" || w.status === "discussion");
   const pastWeeks = weeks.filter((w) => w.status === "archived");
-
-  const pickLabel = (method: string) => method === "admin" ? "Admin Pick" : method === "community_vote" ? "Community Vote" : "Random Selection";
+  const totalDiscussionComments = 0; // TODO: fetch from API
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -109,7 +89,7 @@ export default function MovieClubPage() {
       <p className="text-[var(--foreground-muted)] mb-6">A new movie every week. Watch it, rate it, discuss it. Discussions open Fridays at 8pm ET.</p>
 
       {/* Join/Leave */}
-      {user && (
+      {user ? (
         <div className="mb-6">
           {isMember ? (
             <div className="flex items-center gap-3">
@@ -123,13 +103,9 @@ export default function MovieClubPage() {
             </button>
           )}
         </div>
-      )}
-
-      {!user && (
+      ) : (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
-          <p className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to join the Movie Club.
-          </p>
+          <Link href="/auth/signin" className="text-sm text-[var(--ratist-red)] hover:underline">Sign in to join the Movie Club</Link>
         </div>
       )}
 
@@ -137,6 +113,23 @@ export default function MovieClubPage() {
         <p className="text-[var(--foreground-muted)] text-center py-20">Loading...</p>
       ) : (
         <>
+          {/* Voting Week */}
+          {votingWeeks.map((vw) => (
+            <section key={vw.id} className="mb-10">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Star className="w-5 h-5 text-purple-400" /> Community Vote Open
+              </h2>
+              <div className="bg-[var(--surface)] border border-purple-400/30 rounded-xl p-5">
+                <p className="text-sm text-[var(--foreground-muted)] mb-3">Nominate and vote for next week&apos;s movie! Top pick revealed Wednesday at 2am ET.</p>
+                <p className="text-sm text-white mb-3">{vw.nominations.length} nomination{vw.nominations.length !== 1 ? "s" : ""} so far</p>
+                <Link href={`/community/movie-club/nominations/${vw.id}`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-semibold transition-colors">
+                  Nominate & Vote →
+                </Link>
+              </div>
+            </section>
+          ))}
+
           {/* Current Week */}
           {currentWeek && (
             <section className="mb-10">
@@ -145,125 +138,67 @@ export default function MovieClubPage() {
               </h2>
               <div className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl overflow-hidden">
                 <div className="p-5 flex gap-5">
-                  {currentWeek.moviePoster && (
+                  {currentWeek.moviePoster ? (
                     <Link href={`/movies/${currentWeek.movieTmdbId}`} className="shrink-0">
                       <Image src={posterUrl(currentWeek.moviePoster, "w185")} alt={currentWeek.movieTitle ?? ""} width={120} height={180} className="rounded-lg border border-[var(--border)]" />
                     </Link>
+                  ) : (
+                    <div className="w-[120px] h-[180px] rounded-lg bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                      <HelpCircle className="w-10 h-10 text-[var(--foreground-muted)]" />
+                    </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--ratist-red)] mb-1">Week {currentWeek.weekNumber} · {pickLabel(currentWeek.pickMethod)}</p>
-                    <h3 className="text-xl font-bold text-white mb-1">
-                      <Link href={`/movies/${currentWeek.movieTmdbId}`} className="hover:text-[var(--ratist-red)] transition-colors">
-                        {currentWeek.movieTitle ?? "TBA"}
-                      </Link>
-                    </h3>
-                    <p className="text-xs text-[var(--foreground-muted)] mb-4">
+                    <p className="text-xs text-[var(--foreground-muted)] mb-1">
                       <Calendar className="w-3 h-3 inline mr-1" />{currentWeek.startDate} — {currentWeek.endDate}
                     </p>
+                    <h3 className="text-xl font-bold text-white mb-3">
+                      {currentWeek.movieTitle ? (
+                        <Link href={`/movies/${currentWeek.movieTmdbId}`} className="hover:text-[var(--ratist-red)] transition-colors">
+                          {currentWeek.movieTitle}
+                        </Link>
+                      ) : "???"}
+                    </h3>
 
-                    <div className="flex gap-4 text-sm mb-4">
-                      <span className="text-[var(--foreground-muted)]">{currentWeek.participantCount} rated</span>
-                      {currentWeek.rewatchCount > 0 && <span className="text-[var(--foreground-muted)]">{currentWeek.rewatchCount} rewatch{currentWeek.rewatchCount !== 1 ? "es" : ""}</span>}
+                    <div className="flex flex-wrap gap-3 text-sm mb-4">
+                      <span className="text-[var(--foreground-muted)]">{currentWeek.participantCount} reviewed</span>
                       {currentWeek.canSeeDiscussion && currentWeek.avgRating && (
                         <span className="text-[var(--ratist-red)] font-bold">Avg: {currentWeek.avgRating}/10</span>
                       )}
                     </div>
 
-                    {/* Submit rating */}
+                    {/* Action buttons */}
                     {isMember && currentWeek.userRating == null && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input type="number" min="1" max="10" step="0.5" value={ratingInput} onChange={(e) => setRatingInput(e.target.value)}
-                            placeholder="1-10" className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-[var(--ratist-red)]" />
-                          <button onClick={() => submitRating(currentWeek.id)} disabled={submittingRating || !ratingInput}
-                            className="px-4 py-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                            {submittingRating ? "..." : "Submit Rating"}
-                          </button>
-                        </div>
-                        <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Your thoughts (optional)..." rows={2}
-                          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] resize-none focus:outline-none focus:border-[var(--ratist-red)]" />
+                      <Link href={`/community/movie-club/week/${currentWeek.weekNumber}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg text-sm font-semibold transition-colors">
+                        <Star className="w-4 h-4" /> Submit Your Review
+                      </Link>
+                    )}
+
+                    {currentWeek.userRating != null && currentWeek.canSeeDiscussion && (
+                      <Link href={`/community/movie-club/week/${currentWeek.weekNumber}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-colors">
+                        <MessageCircle className="w-4 h-4" /> Join the Discussion
+                      </Link>
+                    )}
+
+                    {currentWeek.userRating != null && !currentWeek.canSeeDiscussion && (
+                      <p className="text-sm text-emerald-400">Your rating: <span className="font-bold">{currentWeek.userRating}/10</span> — discussion opens Friday 8pm ET</p>
+                    )}
+
+                    {!isMember && user && (
+                      <button onClick={joinClub} disabled={joining}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
+                        {joining ? "Joining..." : "Join to Participate"}
+                      </button>
+                    )}
+
+                    {currentWeek.status === "discussion" && !currentWeek.canSeeDiscussion && currentWeek.userRating == null && isMember && (
+                      <div className="flex items-center gap-2 mt-2 text-xs text-[var(--foreground-muted)]">
+                        <Lock className="w-3.5 h-3.5" /> Submit your review to unlock the discussion
                       </div>
-                    )}
-                    {currentWeek.userRating != null && (
-                      <p className="text-sm text-emerald-400">Your rating: <span className="font-bold">{currentWeek.userRating}/10</span></p>
-                    )}
-
-                    {/* Must submit to see discussion */}
-                    {currentWeek.status === "discussion" && !currentWeek.canSeeDiscussion && currentWeek.userRating == null && (
-                      <div className="mt-4 p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-[var(--foreground-muted)]" />
-                        <p className="text-xs text-[var(--foreground-muted)]">Submit your rating to unlock the discussion room and see everyone&apos;s reviews.</p>
-                      </div>
-                    )}
-
-                    {/* Link to full week page */}
-                    <Link href={`/community/movie-club/week/${currentWeek.weekNumber}`}
-                      className="inline-flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline mt-3">
-                      View full week page →
-                    </Link>
-
-                    {/* Discussion info for watching phase */}
-                    {currentWeek.status === "watching" && (
-                      <p className="text-xs text-[var(--foreground-muted)] mt-2">Discussions open Friday at 8:00 PM Eastern</p>
                     )}
                   </div>
                 </div>
-
-                {/* Discussion section — only visible after submitting */}
-                {currentWeek.canSeeDiscussion && (
-                  <div className="border-t border-[var(--border)] p-5">
-                    {/* Superlatives */}
-                    {currentWeek.superlatives.length > 0 && (
-                      <div className="mb-6">
-                        <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                          <Trophy className="w-4 h-4 text-yellow-400" /> Superlatives
-                        </h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {currentWeek.superlatives.map((s, i) => (
-                            <div key={i} className="bg-[var(--surface-2)] rounded-lg p-3 text-center">
-                              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">{s.label}</p>
-                              {s.userUid ? (
-                                <Link href={`/profile/${s.userUid}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{s.userName}</Link>
-                              ) : (
-                                <p className="text-sm font-medium text-white">{s.userName}</p>
-                              )}
-                              <p className="text-xs text-[var(--foreground-muted)]">{s.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Ratings */}
-                    <h4 className="text-sm font-semibold text-white mb-3">Community Ratings</h4>
-                    <div className="space-y-2 mb-6">
-                      {currentWeek.ratings.map((r) => (
-                        <div key={r.user.firebaseUid} className="flex items-start gap-3 p-2 rounded-lg">
-                          {r.user.avatarUrl && <Image src={r.user.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover mt-0.5" />}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Link href={`/profile/${r.user.firebaseUid}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{r.user.name}</Link>
-                              <span className="text-sm font-bold text-[var(--ratist-red)]">{r.rating}/10</span>
-                              {r.isRewatch && <span className="text-[9px] text-[var(--foreground-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">Rewatch</span>}
-                            </div>
-                            {r.reviewText && <p className="text-xs text-[var(--foreground-muted)] mt-1">{r.reviewText}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Discussion prompts */}
-                    <h4 className="text-sm font-semibold text-white mb-3">Discussion</h4>
-                    <div className="space-y-4">
-                      {["What surprised you about this movie?", "Best scene or moment?", "Would you recommend this to a friend?", "How does this compare to the director's other work?"].map((prompt) => (
-                        <div key={prompt} className="bg-[var(--surface-2)] rounded-lg p-3">
-                          <p className="text-sm text-white font-medium mb-2">{prompt}</p>
-                          <p className="text-xs text-[var(--foreground-muted)]">Discussion threads coming soon</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </section>
           )}
@@ -274,10 +209,13 @@ export default function MovieClubPage() {
               <h2 className="text-sm font-semibold text-white mb-3">Coming Up</h2>
               <div className="space-y-2">
                 {upcoming.map((w) => (
-                  <div key={w.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-white font-medium">Week {w.weekNumber}</p>
-                      <p className="text-xs text-[var(--foreground-muted)]">{w.pickTeaser ?? pickLabel(w.pickMethod)} · Starts {w.startDate}</p>
+                  <div key={w.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-14 rounded bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                      <HelpCircle className="w-5 h-5 text-[var(--foreground-muted)]" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-white font-medium">{w.pickTeaser || "???"}</p>
+                      <p className="text-xs text-[var(--foreground-muted)]">Starts {w.startDate}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-[var(--foreground-muted)]" />
                   </div>
@@ -292,12 +230,16 @@ export default function MovieClubPage() {
               <h2 className="text-sm font-semibold text-white mb-3">Past Weeks</h2>
               <div className="space-y-2">
                 {pastWeeks.map((w) => (
-                  <Link key={w.id} href={`/movies/${w.movieTmdbId}`}
+                  <Link key={w.id} href={`/community/movie-club/week/${w.weekNumber}`}
                     className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)]/30 transition-colors">
-                    {w.moviePoster && <Image src={posterUrl(w.moviePoster, "w92")} alt="" width={36} height={54} className="rounded w-9 h-14 object-cover shrink-0" />}
+                    {w.moviePoster ? (
+                      <Image src={posterUrl(w.moviePoster, "w92")} alt="" width={36} height={54} className="rounded w-9 h-14 object-cover shrink-0" />
+                    ) : (
+                      <div className="w-9 h-14 rounded bg-[var(--surface-2)] shrink-0" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white">{w.movieTitle ?? "Unknown"}</p>
-                      <p className="text-xs text-[var(--foreground-muted)]">Week {w.weekNumber} · {w.participantCount} rated · Avg: {w.avgRating ?? "–"}/10</p>
+                      <p className="text-xs text-[var(--foreground-muted)]">{w.startDate} · {w.participantCount} rated · Avg: {w.avgRating ?? "–"}/10</p>
                     </div>
                   </Link>
                 ))}
@@ -305,8 +247,8 @@ export default function MovieClubPage() {
             </section>
           )}
 
-          {!currentWeek && upcoming.length === 0 && pastWeeks.length === 0 && (
-            <p className="text-[var(--foreground-muted)] text-center py-20">No movie club activity yet. Join and check back soon!</p>
+          {!currentWeek && votingWeeks.length === 0 && upcoming.length === 0 && pastWeeks.length === 0 && (
+            <p className="text-[var(--foreground-muted)] text-center py-20">No movie club activity yet. Join and check back Monday!</p>
           )}
         </>
       )}

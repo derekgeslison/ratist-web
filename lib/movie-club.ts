@@ -43,8 +43,10 @@ function addDays(d: Date, n: number): Date {
 export async function ensureUpcomingWeeks(): Promise<void> {
   const now = getEasternNow();
   const thisMonday = getMonday(now);
+  // If today is before Monday (Sun), use this coming Monday. If Mon or later, use this Monday.
+  const dayOfWeek = now.getDay();
+  const startFrom = dayOfWeek === 0 ? addDays(thisMonday, 7) : thisMonday;
 
-  // Get existing week numbers
   const existing = await prisma.movieClubWeek.findMany({
     select: { weekNumber: true, startDate: true },
     orderBy: { weekNumber: "desc" },
@@ -54,9 +56,9 @@ export async function ensureUpcomingWeeks(): Promise<void> {
   const lastWeekNum = existing.length > 0 ? Math.max(...existing.map((w) => w.weekNumber)) : 0;
   let nextNum = lastWeekNum + 1;
 
-  // Generate weeks for this week + next 3 weeks (4 total)
+  // Generate this week + next 3 weeks (4 total)
   for (let i = 0; i < 4; i++) {
-    const monday = addDays(thisMonday, i * 7);
+    const monday = addDays(startFrom, i * 7);
     const startDate = formatDate(monday);
 
     if (!existingDates.has(startDate)) {
@@ -138,7 +140,7 @@ export async function runStatusTransitions(): Promise<void> {
 
 // ─── Random movie picker ─────────────────────────────────────────────────────
 
-export async function pickRandomMovie(filters?: Record<string, string> | null): Promise<{ tmdbId: number; title: string; posterPath: string | null } | null> {
+export async function pickRandomMovie(filters?: Record<string, string> | null): Promise<{ tmdbId: number; title: string; posterPath: string | null; year?: string; voteAverage?: number } | null> {
   const params = new URLSearchParams({
     api_key: API_KEY!,
     sort_by: "popularity.desc",
@@ -161,7 +163,7 @@ export async function pickRandomMovie(filters?: Record<string, string> | null): 
     const results = data.results ?? [];
     if (results.length === 0) return null;
     const pick = results[Math.floor(Math.random() * results.length)];
-    return { tmdbId: pick.id, title: pick.title, posterPath: pick.poster_path };
+    return { tmdbId: pick.id, title: pick.title, posterPath: pick.poster_path, year: pick.release_date?.slice(0, 4) ?? "", voteAverage: pick.vote_average ?? 0 };
   } catch {
     return null;
   }

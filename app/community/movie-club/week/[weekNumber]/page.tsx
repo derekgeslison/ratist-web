@@ -156,12 +156,20 @@ export default function MovieClubWeekPage() {
         </div>
       )}
 
-      {/* Not a member */}
+      {/* Not a member — join from here */}
       {isOpen && !isMember && user && (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-8 text-center">
-          <p className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/community/movie-club" className="text-[var(--ratist-red)] hover:underline">Join the Movie Club</Link> to submit your review.
-          </p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-8 text-center">
+          <p className="text-sm text-[var(--foreground-muted)] mb-3">Join the Movie Club to submit your review and participate in discussions.</p>
+          <button
+            onClick={async () => {
+              const token = await user.getIdToken();
+              const res = await fetch("/api/movie-club/join", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+              if (res.ok) { setIsMember(true); fetchWeek(); }
+            }}
+            className="px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-xl text-sm transition-colors"
+          >
+            Join the Movie Club
+          </button>
         </div>
       )}
 
