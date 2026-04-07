@@ -52,11 +52,10 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Upcoming weeks (scheduled only — voting weeks shown separately, watching/discussion are "current")
+    // Upcoming weeks — regular users see 2, API returns all scheduled (frontend limits display)
     const upcoming = await prisma.movieClubWeek.findMany({
       where: { status: "scheduled" },
       orderBy: { startDate: "asc" },
-      take: 5,
       select: { id: true, weekNumber: true, startDate: true, pickMethod: true, pickTeaser: true },
     });
 

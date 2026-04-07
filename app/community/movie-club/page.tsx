@@ -196,7 +196,7 @@ export default function MovieClubPage() {
                       <div className="flex items-center gap-3">
                         <p className="text-sm text-emerald-400">Your rating: <span className="font-bold">{currentWeek.userRating}/10</span></p>
                         {currentWeek.status === "watching" && (
-                          <Link href={`/community/movie-club/week/${currentWeek.weekNumber}`} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+                          <Link href={`/community/movie-club/week/${currentWeek.weekNumber}?edit=1`} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
                             Edit review
                           </Link>
                         )}
@@ -227,7 +227,7 @@ export default function MovieClubPage() {
             <section className="mb-10">
               <h2 className="text-sm font-semibold text-white mb-3">Coming Up</h2>
               <div className="space-y-2">
-                {upcoming.map((w) => (
+                {upcoming.slice(0, 2).map((w) => (
                   <div key={w.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
                     <div className="w-10 h-14 rounded bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
                       <HelpCircle className="w-5 h-5 text-[var(--foreground-muted)]" />

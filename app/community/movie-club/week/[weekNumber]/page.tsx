@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
@@ -27,6 +27,7 @@ interface WeekDetail {
 
 export default function MovieClubWeekPage() {
   const { weekNumber } = useParams<{ weekNumber: string }>();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [week, setWeek] = useState<WeekDetail | null>(null);
   const [isMember, setIsMember] = useState(false);
@@ -36,7 +37,7 @@ export default function MovieClubWeekPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(searchParams.get("edit") === "1");
 
   const fetchWeek = useCallback(async () => {
     try {
@@ -157,7 +158,7 @@ export default function MovieClubWeekPage() {
             <ScreeningRateForm
               onSubmit={handleSubmitRating}
               submitting={submitting}
-              submitted={submitted}
+              submitted={editing ? false : submitted}
             />
           </div>
         </section>
