@@ -3,10 +3,13 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
-  Film, Tv, Monitor,
+  Film, Tv, Monitor, ListOrdered, GripVertical,
 } from "lucide-react";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
 import ProviderLogos from "@/components/ProviderLogos";
@@ -69,8 +72,36 @@ interface WatchlistMovie {
   mediaType?: "movie" | "tv";
 }
 
-type SortKey = "added" | "title" | "year" | "rating" | "community";
+type SortKey = "custom" | "added" | "title" | "year" | "rating" | "community";
 type SeenFilter = "all" | "checked" | "unchecked";
+
+function WatchlistSortableItem({ item, index, total, onMove }: { item: { id: string; title: string; posterPath: string | null; mediaType?: string }; index: number; total: number; onMove: (from: number, to: number) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2 hover:border-[var(--ratist-red)]/50 transition-colors">
+      <span className="text-xs font-bold text-[var(--foreground-muted)] w-6 text-center">{index + 1}</span>
+      <div className="flex flex-col shrink-0">
+        <button onClick={() => index > 0 && onMove(index, index - 1)} disabled={index === 0}
+          className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▲</button>
+        <button onClick={() => index < total - 1 && onMove(index, index + 1)} disabled={index === total - 1}
+          className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▼</button>
+      </div>
+      <button {...attributes} {...listeners} className="hidden sm:block text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none">
+        <GripVertical className="w-4 h-4" />
+      </button>
+      {item.posterPath && (
+        <Image src={posterUrl(item.posterPath, "w92")} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm text-white truncate">{item.title}</p>
+          {item.mediaType === "tv" && <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function WatchlistPage() {
   const { user } = useAuth();
@@ -141,20 +172,37 @@ export default function WatchlistPage() {
     });
   }
 
+  function handleReorderDragEnd(event: { active: { id: string | number }; over: { id: string | number } | null }) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setReorderItems((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        const arr = [...items];
+        const [moved] = arr.splice(oldIndex, 1);
+        arr.splice(newIndex, 0, moved);
+        return arr;
+      });
+    }
+  }
+
   async function saveReorder() {
     if (!user || !activeId) return;
     const token = await user.getIdToken();
-    const movieEntries = reorderItems.filter((m) => m.mediaType !== "tv");
-    const showEntries = reorderItems.filter((m) => m.mediaType === "tv");
+    // Send ALL items in order — the API updates sortOrder for each
+    const allIds = reorderItems.map((m) => ({ id: m.id, mediaType: m.mediaType ?? "movie" }));
+    const movieEntries = allIds.filter((m) => m.mediaType !== "tv");
+    const showEntries = allIds.filter((m) => m.mediaType === "tv");
     await fetch(`/api/watchlist/${activeId}/reorder`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ movieIds: movieEntries.map((m) => m.id), showIds: showEntries.map((m) => m.id) }),
     });
     setReorderMode(false);
+    setSortKey("custom");
     // Refresh
     setLoadingMovies(true);
-    const res = await fetch(`/api/watchlist?listId=${activeId}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/watchlist/${activeId}`, { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) { const data = await res.json(); setMovies(data.movies ?? []); }
     setLoadingMovies(false);
   }
@@ -649,6 +697,7 @@ export default function WatchlistPage() {
     list = [...list].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
+        case "custom": cmp = (a.sortOrder ?? 0) - (b.sortOrder ?? 0); break;
         case "title": cmp = a.title.localeCompare(b.title); break;
         case "year": cmp = (a.year || "").localeCompare(b.year || ""); break;
         case "rating": cmp = (a.ratistRating ?? a.estimatedRating ?? -1) - (b.ratistRating ?? b.estimatedRating ?? -1); break;
@@ -878,7 +927,7 @@ export default function WatchlistPage() {
                             className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
                             title="Reorder items"
                           >
-                            <ArrowUpDown className="w-4 h-4" />
+                            <ListOrdered className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setShowDeleteConfirm(true)}
@@ -972,6 +1021,7 @@ export default function WatchlistPage() {
                         onChange={(e) => setSortKey(e.target.value as SortKey)}
                         className="appearance-none bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-3 pr-8 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] cursor-pointer"
                       >
+                        <option value="custom">Custom Order</option>
                         <option value="added">Date Added</option>
                         <option value="title">Title</option>
                         <option value="year">Year</option>
@@ -987,6 +1037,14 @@ export default function WatchlistPage() {
                       title={sortAsc ? "Ascending" : "Descending"}
                     >
                       <ArrowUpDown className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={enterReorder}
+                      className="p-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                      title="Reorder items"
+                    >
+                      <ListOrdered className="w-4 h-4" />
                     </button>
 
                     <button
@@ -1090,11 +1148,11 @@ export default function WatchlistPage() {
                   </div>
                 )}
 
-                {/* Reorder mode */}
+                {/* Reorder mode with drag-and-drop */}
                 {reorderMode && (
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-white">Reorder Items</h3>
+                      <h3 className="text-sm font-semibold text-white">Reorder Items — drag to move or use arrows</h3>
                       <div className="flex gap-2">
                         <button onClick={saveReorder} className="px-3 py-1.5 bg-[var(--ratist-red)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors">
                           Save Order
@@ -1104,26 +1162,15 @@ export default function WatchlistPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      {reorderItems.map((item, idx) => (
-                        <div key={item.id} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2">
-                          <span className="text-xs font-bold text-[var(--foreground-muted)] w-6 text-center">{idx + 1}</span>
-                          <div className="flex flex-col shrink-0">
-                            <button onClick={() => idx > 0 && moveItem(idx, idx - 1)} disabled={idx === 0}
-                              className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▲</button>
-                            <button onClick={() => idx < reorderItems.length - 1 && moveItem(idx, idx + 1)} disabled={idx === reorderItems.length - 1}
-                              className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▼</button>
-                          </div>
-                          {item.posterPath && (
-                            <Image src={posterUrl(item.posterPath, "w92")} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white truncate">{item.title}</p>
-                            {item.mediaType === "tv" && <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>}
-                          </div>
+                    <DndContext sensors={useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))} collisionDetection={closestCenter} onDragEnd={handleReorderDragEnd}>
+                      <SortableContext items={reorderItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-1">
+                          {reorderItems.map((item, idx) => (
+                            <WatchlistSortableItem key={item.id} item={item} index={idx} total={reorderItems.length} onMove={moveItem} />
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   </div>
                 )}
 
