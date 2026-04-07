@@ -323,9 +323,10 @@ export default function CineQPage() {
         )}
 
         {/* Daily Challenge */}
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
           <Trophy className="w-5 h-5 text-yellow-400" /> Daily Challenge
         </h2>
+        <p className="text-xs text-[var(--foreground-muted)] mb-4">One difficulty per quiz type per day. No re-dos — your first attempt is your official score!</p>
         <div className="grid sm:grid-cols-3 gap-3 mb-10">
           {TYPES.map(({ value, label, icon: Icon, color, bg }) => {
             const played = stats?.playedToday?.some((p) => p.startsWith(value + "-"));

@@ -152,9 +152,14 @@ export default async function CommunityPage() {
                 </div>
               </div>
             </div>
-            <Link href="/community/cineq/leaderboard" className="text-xs text-[var(--foreground-muted)] hover:text-pink-400 transition-colors">
-              Full Leaderboard →
-            </Link>
+            <div className="flex flex-col items-end gap-1">
+              <Link href="/community/cineq" className="text-xs text-pink-400 hover:underline">
+                Play Cine-Q →
+              </Link>
+              <Link href="/community/cineq/leaderboard" className="text-xs text-[var(--foreground-muted)] hover:text-pink-400 transition-colors">
+                Full Leaderboard →
+              </Link>
+            </div>
           </div>
         </div>
       )}

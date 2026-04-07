@@ -5,7 +5,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
   recast: { max: 2, windowDays: 3 },
   hotTake: { max: 2, windowDays: 3 },
   looksLike: { max: 2, windowDays: 3 },
-  moviePitch: { max: 2, windowDays: 3 },
+  moviePitch: { max: 1, windowDays: 5 },
 };
 
 /**
@@ -61,6 +61,9 @@ export async function checkCommunityRateLimit(
       looksLike: "Looks Like pairs",
       moviePitch: "Pitches",
     };
+    if (featureType === "moviePitch") {
+      return "You can only submit 1 pitch every 5 days. This is to prevent spam, and it ensures your submission is more likely to be read and interacted with.";
+    }
     return `To prevent spam, we limit users to ${limits.max} ${featureNames[featureType]} every ${limits.windowDays} days. Your submissions are also more likely to get engagement if you spread them out.`;
   }
 

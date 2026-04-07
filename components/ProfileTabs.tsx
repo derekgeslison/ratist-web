@@ -549,20 +549,20 @@ export default function ProfileTabs({
                 <span className="text-lg">🧠</span> Cine-Q
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">{cineqStats.weightedLifetime.toLocaleString()}</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center overflow-hidden">
+                  <p className="text-base font-bold text-white truncate">{cineqStats.weightedLifetime.toLocaleString()}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Lifetime Pts</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">{cineqStats.avgScore.toFixed(1)}</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center overflow-hidden">
+                  <p className="text-base font-bold text-white">{cineqStats.avgScore.toFixed(1)}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Avg Score</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">{cineqStats.bestScore.toFixed(1)}</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center overflow-hidden">
+                  <p className="text-base font-bold text-white">{cineqStats.bestScore.toFixed(1)}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Best Score</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-white">{cineqStats.totalQuizzes}</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center overflow-hidden">
+                  <p className="text-base font-bold text-white">{cineqStats.totalQuizzes}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Quizzes Played</p>
                 </div>
               </div>

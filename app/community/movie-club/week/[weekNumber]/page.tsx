@@ -73,7 +73,7 @@ export default function MovieClubWeekPage() {
   // Auto-refresh discussion data every 30 seconds when in discussion phase
   useEffect(() => {
     if (!canSeeDiscussion) return;
-    const interval = setInterval(() => { fetchWeek(); }, 30000);
+    const interval = setInterval(() => { fetchWeek(); }, 15000);
     return () => clearInterval(interval);
   }, [canSeeDiscussion, fetchWeek]);
 

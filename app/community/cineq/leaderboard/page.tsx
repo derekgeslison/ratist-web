@@ -95,7 +95,7 @@ export default function CineQLeaderboardPage() {
                         <p className="text-xs text-[var(--foreground-muted)]">No entries yet</p>
                       ) : (
                         <div className="space-y-2">
-                          {entries.slice(0, 3).map((entry) => (
+                          {entries.slice(0, 10).map((entry) => (
                             <div key={entry.rank} className="flex items-center gap-2">
                               <span className={`text-xs font-bold w-5 text-center ${entry.rank === 1 ? "text-yellow-400" : entry.rank === 2 ? "text-gray-300" : entry.rank === 3 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
                                 {entry.rank}
