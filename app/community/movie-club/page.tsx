@@ -136,7 +136,7 @@ export default function MovieClubPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-3">
-          <Clapperboard className="w-6 h-6 text-amber-400" />
+          <Clapperboard className="w-6 h-6 text-red-400" />
           <h1 className="text-2xl font-bold text-white">Movie Club</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -158,7 +158,7 @@ export default function MovieClubPage() {
             <button
               onClick={joinClub}
               disabled={joining}
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               {joining ? "Joining..." : "Join the Movie Club"}
             </button>
@@ -169,7 +169,7 @@ export default function MovieClubPage() {
       {!user && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
           <p className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-amber-400 hover:underline">Sign in</Link> to join the Movie Club.
+            <Link href="/auth/signin" className="text-red-400 hover:underline">Sign in</Link> to join the Movie Club.
           </p>
         </div>
       )}
@@ -182,9 +182,9 @@ export default function MovieClubPage() {
           {currentWeek && (
             <section className="mb-10">
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                {currentWeek.status === "watching" ? <><Clock className="w-5 h-5 text-amber-400" /> This Week</> : <><MessageCircle className="w-5 h-5 text-amber-400" /> Discussion Open</>}
+                {currentWeek.status === "watching" ? <><Clock className="w-5 h-5 text-red-400" /> This Week</> : <><MessageCircle className="w-5 h-5 text-red-400" /> Discussion Open</>}
               </h2>
-              <div className="bg-[var(--surface)] border border-amber-500/30 rounded-xl p-5">
+              <div className="bg-[var(--surface)] border border-red-500/30 rounded-xl p-5">
                 <div className="flex gap-4">
                   {currentWeek.moviePoster && (
                     <Link href={`/movies/${currentWeek.movieTmdbId}`} className="shrink-0">
@@ -192,9 +192,9 @@ export default function MovieClubPage() {
                     </Link>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-amber-400 mb-1">Week {currentWeek.weekNumber} · {pickMethodLabel(currentWeek.pickMethod)}</p>
+                    <p className="text-xs text-red-400 mb-1">Week {currentWeek.weekNumber} · {pickMethodLabel(currentWeek.pickMethod)}</p>
                     <h3 className="text-xl font-bold text-white mb-1">
-                      <Link href={`/movies/${currentWeek.movieTmdbId}`} className="hover:text-amber-400 transition-colors">
+                      <Link href={`/movies/${currentWeek.movieTmdbId}`} className="hover:text-red-400 transition-colors">
                         {currentWeek.movieTitle ?? "TBA"}
                       </Link>
                     </h3>
@@ -206,7 +206,7 @@ export default function MovieClubPage() {
                     <div className="flex gap-4 text-sm mb-4">
                       <span className="text-[var(--foreground-muted)]">{currentWeek.participantCount} rated</span>
                       {currentWeek.status === "discussion" && currentWeek.avgRating && (
-                        <span className="text-amber-400 font-bold">Avg: {currentWeek.avgRating}/10</span>
+                        <span className="text-red-400 font-bold">Avg: {currentWeek.avgRating}/10</span>
                       )}
                     </div>
 
@@ -218,18 +218,18 @@ export default function MovieClubPage() {
                           value={ratingInput}
                           onChange={(e) => setRatingInput(e.target.value)}
                           placeholder="1-10"
-                          className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-amber-400"
+                          className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-white text-center focus:outline-none focus:border-red-400"
                         />
                         <input
                           value={commentInput}
                           onChange={(e) => setCommentInput(e.target.value)}
                           placeholder="Quick thoughts (optional)"
-                          className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-amber-400"
+                          className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-red-400"
                         />
                         <button
                           onClick={() => submitRating(currentWeek.id)}
                           disabled={submittingRating || !ratingInput}
-                          className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                          className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                         >
                           {submittingRating ? "..." : "Rate"}
                         </button>
@@ -249,8 +249,8 @@ export default function MovieClubPage() {
                       {currentWeek.ratings.map((r) => (
                         <div key={r.user.firebaseUid} className="flex items-center gap-3">
                           {r.user.avatarUrl && <Image src={r.user.avatarUrl} alt="" width={24} height={24} className="w-6 h-6 rounded-full object-cover" />}
-                          <Link href={`/profile/${r.user.firebaseUid}`} className="text-sm text-white hover:text-amber-400 flex-1">{r.user.name}</Link>
-                          <span className="text-sm font-bold text-amber-400">{r.rating}/10</span>
+                          <Link href={`/profile/${r.user.firebaseUid}`} className="text-sm text-white hover:text-red-400 flex-1">{r.user.name}</Link>
+                          <span className="text-sm font-bold text-red-400">{r.rating}/10</span>
                           {r.comment && <span className="text-xs text-[var(--foreground-muted)] truncate max-w-[200px]">&ldquo;{r.comment}&rdquo;</span>}
                         </div>
                       ))}
@@ -300,7 +300,7 @@ export default function MovieClubPage() {
                   <div key={w.id}>
                     <button
                       onClick={() => setExpandedWeek(expandedWeek === w.id ? null : w.id)}
-                      className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3 hover:border-amber-400/30 transition-colors text-left"
+                      className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3 hover:border-red-400/30 transition-colors text-left"
                     >
                       {w.moviePoster && (
                         <Image src={posterUrl(w.moviePoster, "w92")} alt="" width={36} height={54} className="rounded w-9 h-14 object-cover shrink-0" />
@@ -315,8 +315,8 @@ export default function MovieClubPage() {
                       <div className="bg-[var(--surface-2)] border border-[var(--border)] border-t-0 rounded-b-xl p-4 space-y-2">
                         {w.ratings.map((r) => (
                           <div key={r.user.firebaseUid} className="flex items-center gap-3">
-                            <Link href={`/profile/${r.user.firebaseUid}`} className="text-sm text-white hover:text-amber-400">{r.user.name}</Link>
-                            <span className="text-sm font-bold text-amber-400">{r.rating}/10</span>
+                            <Link href={`/profile/${r.user.firebaseUid}`} className="text-sm text-white hover:text-red-400">{r.user.name}</Link>
+                            <span className="text-sm font-bold text-red-400">{r.rating}/10</span>
                             {r.comment && <span className="text-xs text-[var(--foreground-muted)] truncate">&ldquo;{r.comment}&rdquo;</span>}
                           </div>
                         ))}

@@ -62,8 +62,8 @@ const HUB_FEATURES = [
     icon: Clapperboard,
     title: "Movie Club",
     description: "Watch a new movie each week with the community. Rate it, discuss it, compare your takes.",
-    color: "text-amber-400",
-    border: "hover:border-amber-400",
+    color: "text-[var(--ratist-red)]",
+    border: "hover:border-[var(--ratist-red)]",
   },
 ] as const;
 
