@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
+import { computeRatistScores } from "@/lib/ratings";
 
 export const dynamic = "force-dynamic";
 
@@ -37,18 +38,26 @@ export async function POST(req: NextRequest) {
   delete formData.weekId;
   delete formData.isRewatch;
 
+  // Compute Ratist score for standard reviews (same as Screening Room)
+  const { overallRating, ...fields } = formData;
+  let computedRating = Number(rating);
+  if (reviewType !== "basic" && reviewType !== "quick") {
+    const computed = computeRatistScores({ ...fields, overallRating });
+    if (computed.ratistRating != null) computedRating = computed.ratistRating;
+  }
+
   const clubRating = await prisma.movieClubRating.upsert({
     where: { userId_weekId: { userId: user.id, weekId } },
     create: {
       userId: user.id, weekId,
-      rating: Number(rating),
+      rating: computedRating,
       reviewText: reviewText?.trim() || null,
       reviewType: reviewType ?? "quick",
       formData,
       isRewatch: detectedRewatch,
     },
     update: {
-      rating: Number(rating),
+      rating: computedRating,
       reviewText: reviewText?.trim() || null,
       reviewType: reviewType ?? "quick",
       formData,
