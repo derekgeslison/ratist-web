@@ -70,6 +70,13 @@ export default function MovieClubWeekPage() {
 
   useEffect(() => { fetchWeek(); }, [fetchWeek]);
 
+  // Auto-refresh discussion data every 30 seconds when in discussion phase
+  useEffect(() => {
+    if (!canSeeDiscussion) return;
+    const interval = setInterval(() => { fetchWeek(); }, 30000);
+    return () => clearInterval(interval);
+  }, [canSeeDiscussion, fetchWeek]);
+
   async function handleSubmitRating(data: Record<string, unknown>) {
     if (!user || !week) return;
     setSubmitting(true);
