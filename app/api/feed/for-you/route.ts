@@ -252,28 +252,21 @@ export async function GET(req: NextRequest) {
     // --- 6. Top Picks For You (personalized estimates) ---
     let topPicks: { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; communityRatistAvg?: number | null; estimatedRating: number }[] = [];
     try {
-      // Get movies that have at least 1 community Ratist rating
+      // Get movies user has already seen or rated (to exclude)
+      const [userRatedRows, userSeenRows] = await Promise.all([
+        prisma.movieRating.findMany({ where: { userId: user.id }, select: { movieId: true } }),
+        prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movieId: true } }),
+      ]);
+      const excludeIds = new Set([...userRatedRows.map((r) => r.movieId), ...userSeenRows.map((r) => r.movieId)]);
+
+      // Get all movies with at least 1 Ratist rating that user hasn't seen/rated
       const ratedMovieIds = await prisma.movieRating.groupBy({
         by: ["movieId"],
-        where: { ratistRating: { not: null } },
+        where: { ratistRating: { not: null }, movieId: { notIn: [...excludeIds] } },
         _count: { ratistRating: true },
-        orderBy: { _count: { ratistRating: "desc" } },
-        take: 300,
       });
 
-      // Filter out movies user has already seen or rated
-      const userRatedIds = new Set(
-        (await prisma.movieRating.findMany({ where: { userId: user.id }, select: { movieId: true } })).map((r) => r.movieId)
-      );
-      const userSeenIds = new Set(
-        (await prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movieId: true } })).map((r) => r.movieId)
-      );
-      const excludeIds = new Set([...userRatedIds, ...userSeenIds]);
-
-      const candidateIds = ratedMovieIds
-        .map((r) => r.movieId)
-        .filter((id) => !excludeIds.has(id))
-        .slice(0, 100);
+      const candidateIds = ratedMovieIds.map((r) => r.movieId).slice(0, 150);
 
       if (candidateIds.length > 0) {
         const estimates = await getBatchScoreEstimates(user.id, candidateIds);

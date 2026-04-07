@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Users, Sparkles, TrendingUp, Bookmark, AlertCircle, RefreshCw, Star, ChevronDown } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check } from "lucide-react";
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
+import RatingBadge from "@/components/RatingBadge";
+import { useMovieUserState } from "@/hooks/useMovieUserState";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 
@@ -88,6 +90,74 @@ function MediaGrid({ items }: { items: MediaItem[] }) {
         ) : (
           <MovieCard key={`movie-${item.tmdbId}`} movie={toMovieProps(item) as never} />
         )
+      )}
+    </div>
+  );
+}
+
+function TopPickRow({ pick, rank }: { pick: TopPick; rank: number }) {
+  const { user } = useAuth();
+  const { seen, watchlisted, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useMovieUserState(pick.tmdbId);
+  const [markingS, setMarkingS] = useState(false);
+  const [markingW, setMarkingW] = useState(false);
+
+  async function toggleSeen() {
+    if (!user || markingS) return;
+    setMarkingS(true);
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/movies/${pick.tmdbId}/seen`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: pick.title, poster_path: pick.posterPath, release_date: pick.releaseDate }),
+    }).catch(() => null);
+    if (res?.ok) { const d = await res.json(); if (d.seen) persistSeen(); else persistUnseen(); }
+    setMarkingS(false);
+  }
+
+  async function toggleWatchlist() {
+    if (!user || markingW) return;
+    setMarkingW(true);
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/movies/${pick.tmdbId}/watchlist`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: pick.title, poster_path: pick.posterPath, release_date: pick.releaseDate }),
+    }).catch(() => null);
+    if (res?.ok) { const d = await res.json(); setWatchlistState(d.watchlisted ?? !watchlisted); }
+    setMarkingW(false);
+  }
+
+  return (
+    <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-x-3 items-center px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors border-b border-[var(--border)]/30 last:border-b-0">
+      <span className="text-sm font-bold text-[var(--foreground-muted)] w-6 text-center">{rank}</span>
+      <Link href={`/movies/${pick.tmdbId}`} className="flex items-center gap-2.5 min-w-0">
+        {pick.posterPath ? (
+          <Image src={posterUrl(pick.posterPath, "w92")} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />
+        ) : (
+          <div className="w-7 h-10 rounded bg-[var(--surface-2)] shrink-0" />
+        )}
+        <div className="min-w-0">
+          <p className="text-sm text-white truncate hover:text-[var(--ratist-red)] transition-colors">{pick.title}</p>
+          <p className="text-xs text-[var(--foreground-muted)]">{pick.releaseDate?.slice(0, 4) ?? "—"}</p>
+        </div>
+      </Link>
+      <div className="flex items-center gap-2">
+        <RatingBadge type="community" score={pick.communityRatistAvg ?? pick.voteAverage ?? null} size="sm" />
+        <RatingBadge type="ratist" score={pick.estimatedRating} isEstimate size="sm" />
+      </div>
+      {user && (
+        <div className="flex items-center gap-1">
+          <button onClick={toggleSeen} disabled={markingS}
+            className={`p-1.5 rounded transition-colors ${seen ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}
+            title={seen ? "Seen" : "Mark as seen"}>
+            {seen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+          <button onClick={toggleWatchlist} disabled={markingW}
+            className={`p-1.5 rounded transition-colors ${watchlisted ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
+            title={watchlisted ? "Watchlisted" : "Add to watchlist"}>
+            {watchlisted ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -182,33 +252,8 @@ export default function ForYouPage() {
           </div>
           <p className="text-xs text-[var(--foreground-muted)] mb-4">Movies we think you&apos;d rate highest based on your taste profile. Only showing movies you haven&apos;t seen.</p>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 text-xs text-[var(--foreground-muted)] px-4 py-2 border-b border-[var(--border)]">
-              <span className="w-6">#</span>
-              <span>Movie</span>
-              <span className="text-right w-16">Community</span>
-              <span className="text-right w-16 text-[var(--ratist-red)] font-semibold">Estimate</span>
-            </div>
             {(showAllPicks ? data.topPicks : data.topPicks.slice(0, 10)).map((pick, i) => (
-              <Link
-                key={pick.tmdbId}
-                href={`/movies/${pick.tmdbId}`}
-                className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 items-center px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors border-b border-[var(--border)]/30 last:border-b-0"
-              >
-                <span className="text-sm font-bold text-[var(--foreground-muted)] w-6 text-center">{i + 1}</span>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {pick.posterPath ? (
-                    <Image src={posterUrl(pick.posterPath, "w92")} alt="" width={28} height={42} className="rounded w-7 h-10 object-cover shrink-0" />
-                  ) : (
-                    <div className="w-7 h-10 rounded bg-[var(--surface-2)] shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm text-white truncate">{pick.title}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">{pick.releaseDate?.slice(0, 4) ?? "—"}</p>
-                  </div>
-                </div>
-                <span className="text-sm text-[var(--foreground-muted)] w-16 text-right">{pick.communityRatistAvg ?? (pick.voteAverage ? pick.voteAverage.toFixed(1) : "—")}</span>
-                <span className="text-sm font-bold text-[var(--ratist-red)] w-16 text-right">{pick.estimatedRating.toFixed(1)}</span>
-              </Link>
+              <TopPickRow key={pick.tmdbId} pick={pick} rank={i + 1} />
             ))}
           </div>
           {data.topPicks.length > 10 && (
