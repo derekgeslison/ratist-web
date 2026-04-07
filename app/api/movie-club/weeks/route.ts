@@ -16,9 +16,8 @@ async function getUser(req: NextRequest) {
 /** GET — get weeks for the movie club page. Also triggers auto-generation and transitions. */
 export async function GET(req: NextRequest) {
   try {
-    // Auto-generate upcoming weeks and run status transitions
+    // Auto-generate upcoming weeks (status transitions handled by admin or cron only)
     await ensureUpcomingWeeks().catch(() => {});
-    await runStatusTransitions().catch(() => {});
 
     const user = await getUser(req);
 
@@ -101,6 +100,32 @@ export async function GET(req: NextRequest) {
 
       const superlatives = canSeeDiscussion ? await getSuperlatives(w.id) : [];
 
+      // Fetch TMDB details for active weeks
+      let movieYear: string | undefined;
+      let movieRuntime: string | undefined;
+      let movieMpaRating: string | undefined;
+      let movieStreaming: string[] | undefined;
+      if (w.movieTmdbId && (w.status === "watching" || w.status === "discussion")) {
+        try {
+          const tmdbKey = process.env.TMDB_API_KEY;
+          const [detailRes, provRes] = await Promise.all([
+            fetch(`https://api.themoviedb.org/3/movie/${w.movieTmdbId}?api_key=${tmdbKey}&append_to_response=release_dates`, { next: { revalidate: 86400 } }),
+            fetch(`https://api.themoviedb.org/3/movie/${w.movieTmdbId}/watch/providers?api_key=${tmdbKey}`, { next: { revalidate: 86400 } }),
+          ]);
+          if (detailRes.ok) {
+            const d = await detailRes.json();
+            movieYear = d.release_date?.slice(0, 4);
+            movieRuntime = d.runtime ? `${Math.floor(d.runtime / 60)}h ${d.runtime % 60}m` : undefined;
+            const usRel = d.release_dates?.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
+            movieMpaRating = usRel?.release_dates?.find((x: { certification: string }) => x.certification)?.certification;
+          }
+          if (provRes.ok) {
+            const p = await provRes.json();
+            movieStreaming = (p.results?.US?.flatrate ?? []).map((s: { provider_name: string }) => s.provider_name).slice(0, 4);
+          }
+        } catch { /* ignore */ }
+      }
+
       return {
         id: w.id,
         weekNumber: w.weekNumber,
@@ -112,6 +137,7 @@ export async function GET(req: NextRequest) {
         movieTmdbId: w.movieTmdbId,
         movieTitle: w.movieTitle,
         moviePoster: w.moviePoster,
+        movieYear, movieRuntime, movieMpaRating, movieStreaming,
         avgRating: canSeeDiscussion ? avgRating : null,
         participantCount: w._count.ratings,
         rewatchCount: w.ratings.filter((r) => r.isRewatch).length,

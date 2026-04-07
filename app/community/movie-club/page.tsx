@@ -11,6 +11,7 @@ interface Week {
   id: string; weekNumber: number; startDate: string; endDate: string; status: string;
   pickMethod: string; pickTeaser: string | null;
   movieTmdbId: number | null; movieTitle: string | null; moviePoster: string | null;
+  movieYear?: string; movieRuntime?: string; movieMpaRating?: string; movieStreaming?: string[];
   avgRating: number | null; participantCount: number; rewatchCount: number;
   userRating: number | null; canSeeDiscussion: boolean;
   ratings: { user: { firebaseUid: string } }[];
@@ -158,6 +159,16 @@ export default function MovieClubPage() {
                         </Link>
                       ) : "???"}
                     </h3>
+
+                    {/* Movie details */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--foreground-muted)] mb-2">
+                      {currentWeek.movieYear && <span>{currentWeek.movieYear}</span>}
+                      {currentWeek.movieMpaRating && <span className="border border-[var(--border)] px-1.5 py-0.5 text-xs rounded font-semibold text-white">{currentWeek.movieMpaRating}</span>}
+                      {currentWeek.movieRuntime && <span>{currentWeek.movieRuntime}</span>}
+                    </div>
+                    {currentWeek.movieStreaming && currentWeek.movieStreaming.length > 0 && (
+                      <p className="text-xs text-[var(--foreground-muted)] mb-2">Streaming on: <span className="text-white">{currentWeek.movieStreaming.join(", ")}</span></p>
+                    )}
 
                     <div className="flex flex-wrap gap-3 text-sm mb-4">
                       <span className="text-[var(--foreground-muted)]">{currentWeek.participantCount} reviewed</span>

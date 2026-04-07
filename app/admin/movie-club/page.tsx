@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
-import { Clapperboard, Pencil, X, Dice5, UserCheck, Vote, Eye, HelpCircle } from "lucide-react";
+import { Clapperboard, Pencil, X, Dice5, UserCheck, Vote, Eye, HelpCircle, Trash2 } from "lucide-react";
 import { posterUrl, STREAMING_PROVIDERS, LANGUAGES } from "@/lib/tmdb";
 
 interface Week {
@@ -136,12 +136,36 @@ export default function AdminMovieClubPage() {
     return "text-yellow-400 bg-yellow-500/10";
   };
 
+  async function runTransitions() {
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch("/api/admin/movie-club", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "run_transitions" }),
+    });
+    fetchWeeks();
+  }
+
+  async function deleteWeek(weekId: string) {
+    if (!user || !window.confirm("Delete this week? This cannot be undone.")) return;
+    const token = await user.getIdToken();
+    await fetch("/api/admin/movie-club", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_week", weekId }),
+    });
+    fetchWeeks();
+  }
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
         <Clapperboard className="w-5 h-5 text-[var(--ratist-red)]" />
         <h2 className="text-lg font-semibold text-white">Movie Club</h2>
-        <span className="text-xs text-[var(--foreground-muted)]">Weeks auto-generate. Edit to customize.</span>
+        <button onClick={runTransitions} className="ml-auto text-xs px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors">
+          Run Auto-Transitions
+        </button>
       </div>
 
       {loading ? (
@@ -177,6 +201,10 @@ export default function AdminMovieClubPage() {
                   <button onClick={() => editingId === w.id ? setEditingId(null) : startEdit(w)}
                     className="p-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors">
                     {editingId === w.id ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => deleteWeek(w.id)}
+                    className="p-1.5 text-[var(--foreground-muted)] hover:text-red-400 transition-colors" title="Delete week">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
-import { ensureUpcomingWeeks, pickRandomMovie, resolveVoteWinner } from "@/lib/movie-club";
+import { ensureUpcomingWeeks, pickRandomMovie, resolveVoteWinner, runStatusTransitions } from "@/lib/movie-club";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,21 @@ export async function POST(req: NextRequest) {
   if (action === "preview_random") {
     const picked = await pickRandomMovie(body.filters);
     return NextResponse.json({ movie: picked });
+  }
+
+  if (action === "run_transitions") {
+    await runStatusTransitions();
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "delete_week") {
+    if (!body.weekId) return NextResponse.json({ error: "weekId required" }, { status: 400 });
+    // Delete related data first
+    await prisma.movieClubRating.deleteMany({ where: { weekId: body.weekId } });
+    await prisma.movieClubNominationVote.deleteMany({ where: { nomination: { weekId: body.weekId } } });
+    await prisma.movieClubNomination.deleteMany({ where: { weekId: body.weekId } });
+    await prisma.movieClubWeek.delete({ where: { id: body.weekId } });
+    return NextResponse.json({ deleted: true });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
