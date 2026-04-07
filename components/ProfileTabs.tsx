@@ -347,8 +347,8 @@ export default function ProfileTabs({
               </section>
             )}
 
-            {/* Recommendations */}
-            {recommendations.length > 0 && (
+            {/* Recommendations — only show on own profile */}
+            {recommendations.length > 0 && isOwnProfile && (
               <section>
                 <h2 className="text-base font-semibold text-white mb-1">Recommended For You</h2>
                 <p className="text-xs text-[var(--foreground-muted)] mb-4">Based on similar taste profiles</p>

@@ -53,6 +53,7 @@ export default function SettingsPage() {
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [autoDateOnSeen, setAutoDateOnSeen] = useState(false);
+  const [autoSeenOnWatchlistCheck, setAutoSeenOnWatchlistCheck] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState({
     commentOnContent: true, likeOnContent: true, commentReplies: true,
     commentLikes: true, milestones: true, watchlistInvites: true,
@@ -118,6 +119,7 @@ export default function SettingsPage() {
         setBio(meData.user.bio ?? "");
         setIsPrivate(meData.user.isPrivate ?? false);
         setAutoDateOnSeen(meData.user.autoDateOnSeen ?? false);
+        setAutoSeenOnWatchlistCheck(meData.user.autoSeenOnWatchlistCheck ?? false);
         if (meData.user.publicTabs) {
           setPublicTabs((prev) => ({ ...prev, ...meData.user.publicTabs }));
         }
@@ -209,7 +211,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile/me", {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: displayName, bio, isPrivate, autoDateOnSeen, publicTabs }),
+        body: JSON.stringify({ name: displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs }),
       });
 
       if (res.ok) {
@@ -454,6 +456,23 @@ export default function SettingsPage() {
               className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${autoDateOnSeen ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoDateOnSeen ? "translate-x-5" : "translate-x-0"}`} />
+            </button>
+          </div>
+
+          {/* Auto-seen on watchlist check */}
+          <div className="flex items-center justify-between gap-4 mt-4">
+            <div>
+              <p className="text-sm font-medium text-white">Mark as seen when checked off watchlist</p>
+              <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                When on, checking off a movie or show from your watchlist also marks it as seen. Only applies to you, even on shared watchlists.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoSeenOnWatchlistCheck((v) => !v)}
+              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${autoSeenOnWatchlistCheck ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${autoSeenOnWatchlistCheck ? "translate-x-5" : "translate-x-0"}`} />
             </button>
           </div>
 

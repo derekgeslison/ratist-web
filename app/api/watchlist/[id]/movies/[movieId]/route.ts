@@ -60,31 +60,52 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     if (!wl) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // Try watchlistMovie first
-    const movieEntry = await prisma.watchlistMovie.findFirst({ where: { id: movieId, watchlistId } });
+    const movieEntry = await prisma.watchlistMovie.findFirst({ where: { id: movieId, watchlistId }, include: { movie: { select: { id: true } } } });
     if (movieEntry) {
+      const newChecked = !movieEntry.isChecked;
       const updated = await prisma.watchlistMovie.update({
         where: { id: movieId },
-        data: {
-          isChecked: !movieEntry.isChecked,
-          checkedAt: !movieEntry.isChecked ? new Date() : null,
-        },
+        data: { isChecked: newChecked, checkedAt: newChecked ? new Date() : null },
       });
-      return NextResponse.json({ isChecked: updated.isChecked, checkedAt: updated.checkedAt });
+
+      // Auto-mark as seen if user has the setting enabled
+      if (newChecked && user.autoSeenOnWatchlistCheck) {
+        const existing = await prisma.userFavoriteMovie.findUnique({
+          where: { userId_movieId: { userId: user.id, movieId: movieEntry.movieId } },
+        });
+        if (!existing) {
+          await prisma.userFavoriteMovie.create({
+            data: { userId: user.id, movieId: movieEntry.movieId, watchedDate: user.autoDateOnSeen ? new Date() : null },
+          });
+        }
+      }
+
+      return NextResponse.json({ isChecked: updated.isChecked, checkedAt: updated.checkedAt, markedAsSeen: newChecked && user.autoSeenOnWatchlistCheck });
     }
 
     // Fall back to watchlistShow
-    const showEntry = await prisma.watchlistShow.findFirst({ where: { id: movieId, watchlistId } });
+    const showEntry = await prisma.watchlistShow.findFirst({ where: { id: movieId, watchlistId }, include: { tvShow: { select: { id: true } } } });
     if (!showEntry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
 
+    const newChecked = !showEntry.isChecked;
     const updated = await prisma.watchlistShow.update({
       where: { id: movieId },
-      data: {
-        isChecked: !showEntry.isChecked,
-        checkedAt: !showEntry.isChecked ? new Date() : null,
-      },
+      data: { isChecked: newChecked, checkedAt: newChecked ? new Date() : null },
     });
 
-    return NextResponse.json({ isChecked: updated.isChecked, checkedAt: updated.checkedAt });
+    // Auto-mark TV show as seen if user has the setting enabled
+    if (newChecked && user.autoSeenOnWatchlistCheck) {
+      const existing = await prisma.userFavoriteShow.findUnique({
+        where: { userId_tvShowId: { userId: user.id, tvShowId: showEntry.tvShowId } },
+      });
+      if (!existing) {
+        await prisma.userFavoriteShow.create({
+          data: { userId: user.id, tvShowId: showEntry.tvShowId },
+        });
+      }
+    }
+
+    return NextResponse.json({ isChecked: updated.isChecked, checkedAt: updated.checkedAt, markedAsSeen: newChecked && user.autoSeenOnWatchlistCheck });
   } catch (err) {
     console.error("Watchlist check-off error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
