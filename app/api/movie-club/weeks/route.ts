@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     const upcoming = await prisma.movieClubWeek.findMany({
       where: { status: "scheduled" },
       orderBy: { startDate: "asc" },
-      select: { id: true, weekNumber: true, startDate: true, pickMethod: true, pickTeaser: true },
+      select: { id: true, weekNumber: true, startDate: true, pickMethod: true, pickTeaser: true, revealEarly: true, movieTitle: true, moviePoster: true, movieTmdbId: true },
     });
 
     // Membership

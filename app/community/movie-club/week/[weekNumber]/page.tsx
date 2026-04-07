@@ -153,7 +153,8 @@ export default function MovieClubWeekPage() {
       {/* Rate section — show if not submitted, or if watching phase (for editing) */}
       {isOpen && isMember && (!submitted || (week.status === "watching" && editing)) && (
         <section className="mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
+          <h2 className="text-lg font-semibold text-white mb-2">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
+          <p className="text-xs text-[var(--foreground-muted)] mb-4">Use the &ldquo;Standard&rdquo; tab to submit your full Ratist review — it will also count as your official review for this movie.</p>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <ScreeningRateForm
               onSubmit={handleSubmitRating}

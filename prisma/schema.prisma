@@ -1036,6 +1036,7 @@ model MovieClubWeek {
   pickMethod    String   @default("random") @map("pick_method") // "admin" | "random" | "community_vote"
   pickFilters   Json?    @map("pick_filters")
   pickTeaser    String?  @map("pick_teaser")
+  revealEarly   Boolean  @default(false) @map("reveal_early") // show movie in Coming Up before week starts
 
   movieId       String?  @map("movie_id")
   movieTmdbId   Int?     @map("movie_tmdb_id")

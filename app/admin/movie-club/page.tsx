@@ -9,9 +9,12 @@ import { posterUrl, STREAMING_PROVIDERS, LANGUAGES } from "@/lib/tmdb";
 interface Week {
   id: string; weekNumber: number; startDate: string; endDate: string; status: string;
   pickMethod: string; pickTeaser: string | null; pickFilters: Record<string, string> | null;
+  revealEarly: boolean;
   movieTmdbId: number | null; movieTitle: string | null; moviePoster: string | null;
   _count: { ratings: number; nominations: number };
 }
+
+const WEEKS_PER_PAGE = 10;
 
 const STATUSES = ["scheduled", "voting", "watching", "discussion", "archived"];
 const GENRE_OPTIONS = [
@@ -29,6 +32,7 @@ export default function AdminMovieClubPage() {
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   // Edit form state
   const [editPickMethod, setEditPickMethod] = useState("random");
@@ -42,6 +46,7 @@ export default function AdminMovieClubPage() {
   const [movieResults, setMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate?: string }[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<{ tmdbId: number; title: string; posterPath: string | null } | null>(null);
   const [previewMovie, setPreviewMovie] = useState<{ tmdbId: number; title: string; posterPath: string | null } | null>(null);
+  const [editRevealEarly, setEditRevealEarly] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function fetchWeeks() {
@@ -75,6 +80,7 @@ export default function AdminMovieClubPage() {
     setEditYearTo(week.pickFilters?.yearTo ?? "");
     setSelectedMovie(week.movieTmdbId ? { tmdbId: week.movieTmdbId, title: week.movieTitle ?? "", posterPath: week.moviePoster } : null);
     setPreviewMovie(null);
+    setEditRevealEarly(week.revealEarly);
   }
 
   async function saveEdit() {
@@ -94,6 +100,7 @@ export default function AdminMovieClubPage() {
         pickMethod: editPickMethod,
         pickTeaser: editTeaser.trim() || null,
         pickFilters: filters,
+        revealEarly: editRevealEarly,
         ...(editPickMethod === "admin" && selectedMovie ? { movieTmdbId: selectedMovie.tmdbId, movieTitle: selectedMovie.title, moviePoster: selectedMovie.posterPath } : {}),
         ...(editPickMethod === "random" && previewMovie ? { movieTmdbId: previewMovie.tmdbId, movieTitle: previewMovie.title, moviePoster: previewMovie.posterPath } : {}),
       }),
@@ -172,7 +179,7 @@ export default function AdminMovieClubPage() {
         <p className="text-[var(--foreground-muted)]">Loading...</p>
       ) : (
         <div className="space-y-3">
-          {weeks.map((w) => (
+          {weeks.slice(page * WEEKS_PER_PAGE, (page + 1) * WEEKS_PER_PAGE).map((w) => (
             <div key={w.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
               {/* Week header */}
               <div className="p-4 flex items-center gap-3">
@@ -298,6 +305,15 @@ export default function AdminMovieClubPage() {
                       className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]" />
                   </div>
 
+                  {/* Reveal early option */}
+                  {editPickMethod === "admin" && selectedMovie && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editRevealEarly} onChange={(e) => setEditRevealEarly(e.target.checked)}
+                        className="accent-[var(--ratist-red)] w-3.5 h-3.5" />
+                      <span className="text-sm text-[var(--foreground-muted)]">Show movie in Coming Up (reveal early)</span>
+                    </label>
+                  )}
+
                   <button onClick={saveEdit} disabled={saving}
                     className="px-4 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg text-sm font-semibold disabled:opacity-50">
                     {saving ? "Saving..." : "Save Changes"}
@@ -306,6 +322,20 @@ export default function AdminMovieClubPage() {
               )}
             </div>
           ))}
+          {/* Pagination */}
+          {weeks.length > WEEKS_PER_PAGE && (
+            <div className="flex items-center justify-center gap-3 pt-4">
+              <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}
+                className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] disabled:opacity-30 transition-colors">
+                ← Prev
+              </button>
+              <span className="text-sm text-[var(--foreground-muted)]">Page {page + 1} of {Math.ceil(weeks.length / WEEKS_PER_PAGE)}</span>
+              <button disabled={(page + 1) * WEEKS_PER_PAGE >= weeks.length} onClick={() => setPage((p) => p + 1)}
+                className="px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] disabled:opacity-30 transition-colors">
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

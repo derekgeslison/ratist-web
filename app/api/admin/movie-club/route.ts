@@ -18,8 +18,7 @@ export async function GET(req: NextRequest) {
   await ensureUpcomingWeeks().catch(() => {});
 
   const weeks = await prisma.movieClubWeek.findMany({
-    orderBy: { weekNumber: "desc" },
-    take: 20,
+    orderBy: { startDate: "asc" },
     include: {
       _count: { select: { ratings: true, nominations: true } },
     },
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { weekId, status, pickMethod, pickFilters, pickTeaser, movieTmdbId, movieTitle, moviePoster } = await req.json();
+  const { weekId, status, pickMethod, pickFilters, pickTeaser, movieTmdbId, movieTitle, moviePoster, revealEarly } = await req.json();
   if (!weekId) return NextResponse.json({ error: "weekId required" }, { status: 400 });
 
   const data: Record<string, unknown> = {};
@@ -69,6 +68,7 @@ export async function PATCH(req: NextRequest) {
   if (pickMethod !== undefined) data.pickMethod = pickMethod;
   if (pickFilters !== undefined) data.pickFilters = pickFilters;
   if (pickTeaser !== undefined) data.pickTeaser = pickTeaser;
+  if (revealEarly !== undefined) data.revealEarly = revealEarly;
 
   // When switching to community_vote, clear any previously selected movie
   if (pickMethod === "community_vote") {

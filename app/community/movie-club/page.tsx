@@ -20,7 +20,7 @@ interface VotingWeek {
   id: string; weekNumber: number; startDate: string; pickTeaser: string | null;
   nominations: { id: string; tmdbId: number; title: string; posterPath: string | null; voteCount: number }[];
 }
-interface UpcomingWeek { id: string; weekNumber: number; startDate: string; pickMethod: string; pickTeaser: string | null; }
+interface UpcomingWeek { id: string; weekNumber: number; startDate: string; pickMethod: string; pickTeaser: string | null; revealEarly?: boolean; movieTitle?: string | null; moviePoster?: string | null; movieTmdbId?: number | null; }
 
 export default function MovieClubPage() {
   const { user } = useAuth();
@@ -229,11 +229,17 @@ export default function MovieClubPage() {
               <div className="space-y-2">
                 {upcoming.slice(0, 2).map((w) => (
                   <div key={w.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-10 h-14 rounded bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
-                      <HelpCircle className="w-5 h-5 text-[var(--foreground-muted)]" />
-                    </div>
+                    {w.revealEarly && w.moviePoster ? (
+                      <Image src={posterUrl(w.moviePoster, "w92")} alt="" width={40} height={56} className="w-10 h-14 rounded object-cover shrink-0" />
+                    ) : (
+                      <div className="w-10 h-14 rounded bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                        <HelpCircle className="w-5 h-5 text-[var(--foreground-muted)]" />
+                      </div>
+                    )}
                     <div className="flex-1">
-                      <p className="text-sm text-white font-medium">{w.pickTeaser || "???"}</p>
+                      <p className="text-sm text-white font-medium">
+                        {w.revealEarly && w.movieTitle ? w.movieTitle : (w.pickTeaser || "???")}
+                      </p>
                       <p className="text-xs text-[var(--foreground-muted)]">Starts {w.startDate}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-[var(--foreground-muted)]" />
