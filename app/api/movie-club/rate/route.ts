@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   let computedRating = Number(rating);
   if (reviewType !== "basic" && reviewType !== "quick") {
     const computed = computeRatistScores({ ...fields, overallRating });
-    if (computed.ratistRating != null) computedRating = computed.ratistRating;
+    if (computed.ratistRating != null) computedRating = Math.round(computed.ratistRating * 10) / 10;
   }
 
   const clubRating = await prisma.movieClubRating.upsert({

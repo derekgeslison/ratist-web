@@ -139,15 +139,29 @@ export async function runStatusTransitions(): Promise<void> {
 // ─── Random movie picker ─────────────────────────────────────────────────────
 
 export async function pickRandomMovie(filters?: Record<string, string> | null): Promise<{ tmdbId: number; title: string; posterPath: string | null; year?: string; voteAverage?: number } | null> {
+  // Popularity thresholds (vote_count ranges)
+  const POP_RANGES: Record<string, { min: number; max?: number; pages: number }> = {
+    blockbuster: { min: 5000, pages: 10 },
+    popular:     { min: 2000, max: 5000, pages: 8 },
+    known:       { min: 1000, max: 2000, pages: 6 },
+    moderate:    { min: 500, max: 1000, pages: 5 },
+    hidden_gem:  { min: 200, max: 500, pages: 4 },
+  };
+
+  const pop = filters?.popularity ? POP_RANGES[filters.popularity] : null;
+  const voteMin = pop?.min ?? 1000;
+  const maxPages = pop?.pages ?? 10;
+
   const params = new URLSearchParams({
     api_key: API_KEY!,
-    sort_by: "popularity.desc",
-    "vote_count.gte": "1000",
+    sort_by: pop ? "vote_average.desc" : "popularity.desc",
+    "vote_count.gte": String(voteMin),
     include_adult: "false",
     with_original_language: "en",
     "primary_release_date.gte": "1970-01-01",
-    page: String(Math.floor(Math.random() * 10) + 1),
+    page: String(Math.floor(Math.random() * maxPages) + 1),
   });
+  if (pop?.max) params.set("vote_count.lte", String(pop.max));
 
   if (filters?.genre) params.set("with_genres", filters.genre);
   if (filters?.provider) { params.set("with_watch_providers", filters.provider); params.set("watch_region", "US"); }

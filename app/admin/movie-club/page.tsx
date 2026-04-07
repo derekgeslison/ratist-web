@@ -42,6 +42,7 @@ export default function AdminMovieClubPage() {
   const [editProvider, setEditProvider] = useState("");
   const [editYearFrom, setEditYearFrom] = useState("");
   const [editYearTo, setEditYearTo] = useState("");
+  const [editPopularity, setEditPopularity] = useState("any");
   const [movieSearch, setMovieSearch] = useState("");
   const [movieResults, setMovieResults] = useState<{ id: number; title: string; posterPath: string | null; releaseDate?: string }[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<{ tmdbId: number; title: string; posterPath: string | null } | null>(null);
@@ -81,6 +82,7 @@ export default function AdminMovieClubPage() {
     setSelectedMovie(week.movieTmdbId ? { tmdbId: week.movieTmdbId, title: week.movieTitle ?? "", posterPath: week.moviePoster } : null);
     setPreviewMovie(null);
     setEditRevealEarly(week.revealEarly);
+    setEditPopularity(week.pickFilters?.popularity ?? "any");
   }
 
   async function saveEdit() {
@@ -118,7 +120,7 @@ export default function AdminMovieClubPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "preview_random",
-        filters: Object.fromEntries(Object.entries({ genre: editGenre, mpaRating: editMpa, provider: editProvider, yearFrom: editYearFrom, yearTo: editYearTo }).filter(([, v]) => v)),
+        filters: Object.fromEntries(Object.entries({ genre: editGenre, mpaRating: editMpa, provider: editProvider, yearFrom: editYearFrom, yearTo: editYearTo, popularity: editPopularity !== "any" ? editPopularity : "" }).filter(([, v]) => v)),
       }),
     });
     if (res.ok) { const data = await res.json(); setPreviewMovie(data.movie); }
@@ -254,6 +256,24 @@ export default function AdminMovieClubPage() {
                         </select>
                         <input value={editYearFrom} onChange={(e) => setEditYearFrom(e.target.value)} placeholder="Year from" className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white" />
                         <input value={editYearTo} onChange={(e) => setEditYearTo(e.target.value)} placeholder="Year to" className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white" />
+                        <div className="relative group/pop">
+                          <select value={editPopularity} onChange={(e) => setEditPopularity(e.target.value)} className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white">
+                            <option value="any">Any Popularity</option>
+                            <option value="blockbuster">Blockbusters (very well-known)</option>
+                            <option value="popular">Popular (widely seen)</option>
+                            <option value="known">Known (recognizable)</option>
+                            <option value="moderate">Moderate (less mainstream)</option>
+                            <option value="hidden_gem">Hidden Gem (under the radar)</option>
+                          </select>
+                          <div className="absolute bottom-full left-0 mb-2 w-64 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 text-xs text-[var(--foreground-muted)] shadow-xl hidden group-hover/pop:block z-20">
+                            <p className="font-medium text-white mb-1">Popularity Guide</p>
+                            <p><strong>Blockbusters:</strong> 5000+ reviews — Marvel, Star Wars, etc.</p>
+                            <p><strong>Popular:</strong> 2000-5000 reviews — well-known mainstream films</p>
+                            <p><strong>Known:</strong> 1000-2000 reviews — recognizable but not huge</p>
+                            <p><strong>Moderate:</strong> 500-1000 reviews — less mainstream, still reviewed</p>
+                            <p><strong>Hidden Gem:</strong> 200-500 reviews — under the radar, English only</p>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={previewRandom} className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs text-white hover:border-[var(--ratist-red)] transition-colors">
