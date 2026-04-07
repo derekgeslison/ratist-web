@@ -21,6 +21,7 @@ interface AdminUser {
   bannedAt: string | null;
   bannedUntil: string | null;
   banReason: string | null;
+  subscriptionTier: string | null;
   _count: { ratings: number; favoriteMovies: number };
 }
 
@@ -249,6 +250,7 @@ export default function AdminUsersPage() {
                       <Link href={`/admin/users/${u.id}`} className="text-white font-medium hover:text-[var(--ratist-red)] transition-colors">{u.name}</Link>
                       {u.isOwner && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded font-bold">owner</span>}
                       {u.isAdmin && !u.isOwner && <span className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] px-1.5 py-0.5 rounded">admin</span>}
+                      {u.subscriptionTier === "backstage_pass" && <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">backstage</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[var(--foreground-muted)] hidden sm:table-cell">{u.email}</td>

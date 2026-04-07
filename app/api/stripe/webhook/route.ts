@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
+import { sendSubscriptionConfirmed, sendSubscriptionCanceled } from "@/lib/email";
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY!); }
 
@@ -25,15 +26,17 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
         if (userId && session.subscription) {
-          await prisma.user.update({
+          const updated = await prisma.user.update({
             where: { id: userId },
             data: {
               subscriptionTier: "backstage_pass",
               subscriptionStatus: "active",
               stripeSubscriptionId: session.subscription as string,
-              subscriptionExpiry: null, // Stripe manages the lifecycle
+              subscriptionExpiry: null,
             },
+            select: { email: true, name: true },
           });
+          if (updated.email) sendSubscriptionConfirmed(updated.email, updated.name).catch(() => {});
         }
         break;
       }
@@ -75,6 +78,7 @@ export async function POST(req: NextRequest) {
               subscriptionExpiry: null,
             },
           });
+          if (user.email) sendSubscriptionCanceled(user.email, user.name).catch(() => {});
         }
         break;
       }

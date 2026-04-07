@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { grantBackstagePass, revokeBackstagePass, getPromoEligibleUsers } from "@/lib/subscription";
 import { prisma } from "@/lib/prisma";
+import { sendPromoGranted } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,14 @@ export async function GET(req: NextRequest) {
     where: { subscriptionTier: "backstage_pass", subscriptionStatus: { in: ["active", "admin_granted"] } },
   });
 
-  return NextResponse.json({ eligible, alreadyGranted, totalSubscribers });
+  // Get all active subscribers for management
+  const subscribers = await prisma.user.findMany({
+    where: { subscriptionTier: "backstage_pass" },
+    select: { id: true, name: true, email: true, subscriptionStatus: true, subscriptionExpiry: true, grantedPromo: true, stripeSubscriptionId: true },
+    orderBy: { name: "asc" },
+  });
+
+  return NextResponse.json({ eligible, alreadyGranted, totalSubscribers, subscribers });
 }
 
 /** POST — admin actions: grant, revoke, bulk promo */
@@ -45,16 +53,31 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "bulk_promo") {
-    // Grant 6-month Backstage Pass to eligible users
+    // Grant 6-month Backstage Pass to eligible users who haven't already been promo'd
     const maxGrants = limit ?? 1000;
     const { eligible } = await getPromoEligibleUsers();
     const toGrant = eligible.slice(0, maxGrants);
     const sixMonths = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
 
     let granted = 0;
-    for (const user of toGrant) {
-      await grantBackstagePass(user.id, admin.id, sixMonths, "first_1000_reviews");
+    for (const u of toGrant) {
+      // Double-check they haven't been granted already
+      const current = await prisma.user.findUnique({ where: { id: u.id }, select: { grantedPromo: true, email: true, name: true } });
+      if (current?.grantedPromo === "first_1000_reviews") continue;
+
+      await grantBackstagePass(u.id, admin.id, sixMonths, "first_1000_reviews");
       granted++;
+
+      // Send email + in-app notification
+      if (current?.email) sendPromoGranted(current.email, current.name, 6).catch(() => {});
+      await prisma.notification.create({
+        data: {
+          userId: u.id,
+          type: "admin",
+          message: "🎉 You earned 6 months of the Backstage Pass! As one of our dedicated reviewers, enjoy Movie Club, ad-free browsing, and more — free.",
+          link: "/backstage-pass",
+        },
+      }).catch(() => {});
     }
 
     return NextResponse.json({ granted, total: toGrant.length });

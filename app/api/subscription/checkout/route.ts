@@ -8,6 +8,9 @@ function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY!); }
 
 export async function POST(req: NextRequest) {
   try {
+    // Check env vars
+    if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: "STRIPE_SECRET_KEY not configured" }, { status: 500 });
+
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -16,7 +19,7 @@ export async function POST(req: NextRequest) {
       ? process.env.STRIPE_PRICE_ANNUAL
       : process.env.STRIPE_PRICE_MONTHLY;
 
-    if (!priceId) return NextResponse.json({ error: "Price not configured" }, { status: 500 });
+    if (!priceId) return NextResponse.json({ error: `Price not configured for ${plan}. STRIPE_PRICE_ANNUAL=${process.env.STRIPE_PRICE_ANNUAL ? "set" : "unset"}, STRIPE_PRICE_MONTHLY=${process.env.STRIPE_PRICE_MONTHLY ? "set" : "unset"}` }, { status: 500 });
 
     // Get or create Stripe customer
     let customerId = user.stripeCustomerId;
