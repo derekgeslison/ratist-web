@@ -98,6 +98,13 @@ export default function MovieClubWeekPage() {
 
   async function voteRewatch(vote: string) {
     if (!user || !week) return;
+    // Optimistic update
+    setUserRewatchVote(vote);
+    const prev = rewatchPoll ?? { yes: 0, no: 0, maybe: 0 };
+    const updated = { ...prev, [vote]: (prev[vote as keyof typeof prev] ?? 0) + 1 };
+    if (userRewatchVote && userRewatchVote !== vote) updated[userRewatchVote as keyof typeof updated]--;
+    setRewatchPoll(updated);
+
     const token = await user.getIdToken();
     const res = await fetch("/api/movie-club/rewatch-poll", {
       method: "POST",
@@ -106,8 +113,7 @@ export default function MovieClubWeekPage() {
     });
     if (res.ok) {
       const data = await res.json();
-      setUserRewatchVote(vote);
-      setRewatchPoll(data.results);
+      setRewatchPoll({ yes: data.results.yes ?? 0, no: data.results.no ?? 0, maybe: data.results.maybe ?? 0 });
     }
   }
 
@@ -292,18 +298,26 @@ export default function MovieClubWeekPage() {
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-[var(--ratist-red)]" /> Rating Distribution
               </h2>
-              <div className="flex items-end gap-2 h-24 mb-2">
-                {week.ratingDistribution.map((d) => {
-                  const maxCount = Math.max(...week.ratingDistribution!.map((x) => x.count), 1);
-                  const pct = (d.count / maxCount) * 100;
-                  return (
-                    <div key={d.range} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-xs text-white font-bold">{d.count}</span>
-                      <div className="w-full rounded-t" style={{ height: `${Math.max(pct, 4)}%`, backgroundColor: d.count > 0 ? "var(--ratist-red)" : "var(--surface-2)" }} />
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                <div className="flex items-end gap-3" style={{ height: 120 }}>
+                  {week.ratingDistribution.map((d) => {
+                    const maxCount = Math.max(...week.ratingDistribution!.map((x) => x.count), 1);
+                    const barHeight = d.count > 0 ? Math.max((d.count / maxCount) * 90, 8) : 4;
+                    return (
+                      <div key={d.range} className="flex-1 flex flex-col items-center justify-end h-full">
+                        <span className="text-xs text-white font-bold mb-1">{d.count > 0 ? d.count : ""}</span>
+                        <div className="w-full rounded-t-md" style={{ height: barHeight, backgroundColor: d.count > 0 ? "var(--ratist-red)" : "var(--surface-2)" }} />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3 mt-2">
+                  {week.ratingDistribution.map((d) => (
+                    <div key={d.range} className="flex-1 text-center">
                       <span className="text-[10px] text-[var(--foreground-muted)]">{d.range}</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             </section>
           )}
@@ -328,29 +342,38 @@ export default function MovieClubWeekPage() {
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               <RefreshCw className="w-5 h-5 text-[var(--ratist-red)]" /> Would You Rewatch?
             </h2>
-            <div className="flex gap-3 mb-3">
-              {(["yes", "no", "maybe"] as const).map((opt) => (
-                <button key={opt} onClick={() => voteRewatch(opt)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                    userRewatchVote === opt
-                      ? opt === "yes" ? "bg-green-600 text-white" : opt === "no" ? "bg-red-600 text-white" : "bg-yellow-600 text-white"
-                      : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-                  }`}
-                >
-                  {opt === "yes" ? "Yes" : opt === "no" ? "No" : "Maybe"}
-                </button>
-              ))}
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              {(() => {
+                const total = (rewatchPoll?.yes ?? 0) + (rewatchPoll?.no ?? 0) + (rewatchPoll?.maybe ?? 0);
+                const options = [
+                  { key: "yes", label: "Yes", color: "bg-green-600", count: rewatchPoll?.yes ?? 0 },
+                  { key: "maybe", label: "Maybe", color: "bg-yellow-600", count: rewatchPoll?.maybe ?? 0 },
+                  { key: "no", label: "No", color: "bg-red-600", count: rewatchPoll?.no ?? 0 },
+                ];
+                return (
+                  <div className="space-y-3">
+                    {options.map(({ key, label, color, count }) => {
+                      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                      const isSelected = userRewatchVote === key;
+                      return (
+                        <button key={key} onClick={() => voteRewatch(key)} className="w-full text-left">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-sm font-medium ${isSelected ? "text-white" : "text-[var(--foreground-muted)]"}`}>
+                              {label} {isSelected && "✓"}
+                            </span>
+                            <span className="text-xs text-[var(--foreground-muted)]">{total > 0 ? `${pct}% (${count})` : ""}</span>
+                          </div>
+                          <div className="h-3 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${color} transition-all duration-300`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {total > 0 && <p className="text-xs text-[var(--foreground-muted)] text-center pt-1">{total} vote{total !== 1 ? "s" : ""}</p>}
+                  </div>
+                );
+              })()}
             </div>
-            {rewatchPoll && (rewatchPoll.yes + rewatchPoll.no + rewatchPoll.maybe > 0) && (() => {
-              const total = rewatchPoll.yes + rewatchPoll.no + rewatchPoll.maybe;
-              return (
-                <div className="flex gap-1 h-6 rounded-full overflow-hidden">
-                  {rewatchPoll.yes > 0 && <div className="bg-green-600 flex items-center justify-center" style={{ width: `${(rewatchPoll.yes / total) * 100}%` }}><span className="text-[10px] text-white font-bold">{Math.round((rewatchPoll.yes / total) * 100)}%</span></div>}
-                  {rewatchPoll.maybe > 0 && <div className="bg-yellow-600 flex items-center justify-center" style={{ width: `${(rewatchPoll.maybe / total) * 100}%` }}><span className="text-[10px] text-white font-bold">{Math.round((rewatchPoll.maybe / total) * 100)}%</span></div>}
-                  {rewatchPoll.no > 0 && <div className="bg-red-600 flex items-center justify-center" style={{ width: `${(rewatchPoll.no / total) * 100}%` }}><span className="text-[10px] text-white font-bold">{Math.round((rewatchPoll.no / total) * 100)}%</span></div>}
-                </div>
-              );
-            })()}
           </section>
 
           {/* Trivia Corner */}
