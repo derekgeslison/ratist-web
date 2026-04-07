@@ -197,7 +197,7 @@ export default async function MovieDetailPage({ params }: Props) {
     <div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Backdrop hero */}
-      <div className="relative w-full h-[45vh] min-h-[300px] max-h-[500px] overflow-hidden">
+      <div className="relative w-full h-[30vh] min-h-[200px] max-h-[340px] overflow-hidden">
         <Image
           src={backdropUrl(movie.backdrop_path, "original")}
           alt={movie.title}
@@ -212,9 +212,9 @@ export default async function MovieDetailPage({ params }: Props) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main info row */}
-        <div className="flex gap-6 -mt-24 relative z-10 mb-8">
+        <div className="flex gap-6 -mt-16 relative z-10 mb-8">
           {/* Poster */}
-          <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] self-start mt-24 sm:mt-28 lg:mt-32 rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
+          <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] self-start mt-16 sm:mt-20 lg:mt-24 rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
             <Image
               src={posterUrl(movie.poster_path, "w342")}
               alt={movie.title}
@@ -225,7 +225,7 @@ export default async function MovieDetailPage({ params }: Props) {
           </div>
 
           {/* Details */}
-          <div className="flex-1 pt-24 sm:pt-28 lg:pt-32 min-w-0">
+          <div className="flex-1 pt-16 sm:pt-20 lg:pt-24 min-w-0">
             <div className="flex items-start justify-between gap-2 mb-1">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
                 {movie.title}
