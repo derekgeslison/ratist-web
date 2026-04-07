@@ -115,6 +115,8 @@ interface Props {
   savedRankings?: { tmdbId: number; title: string; posterPath: string | null; year: string; ratistRating: number | null }[];
   rankingsYear?: string;
   cineqStats?: { totalQuizzes: number; weightedLifetime: number; avgScore: number; bestScore: number } | null;
+  movieClubMember?: boolean;
+  movieClubWeeksParticipated?: number;
 }
 
 const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Stats", "Rankings"] as const;
@@ -141,6 +143,8 @@ export default function ProfileTabs({
   savedRankings = [],
   rankingsYear,
   cineqStats,
+  movieClubMember,
+  movieClubWeeksParticipated = 0,
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
@@ -561,6 +565,21 @@ export default function ProfileTabs({
                   <p className="text-lg font-bold text-white">{cineqStats.totalQuizzes}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Quizzes Played</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Movie Club badge */}
+          {movieClubMember && (
+            <div className="mt-8">
+              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <span className="text-lg">🎬</span> Movie Club
+              </h3>
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-center gap-4">
+                <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 rounded-full px-3 py-1">
+                  <span className="text-sm font-semibold text-[var(--ratist-red)]">Member</span>
+                </div>
+                <p className="text-sm text-[var(--foreground-muted)]">{movieClubWeeksParticipated} week{movieClubWeeksParticipated !== 1 ? "s" : ""} participated</p>
               </div>
             </div>
           )}

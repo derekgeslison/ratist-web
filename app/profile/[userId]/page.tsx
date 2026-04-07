@@ -227,6 +227,12 @@ export default async function ProfilePage({ params }: Props) {
     bestScore: Math.round(Math.max(...cineqAttempts.map((a) => a.rawScore)) * 10) / 10,
   } : null;
 
+  // Movie Club membership
+  const movieClubMember = await prisma.movieClubMember.findUnique({ where: { userId: user.id } });
+  const movieClubWeeksParticipated = movieClubMember
+    ? await prisma.movieClubRating.count({ where: { userId: user.id } })
+    : 0;
+
   // Build episode groups for diary
   const showTmdbIds = [...new Set(episodesSeen.map((e) => e.showTmdbId))];
   const showMetaMap = new Map<number, { name: string; posterPath: string | null; year: string }>();
@@ -466,6 +472,8 @@ export default async function ProfilePage({ params }: Props) {
         })}
         rankingsYear={currentYear}
         cineqStats={cineqStats}
+        movieClubMember={!!movieClubMember}
+        movieClubWeeksParticipated={movieClubWeeksParticipated}
       />
     </div>
   );

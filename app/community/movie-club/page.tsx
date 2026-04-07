@@ -196,9 +196,15 @@ export default function MovieClubPage() {
                       </div>
                     )}
 
+                    {/* Link to full week page */}
+                    <Link href={`/community/movie-club/week/${currentWeek.weekNumber}`}
+                      className="inline-flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline mt-3">
+                      View full week page →
+                    </Link>
+
                     {/* Discussion info for watching phase */}
                     {currentWeek.status === "watching" && (
-                      <p className="text-xs text-[var(--foreground-muted)] mt-3">Discussions open Friday at 8:00 PM Eastern</p>
+                      <p className="text-xs text-[var(--foreground-muted)] mt-2">Discussions open Friday at 8:00 PM Eastern</p>
                     )}
                   </div>
                 </div>
