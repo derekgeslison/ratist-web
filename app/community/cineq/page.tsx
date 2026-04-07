@@ -25,9 +25,9 @@ const TYPES = [
   { value: "both", label: "Both", icon: Monitor, color: "text-purple-400", bg: "bg-purple-600" },
 ] as const;
 const DIFFS = [
-  { value: "easy", label: "Easy", desc: "Popular titles, helpful clues early", color: "bg-green-600 hover:bg-green-500" },
-  { value: "medium", label: "Medium", desc: "Balanced clue order", color: "bg-yellow-600 hover:bg-yellow-500" },
-  { value: "hard", label: "Hard", desc: "Vague early clues, obscure titles", color: "bg-red-600 hover:bg-red-500" },
+  { value: "easy", label: "Easy", desc: "Popular titles, helpful clues early", color: "bg-green-600 hover:bg-green-500", multiplier: "1x" },
+  { value: "medium", label: "Medium", desc: "Balanced clue order", color: "bg-yellow-600 hover:bg-yellow-500", multiplier: "1.5x" },
+  { value: "hard", label: "Hard", desc: "Vague early clues, obscure titles", color: "bg-red-600 hover:bg-red-500", multiplier: "2x" },
 ] as const;
 
 export default function CineQPage() {
@@ -380,7 +380,7 @@ export default function CineQPage() {
         <h2 className="text-xl font-bold text-white mb-2">Choose Difficulty</h2>
         <p className="text-sm text-[var(--foreground-muted)] mb-6">{typeInfo?.label} · {mode === "daily" ? "Daily Challenge" : "Practice"}</p>
         <div className="space-y-3">
-          {DIFFS.map(({ value, label, desc, color }) => {
+          {DIFFS.map(({ value, label, desc, color, multiplier }) => {
             const played = mode === "daily" && stats?.playedToday?.includes(`${mediaType}-${value}`);
             return (
               <button
@@ -389,7 +389,10 @@ export default function CineQPage() {
                 disabled={!!played}
                 className={`w-full p-4 rounded-xl text-left transition-colors ${played ? "bg-[var(--surface)] border border-green-500/30 opacity-50 cursor-not-allowed" : `${color} text-white`}`}
               >
-                <p className="font-bold text-lg">{label}</p>
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-lg">{label}</p>
+                  <span className="text-sm font-bold opacity-80 bg-white/20 px-2 py-0.5 rounded">{multiplier} pts</span>
+                </div>
                 <p className="text-sm opacity-80">{desc}</p>
                 {played && <p className="text-xs text-green-400 mt-1">Already played today</p>}
               </button>

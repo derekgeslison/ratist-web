@@ -58,7 +58,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             { href: "/admin/users", label: "Users", icon: Users },
             { href: "/admin/moderation", label: "Moderation", icon: Flag },
             { href: "/admin/spotlights", label: "Spotlights", icon: Megaphone },
-            { href: "/admin/invite-codes", label: "Invite Codes", icon: KeyRound },
             { href: "/admin/logs", label: "Activity Log", icon: ScrollText },
             { href: "/admin/oscar-picks", label: "Oscar Picks", icon: Trophy },
             { href: "/admin/movie-club", label: "Movie Club", icon: Clapperboard },

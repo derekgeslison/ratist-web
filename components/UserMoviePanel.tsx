@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw, Plus } from "lucide-react";
+import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw, Plus, CalendarDays } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
@@ -114,6 +114,23 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   }, [user, tmdbId, authLoading]);
 
   const [seenError, setSeenError] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [seenDate, setSeenDate] = useState("");
+  const [savingDate, setSavingDate] = useState(false);
+
+  async function saveSeenDate(date: string) {
+    if (!user || !date) return;
+    setSavingDate(true);
+    const token = await user.getIdToken();
+    await fetch(`/api/movies/${tmdbId}/seen`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ watchedDate: date }),
+    }).catch(() => null);
+    setSeenDate(date);
+    setShowDatePicker(false);
+    setSavingDate(false);
+  }
 
   async function toggleSeen() {
     if (!user) return;
@@ -301,6 +318,38 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                 {seenError && (
                   <div className="absolute top-full left-0 mt-2 z-30 w-64 bg-[var(--surface)] border border-red-500/50 rounded-lg px-3 py-2 shadow-xl text-xs text-red-400">
                     {seenError}
+                  </div>
+                )}
+                {/* Date picker */}
+                {seen && (
+                  <button
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    title="Set watched date"
+                    className="p-2 text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                  </button>
+                )}
+                {showDatePicker && (
+                  <div className="absolute top-full left-0 mt-2 z-30 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-xl">
+                    <p className="text-xs text-[var(--foreground-muted)] mb-2">When did you watch this?</p>
+                    <input
+                      type="date"
+                      value={seenDate}
+                      onChange={(e) => setSeenDate(e.target.value)}
+                      max={new Date().toISOString().slice(0, 10)}
+                      className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] mb-2 w-full"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => saveSeenDate(seenDate)}
+                        disabled={!seenDate || savingDate}
+                        className="px-3 py-1 bg-[var(--ratist-red)] text-white text-xs font-semibold rounded-lg disabled:opacity-50"
+                      >
+                        {savingDate ? "..." : "Save"}
+                      </button>
+                      <button onClick={() => setShowDatePicker(false)} className="px-3 py-1 text-xs text-[var(--foreground-muted)] hover:text-white">Cancel</button>
+                    </div>
                   </div>
                 )}
               </div>

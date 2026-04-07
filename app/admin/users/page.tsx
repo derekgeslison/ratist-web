@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Search, Shield, ShieldOff, ExternalLink, Trash2, RotateCcw, Ban, Clock, AlertTriangle } from "lucide-react";
+import { Search, Shield, ShieldOff, ExternalLink, Trash2, RotateCcw, Ban, Clock, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface AdminUser {
   id: string;
@@ -67,6 +67,19 @@ export default function AdminUsersPage() {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ userId, action, ...extra }),
+    });
+    await fetchUsers();
+    setActionId(null);
+  }
+
+  async function regenerateInviteCode(userId: string) {
+    if (!user || !window.confirm("Regenerate this user's invite code? Their old code will stop working.")) return;
+    setActionId(userId);
+    const token = await user.getIdToken();
+    await fetch("/api/admin/invite-codes", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
     });
     await fetchUsers();
     setActionId(null);
@@ -275,12 +288,23 @@ export default function AdminUsersPage() {
                       {tab === "active" && !u.isOwner && (
                         <>
                           <button
-                            onClick={() => doAction(u.id, "toggleAdmin")}
+                            onClick={() => {
+                              const msg = u.isAdmin ? `Remove admin access from ${u.name}?` : `Grant admin access to ${u.name}?`;
+                              if (window.confirm(msg)) doAction(u.id, "toggleAdmin");
+                            }}
                             disabled={!!actionId}
                             title={u.isAdmin ? "Remove admin" : "Make admin"}
                             className="p-1.5 rounded text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50"
                           >
                             {u.isAdmin ? <ShieldOff className="w-3.5 h-3.5 text-[var(--ratist-red)]" /> : <Shield className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => regenerateInviteCode(u.id)}
+                            disabled={!!actionId}
+                            title="Regenerate invite code"
+                            className="p-1.5 rounded text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors disabled:opacity-50"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setBanDialog(u.id)}

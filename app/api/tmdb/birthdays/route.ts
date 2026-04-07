@@ -7,10 +7,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const today = new Date();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
+    // Use US Eastern time to match primary audience timezone
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
     const todayStr = `${month}-${day}`;
+    const today = now;
     const seen = new Set<number>();
 
     const results: { id: number; name: string; profilePath: string | null; department: string; birthday: string; age: number; popularity: number }[] = [];
