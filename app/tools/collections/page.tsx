@@ -132,11 +132,8 @@ export default function CollectionsPage() {
   }
 
   if (!user) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-20 text-center text-[var(--foreground-muted)]">
-        <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to see your personalized collections.
-      </div>
-    );
+    router.replace("/backstage-pass/collections");
+    return null;
   }
 
   useEffect(() => {

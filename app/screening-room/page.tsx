@@ -114,11 +114,8 @@ export default function ScreeningRoomDashboard() {
   }
 
   if (!user) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-20 text-center text-[var(--foreground-muted)]">
-        <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to use the Screening Room.
-      </div>
-    );
+    router.replace("/backstage-pass/screening-room");
+    return null;
   }
 
   const activeSessions = sessions.filter((s) => s.status !== "COMPLETE");
