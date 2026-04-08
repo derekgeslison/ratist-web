@@ -9,11 +9,15 @@ const DDD_BASE = "https://www.doesthedogdie.com";
 // A topic is "confirmed" when yes > 70% of votes AND at least 3 total votes
 interface TopicDef { id: number; label: string; weight: number }
 
-const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number] }[] = [
+// maxContributors: limits how many confirmed topics can contribute to the
+// weighted score, preventing categories with many topics from always hitting "severe".
+// Only the top N contributors (by effective weight) are counted.
+const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number]; maxContributors: number }[] = [
   {
     name: "Violence & Gore",
     // None: 0 / Mild: 1-3 / Moderate: 4-9 / Severe: 10+
     thresholds: [3, 9, 10],
+    maxContributors: 5, // 16 topics, only top 5 count
     topics: [
       // Heavy (3)
       { id: 267, label: "Excessive gore", weight: 3 },
@@ -41,6 +45,7 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
     name: "Sexual Content",
     // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
     thresholds: [2, 5, 6],
+    maxContributors: 3, // 6 topics, only top 3 count
     topics: [
       // Heavy (3)
       { id: 292, label: "Onscreen sexual assault", weight: 3 },
@@ -57,6 +62,7 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
     name: "Language & Substance",
     // None: 0 / Mild: 1-3 / Moderate: 4-7 / Severe: 8 (all 3 confirmed)
     thresholds: [3, 7, 8],
+    maxContributors: 3, // only 3 topics, no effective cap
     topics: [
       // Heavy (3)
       { id: 193, label: "Drug use", weight: 3 },
@@ -69,6 +75,7 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
     name: "Scary & Intense",
     // None: 0 / Mild: 1-3 / Moderate: 4-8 / Severe: 9+
     thresholds: [3, 8, 9],
+    maxContributors: 4, // 8 topics, only top 4 count
     topics: [
       // Heavy (3)
       { id: 206, label: "Seizures", weight: 3 },
@@ -87,6 +94,7 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
     name: "Sensitive Themes",
     // None: 0 / Mild: 1-3 / Moderate: 4-9 / Severe: 10+
     thresholds: [3, 9, 10],
+    maxContributors: 5, // 10 topics, only top 5 count
     topics: [
       // Heavy (3)
       { id: 187, label: "Suicide", weight: 3 },
@@ -192,9 +200,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // Step 3: Score each category using weighted confirmed topics
     const categories = CATEGORIES.map((cat) => {
-      let weightedScore = 0;
       let totalVotes = 0;
       const details: { label: string; yes: number; no: number; weight: number; confirmed: boolean }[] = [];
+      const contributions: number[] = []; // effective weight of each confirmed topic
 
       for (const topic of cat.topics) {
         const votes = topicVotes.get(topic.id);
@@ -208,7 +216,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         // contributes much less than a strongly-confirmed one (95% yes)
         if (confirmed) {
           const strength = confirmationStrength(votes.yes, votes.no);
-          weightedScore += topic.weight * strength;
+          contributions.push(topic.weight * strength);
         }
 
         details.push({
@@ -219,6 +227,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           confirmed,
         });
       }
+
+      // Only count the top N contributors by effective weight,
+      // so categories with many topics don't inflate to "severe"
+      contributions.sort((a, b) => b - a);
+      const capped = contributions.slice(0, cat.maxContributors);
+      const weightedScore = capped.reduce((sum, w) => sum + w, 0);
 
       // Sort: confirmed first (by weight desc), then unconfirmed by yes count
       details.sort((a, b) => {
