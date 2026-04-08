@@ -290,17 +290,20 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
           <div className="mb-5">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Preview</p>
             <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: darkenHex(surface, 8) }}>
-              {/* Banner gradient or image */}
-              {headerImage ? (
-                <div style={{ height: 56, position: "relative", overflow: "hidden" }}>
-                  <Image src={headerImage} alt="" fill className="object-cover" unoptimized style={{ objectPosition: `center ${headerPosition}%` }} />
-                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.5), transparent)" }} />
-                </div>
-              ) : (
-                <div style={{ height: 56, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
-              )}
+              {/* Banner gradient or image — isolated z-index */}
+              <div style={{ position: "relative", zIndex: 0 }}>
+                {headerImage ? (
+                  <div style={{ height: 56, position: "relative", overflow: "hidden" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={headerImage} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `center ${headerPosition}%` }} />
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.2), transparent)" }} />
+                  </div>
+                ) : (
+                  <div style={{ height: 56, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
+                )}
+              </div>
               {/* Profile content area — avatar overlaps banner bottom */}
-              <div style={{ background: darkenHex(surface, 8), padding: "0 12px 12px" }}>
+              <div style={{ background: darkenHex(surface, 8), padding: "0 12px 12px", position: "relative", zIndex: 1 }}>
                 <div className="flex items-end gap-2 mb-2" style={{ marginTop: -12 }}>
                   <div className="rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ width: 28, height: 28, border: `2px solid ${darkenHex(surface, 8)}`, background: accent, color: surface, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
                     U
