@@ -131,17 +131,15 @@ export default function CollectionsPage() {
     }
   }
 
-  if (authLoading) return null;
-  if (!user) {
-    router.replace("/backstage-pass/collections");
-    return null;
-  }
-
   useEffect(() => {
     if (!subLoading && !hasPass) router.replace("/backstage-pass/collections");
   }, [subLoading, hasPass, router]);
 
-  if (subLoading || !hasPass) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/backstage-pass/collections");
+  }, [authLoading, user, router]);
+
+  if (authLoading || subLoading || !hasPass || !user) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

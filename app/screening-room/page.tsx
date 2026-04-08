@@ -113,11 +113,11 @@ export default function ScreeningRoomDashboard() {
     fetchSessions();
   }
 
-  if (authLoading) return null;
-  if (!user) {
-    router.replace("/backstage-pass/screening-room");
-    return null;
-  }
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/backstage-pass/screening-room");
+  }, [authLoading, user, router]);
+
+  if (authLoading || !user) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
 
   const activeSessions = sessions.filter((s) => s.status !== "COMPLETE");
   const completedSessions = sessions.filter((s) => s.status === "COMPLETE");
