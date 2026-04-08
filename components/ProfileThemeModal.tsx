@@ -296,7 +296,8 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
                   <div style={{ height: 56, position: "relative", overflow: "hidden" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={headerImage} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `center ${headerPosition}%` }} />
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.2), transparent)" }} />
+                    <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${darkenHex(surface, 8)}, ${darkenHex(surface, 8)}99, transparent)` }} />
+                    <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to right, ${darkenHex(surface, 8)}cc, transparent, transparent)` }} />
                   </div>
                 ) : (
                   <div style={{ height: 56, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />

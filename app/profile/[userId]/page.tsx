@@ -358,32 +358,30 @@ export default async function ProfilePage({ params }: Props) {
         {theme?.headerImage ? (
           <div className="h-40 sm:h-52 w-full overflow-hidden relative">
             <Image src={theme.headerImage} alt="" fill className="object-cover" unoptimized style={{ objectPosition: `center ${theme.headerPosition ?? 50}%` }} />
-            {/* Gradient overlay for text readability over image */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/80 via-transparent to-transparent" />
           </div>
         ) : (
           <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--surface)] via-[var(--surface-2)] to-[var(--ratist-red)]" />
         )}
 
-        {/* Avatar — overlaps the banner */}
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Theme button — aligned with content */}
-          <div className="relative">
-            <div className="absolute -top-10 sm:-top-12 right-0 z-10">
-              <ProfileThemeButton profileFirebaseUid={user.firebaseUid} currentTheme={theme} />
-            </div>
+        {/* Profile info — sits below the banner */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+          {/* Theme button row */}
+          <div className="flex justify-end mb-3">
+            <ProfileThemeButton profileFirebaseUid={user.firebaseUid} currentTheme={theme} />
           </div>
-          <div className="relative -mt-14 sm:-mt-16 mb-4 flex items-end gap-5">
-            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-[var(--profile-surface-2,var(--surface-2))] border-4 border-[var(--background)] shrink-0 shadow-xl">
+          <div className="flex items-start gap-5 mb-4">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-[var(--profile-surface-2,var(--surface-2))] border-2 border-[var(--border)] shrink-0">
               {user.avatarUrl ? (
-                <Image src={user.avatarUrl} alt={user.name} fill sizes="112px" className="object-cover" unoptimized />
+                <Image src={user.avatarUrl} alt={user.name} fill sizes="96px" className="object-cover" unoptimized />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-white bg-[var(--profile-accent,var(--ratist-red))]">
+                <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-white bg-[var(--profile-accent,var(--ratist-red))]">
                   {user.name[0]?.toUpperCase()}
                 </div>
               )}
             </div>
-            <div className="flex-1 min-w-0 pb-1">
+            <div className="flex-1 min-w-0 pt-1">
               <ProfileHeader
                 userName={user.name}
                 bio={user.bio}
