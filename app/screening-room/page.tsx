@@ -38,7 +38,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 export default function ScreeningRoomDashboard() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { hasPass } = useSubscription();
   const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -113,6 +113,7 @@ export default function ScreeningRoomDashboard() {
     fetchSessions();
   }
 
+  if (authLoading) return null;
   if (!user) {
     router.replace("/backstage-pass/screening-room");
     return null;

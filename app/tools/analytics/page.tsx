@@ -89,7 +89,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 }
 
 export default function AnalyticsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { hasPass, loading: subLoading } = useSubscription();
   const router = useRouter();
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -166,6 +166,7 @@ export default function AnalyticsPage() {
     return reportSortAsc ? av - bv : bv - av;
   });
 
+  if (authLoading) return null;
   if (!user) {
     router.replace("/backstage-pass/analytics");
     return null;

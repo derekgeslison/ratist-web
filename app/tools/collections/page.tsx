@@ -28,7 +28,7 @@ interface Collection {
 }
 
 export default function CollectionsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { hasPass, loading: subLoading } = useSubscription();
   const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -131,6 +131,7 @@ export default function CollectionsPage() {
     }
   }
 
+  if (authLoading) return null;
   if (!user) {
     router.replace("/backstage-pass/collections");
     return null;
