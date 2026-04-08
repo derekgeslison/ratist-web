@@ -88,10 +88,17 @@ export default function ParentsGuide({ tmdbId, title }: { tmdbId: number; title:
 
   return (
     <div className="space-y-3">
+      {/* Disclaimer — always shown */}
+      <div className="flex items-start gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3">
+        <ShieldAlert className="w-4 h-4 text-[var(--foreground-muted)] shrink-0 mt-0.5" />
+        <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
+          This guide is community-sourced and may not always be accurate. Severity ratings reflect whether content <em>exists</em> in the title, not how frequently or seriously it is portrayed. Use your own judgment.
+        </p>
+      </div>
       {limitedData && (
         <div className="flex items-start gap-2 bg-yellow-400/5 border border-yellow-400/20 rounded-xl px-4 py-3">
           <ShieldAlert className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-yellow-400/80">This guide has limited community data and may not reflect all content in this film.</p>
+          <p className="text-xs text-yellow-400/80">This guide has limited community data and may not reflect all content in this title.</p>
         </div>
       )}
       {data.categories.map((cat) => {

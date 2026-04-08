@@ -112,8 +112,19 @@ interface DDDTopicStat {
 }
 
 function isConfirmed(yes: number, no: number): boolean {
-  if (yes === 0) return false;
-  return yes / (yes + no) > 0.7;
+  const total = yes + no;
+  if (total < 3) return false; // Require at least 3 votes for any confirmation
+  return yes / total > 0.7;
+}
+
+/** Returns 0-1 confidence factor: how far above the 70% threshold the yes ratio is */
+function confirmationStrength(yes: number, no: number): number {
+  const total = yes + no;
+  if (total < 3) return 0;
+  const ratio = yes / total;
+  if (ratio <= 0.7) return 0;
+  // Scale from 0 at 70% to 1 at 100%
+  return Math.min(1, (ratio - 0.7) / 0.3);
 }
 
 function getSeverity(score: number, thresholds: [number, number, number]): "none" | "mild" | "moderate" | "severe" {
@@ -193,7 +204,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
         totalVotes += total;
         const confirmed = isConfirmed(votes.yes, votes.no);
-        if (confirmed) weightedScore += topic.weight;
+        // Scale weight by confidence: a barely-confirmed topic (71% yes)
+        // contributes much less than a strongly-confirmed one (95% yes)
+        if (confirmed) {
+          const strength = confirmationStrength(votes.yes, votes.no);
+          weightedScore += topic.weight * strength;
+        }
 
         details.push({
           label: topic.label,
