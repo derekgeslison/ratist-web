@@ -63,13 +63,12 @@ export default function BackstagePassPage() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
       <div className="text-center mb-12">
-        <div className="inline-flex items-center gap-2 bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 rounded-full px-4 py-1.5 mb-4">
-          <Ticket className="w-4 h-4 text-[var(--ratist-red)]" />
-          <span className="text-sm font-semibold text-[var(--ratist-red)]">Backstage Pass</span>
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-400/10 border border-amber-400/30 mb-4">
+          <Ticket className="w-8 h-8 text-amber-400" />
         </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Unlock the Full Experience</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-amber-400 mb-3">Backstage Pass</h1>
         <p className="text-lg text-[var(--foreground-muted)] max-w-xl mx-auto">
-          Get premium tools, host screening rooms, customize your profile, and enjoy The Ratist ad-free.
+          Unlock premium tools, host screening rooms, customize your profile, and enjoy The Ratist ad-free.
         </p>
       </div>
 

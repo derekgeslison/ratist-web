@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, MessageSquare, Settings, BookOpen, Swords, Star, Bell } from "lucide-react";
+import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Swords, Star, Bell, Ticket } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import QuickSearch from "./QuickSearch";
@@ -175,10 +175,13 @@ export default function Navbar() {
                       <Bookmark className="w-4 h-4" /> My Watchlists
                     </Link>
                     <Link href="/tools/rankings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
-                      <MessageSquare className="w-4 h-4" /> My Rankings
+                      <ListOrdered className="w-4 h-4" /> My Rankings
                     </Link>
                     <Link href="/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <Settings className="w-4 h-4" /> Preferences
+                    </Link>
+                    <Link href="/backstage-pass" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-[var(--surface-2)] transition-colors">
+                      <Ticket className="w-4 h-4" /> Backstage Pass
                     </Link>
                     <Link href="/about" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <BookOpen className="w-4 h-4" /> About The Ratist
@@ -227,30 +230,31 @@ export default function Navbar() {
             ))}
             <div className="border-t border-[var(--border)] my-1" />
             <p className="py-1 text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium">Read</p>
-            {READ_LINKS.map(({ href, label }) => (
-              <Link key={href} href={href} onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors pl-2">
-                {label}
+            {READ_LINKS.map(({ href, label, icon: Icon }) => (
+              <Link key={href} href={href} onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors pl-2">
+                <Icon className="w-4 h-4" /> {label}
               </Link>
             ))}
             <div className="border-t border-[var(--border)] my-1" />
             {user ? (
               <>
-                <Link href={`/profile/${user.uid}`} onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Profile</Link>
-                <Link href="/seen" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Film Diary</Link>
-                <Link href="/ratings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Ratings</Link>
-                <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Watchlists</Link>
-                <Link href="/tools/rankings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">My Rankings</Link>
-                <Link href="/notifications" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors flex items-center gap-2">
-                  Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{unreadCount > 9 ? "9+" : unreadCount}</span>}
+                <Link href={`/profile/${user.uid}`} onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><User className="w-4 h-4" /> My Profile</Link>
+                <Link href="/seen" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Eye className="w-4 h-4" /> Film Diary</Link>
+                <Link href="/ratings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Star className="w-4 h-4" /> My Ratings</Link>
+                <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Bookmark className="w-4 h-4" /> My Watchlists</Link>
+                <Link href="/tools/rankings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><ListOrdered className="w-4 h-4" /> My Rankings</Link>
+                <Link href="/notifications" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+                  <Bell className="w-4 h-4" /> Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ml-1">{unreadCount > 9 ? "9+" : unreadCount}</span>}
                 </Link>
-                <Link href="/settings" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Preferences</Link>
-                <Link href="/about" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">About The Ratist</Link>
-                <button onClick={() => { signOut(); setMenuOpen(false); }} className="text-left py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Sign Out</button>
+                <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Settings className="w-4 h-4" /> Preferences</Link>
+                <Link href="/backstage-pass" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"><Ticket className="w-4 h-4" /> Backstage Pass</Link>
+                <Link href="/about" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><BookOpen className="w-4 h-4" /> About The Ratist</Link>
+                <button onClick={() => { signOut(); setMenuOpen(false); }} className="flex items-center gap-2.5 text-left py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><LogOut className="w-4 h-4" /> Sign Out</button>
               </>
             ) : (
               <>
-                <Link href="/about" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">About The Ratist</Link>
-                <Link href="/auth/signin" onClick={() => setMenuOpen(false)} className="py-2 text-sm text-[var(--ratist-red)] font-medium">Sign In</Link>
+                <Link href="/about" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><BookOpen className="w-4 h-4" /> About The Ratist</Link>
+                <Link href="/auth/signin" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--ratist-red)] font-medium"><User className="w-4 h-4" /> Sign In</Link>
               </>
             )}
           </nav>
