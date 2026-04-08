@@ -29,6 +29,7 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
   const [uploadError, setUploadError] = useState("");
   const [headerPosition, setHeaderPosition] = useState(currentTheme?.headerPosition ?? 50);
   const [repositioning, setRepositioning] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ startY: number; startPos: number } | null>(null);
 
@@ -289,67 +290,88 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
 
           {/* Live preview — uses explicit inline colors, fully opaque */}
           <div className="mb-5">
-            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Preview</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium">Preview</p>
+              <div className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-0.5">
+                <button
+                  onClick={() => setPreviewMode("desktop")}
+                  className={`text-[10px] font-medium px-2.5 py-1 rounded transition-colors ${previewMode === "desktop" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+                >
+                  Desktop
+                </button>
+                <button
+                  onClick={() => setPreviewMode("mobile")}
+                  className={`text-[10px] font-medium px-2.5 py-1 rounded transition-colors ${previewMode === "mobile" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+                >
+                  Mobile
+                </button>
+              </div>
+            </div>
+
+            <div className={`${previewMode === "mobile" ? "max-w-[200px] mx-auto" : ""}`}>
             <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: darkenHex(surface, 8) }}>
-              {/* Banner gradient or image — isolated z-index */}
+              {/* Banner — taller on mobile to match real h-40 vs h-52 aspect */}
               <div style={{ position: "relative", zIndex: 0 }}>
                 {headerImage ? (
-                  <div style={{ height: 56, position: "relative", overflow: "hidden" }}>
+                  <div style={{ height: previewMode === "mobile" ? 72 : 56, position: "relative", overflow: "hidden" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={headerImage} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `center ${headerPosition}%` }} />
                     <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${darkenHex(surface, 8)}, ${darkenHex(surface, 8)}99, transparent)` }} />
                     <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to right, ${darkenHex(surface, 8)}cc, transparent, transparent)` }} />
                   </div>
                 ) : (
-                  <div style={{ height: 56, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
+                  <div style={{ height: previewMode === "mobile" ? 72 : 56, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
                 )}
               </div>
-              {/* Profile content area — avatar overlaps banner bottom */}
-              <div style={{ background: darkenHex(surface, 8), padding: "0 12px 12px", position: "relative", zIndex: 1 }}>
-                <div className="flex items-end gap-2 mb-2" style={{ marginTop: -12 }}>
-                  <div className="rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ width: 28, height: 28, border: `2px solid ${darkenHex(surface, 8)}`, background: accent, color: surface, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+              {/* Profile content area */}
+              <div style={{ background: darkenHex(surface, 8), padding: previewMode === "mobile" ? "0 8px 10px" : "0 12px 12px", position: "relative", zIndex: 1 }}>
+                <div className={`flex ${previewMode === "mobile" ? "flex-col items-center text-center" : "items-end"} gap-2 mb-2`} style={{ marginTop: previewMode === "mobile" ? 8 : -12 }}>
+                  <div className="rounded-full flex items-center justify-center font-bold shrink-0" style={{ width: previewMode === "mobile" ? 24 : 28, height: previewMode === "mobile" ? 24 : 28, fontSize: previewMode === "mobile" ? 9 : 12, border: `2px solid ${darkenHex(surface, 8)}`, background: accent, color: surface, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
                     U
                   </div>
-                  <div style={{ paddingBottom: 2 }}>
-                    <p className="text-xs font-bold" style={{ color: text }}>Username</p>
-                    <p className="text-[10px]" style={{ color: muted }}>Movie enthusiast</p>
+                  <div style={{ paddingBottom: previewMode === "mobile" ? 0 : 2 }}>
+                    <p className="font-bold" style={{ color: text, fontSize: previewMode === "mobile" ? 10 : 12 }}>Username</p>
+                    <p style={{ color: muted, fontSize: previewMode === "mobile" ? 8 : 10 }}>Movie enthusiast</p>
                   </div>
                 </div>
-                <div className="flex gap-3 text-[10px] mb-2" style={{ color: muted }}>
+                <div className={`flex ${previewMode === "mobile" ? "justify-center" : ""} gap-3 mb-2`} style={{ color: muted, fontSize: previewMode === "mobile" ? 8 : 10 }}>
                   <span><strong style={{ color: text }}>42</strong> rated</span>
                   <span><strong style={{ color: text }}>67</strong> seen</span>
                   <span>Avg <strong style={{ color: accent }}>7.2</strong></span>
                 </div>
-                <div className="flex gap-1">
+                <div className={`flex gap-1 ${previewMode === "mobile" ? "justify-center" : ""}`}>
                   {["Overview", "Ratings", "Diary"].map((t, i) => (
                     <div
                       key={t}
-                      className="text-[9px] font-medium px-2 py-0.5 rounded"
-                      style={i === 0 ? { background: accent, color: surface } : { background: surface2, color: muted }}
+                      className="font-medium rounded"
+                      style={{ fontSize: previewMode === "mobile" ? 7 : 9, padding: previewMode === "mobile" ? "2px 4px" : "2px 8px", ...(i === 0 ? { background: accent, color: surface } : { background: surface2, color: muted }) }}
                     >
                       {t}
                     </div>
                   ))}
                 </div>
-                {/* Sample content card — bars use score-based colors like the real page */}
-                <div className="mt-2 rounded-lg" style={{ background: surface, border: `1px solid ${border}`, padding: "8px 10px" }}>
-                  <p className="text-[10px] font-semibold" style={{ color: text }}>Movie Component Preferences</p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[9px]" style={{ color: muted }}>Narrative</span>
-                    <div className="flex-1 rounded-full" style={{ height: 4, background: surface2 }}>
-                      <div className="rounded-full" style={{ height: 4, width: "75%", background: "#22c55e" }} />
+                {/* Sample content card */}
+                {previewMode === "desktop" && (
+                  <div className="mt-2 rounded-lg" style={{ background: surface, border: `1px solid ${border}`, padding: "8px 10px" }}>
+                    <p className="text-[10px] font-semibold" style={{ color: text }}>Movie Component Preferences</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[9px]" style={{ color: muted }}>Narrative</span>
+                      <div className="flex-1 rounded-full" style={{ height: 4, background: surface2 }}>
+                        <div className="rounded-full" style={{ height: 4, width: "75%", background: "#22c55e" }} />
+                      </div>
+                      <span className="text-[9px] font-semibold" style={{ color: "#22c55e" }}>7.5</span>
                     </div>
-                    <span className="text-[9px] font-semibold" style={{ color: "#22c55e" }}>7.5</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[9px]" style={{ color: muted }}>Cinematic</span>
-                    <div className="flex-1 rounded-full" style={{ height: 4, background: surface2 }}>
-                      <div className="rounded-full" style={{ height: 4, width: "55%", background: "#eab308" }} />
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px]" style={{ color: muted }}>Cinematic</span>
+                      <div className="flex-1 rounded-full" style={{ height: 4, background: surface2 }}>
+                        <div className="rounded-full" style={{ height: 4, width: "55%", background: "#eab308" }} />
+                      </div>
+                      <span className="text-[9px] font-semibold" style={{ color: "#eab308" }}>5.5</span>
                     </div>
-                    <span className="text-[9px] font-semibold" style={{ color: "#eab308" }}>5.5</span>
                   </div>
-                </div>
+                )}
               </div>
+            </div>
             </div>
           </div>
 
