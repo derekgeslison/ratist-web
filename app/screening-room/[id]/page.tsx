@@ -165,6 +165,8 @@ export default function ScreeningSessionPage() {
 
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
   const myUserId = session?.participants.find((p) => p.user.firebaseUid === user?.uid)?.userId ?? "";
+  const myUserIdRef = useRef(myUserId);
+  useEffect(() => { myUserIdRef.current = myUserId; }, [myUserId]);
   const isHost = session?.host?.id === myUserId;
   const isHostRef = useRef(false);
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
@@ -297,7 +299,7 @@ export default function ScreeningSessionPage() {
         if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:") && !justCreatedPollRef.current) {
           // Polls always ding (no throttle)
           playDing(880, 0.15);
-        } else if (pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
+        } else if (pingOnMessageRef.current && msg.userId !== myUserIdRef.current && msg.userId !== "system") {
           // Throttle regular message pings to once per 30 seconds
           const now = Date.now();
           if (now - lastPingTimeRef.current >= PING_THROTTLE_MS) {
