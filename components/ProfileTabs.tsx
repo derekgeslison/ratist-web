@@ -275,30 +275,36 @@ export default function ProfileTabs({
   return (
     <div>
       {/* Tab navigation */}
-      <div className="flex items-center gap-1 border-b border-[var(--border)] mb-8 overflow-x-auto">
+      <div className="flex items-center gap-1 mb-8 overflow-x-auto bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
         {(isOwnProfile ? TABS : visibleTabs).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`text-sm font-medium px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${
+            className={`text-sm font-medium px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap ${
               activeTab === tab
-                ? "border-[var(--ratist-red)] text-white"
-                : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+                ? "bg-[var(--ratist-red)] text-white shadow-sm"
+                : "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]"
             }`}
           >
             {tab}
             {tab === "Ratings" && stats.ratingCount > 0 && (
-              <span className="ml-1.5 text-xs bg-[var(--surface-2)] text-[var(--foreground-muted)] px-1.5 py-0.5 rounded-full">
+              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === tab ? "bg-white/20 text-white" : "bg-[var(--surface-2)] text-[var(--foreground-muted)]"
+              }`}>
                 {stats.ratingCount}
               </span>
             )}
             {tab === "Diary" && stats.seenCount > 0 && (
-              <span className="ml-1.5 text-xs bg-[var(--surface-2)] text-[var(--foreground-muted)] px-1.5 py-0.5 rounded-full">
+              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === tab ? "bg-white/20 text-white" : "bg-[var(--surface-2)] text-[var(--foreground-muted)]"
+              }`}>
                 {stats.seenCount}
               </span>
             )}
             {tab === "Watchlist" && stats.watchlistCount > 0 && (
-              <span className="ml-1.5 text-xs bg-[var(--surface-2)] text-[var(--foreground-muted)] px-1.5 py-0.5 rounded-full">
+              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === tab ? "bg-white/20 text-white" : "bg-[var(--surface-2)] text-[var(--foreground-muted)]"
+              }`}>
                 {stats.watchlistCount}
               </span>
             )}

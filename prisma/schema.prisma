@@ -85,6 +85,9 @@ model User {
   grantedBy            String?   @map("granted_by") // admin userId who granted manual sub
   grantedPromo         String?   @map("granted_promo") // e.g. "first_1000_reviews"
 
+  // Profile theme customization (Backstage Pass feature)
+  profileTheme         Json?     @map("profile_theme") // { preset?, accentColor?, surfaceColor?, textColor?, headerImage? }
+
   reportsMade      Report[]  @relation("reportsMade")
   reportsResolved  Report[]  @relation("reportsResolved")
   adminLogs        AdminLog[] @relation("adminLogs")

@@ -8,7 +8,9 @@ import { getRatingStatus } from "@/lib/rating-status";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
+import ProfileThemeWrapper from "@/components/ProfileThemeWrapper";
 import AdUnit from "@/components/AdUnit";
+import type { ProfileTheme } from "@/lib/themes";
 
 interface Props { params: Promise<{ userId: string }> }
 
@@ -34,7 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { userId } = await params;
   const user = await prisma.user.findFirst({
     where: { OR: [{ id: userId }, { firebaseUid: userId }] },
-    select: { name: true, bio: true, firebaseUid: true },
+    select: { name: true, bio: true, firebaseUid: true, profileTheme: true },
   });
   if (!user) return { title: "Profile" };
   const description = user.bio ?? `${user.name}'s movie and TV ratings on The Ratist`;
@@ -344,34 +346,56 @@ export default async function ProfilePage({ params }: Props) {
     allRatings.map((r) => [r.movie.tmdbId, getRatingStatus(r)])
   );
 
+  const theme = (user.profileTheme as ProfileTheme | null) ?? null;
+
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Profile header */}
-      <div className="flex items-start gap-6 mb-8">
-        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-[var(--surface-2)] border-2 border-[var(--border)] shrink-0">
-          {user.avatarUrl ? (
-            <Image src={user.avatarUrl} alt={user.name} fill sizes="96px" className="object-cover" unoptimized />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-white bg-[var(--ratist-red)]">
-              {user.name[0]?.toUpperCase()}
+    <ProfileThemeWrapper theme={theme}>
+    <div>
+      {/* Banner / Header area */}
+      <div className="relative">
+        {/* Banner image or gradient */}
+        {theme?.headerImage ? (
+          <div className="h-40 sm:h-52 w-full overflow-hidden">
+            <Image src={theme.headerImage} alt="" fill className="object-cover" unoptimized />
+          </div>
+        ) : (
+          <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--profile-surface,var(--surface))] via-[var(--profile-surface-2,var(--surface-2))] to-[var(--profile-accent,var(--ratist-red))]/20" />
+        )}
+
+        {/* Avatar — overlaps the banner */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative -mt-14 sm:-mt-16 mb-4 flex items-end gap-5">
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-[var(--profile-surface-2,var(--surface-2))] border-4 border-[var(--background)] shrink-0 shadow-xl">
+              {user.avatarUrl ? (
+                <Image src={user.avatarUrl} alt={user.name} fill sizes="112px" className="object-cover" unoptimized />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-white bg-[var(--profile-accent,var(--ratist-red))]">
+                  {user.name[0]?.toUpperCase()}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <ProfileHeader
-            userName={user.name}
-            bio={user.bio}
-            isPrivate={user.isPrivate}
-            profileFirebaseUid={user.firebaseUid}
-            profileUserId={user.id}
-            inviteCode={user.inviteCode}
-            ratingCount={ratingCount + tvRatingCount}
-            seenCount={seenCount + tvSeenCount}
-            avgRating={avgRatingValue}
-            memberSince={user.createdAt.getFullYear()}
-          />
+            <div className="flex-1 min-w-0 pb-1">
+              <ProfileHeader
+                userName={user.name}
+                bio={user.bio}
+                isPrivate={user.isPrivate}
+                profileFirebaseUid={user.firebaseUid}
+                profileUserId={user.id}
+                inviteCode={user.inviteCode}
+                ratingCount={ratingCount + tvRatingCount}
+                tvRatingCount={tvRatingCount}
+                seenCount={seenCount + tvSeenCount}
+                tvSeenCount={tvSeenCount}
+                avgRating={avgRatingValue}
+                memberSince={user.createdAt.getFullYear()}
+                hasTheme={!!theme}
+              />
+            </div>
+          </div>
         </div>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PROFILE ?? ""} format="auto" className="mb-4" />
 
@@ -475,6 +499,8 @@ export default async function ProfilePage({ params }: Props) {
         movieClubMember={!!movieClubMember}
         movieClubWeeksParticipated={movieClubWeeksParticipated}
       />
+      </div>
     </div>
+    </ProfileThemeWrapper>
   );
 }

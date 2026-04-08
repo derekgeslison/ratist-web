@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Check, Save, Upload, X, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import ProfileThemeEditor from "@/components/ProfileThemeEditor";
 import { updateProfile } from "firebase/auth";
 
 const GENRES = [
@@ -562,6 +563,9 @@ export default function SettingsPage() {
           </span>
         )}
       </div>
+
+      {/* ── Profile Theme ── */}
+      <ProfileThemeEditor />
 
       {/* ── Subscription ── */}
       <section className="mb-10">

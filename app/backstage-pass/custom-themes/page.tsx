@@ -20,7 +20,7 @@ export default function CustomThemesFeaturePage() {
       <div className="mb-10 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
         <Palette className="w-8 h-8 text-amber-400 mx-auto mb-2" />
         <p className="text-sm text-[var(--foreground-muted)]">
-          Custom themes are coming soon! Subscribe to the Backstage Pass now and you&apos;ll have access as soon as they launch.
+          10 curated presets — Noir, Neon Nights, Golden Age, Horror, and more — plus full custom color controls. Your theme is visible to everyone who visits your profile.
         </p>
       </div>
     </FeatureShowcase>
