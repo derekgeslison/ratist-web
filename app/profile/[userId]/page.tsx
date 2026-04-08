@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import ProfileTabs from "@/components/ProfileTabs";
 import ProfileThemeWrapper from "@/components/ProfileThemeWrapper";
+import ProfileThemeButton from "@/components/ProfileThemeButton";
 import AdUnit from "@/components/AdUnit";
 import type { ProfileTheme } from "@/lib/themes";
 
@@ -361,6 +362,11 @@ export default async function ProfilePage({ params }: Props) {
         ) : (
           <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--profile-surface,var(--surface))] via-[var(--profile-surface-2,var(--surface-2))] to-[var(--profile-accent,var(--ratist-red))]/20" />
         )}
+
+        {/* Theme button — top right of banner */}
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
+          <ProfileThemeButton profileFirebaseUid={user.firebaseUid} currentTheme={theme} />
+        </div>
 
         {/* Avatar — overlaps the banner */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
