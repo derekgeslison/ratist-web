@@ -228,6 +228,11 @@ export default function MovieClubPage() {
                     )}
                   </div>
                 </div>
+                {/* Schedule reminder */}
+                <div className="border-t border-[var(--border)] px-5 py-2.5 flex items-center justify-between text-[11px] text-[var(--foreground-muted)]">
+                  <span>Reviews due by Sunday night</span>
+                  <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> Discussion opens Friday 8pm ET</span>
+                </div>
               </div>
             </section>
           )}
