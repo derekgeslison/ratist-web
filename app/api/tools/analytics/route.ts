@@ -46,6 +46,35 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // Fetch all TV show ratings
+    const allTVRatings = await prisma.tVShowRating.findMany({
+      where: { userId: user.id, ratingScope: "series" },
+      select: {
+        id: true, ratistRating: true, overallRating: true, createdAt: true, tvShowId: true,
+        storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
+        tvShow: {
+          select: {
+            name: true, firstAirDate: true, voteAverage: true, numberOfEpisodes: true, episodeRunTime: true,
+            genres: { select: { genre: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    // Fetch TV shows seen and episodes watched
+    const tvShowsSeen = await prisma.userFavoriteShow.findMany({
+      where: { userId: user.id },
+      select: {
+        tvShowId: true, createdAt: true,
+        tvShow: { select: { firstAirDate: true, genres: { select: { genre: { select: { name: true } } } } } },
+      },
+    });
+
+    const episodesSeen = await prisma.episodeSeen.findMany({
+      where: { userId: user.id },
+      select: { watchedDate: true, createdAt: true },
+    });
+
     // Fetch seen movies for watch dates + genre data
     const allSeen = await prisma.userFavoriteMovie.findMany({
       where: { userId: user.id },
@@ -355,6 +384,59 @@ export async function GET(req: NextRequest) {
       avgPerMonth = Math.round((datedSeen.length / monthSpan) * 10) / 10;
     }
 
+    // ── TV Show Stats ──
+    const tvRatedShows = allTVRatings.filter((r) => r.ratistRating != null);
+    const tvTotalRated = tvRatedShows.length;
+    const tvTotalSeen = tvShowsSeen.length;
+    const tvTotalEpisodes = episodesSeen.length;
+    const tvScores = tvRatedShows.map((r) => r.ratistRating!);
+    const tvAvgRating = tvScores.length > 0 ? Math.round((tvScores.reduce((a, b) => a + b, 0) / tvScores.length) * 10) / 10 : null;
+
+    // TV genre breakdown
+    const tvGenreMap = new Map<string, { count: number; totalScore: number; ratedCount: number }>();
+    const tvRatingByShowId = new Map(allTVRatings.map((r) => [r.tvShowId, r.ratistRating]));
+    for (const s of tvShowsSeen) {
+      const score = tvRatingByShowId.get(s.tvShowId) ?? null;
+      for (const g of s.tvShow.genres) {
+        const name = g.genre.name;
+        const entry = tvGenreMap.get(name) ?? { count: 0, totalScore: 0, ratedCount: 0 };
+        entry.count++;
+        if (score != null) { entry.totalScore += score; entry.ratedCount++; }
+        tvGenreMap.set(name, entry);
+      }
+    }
+    const tvGenres = [...tvGenreMap.entries()]
+      .map(([name, d]) => ({ name, count: d.count, avgRating: d.ratedCount > 0 ? Math.round((d.totalScore / d.ratedCount) * 10) / 10 : null }))
+      .sort((a, b) => b.count - a.count);
+
+    // TV rating distribution
+    const tvDistBuckets: Record<string, number> = {};
+    for (let i = 0; i <= 10; i++) tvDistBuckets[String(i)] = 0;
+    for (const s of tvScores) { tvDistBuckets[String(Math.floor(s))] = (tvDistBuckets[String(Math.floor(s))] ?? 0) + 1; }
+    const tvDistribution = Object.entries(tvDistBuckets).map(([score, count]) => ({ score: Number(score), count }));
+
+    // TV rating trend
+    const tvTrendMap = new Map<string, { total: number; count: number }>();
+    for (const r of tvRatedShows) {
+      const key = `${r.createdAt.getFullYear()}-${String(r.createdAt.getMonth() + 1).padStart(2, "0")}`;
+      const entry = tvTrendMap.get(key) ?? { total: 0, count: 0 };
+      entry.total += r.ratistRating!;
+      entry.count++;
+      tvTrendMap.set(key, entry);
+    }
+    const tvRatingTrend = [...tvTrendMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, d]) => ({ month, avgRating: Math.round((d.total / d.count) * 10) / 10, count: d.count }));
+
+    // Episode watching patterns (habits)
+    const datedEpisodes = episodesSeen.filter((e) => e.watchedDate != null);
+    const epSeasonalCounts = Array(12).fill(0) as number[];
+    const epDayCounts = Array(7).fill(0) as number[];
+    for (const e of datedEpisodes) {
+      epSeasonalCounts[e.watchedDate!.getMonth()]++;
+      epDayCounts[e.watchedDate!.getDay()]++;
+    }
+
     return NextResponse.json({
       overview: {
         totalRated, totalSeen, totalDated: datedSeen.length,
@@ -363,6 +445,17 @@ export async function GET(req: NextRequest) {
         avgMovieLength: totalSeen > 0 ? Math.round(totalRuntime / totalSeen) : null,
         avgMovieAge,
         profileType,
+      },
+      tv: {
+        totalRated: tvTotalRated,
+        totalSeen: tvTotalSeen,
+        totalEpisodes: tvTotalEpisodes,
+        avgRating: tvAvgRating,
+        genres: tvGenres,
+        distribution: tvDistribution,
+        ratingTrend: tvRatingTrend,
+        episodeSeasonal: MONTH_LABELS.map((month, i) => ({ month, count: epSeasonalCounts[i] })),
+        episodeDayOfWeek: DAY_LABELS.map((day, i) => ({ day, count: epDayCounts[i] })),
       },
       velocity,
       genres,

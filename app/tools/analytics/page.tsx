@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { BarChart3, Film, Clock, TrendingUp, Star, Users, Target, Zap, ChevronDown } from "lucide-react";
+import { BarChart3, Film, Clock, TrendingUp, Star, Users, Target, Zap, ChevronDown, Tv } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -10,8 +10,21 @@ import { scoreColor } from "@/lib/ratings";
 import ShareButton from "@/components/ShareButton";
 
 /* ── Types ── */
+interface TVData {
+  totalRated: number;
+  totalSeen: number;
+  totalEpisodes: number;
+  avgRating: number | null;
+  genres: { name: string; count: number; avgRating: number | null }[];
+  distribution: { score: number; count: number }[];
+  ratingTrend: { month: string; avgRating: number; count: number }[];
+  episodeSeasonal: { month: string; count: number }[];
+  episodeDayOfWeek: { day: string; count: number }[];
+}
+
 interface AnalyticsData {
   overview: { totalRated: number; totalSeen: number; totalDated: number; avgRating: number | null; totalRuntime: number; totalHours: number; avgMovieLength: number | null; avgMovieAge: number | null; profileType: string };
+  tv?: TVData;
   velocity: { month: string; count: number }[];
   genres: { name: string; count: number; avgRating: number | null }[];
   decades: { decade: string; count: number; avgRating: number | null }[];
@@ -284,6 +297,21 @@ export default function AnalyticsPage() {
                 <StatCard label="Total Watch Time" value={`${data.overview.totalHours}h`} sub={data.overview.avgMovieLength ? `~${data.overview.avgMovieLength} min avg` : undefined} />
               </div>
 
+              {/* TV Shows overview */}
+              {data.tv && (data.tv.totalSeen > 0 || data.tv.totalRated > 0) && (
+                <div>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Tv className="w-4 h-4 text-blue-400" /> TV Shows
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <StatCard label="Shows Rated" value={String(data.tv.totalRated)} />
+                    <StatCard label="Shows Seen" value={String(data.tv.totalSeen)} />
+                    <StatCard label="TV Avg Rating" value={data.tv.avgRating?.toFixed(1) ?? "—"} color={data.tv.avgRating ? scoreColor(data.tv.avgRating) : undefined} />
+                    <StatCard label="Episodes Watched" value={String(data.tv.totalEpisodes)} />
+                  </div>
+                </div>
+              )}
+
               {/* Velocity chart */}
               {data.velocity.length > 1 && (
                 <section>
@@ -422,6 +450,25 @@ export default function AnalyticsPage() {
                       <span key={b.genre} className="text-xs bg-[var(--surface)] border border-[var(--border)] rounded-full px-3 py-1 text-[var(--foreground-muted)]">
                         {b.genre} ({b.count})
                       </span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* TV Show genres */}
+              {data.tv && data.tv.genres.length > 0 && (
+                <section>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Tv className="w-4 h-4 text-blue-400" /> TV Show Genres
+                  </h3>
+                  <div className="space-y-2">
+                    {data.tv.genres.map((g) => (
+                      <div key={g.name} className="flex items-center gap-3">
+                        <span className="text-xs text-[var(--foreground-muted)] w-32 shrink-0 truncate">{g.name}</span>
+                        <Bar value={g.count} max={data.tv!.genres[0]?.count ?? 1} color={g.avgRating ? scoreColor(g.avgRating) : "#3b82f6"} />
+                        <span className="text-xs text-white w-8 text-right">{g.count}</span>
+                        {g.avgRating && <span className="text-xs font-bold w-8 text-right" style={{ color: scoreColor(g.avgRating) }}>{g.avgRating}</span>}
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -760,6 +807,69 @@ export default function AnalyticsPage() {
                     );
                   })()}
                 </section>
+              )}
+
+              {/* TV Episode watching habits */}
+              {data.tv && data.tv.totalEpisodes > 0 && (
+                <>
+                  <div className="border-t border-[var(--border)] pt-6">
+                    <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                      <Tv className="w-4 h-4 text-blue-400" /> Episode Watching Habits
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                      <StatCard label="Episodes Watched" value={String(data.tv.totalEpisodes)} />
+                      <StatCard label="Shows Seen" value={String(data.tv.totalSeen)} />
+                    </div>
+                  </div>
+
+                  {data.tv.episodeSeasonal.some((s) => s.count > 0) && (
+                    <section>
+                      <h3 className="text-sm font-semibold text-white mb-3">Episodes per Month</h3>
+                      {(() => {
+                        const maxCount = Math.max(...data.tv!.episodeSeasonal.map((x) => x.count), 1);
+                        const barHeight = 112;
+                        return (
+                          <div className="flex items-end gap-1" style={{ height: barHeight + 28 }}>
+                            {data.tv!.episodeSeasonal.map((s) => {
+                              const h = Math.round((s.count / maxCount) * barHeight);
+                              return (
+                                <div key={s.month} className="flex-1 flex flex-col items-center justify-end">
+                                  <span className="text-[9px] text-[var(--foreground-muted)] mb-1">{s.count > 0 ? s.count : ""}</span>
+                                  <div className="w-full bg-blue-500/70 rounded-t" style={{ height: h, minHeight: s.count > 0 ? 4 : 0 }} />
+                                  <span className="text-[9px] text-[var(--foreground-muted)] mt-1">{s.month}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </section>
+                  )}
+
+                  {data.tv.episodeDayOfWeek.some((d) => d.count > 0) && (
+                    <section>
+                      <h3 className="text-sm font-semibold text-white mb-3">Episodes by Day</h3>
+                      {(() => {
+                        const maxDay = Math.max(...data.tv!.episodeDayOfWeek.map((x) => x.count), 1);
+                        const barHeight = 112;
+                        return (
+                          <div className="flex items-end gap-2" style={{ height: barHeight + 28 }}>
+                            {data.tv!.episodeDayOfWeek.map((d) => {
+                              const h = Math.round((d.count / maxDay) * barHeight);
+                              return (
+                                <div key={d.day} className="flex-1 flex flex-col items-center justify-end">
+                                  <span className="text-[9px] text-[var(--foreground-muted)] mb-1">{d.count > 0 ? d.count : ""}</span>
+                                  <div className="w-full bg-blue-500/70 rounded-t" style={{ height: h, minHeight: d.count > 0 ? 4 : 0 }} />
+                                  <span className="text-[10px] text-[var(--foreground-muted)] mt-1">{d.day}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </section>
+                  )}
+                </>
               )}
 
             </div>
