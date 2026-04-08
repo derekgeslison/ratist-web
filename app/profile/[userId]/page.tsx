@@ -363,13 +363,14 @@ export default async function ProfilePage({ params }: Props) {
           <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--profile-surface,var(--surface))] via-[var(--profile-surface-2,var(--surface-2))] to-[var(--profile-accent,var(--ratist-red))]/20" />
         )}
 
-        {/* Theme button — top right of banner */}
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
-          <ProfileThemeButton profileFirebaseUid={user.firebaseUid} currentTheme={theme} />
-        </div>
-
         {/* Avatar — overlaps the banner */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Theme button — aligned with content */}
+          <div className="relative">
+            <div className="absolute -top-10 sm:-top-12 right-0 z-10">
+              <ProfileThemeButton profileFirebaseUid={user.firebaseUid} currentTheme={theme} />
+            </div>
+          </div>
           <div className="relative -mt-14 sm:-mt-16 mb-4 flex items-end gap-5">
             <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden bg-[var(--profile-surface-2,var(--surface-2))] border-4 border-[var(--background)] shrink-0 shadow-xl">
               {user.avatarUrl ? (

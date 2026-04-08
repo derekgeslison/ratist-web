@@ -131,20 +131,27 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
             </div>
           </div>
 
-          {/* Live preview */}
+          {/* Live preview — uses explicit inline colors, fully opaque */}
           <div className="mb-5">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Preview</p>
-            <div className="rounded-xl overflow-hidden border" style={{ borderColor: border, background: surface }}>
-              <div className="h-12" style={{ background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent}30)` }} />
-              <div className="px-3 pb-3 -mt-4">
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: "#0f0f0f" }}>
+              {/* Banner gradient */}
+              <div style={{ height: 48, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
+              {/* Profile content area */}
+              <div style={{ background: surface, padding: "0 12px 12px", marginTop: -16 }}>
                 <div className="flex items-end gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold" style={{ borderColor: surface, background: accent, color: surface }}>
+                  <div className="rounded-full flex items-center justify-center text-xs font-bold" style={{ width: 32, height: 32, border: `2px solid ${surface}`, background: accent, color: surface }}>
                     U
                   </div>
                   <div>
                     <p className="text-xs font-bold" style={{ color: text }}>Username</p>
-                    <p className="text-[10px]" style={{ color: muted }}>Bio text here</p>
+                    <p className="text-[10px]" style={{ color: muted }}>Movie enthusiast</p>
                   </div>
+                </div>
+                <div className="flex gap-3 text-[10px] mb-2" style={{ color: muted }}>
+                  <span><strong style={{ color: text }}>42</strong> rated</span>
+                  <span><strong style={{ color: text }}>67</strong> seen</span>
+                  <span>Avg <strong style={{ color: accent }}>7.2</strong></span>
                 </div>
                 <div className="flex gap-1">
                   {["Overview", "Ratings", "Diary"].map((t, i) => (
@@ -156,6 +163,22 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
                       {t}
                     </div>
                   ))}
+                </div>
+                {/* Sample content card */}
+                <div className="mt-2 rounded-lg" style={{ background: surface2, border: `1px solid ${border}`, padding: "8px 10px" }}>
+                  <p className="text-[10px] font-semibold" style={{ color: text }}>Movie Component Preferences</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[9px]" style={{ color: muted }}>Narrative</span>
+                    <div className="flex-1 rounded-full" style={{ height: 4, background: border }}>
+                      <div className="rounded-full" style={{ height: 4, width: "75%", background: accent }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px]" style={{ color: muted }}>Cinematic</span>
+                    <div className="flex-1 rounded-full" style={{ height: 4, background: border }}>
+                      <div className="rounded-full" style={{ height: 4, width: "55%", background: accent }} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
