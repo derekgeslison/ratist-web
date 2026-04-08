@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Swords, Star, Bell, Ticket } from "lucide-react";
+import { useSubscription } from "@/hooks/useSubscription";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import QuickSearch from "./QuickSearch";
@@ -15,6 +16,7 @@ const READ_LINKS = [
 
 export default function Navbar() {
   const { user, signOut } = useAuth();
+  const { hasPass } = useSubscription();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
@@ -180,9 +182,11 @@ export default function Navbar() {
                     <Link href="/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <Settings className="w-4 h-4" /> Settings
                     </Link>
-                    <Link href="/backstage-pass" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-[var(--surface-2)] transition-colors">
-                      <Ticket className="w-4 h-4" /> Backstage Pass
-                    </Link>
+                    {!hasPass && (
+                      <Link href="/backstage-pass" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-[var(--surface-2)] transition-colors">
+                        <Ticket className="w-4 h-4" /> Backstage Pass
+                      </Link>
+                    )}
                     <Link href="/about" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
                       <BookOpen className="w-4 h-4" /> About The Ratist
                     </Link>
@@ -247,7 +251,9 @@ export default function Navbar() {
                   <Bell className="w-4 h-4" /> Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ml-1">{unreadCount > 9 ? "9+" : unreadCount}</span>}
                 </Link>
                 <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Settings className="w-4 h-4" /> Settings</Link>
-                <Link href="/backstage-pass" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"><Ticket className="w-4 h-4" /> Backstage Pass</Link>
+                {!hasPass && (
+                  <Link href="/backstage-pass" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"><Ticket className="w-4 h-4" /> Backstage Pass</Link>
+                )}
                 <Link href="/about" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><BookOpen className="w-4 h-4" /> About The Ratist</Link>
                 <button onClick={() => { signOut(); setMenuOpen(false); }} className="flex items-center gap-2.5 text-left py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><LogOut className="w-4 h-4" /> Sign Out</button>
               </>

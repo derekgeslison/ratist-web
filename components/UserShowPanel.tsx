@@ -101,7 +101,13 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
     }).catch(() => null);
     if (res && !res.ok) {
       const data = await res.json().catch(() => ({}));
-      if (data.hasRating) { setSeenError("You can't un-mark this as seen because you have a rating for it. Delete your rating first."); setTimeout(() => setSeenError(null), 5000); }
+      if (data.hasRating) {
+        setSeenError("You can't un-mark this as seen because you have a rating for it. Delete your rating first.");
+        setTimeout(() => setSeenError(null), 5000);
+      } else if (data.hasEpisodes) {
+        setSeenError(data.error ?? "You have episodes marked as seen. Remove them first.");
+        setTimeout(() => setSeenError(null), 6000);
+      }
     } else if (res?.ok) {
       const data = await res.json();
       setSeen(data.seen);

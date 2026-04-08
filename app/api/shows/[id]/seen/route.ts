@@ -47,6 +47,19 @@ export async function POST(req: NextRequest, { params }: Props) {
       if (hasRating) {
         return NextResponse.json({ error: "Cannot un-mark a show as seen when you have a rating for it. Delete your rating first.", hasRating: true }, { status: 409 });
       }
+
+      // Check if user has episodes marked as seen
+      const episodeSeenCount = await prisma.episodeSeen.count({
+        where: { userId: user.id, showTmdbId: Number(tmdbId) },
+      });
+      if (episodeSeenCount > 0) {
+        return NextResponse.json({
+          error: `You have ${episodeSeenCount} episode${episodeSeenCount !== 1 ? "s" : ""} marked as seen for this show. Remove them first or use the episode tracker on the show page.`,
+          hasEpisodes: true,
+          episodeSeenCount,
+        }, { status: 409 });
+      }
+
       await prisma.userFavoriteShow.delete({
         where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
       });

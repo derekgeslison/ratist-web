@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2, ChevronDown } from "lucide-react";
+import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2, ChevronDown, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
@@ -985,7 +985,7 @@ export default function ScreeningSessionPage() {
                           {m.posterPath && <Image src={`${TMDB_SM}${m.posterPath}`} alt={m.title} width={32} height={48} className="object-cover w-full h-full" />}
                         </div>
                         <div>
-                          <p className="text-sm text-white">{searchType === "tv" && <span className="text-blue-400 mr-1">TV</span>}{m.title}</p>
+                          <p className="text-sm text-white">{searchType === "tv" && <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none mr-1.5"><Tv className="w-2.5 h-2.5" />TV</span>}{m.title}</p>
                           <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
                         </div>
                       </button>

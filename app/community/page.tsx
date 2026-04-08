@@ -148,27 +148,29 @@ export default async function CommunityPage() {
       {/* Cine-Q Daily Leader */}
       {cineqLeader && (
         <div className="bg-[var(--surface)] border border-pink-400/30 rounded-xl p-5 mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Brain className="w-5 h-5 text-pink-400" />
-              <div>
-                <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Today&apos;s Cine-Q Leader</p>
-                <div className="flex items-center gap-2 mt-1">
-                  {cineqLeader.avatarUrl && (
-                    <Image src={cineqLeader.avatarUrl} alt="" width={20} height={20} className="w-5 h-5 rounded-full object-cover" />
-                  )}
-                  <Link href={`/profile/${cineqLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400">{cineqLeader.name}</Link>
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="w-5 h-5 text-pink-400" />
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Today&apos;s Cine-Q Leader</p>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {cineqLeader.avatarUrl && (
+                <Image src={cineqLeader.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover shrink-0" />
+              )}
+              <div className="min-w-0">
+                <Link href={`/profile/${cineqLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400 block truncate">{cineqLeader.name}</Link>
+                <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-pink-400">{cineqLeader.rawScore.toFixed(1)} pts</span>
                   <span className="text-xs text-[var(--foreground-muted)] capitalize">({cineqLeader.difficulty})</span>
                 </div>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-col items-end gap-1 shrink-0">
               <Link href="/community/cineq" className="text-xs text-pink-400 hover:underline">
                 Play Cine-Q →
               </Link>
               <Link href="/community/cineq/leaderboard" className="text-xs text-[var(--foreground-muted)] hover:text-pink-400 transition-colors">
-                Full Leaderboard →
+                Leaderboard →
               </Link>
             </div>
           </div>
