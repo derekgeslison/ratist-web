@@ -119,36 +119,32 @@ interface DDDTopicStat {
   noSum: number;
 }
 
-const HIGH_VOTE_THRESHOLD = 20; // Topics with 20+ votes get high-confidence scaling
-
-function isConfirmed(yes: number, no: number): boolean {
+function isConfirmed(yes: number, no: number, minVotes: number): boolean {
   const total = yes + no;
-  if (total < 3) return false; // Require at least 3 votes for any confirmation
+  if (total < minVotes) return false;
   return yes / total > 0.7;
 }
 
 /**
- * Returns 0-1 confidence factor based on vote count and yes ratio.
+ * Returns 0-1 confidence factor based on yes ratio.
  *
- * High-vote topics (20+ votes):
- *   90%+ yes → linear scale: 0.90 at 90%, 0.95 at 95%, 1.0 at 100%
- *   70-90% yes → dampened scale: 0 at 70%, ~0.67 at 90% (existing formula)
+ * 90%+ yes → strength equals the yes ratio (0.90 to 1.0)
+ * 70-90% yes → dampened scale, capped at 0.89
  *
- * Low-vote topics (<20 votes):
- *   Always use dampened scale: 0 at 70%, 1.0 at 100%
+ * Applied uniformly regardless of vote count (min 3 votes enforced by isConfirmed).
  */
-function confirmationStrength(yes: number, no: number): number {
+function confirmationStrength(yes: number, no: number, minVotes: number): number {
   const total = yes + no;
-  if (total < 3) return 0;
+  if (total < minVotes) return 0;
   const ratio = yes / total;
   if (ratio <= 0.7) return 0;
 
-  if (total >= HIGH_VOTE_THRESHOLD && ratio >= 0.9) {
-    // High-confidence: the yes ratio IS the strength (90% yes = 0.90 weight)
+  if (ratio >= 0.9) {
+    // High confidence: the yes ratio IS the strength
     return ratio;
   }
 
-  // Dampened scale for low-vote or sub-90% topics
+  // Dampened scale for 70-90% range
   return Math.min(0.89, (ratio - 0.7) / 0.3);
 }
 
@@ -226,6 +222,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       const details: { label: string; yes: number; no: number; weight: number; confirmed: boolean }[] = [];
       const contributions: number[] = []; // effective weight of each confirmed topic
 
+      // Find the max votes on any single topic in this category to set a relative minimum
+      let maxTopicVotes = 0;
+      for (const topic of cat.topics) {
+        const votes = topicVotes.get(topic.id);
+        if (votes) maxTopicVotes = Math.max(maxTopicVotes, votes.yes + votes.no);
+      }
+      // Dynamic minimum: if the most-voted topic has 20+ votes, require 3.
+      // If less data exists, scale down: 10-19 → 2, under 10 → 1.
+      const minVotes = maxTopicVotes >= 20 ? 3 : maxTopicVotes >= 10 ? 2 : 1;
+
       for (const topic of cat.topics) {
         const votes = topicVotes.get(topic.id);
         if (!votes) continue;
@@ -233,11 +239,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         if (total === 0) continue;
 
         totalVotes += total;
-        const confirmed = isConfirmed(votes.yes, votes.no);
+        const confirmed = isConfirmed(votes.yes, votes.no, minVotes);
         // Scale weight by confidence: a barely-confirmed topic (71% yes)
         // contributes much less than a strongly-confirmed one (95% yes)
         if (confirmed) {
-          const strength = confirmationStrength(votes.yes, votes.no);
+          const strength = confirmationStrength(votes.yes, votes.no, minVotes);
           contributions.push(topic.weight * strength);
         }
 

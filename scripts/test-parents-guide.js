@@ -90,22 +90,18 @@ const CATEGORIES = [
   },
 ];
 
-const HIGH_VOTE_THRESHOLD = 20;
-
-function isConfirmed(yes, no) {
+function isConfirmed(yes, no, minVotes) {
   const total = yes + no;
-  if (total < 3) return false;
+  if (total < minVotes) return false;
   return yes / total > 0.7;
 }
 
-function confirmationStrength(yes, no) {
+function confirmationStrength(yes, no, minVotes) {
   const total = yes + no;
-  if (total < 3) return 0;
+  if (total < minVotes) return 0;
   const ratio = yes / total;
   if (ratio <= 0.7) return 0;
-  // High-vote topics with 90%+ yes: strength = yes ratio (0.90 to 1.0)
-  if (total >= HIGH_VOTE_THRESHOLD && ratio >= 0.9) return ratio;
-  // Low-vote or sub-90%: dampened scale, capped at 0.89
+  if (ratio >= 0.9) return ratio;
   return Math.min(0.89, (ratio - 0.7) / 0.3);
 }
 
@@ -123,15 +119,23 @@ function scoreTitle(topicVotes, label) {
     const contributions = [];
     const confirmedTopics = [];
 
+    // Dynamic min votes based on max votes in this category
+    let maxTopicVotes = 0;
+    for (const topic of cat.topics) {
+      const votes = topicVotes.get(topic.id);
+      if (votes) maxTopicVotes = Math.max(maxTopicVotes, votes.yes + votes.no);
+    }
+    const minVotes = maxTopicVotes >= 20 ? 3 : maxTopicVotes >= 10 ? 2 : 1;
+
     for (const topic of cat.topics) {
       const votes = topicVotes.get(topic.id);
       if (!votes) continue;
       const total = votes.yes + votes.no;
       if (total === 0) continue;
 
-      const confirmed = isConfirmed(votes.yes, votes.no);
+      const confirmed = isConfirmed(votes.yes, votes.no, minVotes);
       if (confirmed) {
-        const strength = confirmationStrength(votes.yes, votes.no);
+        const strength = confirmationStrength(votes.yes, votes.no, minVotes);
         const effective = topic.weight * strength;
         contributions.push(effective);
         confirmedTopics.push({ label: topic.label, weight: topic.weight, strength: strength.toFixed(2), effective: effective.toFixed(2), yes: votes.yes, no: votes.no });
@@ -196,6 +200,7 @@ const TEST_CASES = [
   { id: 66732, title: "Stranger Things", expected: "TV-14" },
   { id: 1399, title: "Game of Thrones", expected: "TV-MA" },
   { id: 1396, title: "Breaking Bad", expected: "TV-MA" },
+  { id: 1115544, title: "Mike & Nick & Nick & Alice", expected: "R" },
 ];
 
 async function main() {
