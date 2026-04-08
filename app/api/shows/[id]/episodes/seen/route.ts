@@ -81,6 +81,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     const showTmdbId = Number(id);
     const body = await req.json();
     const { mode, episodes, seasonNumber, action = "add" } = body;
+    console.log("[episode-seen] POST", { showTmdbId, mode, action, seasonNumber, episodeCount: episodes?.length, rawWatchedDate: body.watchedDate });
     // For date updates, use the exact value sent (including null to clear).
     // For add/remove, respect autoDateOnSeen preference.
     const watchedDate = action === "update_date"
@@ -155,10 +156,12 @@ export async function POST(req: NextRequest, { params }: Props) {
         });
       } else if (action === "update_date") {
         // Update watched date for all episodes in this season
-        await prisma.episodeSeen.updateMany({
+        console.log("[episode-seen] update_date mode=season", { showTmdbId, seasonNumber, watchedDate });
+        const result = await prisma.episodeSeen.updateMany({
           where: { userId: user.id, showTmdbId, seasonNumber },
           data: { watchedDate: watchedDate ? new Date(watchedDate) : null },
         });
+        console.log("[episode-seen] season updated", { seasonNumber, rowsAffected: result.count });
       } else {
         await prisma.episodeSeen.createMany({
           data: seasonEpisodes.map((ep) => ({
@@ -181,11 +184,13 @@ export async function POST(req: NextRequest, { params }: Props) {
         }
       } else if (action === "update_date") {
         // Update watched date for specific episodes
+        console.log("[episode-seen] update_date mode=episodes", { showTmdbId, episodes, watchedDate });
         for (const ep of episodes as { seasonNumber: number; episodeNumber: number }[]) {
-          await prisma.episodeSeen.updateMany({
+          const result = await prisma.episodeSeen.updateMany({
             where: { userId: user.id, showTmdbId, seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber },
             data: { watchedDate: watchedDate ? new Date(watchedDate) : null },
           });
+          console.log("[episode-seen] updated", { seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber, rowsAffected: result.count });
         }
       } else {
         await prisma.episodeSeen.createMany({
