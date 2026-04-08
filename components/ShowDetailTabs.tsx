@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv } from "lucide-react";
+import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv, Calendar } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ShowCard from "./ShowCard";
 import {
@@ -52,13 +52,17 @@ function SeasonCard({
   seenEpisodes,
   onToggleEpisode,
   onToggleSeason,
+  onUpdateEpisodeDate,
+  onUpdateSeasonDate,
   isLoggedIn,
 }: {
   season: TMDBSeason;
   showTmdbId: number;
-  seenEpisodes: Set<string>;
+  seenEpisodes: Map<string, string | null>;
   onToggleEpisode: (seasonNumber: number, episodeNumber: number) => void;
   onToggleSeason: (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => void;
+  onUpdateEpisodeDate: (seasonNumber: number, episodeNumber: number, date: string | null) => void;
+  onUpdateSeasonDate: (seasonNumber: number, episodes: TMDBEpisode[], date: string | null) => void;
   isLoggedIn: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -66,10 +70,10 @@ function SeasonCard({
   const [loading, setLoading] = useState(false);
   const [expandedDescs, setExpandedDescs] = useState<Set<number>>(new Set());
 
-  // Count seen episodes in this season — use seenEpisodes set directly so it works before expanding
+  // Count seen episodes in this season — use seenEpisodes map directly so it works before expanding
   const seenCount = episodes
     ? episodes.filter((ep) => seenEpisodes.has(`${season.season_number}-${ep.episode_number}`)).length
-    : Array.from(seenEpisodes).filter((key) => key.startsWith(`${season.season_number}-`)).length;
+    : Array.from(seenEpisodes.keys()).filter((key) => key.startsWith(`${season.season_number}-`)).length;
   const totalEpisodes = episodes?.length ?? season.episode_count;
   const allSeen = totalEpisodes > 0 && seenCount === totalEpisodes;
 
@@ -120,7 +124,7 @@ function SeasonCard({
           </div>
           {expanded ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
         </button>
-        {isLoggedIn && (
+        {isLoggedIn && (<>
           <button
             onClick={async (e) => {
               e.stopPropagation();
@@ -151,7 +155,18 @@ function SeasonCard({
             <Eye className="w-3 h-3" />
             {`${seenCount}/${totalEpisodes}`}
           </button>
-        )}
+          {allSeen && episodes && (
+            <label className="shrink-0 mr-3 cursor-pointer text-[var(--foreground-muted)] hover:text-white transition-colors" title="Set watched date for season">
+              <Calendar className="w-3.5 h-3.5" />
+              <input
+                type="date"
+                className="sr-only"
+                value={seenEpisodes.get(`${season.season_number}-${episodes[0]?.episode_number}`) ?? ""}
+                onChange={(e) => onUpdateSeasonDate(season.season_number, episodes, e.target.value || null)}
+              />
+            </label>
+          )}
+        </>)}
       </div>
 
       {expanded && (
@@ -213,7 +228,7 @@ function SeasonCard({
                         </div>
                       )}
                     </div>
-                    {isLoggedIn && (
+                    {isLoggedIn && (<>
                       <button
                         onClick={() => onToggleEpisode(season.season_number, ep.episode_number)}
                         className={`shrink-0 mt-0.5 w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
@@ -225,7 +240,18 @@ function SeasonCard({
                       >
                         {isSeen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
-                    )}
+                      {isSeen && (
+                        <label className="shrink-0 mt-0.5 cursor-pointer text-[var(--foreground-muted)] hover:text-white transition-colors" title="Set watched date">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <input
+                            type="date"
+                            className="sr-only"
+                            value={seenEpisodes.get(key) ?? ""}
+                            onChange={(e) => onUpdateEpisodeDate(season.season_number, ep.episode_number, e.target.value || null)}
+                          />
+                        </label>
+                      )}
+                    </>)}
                   </div>
                 );
               })}
@@ -282,7 +308,8 @@ export default function ShowDetailTabs({
     const hash = tab === "Overview" ? "" : `#${tabToHash(tab)}`;
     window.history.replaceState(null, "", hash || window.location.pathname + window.location.search);
   }
-  const [seenEpisodes, setSeenEpisodes] = useState<Set<string>>(new Set());
+  // Map of "seasonNumber-episodeNumber" → watchedDate (ISO string or null)
+  const [seenEpisodes, setSeenEpisodes] = useState<Map<string, string | null>>(new Map());
 
   // Fetch seen episodes on mount
   useEffect(() => {
@@ -295,11 +322,11 @@ export default function ShowDetailTabs({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.episodes) {
-          const set = new Set<string>();
+          const map = new Map<string, string | null>();
           for (const ep of data.episodes) {
-            set.add(`${ep.seasonNumber}-${ep.episodeNumber}`);
+            map.set(`${ep.seasonNumber}-${ep.episodeNumber}`, ep.watchedDate?.slice(0, 10) ?? null);
           }
-          setSeenEpisodes(set);
+          setSeenEpisodes(map);
         }
       })
       .catch(() => {});
@@ -311,9 +338,9 @@ export default function ShowDetailTabs({
       const key = `${seasonNumber}-${episodeNumber}`;
       const removing = seenEpisodes.has(key);
       setSeenEpisodes((prev) => {
-        const next = new Set(prev);
+        const next = new Map(prev);
         if (removing) next.delete(key);
-        else next.add(key);
+        else next.set(key, null);
         return next;
       });
       const token = await user.getIdToken();
@@ -330,6 +357,39 @@ export default function ShowDetailTabs({
     [seenEpisodes, show.id, user]
   );
 
+  const updateEpisodeDate = useCallback(
+    async (seasonNumber: number, episodeNumber: number, date: string | null) => {
+      if (!user) return;
+      const key = `${seasonNumber}-${episodeNumber}`;
+      setSeenEpisodes((prev) => { const next = new Map(prev); next.set(key, date); return next; });
+      const token = await user.getIdToken();
+      fetch(`/api/shows/${show.id}/episodes/seen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mode: "episodes", episodes: [{ seasonNumber, episodeNumber }], action: "add", watchedDate: date }),
+      }).catch(() => {});
+    },
+    [show.id, user]
+  );
+
+  const updateSeasonDate = useCallback(
+    async (seasonNumber: number, episodes: TMDBEpisode[], date: string | null) => {
+      if (!user) return;
+      setSeenEpisodes((prev) => {
+        const next = new Map(prev);
+        for (const ep of episodes) next.set(`${seasonNumber}-${ep.episode_number}`, date);
+        return next;
+      });
+      const token = await user.getIdToken();
+      fetch(`/api/shows/${show.id}/episodes/seen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mode: "season", seasonNumber, action: "add", watchedDate: date }),
+      }).catch(() => {});
+    },
+    [show.id, user]
+  );
+
   const toggleSeason = useCallback(
     async (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => {
       if (!user) return;
@@ -338,11 +398,11 @@ export default function ShowDetailTabs({
       );
       const action = allSeen ? "remove" : "add";
       setSeenEpisodes((prev) => {
-        const next = new Set(prev);
+        const next = new Map(prev);
         for (const ep of episodes) {
           const key = `${seasonNumber}-${ep.episode_number}`;
           if (allSeen) next.delete(key);
-          else next.add(key);
+          else next.set(key, null);
         }
         return next;
       });
@@ -519,6 +579,8 @@ export default function ShowDetailTabs({
               seenEpisodes={seenEpisodes}
               onToggleEpisode={toggleEpisode}
               onToggleSeason={toggleSeason}
+              onUpdateEpisodeDate={updateEpisodeDate}
+              onUpdateSeasonDate={updateSeasonDate}
               isLoggedIn={isLoggedIn}
             />
           ))}
@@ -531,6 +593,8 @@ export default function ShowDetailTabs({
                 seenEpisodes={seenEpisodes}
                 onToggleEpisode={toggleEpisode}
                 onToggleSeason={toggleSeason}
+                onUpdateEpisodeDate={updateEpisodeDate}
+                onUpdateSeasonDate={updateSeasonDate}
                 isLoggedIn={isLoggedIn}
               />
             </>
