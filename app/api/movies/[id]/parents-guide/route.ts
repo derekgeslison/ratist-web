@@ -12,12 +12,12 @@ interface TopicDef { id: number; label: string; weight: number }
 // maxContributors: limits how many confirmed topics can contribute to the
 // weighted score, preventing categories with many topics from always hitting "severe".
 // Only the top N contributors (by effective weight) are counted.
-const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number]; maxContributors: number }[] = [
+const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number, number, number]; maxContributors: number }[] = [
   {
     name: "Violence & Gore",
-    // None: 0 / Mild: 1-3 / Moderate: 4-10 / Severe: 10.5+
-    thresholds: [3, 10, 10.5],
-    maxContributors: 4, // 16 topics, only top 4 count
+    // None:0 / Mild:1-3 / Mild-Mod:3-6 / Mod:6-9 / Mod-Sev:9-12 / Severe:12+
+    thresholds: [3, 6, 9, 12, 12],
+    maxContributors: 5,
     topics: [
       // Heavy (3)
       { id: 267, label: "Excessive gore", weight: 3 },
@@ -43,9 +43,9 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Sexual Content",
-    // None: 0 / Mild: 1-2 / Moderate: 3-5 / Severe: 6+
-    thresholds: [2, 5, 6],
-    maxContributors: 3, // 6 topics, only top 3 count
+    // None:0 / Mild:1-2 / Mild-Mod:2-3.5 / Mod:3.5-5 / Mod-Sev:5-6.5 / Severe:6.5+
+    thresholds: [2, 3.5, 5, 6.5, 6.5],
+    maxContributors: 3,
     topics: [
       // Heavy (3)
       { id: 292, label: "Onscreen sexual assault", weight: 3 },
@@ -60,9 +60,9 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Language & Substance",
-    // None: 0 / Mild: 1-3 / Moderate: 4-7 / Severe: 8 (all 3 confirmed)
-    thresholds: [3, 7, 8],
-    maxContributors: 3, // only 3 topics, no effective cap
+    // None:0 / Mild:1-2 / Mild-Mod:2-4 / Mod:4-6 / Mod-Sev:6-7.5 / Severe:7.5+
+    thresholds: [2, 4, 6, 7.5, 7.5],
+    maxContributors: 3,
     topics: [
       // Heavy (3)
       { id: 193, label: "Drug use", weight: 3 },
@@ -73,9 +73,9 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Scary & Intense",
-    // None: 0 / Mild: 1-3 / Moderate: 4-8 / Severe: 9+
-    thresholds: [3, 8, 9],
-    maxContributors: 4, // 8 topics, only top 4 count
+    // None:0 / Mild:1-3 / Mild-Mod:3-5 / Mod:5-7.5 / Mod-Sev:7.5-9.5 / Severe:9.5+
+    thresholds: [3, 5, 7.5, 9.5, 9.5],
+    maxContributors: 4,
     topics: [
       // Heavy (3)
       { id: 206, label: "Seizures", weight: 3 },
@@ -92,9 +92,9 @@ const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, numbe
   },
   {
     name: "Sensitive Themes",
-    // None: 0 / Mild: 1-3 / Moderate: 4-9 / Severe: 10+
-    thresholds: [3, 9, 10],
-    maxContributors: 5, // 10 topics, only top 5 count
+    // None:0 / Mild:1-3 / Mild-Mod:3-5.5 / Mod:5.5-8 / Mod-Sev:8-10.5 / Severe:10.5+
+    thresholds: [3, 5.5, 8, 10.5, 10.5],
+    maxContributors: 5,
     topics: [
       // Heavy (3)
       { id: 187, label: "Suicide", weight: 3 },
@@ -119,26 +119,48 @@ interface DDDTopicStat {
   noSum: number;
 }
 
+const HIGH_VOTE_THRESHOLD = 20; // Topics with 20+ votes get high-confidence scaling
+
 function isConfirmed(yes: number, no: number): boolean {
   const total = yes + no;
   if (total < 3) return false; // Require at least 3 votes for any confirmation
   return yes / total > 0.7;
 }
 
-/** Returns 0-1 confidence factor: how far above the 70% threshold the yes ratio is */
+/**
+ * Returns 0-1 confidence factor based on vote count and yes ratio.
+ *
+ * High-vote topics (20+ votes):
+ *   90%+ yes → linear scale: 0.90 at 90%, 0.95 at 95%, 1.0 at 100%
+ *   70-90% yes → dampened scale: 0 at 70%, ~0.67 at 90% (existing formula)
+ *
+ * Low-vote topics (<20 votes):
+ *   Always use dampened scale: 0 at 70%, 1.0 at 100%
+ */
 function confirmationStrength(yes: number, no: number): number {
   const total = yes + no;
   if (total < 3) return 0;
   const ratio = yes / total;
   if (ratio <= 0.7) return 0;
-  // Scale from 0 at 70% to 1 at 100%
-  return Math.min(1, (ratio - 0.7) / 0.3);
+
+  if (total >= HIGH_VOTE_THRESHOLD && ratio >= 0.9) {
+    // High-confidence: the yes ratio IS the strength (90% yes = 0.90 weight)
+    return ratio;
+  }
+
+  // Dampened scale for low-vote or sub-90% topics
+  return Math.min(0.89, (ratio - 0.7) / 0.3);
 }
 
-function getSeverity(score: number, thresholds: [number, number, number]): "none" | "mild" | "moderate" | "severe" {
+type Severity = "none" | "mild" | "mild-moderate" | "moderate" | "moderate-severe" | "severe";
+
+// thresholds: [mild_max, mild-moderate_max, moderate_max, moderate-severe_max, severe_min]
+function getSeverity(score: number, thresholds: [number, number, number, number, number]): Severity {
   if (score === 0) return "none";
   if (score <= thresholds[0]) return "mild";
-  if (score <= thresholds[1]) return "moderate";
+  if (score <= thresholds[1]) return "mild-moderate";
+  if (score <= thresholds[2]) return "moderate";
+  if (score <= thresholds[3]) return "moderate-severe";
   return "severe";
 }
 

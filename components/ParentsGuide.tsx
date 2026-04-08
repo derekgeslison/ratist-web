@@ -11,7 +11,7 @@ interface TopicDetail {
 
 interface CategoryData {
   category: string;
-  severity: "none" | "mild" | "moderate" | "severe";
+  severity: "none" | "mild" | "mild-moderate" | "moderate" | "moderate-severe" | "severe";
   triggers: string[];
   details: TopicDetail[];
   totalVotes: number;
@@ -26,10 +26,12 @@ interface GuideData {
 }
 
 const SEVERITY_CONFIG = {
-  none: { label: "None", color: "text-green-400", bg: "bg-green-400", barPct: 0 },
-  mild: { label: "Mild", color: "text-blue-400", bg: "bg-blue-400", barPct: 25 },
-  moderate: { label: "Moderate", color: "text-yellow-400", bg: "bg-yellow-400", barPct: 60 },
-  severe: { label: "Severe", color: "text-red-400", bg: "bg-red-400", barPct: 100 },
+  "none":            { label: "None",            color: "text-green-400",  bg: "bg-green-400",  barPct: 0 },
+  "mild":            { label: "Mild",            color: "text-blue-400",   bg: "bg-blue-400",   barPct: 15 },
+  "mild-moderate":   { label: "Mild–Moderate",   color: "text-sky-400",    bg: "bg-sky-400",    barPct: 35 },
+  "moderate":        { label: "Moderate",        color: "text-yellow-400", bg: "bg-yellow-400", barPct: 55 },
+  "moderate-severe": { label: "Moderate–Severe", color: "text-orange-400", bg: "bg-orange-400", barPct: 75 },
+  "severe":          { label: "Severe",          color: "text-red-400",    bg: "bg-red-400",    barPct: 100 },
 };
 
 function VoteBar({ yes, no }: { yes: number; no: number }) {
