@@ -64,6 +64,7 @@ function SeasonCard({
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expandedDescs, setExpandedDescs] = useState<Set<number>>(new Set());
 
   // Count seen episodes in this season — use seenEpisodes set directly so it works before expanding
   const seenCount = episodes
@@ -195,7 +196,21 @@ function SeasonCard({
                         </p>
                       )}
                       {ep.overview && (
-                        <p className="text-[11px] text-[var(--foreground-muted)] mt-1 line-clamp-2">{ep.overview}</p>
+                        <div className="mt-1">
+                          <p className={`text-[11px] text-[var(--foreground-muted)] ${expandedDescs.has(ep.episode_number) ? "" : "line-clamp-2"}`}>{ep.overview}</p>
+                          {ep.overview.length > 120 && (
+                            <button
+                              onClick={() => setExpandedDescs((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(ep.episode_number)) next.delete(ep.episode_number); else next.add(ep.episode_number);
+                                return next;
+                              })}
+                              className="text-[10px] text-[var(--ratist-red)] hover:underline mt-0.5"
+                            >
+                              {expandedDescs.has(ep.episode_number) ? "Show less" : "Show more"}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                     {isLoggedIn && (

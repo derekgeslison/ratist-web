@@ -153,8 +153,10 @@ export default function ScreeningSessionPage() {
   useEffect(() => {
     if (session?.status === "COMPLETE") setPostWatchPhase("compare");
   }, [session?.status]);
-  const [pingOnMessage, setPingOnMessage] = useState(false);
-  const pingOnMessageRef = useRef(false);
+  const [pingOnMessage, setPingOnMessage] = useState(true);
+  const lastPingTimeRef = useRef(0);
+  const PING_THROTTLE_MS = 30000; // 30 seconds between message pings
+  const pingOnMessageRef = useRef(true);
   const justCreatedPollRef = useRef(false);
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
@@ -293,9 +295,15 @@ export default function ScreeningSessionPage() {
       setChatMessages((prev) => [...prev, { ...msg, key: snap.key! }]);
       if (!isInitialLoad) {
         if (msg.userId === "system" && (msg as any).system && msg.text?.includes("New poll:") && !justCreatedPollRef.current) {
+          // Polls always ding (no throttle)
           playDing(880, 0.15);
         } else if (pingOnMessageRef.current && msg.userId !== myUserId && msg.userId !== "system") {
-          playDing(600, 0.08);
+          // Throttle regular message pings to once per 30 seconds
+          const now = Date.now();
+          if (now - lastPingTimeRef.current >= PING_THROTTLE_MS) {
+            playDing(600, 0.08);
+            lastPingTimeRef.current = now;
+          }
         }
         justCreatedPollRef.current = false;
       }
