@@ -94,7 +94,7 @@ export default function RateMoviePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { hasPass } = useSubscription();
+  const { hasPass, loading: subLoading } = useSubscription();
   const [standardReviewCount, setStandardReviewCount] = useState(0);
   const [movie, setMovie] = useState<MovieInfo | null>(null);
   const [values, setValues] = useState<Record<string, number | null>>({});
@@ -339,7 +339,7 @@ export default function RateMoviePage() {
             { key: "standard" as ReviewMode, label: "Ratist", desc: "Full breakdown" },
             { key: "critic" as ReviewMode, label: "Critic", desc: "With commentary" },
           ]).map(({ key, label, desc }) => {
-            const criticLocked = key === "critic" && (!hasPass || standardReviewCount < 250);
+            const criticLocked = key === "critic" && !subLoading && (!hasPass || standardReviewCount < 250);
             return (
               <button
                 key={key}
@@ -368,7 +368,7 @@ export default function RateMoviePage() {
       </div>
 
       {/* Live Review tool (standard & critic modes, Backstage Pass required) */}
-      {mode !== "basic" && (
+      {mode !== "basic" && !subLoading && (
         hasPass ? (
           <LiveReview movieId={id} />
         ) : (
