@@ -15,9 +15,9 @@ interface TopicDef { id: number; label: string; weight: number }
 const CATEGORIES: { name: string; topics: TopicDef[]; thresholds: [number, number, number]; maxContributors: number }[] = [
   {
     name: "Violence & Gore",
-    // None: 0 / Mild: 1-3 / Moderate: 4-9 / Severe: 10+
-    thresholds: [3, 9, 10],
-    maxContributors: 5, // 16 topics, only top 5 count
+    // None: 0 / Mild: 1-3 / Moderate: 4-10 / Severe: 10.5+
+    thresholds: [3, 10, 10.5],
+    maxContributors: 4, // 16 topics, only top 4 count
     topics: [
       // Heavy (3)
       { id: 267, label: "Excessive gore", weight: 3 },
