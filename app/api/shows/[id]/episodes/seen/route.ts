@@ -264,8 +264,22 @@ export async function PATCH(req: NextRequest, { params }: Props) {
           data: { watchedDate: newDate },
         });
       }
+    } else if (body.seasonNumber != null) {
+      // Update all episodes in a specific season
+      await prisma.episodeSeen.updateMany({
+        where: { userId: user.id, showTmdbId, seasonNumber: body.seasonNumber },
+        data: { watchedDate: newDate },
+      });
+    } else if (body.groupKey) {
+      // Update all episodes that share the same current watched date (for diary group editing)
+      const currentDate = body.currentDate ? new Date(body.currentDate) : null;
+      await prisma.episodeSeen.updateMany({
+        where: { userId: user.id, showTmdbId, watchedDate: currentDate },
+        data: { watchedDate: newDate },
+      });
     } else {
       // Update all episodes for this show
+      console.log("[episode-seen] PATCH updating ALL episodes for show", { showTmdbId, newDate });
       await prisma.episodeSeen.updateMany({
         where: { userId: user.id, showTmdbId },
         data: { watchedDate: newDate },

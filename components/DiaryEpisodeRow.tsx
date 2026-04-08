@@ -63,10 +63,14 @@ export default function DiaryEpisodeRow({
   async function saveGroupDate(date: string | null) {
     if (!user) return;
     const token = await user.getIdToken();
+    // Send the specific episodes in this group to avoid updating ALL episodes for the show
     await fetch(`/api/shows/${showTmdbId}/episodes/seen`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ watchedDate: date }),
+      body: JSON.stringify({
+        episodes: episodes.map((ep) => ({ seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber })),
+        watchedDate: date,
+      }),
     }).catch(() => {});
     onDateChange?.(date);
     onEpisodeDateChange?.();
