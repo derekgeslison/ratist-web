@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Community Hub", description: "Join The Ratist community: submit hot takes, suggest recasts, find celebrity lookalikes, and engage with fellow movie lovers." };
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, Ticket } from "lucide-react";
+import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
+import BackstagePassBadge from "@/components/BackstagePassBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -131,11 +132,7 @@ export default async function CommunityPage() {
           >
             <div className="flex items-center justify-between">
               <Icon className={`w-6 h-6 ${color}`} />
-              {isPremium && (
-                <span className="flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                  <Ticket className="w-2.5 h-2.5" /> BACKSTAGE PASS
-                </span>
-              )}
+              {isPremium && <BackstagePassBadge />}
             </div>
             <div>
               <h2 className={`text-base font-semibold text-white group-hover:${color} transition-colors mb-1`}>{title}</h2>

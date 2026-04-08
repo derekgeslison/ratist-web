@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay, Ticket } from "lucide-react";
+import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
+import BackstagePassBadge from "@/components/BackstagePassBadge";
 
 export const metadata: Metadata = { title: "Cinephile Tools", description: "Movie and TV show tools: find shared cast between films, look up actor filmographies, create rankings, get personalized recommendations, and more." };
 
@@ -86,11 +87,7 @@ export default function ToolsPage() {
             >
               <div className="flex items-center justify-between mb-3">
                 <Icon className="w-8 h-8 text-[var(--ratist-red)]" />
-                {"premium" in tool && tool.premium && (
-                  <span className="flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                    <Ticket className="w-2.5 h-2.5" /> BACKSTAGE PASS
-                  </span>
-                )}
+                {"premium" in tool && tool.premium && <BackstagePassBadge />}
               </div>
               <h2 className="text-base font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors mb-2">
                 {tool.title}
