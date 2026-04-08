@@ -360,7 +360,7 @@ export default async function ProfilePage({ params }: Props) {
             <Image src={theme.headerImage} alt="" fill className="object-cover" unoptimized />
           </div>
         ) : (
-          <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--profile-surface,var(--surface))] via-[var(--profile-surface-2,var(--surface-2))] to-[var(--profile-accent,var(--ratist-red))]/20" />
+          <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--surface)] via-[var(--surface-2)] to-[var(--ratist-red)]" />
         )}
 
         {/* Avatar — overlaps the banner */}
