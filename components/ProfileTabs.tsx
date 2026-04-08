@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import { Film, Tv } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
 import CategoryScoreBar from "./CategoryScoreBar";
@@ -66,11 +67,19 @@ interface Profile {
 
 interface StatsData {
   ratingCount: number;
+  movieRatingCount?: number;
+  tvRatingCount?: number;
   avgRating: number | null;
+  tvAvgRating?: number | null;
   seenCount: number;
+  movieSeenCount?: number;
+  tvSeenCount?: number;
   watchlistCount: number;
   ratingDistribution: { range: string; count: number }[];
+  tvRatingDistribution?: { range: string; count: number }[];
   genreBreakdown: { name: string; count: number; avg: number }[];
+  tvGenreBreakdown?: { name: string; count: number; avg: number }[];
+  totalEpisodesWatched?: number;
 }
 
 interface UserWatchlistInfo {
@@ -757,35 +766,68 @@ export default function ProfileTabs({
       {/* ── STATS TAB ── */}
       {activeTab === "Stats" && (
         <div className="space-y-8">
-          {/* Summary numbers */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-white">{stats.seenCount}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">Movies Seen</p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-white">{stats.ratingCount}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">Ratings</p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
-              <p
-                className="text-3xl font-bold"
-                style={{ color: stats.avgRating ? scoreColor(stats.avgRating) : undefined }}
-              >
-                {stats.avgRating ? stats.avgRating.toFixed(1) : "—"}
-              </p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">Avg Rating</p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-white">{stats.watchlistCount}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">Watchlisted</p>
+          {/* Movies summary */}
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Film className="w-4 h-4" /> Movies
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <p className="text-2xl font-bold text-white">{stats.movieSeenCount ?? stats.seenCount}</p>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">Seen</p>
+              </div>
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <p className="text-2xl font-bold text-white">{stats.movieRatingCount ?? stats.ratingCount}</p>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">Rated</p>
+              </div>
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <p className="text-2xl font-bold" style={{ color: stats.avgRating ? scoreColor(stats.avgRating) : undefined }}>
+                  {stats.avgRating ? stats.avgRating.toFixed(1) : "—"}
+                </p>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">Avg Rating</p>
+              </div>
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                <p className="text-2xl font-bold text-white">{stats.watchlistCount}</p>
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">Watchlisted</p>
+              </div>
             </div>
           </div>
 
-          {/* Ratings distribution */}
+          {/* TV Shows summary */}
+          {((stats.tvRatingCount ?? 0) > 0 || (stats.tvSeenCount ?? 0) > 0) && (
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Tv className="w-4 h-4 text-blue-400" /> TV Shows
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-white">{stats.tvSeenCount ?? 0}</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">Shows Seen</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-white">{stats.tvRatingCount ?? 0}</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">Shows Rated</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold" style={{ color: stats.tvAvgRating ? scoreColor(stats.tvAvgRating) : undefined }}>
+                    {stats.tvAvgRating ? stats.tvAvgRating.toFixed(1) : "—"}
+                  </p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">Avg Rating</p>
+                </div>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-white">{stats.totalEpisodesWatched ?? 0}</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">Episodes</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Movie ratings distribution */}
           {stats.ratingDistribution.length > 0 && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
-              <h2 className="text-base font-semibold text-white mb-4">Rating Distribution</h2>
+              <h2 className="text-base font-semibold text-white mb-4">
+                Movie Rating Distribution
+              </h2>
               <div className="space-y-2">
                 {stats.ratingDistribution.map(({ range, count }) => {
                   const maxCount = Math.max(...stats.ratingDistribution.map((r) => r.count));
@@ -794,10 +836,7 @@ export default function ProfileTabs({
                     <div key={range} className="flex items-center gap-3">
                       <span className="text-xs text-[var(--foreground-muted)] w-14 text-right shrink-0">{range}</span>
                       <div className="flex-1 bg-[var(--surface-2)] rounded-full h-2 overflow-hidden">
-                        <div
-                          className="h-full bg-[var(--ratist-red)] rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
+                        <div className="h-full bg-[var(--ratist-red)] rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs text-[var(--foreground-muted)] w-6 shrink-0">{count}</span>
                     </div>
@@ -807,25 +846,44 @@ export default function ProfileTabs({
             </section>
           )}
 
-          {/* Genre breakdown */}
+          {/* TV rating distribution */}
+          {(stats.tvRatingDistribution ?? []).length > 0 && (
+            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+              <h2 className="text-base font-semibold text-white mb-4">
+                TV Show Rating Distribution
+              </h2>
+              <div className="space-y-2">
+                {(stats.tvRatingDistribution ?? []).map(({ range, count }) => {
+                  const maxCount = Math.max(...(stats.tvRatingDistribution ?? []).map((r) => r.count));
+                  const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                  return (
+                    <div key={range} className="flex items-center gap-3">
+                      <span className="text-xs text-[var(--foreground-muted)] w-14 text-right shrink-0">{range}</span>
+                      <div className="flex-1 bg-[var(--surface-2)] rounded-full h-2 overflow-hidden">
+                        <div className="h-full bg-blue-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-[var(--foreground-muted)] w-6 shrink-0">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Movie genre breakdown */}
           {stats.genreBreakdown.length > 0 && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
-              <h2 className="text-base font-semibold text-white mb-4">Most Rated Genres</h2>
+              <h2 className="text-base font-semibold text-white mb-4">Movie Genres</h2>
               <div className="space-y-2">
                 {stats.genreBreakdown.map(({ name, count, avg }) => (
                   <div key={name} className="flex items-center gap-3">
                     <span className="text-xs text-white w-28 shrink-0 line-clamp-1">{name}</span>
                     <div className="flex-1 bg-[var(--surface-2)] rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full bg-[var(--ratist-red)] rounded-full"
-                        style={{ width: `${(count / (stats.genreBreakdown[0]?.count || 1)) * 100}%` }}
-                      />
+                      <div className="h-full bg-[var(--ratist-red)] rounded-full" style={{ width: `${(count / (stats.genreBreakdown[0]?.count || 1)) * 100}%` }} />
                     </div>
                     <span className="text-xs text-[var(--foreground-muted)] w-8 shrink-0 text-right">{count}</span>
                     {avg > 0 && (
-                      <span className="text-xs font-semibold w-8 shrink-0 text-right" style={{ color: scoreColor(avg) }}>
-                        {avg.toFixed(1)}
-                      </span>
+                      <span className="text-xs font-semibold w-8 shrink-0 text-right" style={{ color: scoreColor(avg) }}>{avg.toFixed(1)}</span>
                     )}
                   </div>
                 ))}
@@ -833,9 +891,30 @@ export default function ProfileTabs({
             </section>
           )}
 
-          {stats.ratingCount === 0 && (
+          {/* TV genre breakdown */}
+          {(stats.tvGenreBreakdown ?? []).length > 0 && (
+            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
+              <h2 className="text-base font-semibold text-white mb-4">TV Show Genres</h2>
+              <div className="space-y-2">
+                {(stats.tvGenreBreakdown ?? []).map(({ name, count, avg }) => (
+                  <div key={name} className="flex items-center gap-3">
+                    <span className="text-xs text-white w-28 shrink-0 line-clamp-1">{name}</span>
+                    <div className="flex-1 bg-[var(--surface-2)] rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(count / ((stats.tvGenreBreakdown ?? [])[0]?.count || 1)) * 100}%` }} />
+                    </div>
+                    <span className="text-xs text-[var(--foreground-muted)] w-8 shrink-0 text-right">{count}</span>
+                    {avg > 0 && (
+                      <span className="text-xs font-semibold w-8 shrink-0 text-right" style={{ color: scoreColor(avg) }}>{avg.toFixed(1)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {stats.ratingCount === 0 && (stats.tvRatingCount ?? 0) === 0 && (
             <div className="text-center py-12 text-[var(--foreground-muted)]">
-              <p>Stats will appear once {isOwnProfile ? "you've" : "they've"} rated some movies.</p>
+              <p>Stats will appear once {isOwnProfile ? "you've" : "they've"} rated some movies or shows.</p>
             </div>
           )}
         </div>

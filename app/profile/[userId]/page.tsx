@@ -342,6 +342,35 @@ export default async function ProfilePage({ params }: Props) {
 
   const avgRatingValue = avgRating._avg.ratistRating;
 
+  // TV rating distribution
+  const tvRatingDistribution = RANGES.map(({ label, min, max }) => ({
+    range: label,
+    count: allTVRatings.filter((r) => r.ratistRating !== null && r.ratistRating >= min && r.ratistRating < max).length,
+  })).filter((r) => r.count > 0);
+
+  // TV genre breakdown
+  const tvGenreMap = new Map<string, { count: number; sum: number }>();
+  for (const r of allTVRatings) {
+    for (const sg of r.tvShow.genres) {
+      const entry = tvGenreMap.get(sg.genre.name) ?? { count: 0, sum: 0 };
+      entry.count++;
+      entry.sum += r.ratistRating ?? 0;
+      tvGenreMap.set(sg.genre.name, entry);
+    }
+  }
+  const tvGenreBreakdown = [...tvGenreMap.entries()]
+    .map(([name, { count, sum }]) => ({ name, count, avg: sum / count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // TV average rating
+  const tvAvgRating = allTVRatings.length > 0
+    ? allTVRatings.reduce((sum, r) => sum + (r.ratistRating ?? 0), 0) / allTVRatings.filter((r) => r.ratistRating != null).length
+    : null;
+
+  // Episode stats
+  const totalEpisodesWatched = episodesSeen.length;
+
   // Build a tmdbId → ratingStatus map so diary rows can show incomplete status
   const ratingStatusByTmdbId = new Map(
     allRatings.map((r) => [r.movie.tmdbId, getRatingStatus(r)])
@@ -477,11 +506,19 @@ export default async function ProfilePage({ params }: Props) {
         profile={user.profile as Record<string, number> | null}
         stats={{
           ratingCount: ratingCount + tvRatingCount,
+          movieRatingCount: ratingCount,
+          tvRatingCount,
           avgRating: avgRatingValue,
+          tvAvgRating: tvAvgRating,
           seenCount: seenCount + tvSeenCount,
+          movieSeenCount: seenCount,
+          tvSeenCount,
           watchlistCount,
           ratingDistribution,
+          tvRatingDistribution,
           genreBreakdown,
+          tvGenreBreakdown,
+          totalEpisodesWatched,
         }}
         componentLabels={COMPONENT_LABELS}
         genreLabels={GENRE_LABELS}
