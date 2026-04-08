@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv, Calendar } from "lucide-react";
+import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv, CalendarDays, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ShowCard from "./ShowCard";
 import {
@@ -69,6 +69,9 @@ function SeasonCard({
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [expandedDescs, setExpandedDescs] = useState<Set<number>>(new Set());
+  // Date picker state: "season" or episode number, plus pending date value
+  const [datePickerOpen, setDatePickerOpen] = useState<"season" | number | null>(null);
+  const [pendingDate, setPendingDate] = useState("");
 
   // Count seen episodes in this season — use seenEpisodes map directly so it works before expanding
   const seenCount = episodes
@@ -156,44 +159,83 @@ function SeasonCard({
             {`${seenCount}/${totalEpisodes}`}
           </button>
           {allSeen && (
-            <span className="shrink-0 mr-3 relative">
+            <div className="shrink-0 mr-3 relative">
               <button
                 onClick={() => {
-                  const input = document.getElementById(`season-date-${season.season_number}`) as HTMLInputElement;
-                  input?.showPicker?.();
+                  const firstKey = Array.from(seenEpisodes.keys()).find(k => k.startsWith(`${season.season_number}-`));
+                  setPendingDate(firstKey ? seenEpisodes.get(firstKey) ?? "" : "");
+                  setDatePickerOpen(datePickerOpen === "season" ? null : "season");
                 }}
                 className="text-[var(--foreground-muted)] hover:text-white transition-colors"
                 title="Set watched date for season"
               >
-                <Calendar className="w-3.5 h-3.5" />
+                <CalendarDays className="w-3.5 h-3.5" />
               </button>
-              <input
-                id={`season-date-${season.season_number}`}
-                type="date"
-                className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                value={(() => {
-                  const firstKey = Array.from(seenEpisodes.keys()).find(k => k.startsWith(`${season.season_number}-`));
-                  return firstKey ? seenEpisodes.get(firstKey) ?? "" : "";
-                })()}
-                onChange={async (e) => {
-                  const date = e.target.value || null;
-                  // If episodes loaded, use them; otherwise fetch season and update
-                  if (episodes) {
-                    onUpdateSeasonDate(season.season_number, episodes, date);
-                  } else {
-                    try {
-                      const res = await fetch(`/api/shows/${showTmdbId}/season/${season.season_number}`);
-                      if (res.ok) {
-                        const data = await res.json();
-                        const eps = data.episodes ?? [];
-                        setEpisodes(eps);
-                        if (eps.length > 0) onUpdateSeasonDate(season.season_number, eps, date);
-                      }
-                    } catch { /* ignore */ }
-                  }
-                }}
-              />
-            </span>
+              {datePickerOpen === "season" && (
+                <div className="absolute top-full right-0 mt-2 z-30 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-xl w-52">
+                  <p className="text-xs text-[var(--foreground-muted)] mb-2">Watched date for season</p>
+                  <input
+                    type="date"
+                    value={pendingDate}
+                    onChange={(e) => setPendingDate(e.target.value)}
+                    max={new Date().toISOString().slice(0, 10)}
+                    className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] mb-2 w-full"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        if (!pendingDate) return;
+                        if (episodes) {
+                          onUpdateSeasonDate(season.season_number, episodes, pendingDate);
+                        } else {
+                          try {
+                            const res = await fetch(`/api/shows/${showTmdbId}/season/${season.season_number}`);
+                            if (res.ok) {
+                              const data = await res.json();
+                              const eps = data.episodes ?? [];
+                              setEpisodes(eps);
+                              if (eps.length > 0) onUpdateSeasonDate(season.season_number, eps, pendingDate);
+                            }
+                          } catch { /* ignore */ }
+                        }
+                        setDatePickerOpen(null);
+                      }}
+                      disabled={!pendingDate}
+                      className="text-green-400 hover:text-green-300 transition-colors disabled:opacity-30"
+                      title="Save date"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    {pendingDate && (
+                      <button
+                        onClick={async () => {
+                          if (episodes) {
+                            onUpdateSeasonDate(season.season_number, episodes, null);
+                          } else {
+                            try {
+                              const res = await fetch(`/api/shows/${showTmdbId}/season/${season.season_number}`);
+                              if (res.ok) {
+                                const data = await res.json();
+                                const eps = data.episodes ?? [];
+                                setEpisodes(eps);
+                                if (eps.length > 0) onUpdateSeasonDate(season.season_number, eps, null);
+                              }
+                            } catch { /* ignore */ }
+                          }
+                          setPendingDate("");
+                          setDatePickerOpen(null);
+                        }}
+                        className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                        title="Remove date"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button onClick={() => setDatePickerOpen(null)} className="ml-auto text-xs text-[var(--foreground-muted)] hover:text-white">Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </>)}
       </div>
@@ -270,25 +312,58 @@ function SeasonCard({
                         {isSeen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                       {isSeen && (
-                        <span className="shrink-0 mt-0.5 relative">
+                        <div className="shrink-0 mt-0.5 relative">
                           <button
                             onClick={() => {
-                              const input = document.getElementById(`ep-date-${season.season_number}-${ep.episode_number}`) as HTMLInputElement;
-                              input?.showPicker?.();
+                              setPendingDate(seenEpisodes.get(key) ?? "");
+                              setDatePickerOpen(datePickerOpen === ep.episode_number ? null : ep.episode_number);
                             }}
                             className="text-[var(--foreground-muted)] hover:text-white transition-colors"
                             title={seenEpisodes.get(key) ? `Watched: ${seenEpisodes.get(key)}` : "Set watched date"}
                           >
-                            <Calendar className="w-3.5 h-3.5" />
+                            <CalendarDays className="w-3.5 h-3.5" />
                           </button>
-                          <input
-                            id={`ep-date-${season.season_number}-${ep.episode_number}`}
-                            type="date"
-                            className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                            value={seenEpisodes.get(key) ?? ""}
-                            onChange={(e) => onUpdateEpisodeDate(season.season_number, ep.episode_number, e.target.value || null)}
-                          />
-                        </span>
+                          {datePickerOpen === ep.episode_number && (
+                            <div className="absolute top-full right-0 mt-2 z-30 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-xl w-52">
+                              <p className="text-xs text-[var(--foreground-muted)] mb-2">When did you watch this?</p>
+                              <input
+                                type="date"
+                                value={pendingDate}
+                                onChange={(e) => setPendingDate(e.target.value)}
+                                max={new Date().toISOString().slice(0, 10)}
+                                className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] mb-2 w-full"
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    if (!pendingDate) return;
+                                    onUpdateEpisodeDate(season.season_number, ep.episode_number, pendingDate);
+                                    setDatePickerOpen(null);
+                                  }}
+                                  disabled={!pendingDate}
+                                  className="text-green-400 hover:text-green-300 transition-colors disabled:opacity-30"
+                                  title="Save date"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                {(pendingDate || seenEpisodes.get(key)) && (
+                                  <button
+                                    onClick={() => {
+                                      onUpdateEpisodeDate(season.season_number, ep.episode_number, null);
+                                      setPendingDate("");
+                                      setDatePickerOpen(null);
+                                    }}
+                                    className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                                    title="Remove date"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button onClick={() => setDatePickerOpen(null)} className="ml-auto text-xs text-[var(--foreground-muted)] hover:text-white">Cancel</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </>)}
                   </div>
