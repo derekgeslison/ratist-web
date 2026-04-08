@@ -27,7 +27,7 @@ interface GuideData {
 
 const SEVERITY_CONFIG = {
   "none":            { label: "None",            color: "text-green-400",  bg: "bg-green-400",  barPct: 0 },
-  "mild":            { label: "Mild",            color: "text-sky-400",    bg: "bg-sky-400",    barPct: 15 },
+  "mild":            { label: "Mild",            color: "text-cyan-400",   bg: "bg-cyan-400",   barPct: 15 },
   "mild-moderate":   { label: "Mild–Moderate",   color: "text-blue-400",   bg: "bg-blue-400",   barPct: 35 },
   "moderate":        { label: "Moderate",        color: "text-yellow-400", bg: "bg-yellow-400", barPct: 55 },
   "moderate-severe": { label: "Moderate–Severe", color: "text-orange-400", bg: "bg-orange-400", barPct: 75 },
