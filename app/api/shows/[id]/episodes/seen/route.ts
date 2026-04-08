@@ -81,8 +81,11 @@ export async function POST(req: NextRequest, { params }: Props) {
     const showTmdbId = Number(id);
     const body = await req.json();
     const { mode, episodes, seasonNumber, action = "add" } = body;
-    // Respect autoDateOnSeen preference: only auto-set date if user opted in
-    const watchedDate = body.watchedDate ?? (user.autoDateOnSeen ? new Date().toISOString() : null);
+    // For date updates, use the exact value sent (including null to clear).
+    // For add/remove, respect autoDateOnSeen preference.
+    const watchedDate = action === "update_date"
+      ? (body.watchedDate ?? null)
+      : (body.watchedDate ?? (user.autoDateOnSeen ? new Date().toISOString() : null));
 
     // Ensure show exists in DB
     const tvShow = await prisma.tVShow.upsert({
