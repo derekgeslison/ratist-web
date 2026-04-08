@@ -352,6 +352,7 @@ export default function ShowDetailTabs({
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           mode: "season",
+          seasonNumber,
           episodes: episodes.map((ep) => ({
             seasonNumber,
             episodeNumber: ep.episode_number,
