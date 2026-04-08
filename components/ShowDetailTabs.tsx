@@ -97,7 +97,7 @@ function SeasonCard({
   }
 
   return (
-    <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+    <div className="border border-[var(--border)] rounded-lg">
       <div className="flex items-center gap-0">
         <button
           onClick={toggleExpand}
@@ -480,7 +480,7 @@ export default function ShowDetailTabs({
       fetch(`/api/shows/${show.id}/episodes/seen`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ mode: "episodes", episodes: [{ seasonNumber, episodeNumber }], action: "add", watchedDate: date }),
+        body: JSON.stringify({ mode: "episodes", episodes: [{ seasonNumber, episodeNumber }], action: "update_date", watchedDate: date }),
       }).catch(() => {});
     },
     [show.id, user]
@@ -498,7 +498,7 @@ export default function ShowDetailTabs({
       fetch(`/api/shows/${show.id}/episodes/seen`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ mode: "season", seasonNumber, action: "add", watchedDate: date }),
+        body: JSON.stringify({ mode: "season", seasonNumber, action: "update_date", watchedDate: date }),
       }).catch(() => {});
     },
     [show.id, user]

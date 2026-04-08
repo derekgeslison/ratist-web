@@ -150,6 +150,12 @@ export async function POST(req: NextRequest, { params }: Props) {
         await prisma.episodeSeen.deleteMany({
           where: { userId: user.id, showTmdbId, seasonNumber },
         });
+      } else if (action === "update_date") {
+        // Update watched date for all episodes in this season
+        await prisma.episodeSeen.updateMany({
+          where: { userId: user.id, showTmdbId, seasonNumber },
+          data: { watchedDate: watchedDate ? new Date(watchedDate) : null },
+        });
       } else {
         await prisma.episodeSeen.createMany({
           data: seasonEpisodes.map((ep) => ({
@@ -168,6 +174,14 @@ export async function POST(req: NextRequest, { params }: Props) {
         for (const ep of episodes) {
           await prisma.episodeSeen.deleteMany({
             where: { userId: user.id, showTmdbId, seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber },
+          });
+        }
+      } else if (action === "update_date") {
+        // Update watched date for specific episodes
+        for (const ep of episodes as { seasonNumber: number; episodeNumber: number }[]) {
+          await prisma.episodeSeen.updateMany({
+            where: { userId: user.id, showTmdbId, seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber },
+            data: { watchedDate: watchedDate ? new Date(watchedDate) : null },
           });
         }
       } else {
