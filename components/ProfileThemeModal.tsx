@@ -27,7 +27,10 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
   const [headerImage, setHeaderImage] = useState<string | null>(currentTheme?.headerImage ?? null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [headerPosition, setHeaderPosition] = useState(currentTheme?.headerPosition ?? 50);
+  const [repositioning, setRepositioning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragRef = useRef<{ startY: number; startPos: number } | null>(null);
 
   async function saveTheme() {
     if (!user) return;
@@ -36,7 +39,7 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
     const res = await fetch("/api/profile/me", {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ profileTheme: Object.keys(theme).length > 0 ? theme : null }),
+      body: JSON.stringify({ profileTheme: Object.keys(theme).length > 0 ? { ...theme, headerPosition: headerImage ? headerPosition : undefined } : null }),
     });
     if (res.ok) {
       setSaved(true);
@@ -191,28 +194,80 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
               type="file"
               accept="image/jpeg,image/png,image/webp"
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadHeaderImage(f); }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) { uploadHeaderImage(f); setRepositioning(false); } }}
             />
             {headerImage ? (
-              <div className="relative rounded-xl overflow-hidden border border-[var(--border)]">
-                <div className="aspect-[4/1] relative">
-                  <Image src={headerImage} alt="Header" fill className="object-cover" unoptimized />
+              <div>
+                <div
+                  className="relative rounded-xl overflow-hidden border border-[var(--border)]"
+                  style={{ cursor: repositioning ? "ns-resize" : undefined }}
+                  onPointerDown={(e) => {
+                    if (!repositioning) return;
+                    e.preventDefault();
+                    dragRef.current = { startY: e.clientY, startPos: headerPosition };
+                    const el = e.currentTarget;
+                    const height = el.getBoundingClientRect().height;
+
+                    function onMove(ev: PointerEvent) {
+                      if (!dragRef.current) return;
+                      const dy = ev.clientY - dragRef.current.startY;
+                      const pctDelta = (dy / height) * -100;
+                      const newPos = Math.max(0, Math.min(100, dragRef.current.startPos + pctDelta));
+                      setHeaderPosition(Math.round(newPos));
+                    }
+                    function onUp() {
+                      dragRef.current = null;
+                      document.removeEventListener("pointermove", onMove);
+                      document.removeEventListener("pointerup", onUp);
+                    }
+                    document.addEventListener("pointermove", onMove);
+                    document.addEventListener("pointerup", onUp);
+                  }}
+                >
+                  <div className="aspect-[4/1] relative">
+                    <Image
+                      src={headerImage}
+                      alt="Header"
+                      fill
+                      className="object-cover select-none"
+                      unoptimized
+                      draggable={false}
+                      style={{ objectPosition: `center ${headerPosition}%` }}
+                    />
+                    {repositioning && (
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                        <p className="text-xs text-white bg-black/60 px-3 py-1.5 rounded-lg">Drag up or down to reposition</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="absolute bottom-2 right-2 flex gap-2">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="flex items-center gap-1 px-2 py-1 bg-black/70 text-white text-xs rounded-lg hover:bg-black/90 transition-colors"
-                  >
-                    <Upload className="w-3 h-3" /> Replace
-                  </button>
-                  <button
-                    onClick={removeHeaderImage}
-                    disabled={uploading}
-                    className="flex items-center gap-1 px-2 py-1 bg-black/70 text-red-400 text-xs rounded-lg hover:bg-black/90 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" /> Remove
-                  </button>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setRepositioning(!repositioning)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+                        repositioning
+                          ? "border-[var(--ratist-red)] text-[var(--ratist-red)] bg-[var(--ratist-red)]/10"
+                          : "border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                      }`}
+                    >
+                      {repositioning ? <><Check className="w-3 h-3" /> Done</> : "Reposition"}
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white rounded-lg transition-colors"
+                    >
+                      <Upload className="w-3 h-3" /> Replace
+                    </button>
+                    <button
+                      onClick={removeHeaderImage}
+                      disabled={uploading}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-[var(--border)] text-[var(--foreground-muted)] hover:text-red-400 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" /> Remove
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -225,6 +280,7 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
                 <p className="text-xs text-[var(--foreground-muted)]">
                   {uploading ? "Uploading..." : "Upload header image (JPEG, PNG, WebP · max 5 MB)"}
                 </p>
+                <p className="text-[10px] text-[var(--foreground-muted)]/60 mt-1">Ideal size: 1280 × 320 pixels (4:1 ratio)</p>
               </button>
             )}
             {uploadError && <p className="text-xs text-red-400 mt-2">{uploadError}</p>}
@@ -237,7 +293,7 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
               {/* Banner gradient or image */}
               {headerImage ? (
                 <div style={{ height: 48, position: "relative", overflow: "hidden" }}>
-                  <Image src={headerImage} alt="" fill className="object-cover" unoptimized />
+                  <Image src={headerImage} alt="" fill className="object-cover" unoptimized style={{ objectPosition: `center ${headerPosition}%` }} />
                 </div>
               ) : (
                 <div style={{ height: 48, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />

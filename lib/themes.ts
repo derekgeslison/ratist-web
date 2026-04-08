@@ -9,13 +9,14 @@ export interface ProfileTheme {
   mutedColor?: string;
   borderColor?: string;
   headerImage?: string | null;
+  headerPosition?: number; // vertical position 0-100 (default 50 = center)
 }
 
 export interface ThemePreset {
   id: string;
   name: string;
   description: string;
-  colors: Required<Omit<ProfileTheme, "preset" | "headerImage">>;
+  colors: Required<Omit<ProfileTheme, "preset" | "headerImage" | "headerPosition">>;
 }
 
 export const THEME_PRESETS: ThemePreset[] = [

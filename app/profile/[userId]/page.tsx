@@ -357,7 +357,7 @@ export default async function ProfilePage({ params }: Props) {
         {/* Banner image or gradient */}
         {theme?.headerImage ? (
           <div className="h-40 sm:h-52 w-full overflow-hidden relative">
-            <Image src={theme.headerImage} alt="" fill className="object-cover" unoptimized />
+            <Image src={theme.headerImage} alt="" fill className="object-cover" unoptimized style={{ objectPosition: `center ${theme.headerPosition ?? 50}%` }} />
           </div>
         ) : (
           <div className="h-32 sm:h-40 w-full bg-gradient-to-br from-[var(--surface)] via-[var(--surface-2)] to-[var(--ratist-red)]" />
