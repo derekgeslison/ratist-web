@@ -10,6 +10,14 @@ interface Props {
   onClose: () => void;
 }
 
+function darkenHex(hex: string, amount: number): string {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = Math.max(0, ((num >> 16) & 0xff) - amount);
+  const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+  const b = Math.max(0, (num & 0xff) - amount);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
 export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
   const { user } = useAuth();
   const [theme, setTheme] = useState<ProfileTheme>(currentTheme ?? {});
@@ -134,7 +142,7 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
           {/* Live preview — uses explicit inline colors, fully opaque */}
           <div className="mb-5">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Preview</p>
-            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: "#0f0f0f" }}>
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: darkenHex(surface, 8) }}>
               {/* Banner gradient */}
               <div style={{ height: 48, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
               {/* Profile content area */}
@@ -164,20 +172,22 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
                     </div>
                   ))}
                 </div>
-                {/* Sample content card */}
-                <div className="mt-2 rounded-lg" style={{ background: surface2, border: `1px solid ${border}`, padding: "8px 10px" }}>
+                {/* Sample content card — bars use score-based colors like the real page */}
+                <div className="mt-2 rounded-lg" style={{ background: surface, border: `1px solid ${border}`, padding: "8px 10px" }}>
                   <p className="text-[10px] font-semibold" style={{ color: text }}>Movie Component Preferences</p>
                   <div className="flex items-center gap-2 mt-1.5">
                     <span className="text-[9px]" style={{ color: muted }}>Narrative</span>
-                    <div className="flex-1 rounded-full" style={{ height: 4, background: border }}>
-                      <div className="rounded-full" style={{ height: 4, width: "75%", background: accent }} />
+                    <div className="flex-1 rounded-full" style={{ height: 4, background: surface2 }}>
+                      <div className="rounded-full" style={{ height: 4, width: "75%", background: "#22c55e" }} />
                     </div>
+                    <span className="text-[9px] font-semibold" style={{ color: "#22c55e" }}>7.5</span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[9px]" style={{ color: muted }}>Cinematic</span>
-                    <div className="flex-1 rounded-full" style={{ height: 4, background: border }}>
-                      <div className="rounded-full" style={{ height: 4, width: "55%", background: accent }} />
+                    <div className="flex-1 rounded-full" style={{ height: 4, background: surface2 }}>
+                      <div className="rounded-full" style={{ height: 4, width: "55%", background: "#eab308" }} />
                     </div>
+                    <span className="text-[9px] font-semibold" style={{ color: "#eab308" }}>5.5</span>
                   </div>
                 </div>
               </div>
