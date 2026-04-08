@@ -292,19 +292,20 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
             <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: darkenHex(surface, 8) }}>
               {/* Banner gradient or image */}
               {headerImage ? (
-                <div style={{ height: 48, position: "relative", overflow: "hidden" }}>
+                <div style={{ height: 56, position: "relative", overflow: "hidden" }}>
                   <Image src={headerImage} alt="" fill className="object-cover" unoptimized style={{ objectPosition: `center ${headerPosition}%` }} />
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.5), transparent)" }} />
                 </div>
               ) : (
-                <div style={{ height: 48, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
+                <div style={{ height: 56, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
               )}
-              {/* Profile content area */}
-              <div style={{ background: surface, padding: "0 12px 12px", marginTop: -16 }}>
-                <div className="flex items-end gap-2 mb-2">
-                  <div className="rounded-full flex items-center justify-center text-xs font-bold" style={{ width: 32, height: 32, border: `2px solid ${surface}`, background: accent, color: surface }}>
+              {/* Profile content area — avatar overlaps banner bottom */}
+              <div style={{ background: darkenHex(surface, 8), padding: "0 12px 12px" }}>
+                <div className="flex items-end gap-2 mb-2" style={{ marginTop: -12 }}>
+                  <div className="rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ width: 28, height: 28, border: `2px solid ${darkenHex(surface, 8)}`, background: accent, color: surface, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
                     U
                   </div>
-                  <div>
+                  <div style={{ paddingBottom: 2 }}>
                     <p className="text-xs font-bold" style={{ color: text }}>Username</p>
                     <p className="text-[10px]" style={{ color: muted }}>Movie enthusiast</p>
                   </div>
