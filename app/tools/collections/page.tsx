@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import BackstagePassGate from "@/components/BackstagePassGate";
+import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
 
 interface CollectionMovie {
@@ -28,6 +29,8 @@ interface Collection {
 
 export default function CollectionsPage() {
   const { user } = useAuth();
+  const { hasPass, loading: subLoading } = useSubscription();
+  const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -136,8 +139,13 @@ export default function CollectionsPage() {
     );
   }
 
+  useEffect(() => {
+    if (!subLoading && !hasPass) router.replace("/backstage-pass/collections");
+  }, [subLoading, hasPass, router]);
+
+  if (subLoading || !hasPass) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
+
   return (
-    <BackstagePassGate feature="Collections" showTeaser featureHref="/backstage-pass/collections">
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
@@ -229,6 +237,5 @@ export default function CollectionsPage() {
         </div>
       )}
     </div>
-    </BackstagePassGate>
   );
 }

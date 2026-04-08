@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Ticket, Check } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/context/AuthContext";
@@ -28,12 +29,13 @@ interface Props {
 export default function FeatureShowcase({ title, subtitle, icon: Icon, iconColor = "text-[var(--ratist-red)]", highlights, images, extraRequirement, children }: Props) {
   const { user } = useAuth();
   const { hasPass } = useSubscription();
+  const router = useRouter();
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <Link href="/backstage-pass" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-amber-400 mb-6 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Backstage Pass
-      </Link>
+      <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-amber-400 mb-6 transition-colors">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
 
       {/* Header */}
       <div className="text-center mb-8">

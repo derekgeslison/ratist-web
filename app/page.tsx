@@ -11,6 +11,7 @@ import FollowingFeed from "@/components/FollowingFeed";
 import BirthdaySection from "@/components/BirthdaySection";
 import BrandCTAButtons from "@/components/BrandCTAButtons";
 import AdUnit from "@/components/AdUnit";
+import BackstagePassPromo from "@/components/BackstagePassPromo";
 
 const TOOLS = [
   {
@@ -81,6 +82,9 @@ export default async function HomePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
         {/* Personalized section */}
         <PersonalizedSection />
+
+        {/* Backstage Pass promo — hidden for subscribers */}
+        <BackstagePassPromo />
 
         {/* Admin Spotlights */}
         {spotlights.length > 0 && (

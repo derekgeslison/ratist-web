@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { BarChart3, Film, Clock, TrendingUp, Star, Users, Target, Zap, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import BackstagePassGate from "@/components/BackstagePassGate";
+import { useSubscription } from "@/hooks/useSubscription";
 import { scoreColor } from "@/lib/ratings";
 import ShareButton from "@/components/ShareButton";
 
@@ -76,6 +77,8 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
+  const { hasPass, loading: subLoading } = useSubscription();
+  const router = useRouter();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,8 +161,13 @@ export default function AnalyticsPage() {
     );
   }
 
+  useEffect(() => {
+    if (!subLoading && !hasPass) router.replace("/backstage-pass/analytics");
+  }, [subLoading, hasPass, router]);
+
+  if (subLoading || !hasPass) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
+
   return (
-    <BackstagePassGate feature="My Analytics" showTeaser featureHref="/backstage-pass/analytics">
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <BarChart3 className="w-6 h-6 text-[var(--ratist-red)]" />
@@ -865,6 +873,5 @@ export default function AnalyticsPage() {
         </>
       )}
     </div>
-    </BackstagePassGate>
   );
 }

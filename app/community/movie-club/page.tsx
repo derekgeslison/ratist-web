@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import BackstagePassGate from "@/components/BackstagePassGate";
+import { useSubscription } from "@/hooks/useSubscription";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Clapperboard, Users, Calendar, MessageCircle, Clock, Lock, Star, HelpCircle } from "lucide-react";
@@ -25,6 +26,8 @@ interface UpcomingWeek { id: string; weekNumber: number; startDate: string; pick
 
 export default function MovieClubPage() {
   const { user } = useAuth();
+  const { hasPass, loading: subLoading } = useSubscription();
+  const router = useRouter();
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [votingWeeks, setVotingWeeks] = useState<VotingWeek[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingWeek[]>([]);
@@ -72,8 +75,13 @@ export default function MovieClubPage() {
   const pastWeeks = weeks.filter((w) => w.status === "archived");
   const totalDiscussionComments = 0; // TODO: fetch from API
 
+  useEffect(() => {
+    if (!subLoading && !hasPass) router.replace("/backstage-pass/movie-club");
+  }, [subLoading, hasPass, router]);
+
+  if (subLoading || !hasPass) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
+
   return (
-    <BackstagePassGate feature="Movie Club" featureHref="/backstage-pass/movie-club">
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/community" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Community Hub
@@ -279,6 +287,5 @@ export default function MovieClubPage() {
         </>
       )}
     </div>
-    </BackstagePassGate>
   );
 }
