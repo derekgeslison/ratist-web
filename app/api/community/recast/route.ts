@@ -62,6 +62,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  // Check for duplicate: same movie + character + suggested actor
+  const existing = await prisma.recast.findFirst({
+    where: {
+      tmdbMovieId,
+      characterName: { equals: characterName, mode: "insensitive" },
+      suggestedActorName: { equals: suggestedActorName, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json({ error: "This recast has already been submitted!", existingId: existing.id }, { status: 409 });
+  }
+
   const item = await prisma.recast.create({
     data: {
       creatorId: user.id,

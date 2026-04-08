@@ -261,7 +261,24 @@ export default function RecastPage() {
       }),
     });
     const data = await res.json();
-    if (!res.ok) { setFormError(data.error ?? "Failed"); setSubmitting(false); return; }
+    if (!res.ok) {
+      if (data.existingId) {
+        setFormError(data.error ?? "Already submitted");
+        setShowForm(false);
+        setSelectedMovie(null);
+        setOriginalActor(null);
+        setSuggestedActor(null);
+        setCharacterName("");
+        setOriginalActorNameManual("");
+        setTimeout(() => {
+          document.getElementById(`recast-${data.existingId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+      } else {
+        setFormError(data.error ?? "Failed");
+      }
+      setSubmitting(false);
+      return;
+    }
     setShowForm(false);
     setSelectedMovie(null);
     setOriginalActor(null);
@@ -408,7 +425,7 @@ export default function RecastPage() {
             const userVote = item.voterIds.find((v) => v.userId === user?.uid)?.value ?? 0;
             const canDelete = user && (user.uid === item.creator.firebaseUid || isAdmin);
             return (
-              <div key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <div key={item.id} id={`recast-${item.id}`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
                 {/* Delete confirmation */}
                 {confirmingDeleteId === item.id && (
                   <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">

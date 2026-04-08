@@ -66,20 +66,25 @@ export async function POST(req: NextRequest) {
     ? [tmdbPersonId1, name1, profilePath1, tmdbPersonId2, name2, profilePath2]
     : [tmdbPersonId2, name2, profilePath2, tmdbPersonId1, name1, profilePath1];
 
-  try {
-    const item = await prisma.looksLike.create({
-      data: {
-        creatorId: user.id,
-        tmdbPersonId1: id1,
-        name1: n1,
-        profilePath1: p1 ?? null,
-        tmdbPersonId2: id2,
-        name2: n2,
-        profilePath2: p2 ?? null,
-      },
-    });
-    return NextResponse.json({ item });
-  } catch {
-    return NextResponse.json({ error: "This pair already exists" }, { status: 409 });
+  // Check for existing pair
+  const existing = await prisma.looksLike.findUnique({
+    where: { tmdbPersonId1_tmdbPersonId2: { tmdbPersonId1: id1, tmdbPersonId2: id2 } },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json({ error: "This pair has already been submitted!", existingId: existing.id }, { status: 409 });
   }
+
+  const item = await prisma.looksLike.create({
+    data: {
+      creatorId: user.id,
+      tmdbPersonId1: id1,
+      name1: n1,
+      profilePath1: p1 ?? null,
+      tmdbPersonId2: id2,
+      name2: n2,
+      profilePath2: p2 ?? null,
+    },
+  });
+  return NextResponse.json({ item });
 }

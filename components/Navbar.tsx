@@ -178,7 +178,7 @@ export default function Navbar() {
                       <ListOrdered className="w-4 h-4" /> My Rankings
                     </Link>
                     <Link href="/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)] transition-colors">
-                      <Settings className="w-4 h-4" /> Preferences
+                      <Settings className="w-4 h-4" /> Settings
                     </Link>
                     <Link href="/backstage-pass" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-[var(--surface-2)] transition-colors">
                       <Ticket className="w-4 h-4" /> Backstage Pass
@@ -246,7 +246,7 @@ export default function Navbar() {
                 <Link href="/notifications" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
                   <Bell className="w-4 h-4" /> Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ml-1">{unreadCount > 9 ? "9+" : unreadCount}</span>}
                 </Link>
-                <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Settings className="w-4 h-4" /> Preferences</Link>
+                <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Settings className="w-4 h-4" /> Settings</Link>
                 <Link href="/backstage-pass" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"><Ticket className="w-4 h-4" /> Backstage Pass</Link>
                 <Link href="/about" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><BookOpen className="w-4 h-4" /> About The Ratist</Link>
                 <button onClick={() => { signOut(); setMenuOpen(false); }} className="flex items-center gap-2.5 text-left py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><LogOut className="w-4 h-4" /> Sign Out</button>

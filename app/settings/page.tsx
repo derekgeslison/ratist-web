@@ -75,6 +75,7 @@ export default function SettingsPage() {
   );
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [savedPrefs, setSavedPrefs] = useState(false);
+  const [ratistReviewCount, setRatistReviewCount] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -113,7 +114,11 @@ export default function SettingsPage() {
           return r.json();
         })
       ),
-    ]).then(([meData, prefData]) => {
+      user.getIdToken().then((token) =>
+        fetch("/api/subscription/status", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => ({}))
+      ),
+    ]).then(([meData, prefData, subData]) => {
+      setRatistReviewCount(subData.standardReviewCount ?? 0);
       if (meData.user) {
         setDisplayName(meData.user.name ?? "");
         setAvatarUrl(meData.user.avatarUrl ?? "");
@@ -480,6 +485,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {ratistReviewCount < 10 && (<>
       <div className="border-t border-[var(--border)]" />
 
       {/* ── GENRE PREFERENCES ── */}
@@ -562,6 +568,7 @@ export default function SettingsPage() {
           </span>
         )}
       </div>
+      </>)}
 
       {/* ── Subscription ── */}
       <section className="mb-10">
