@@ -123,14 +123,14 @@ export async function runStatusTransitions(): Promise<void> {
       continue;
     }
 
-    // Community vote: voting → watching (Wed 2am ET, resolve winner)
-    if (week.status === "voting" && dayOfWeek >= 3 && (dayOfWeek > 3 || hour >= 2)) {
+    // Community vote: voting → watching (Wed 2am ET or later — catches missed crons)
+    if (week.status === "voting" && (dayOfWeek >= 3 || dayOfWeek === 0) && (dayOfWeek > 3 || dayOfWeek === 0 || hour >= 2)) {
       await resolveVoteAndStartWatching(week.id);
       continue;
     }
 
-    // Watching → Discussion (Fri 8pm ET)
-    if (week.status === "watching" && dayOfWeek === 5 && hour >= 20) {
+    // Watching → Discussion (Fri 8pm ET or later — catches missed crons)
+    if (week.status === "watching" && (dayOfWeek > 5 || (dayOfWeek === 5 && hour >= 20) || dayOfWeek === 0)) {
       await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "discussion" } });
     }
   }
