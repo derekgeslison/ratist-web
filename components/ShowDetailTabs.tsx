@@ -155,16 +155,45 @@ function SeasonCard({
             <Eye className="w-3 h-3" />
             {`${seenCount}/${totalEpisodes}`}
           </button>
-          {allSeen && episodes && (
-            <label className="shrink-0 mr-3 cursor-pointer text-[var(--foreground-muted)] hover:text-white transition-colors" title="Set watched date for season">
-              <Calendar className="w-3.5 h-3.5" />
+          {allSeen && (
+            <span className="shrink-0 mr-3 relative">
+              <button
+                onClick={() => {
+                  const input = document.getElementById(`season-date-${season.season_number}`) as HTMLInputElement;
+                  input?.showPicker?.();
+                }}
+                className="text-[var(--foreground-muted)] hover:text-white transition-colors"
+                title="Set watched date for season"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+              </button>
               <input
+                id={`season-date-${season.season_number}`}
                 type="date"
-                className="sr-only"
-                value={seenEpisodes.get(`${season.season_number}-${episodes[0]?.episode_number}`) ?? ""}
-                onChange={(e) => onUpdateSeasonDate(season.season_number, episodes, e.target.value || null)}
+                className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                value={(() => {
+                  const firstKey = Array.from(seenEpisodes.keys()).find(k => k.startsWith(`${season.season_number}-`));
+                  return firstKey ? seenEpisodes.get(firstKey) ?? "" : "";
+                })()}
+                onChange={async (e) => {
+                  const date = e.target.value || null;
+                  // If episodes loaded, use them; otherwise fetch season and update
+                  if (episodes) {
+                    onUpdateSeasonDate(season.season_number, episodes, date);
+                  } else {
+                    try {
+                      const res = await fetch(`/api/shows/${showTmdbId}/season/${season.season_number}`);
+                      if (res.ok) {
+                        const data = await res.json();
+                        const eps = data.episodes ?? [];
+                        setEpisodes(eps);
+                        if (eps.length > 0) onUpdateSeasonDate(season.season_number, eps, date);
+                      }
+                    } catch { /* ignore */ }
+                  }
+                }}
               />
-            </label>
+            </span>
           )}
         </>)}
       </div>
@@ -241,15 +270,25 @@ function SeasonCard({
                         {isSeen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                       {isSeen && (
-                        <label className="shrink-0 mt-0.5 cursor-pointer text-[var(--foreground-muted)] hover:text-white transition-colors" title="Set watched date">
-                          <Calendar className="w-3.5 h-3.5" />
+                        <span className="shrink-0 mt-0.5 relative">
+                          <button
+                            onClick={() => {
+                              const input = document.getElementById(`ep-date-${season.season_number}-${ep.episode_number}`) as HTMLInputElement;
+                              input?.showPicker?.();
+                            }}
+                            className="text-[var(--foreground-muted)] hover:text-white transition-colors"
+                            title={seenEpisodes.get(key) ? `Watched: ${seenEpisodes.get(key)}` : "Set watched date"}
+                          >
+                            <Calendar className="w-3.5 h-3.5" />
+                          </button>
                           <input
+                            id={`ep-date-${season.season_number}-${ep.episode_number}`}
                             type="date"
-                            className="sr-only"
+                            className="absolute opacity-0 w-0 h-0 pointer-events-none"
                             value={seenEpisodes.get(key) ?? ""}
                             onChange={(e) => onUpdateEpisodeDate(season.season_number, ep.episode_number, e.target.value || null)}
                           />
-                        </label>
+                        </span>
                       )}
                     </>)}
                   </div>
