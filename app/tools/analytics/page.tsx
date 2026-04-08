@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <BackstagePassGate feature="My Analytics" showTeaser>
+    <BackstagePassGate feature="My Analytics" showTeaser featureHref="/backstage-pass/analytics">
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
         <BarChart3 className="w-6 h-6 text-[var(--ratist-red)]" />

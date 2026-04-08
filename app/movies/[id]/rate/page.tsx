@@ -8,7 +8,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { posterUrl } from "@/lib/tmdb";
 import LiveReview from "@/components/LiveReview";
 import Link from "next/link";
-import { Lock, Ticket } from "lucide-react";
+import BackstagePassPopup from "@/components/BackstagePassPopup";
+import { Ticket } from "lucide-react";
 
 type ReviewMode = "basic" | "standard" | "critic";
 
@@ -115,6 +116,9 @@ export default function RateMoviePage() {
   // Critic mode comments
   const [fieldComments, setFieldComments] = useState<Record<string, string>>({});
   const [categoryComments, setCategoryComments] = useState<Record<string, string>>({});
+  // Backstage Pass popup
+  const [showPassPopup, setShowPassPopup] = useState(false);
+  const [passPopupType, setPassPopupType] = useState<"live-review" | "critics-mode">("live-review");
 
   // Fetch standard review count for critic mode eligibility
   useEffect(() => {
@@ -340,7 +344,10 @@ export default function RateMoviePage() {
               <button
                 key={key}
                 type="button"
-                onClick={() => { if (!criticLocked) setMode(key); }}
+                onClick={() => {
+                  if (criticLocked) { setPassPopupType("critics-mode"); setShowPassPopup(true); }
+                  else setMode(key);
+                }}
                 className={`flex-1 py-3 px-2 text-center transition-colors ${
                   criticLocked
                     ? "bg-[var(--surface-2)] text-[var(--foreground-muted)] opacity-50 cursor-not-allowed"
@@ -350,7 +357,7 @@ export default function RateMoviePage() {
                 }`}
                 title={criticLocked ? (!hasPass ? "Backstage Pass required" : `${250 - standardReviewCount} more Ratist reviews needed`) : undefined}
               >
-                <span className="text-sm font-semibold block">{criticLocked && "🔒 "}{label}</span>
+                <span className="text-sm font-semibold block">{criticLocked && <><Ticket className="w-3 h-3 text-amber-400 inline mr-1" /></>}{label}</span>
                 <span className={`text-[10px] block mt-0.5 ${mode === key ? "text-white/70" : "text-[var(--foreground-muted)]"}`}>
                   {criticLocked ? (!hasPass ? "Backstage Pass" : `${standardReviewCount}/250 reviews`) : desc}
                 </span>
@@ -365,15 +372,19 @@ export default function RateMoviePage() {
         hasPass ? (
           <LiveReview movieId={id} />
         ) : (
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => { setPassPopupType("live-review"); setShowPassPopup(true); }}
+            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 flex items-center justify-between text-left hover:border-amber-400/40 transition-colors"
+          >
             <div>
               <p className="text-sm font-medium text-white">Live Review</p>
               <p className="text-xs text-[var(--foreground-muted)]">Record your thoughts in real-time as you watch</p>
             </div>
-            <Link href="/backstage-pass" className="flex items-center gap-1.5 text-xs text-[var(--ratist-red)] hover:underline">
+            <span className="flex items-center gap-1.5 text-xs text-amber-400">
               <Ticket className="w-3.5 h-3.5" /> Backstage Pass
-            </Link>
-          </div>
+            </span>
+          </button>
         )
       )}
 
@@ -638,6 +649,13 @@ export default function RateMoviePage() {
           )}
         </div>
       </form>
+
+      <BackstagePassPopup
+        isOpen={showPassPopup}
+        onClose={() => setShowPassPopup(false)}
+        type={passPopupType}
+        standardReviewCount={standardReviewCount}
+      />
     </div>
   );
 }

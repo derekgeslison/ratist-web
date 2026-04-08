@@ -146,9 +146,9 @@ export default function ScreeningRoomDashboard() {
               {creating ? "Creating..." : "Create Room"}
             </button>
           ) : (
-            <Link href="/backstage-pass"
-              className="flex items-center justify-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors w-full hover:border-[var(--ratist-red)] hover:text-white">
-              <Ticket className="w-4 h-4" /> Backstage Pass required to host
+            <Link href="/backstage-pass/screening-room"
+              className="flex items-center justify-center gap-2 bg-[var(--surface-2)] border border-amber-400/30 text-amber-400 text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors w-full hover:bg-amber-400/10">
+              <Ticket className="w-4 h-4" /> Learn about hosting — Backstage Pass
             </Link>
           )}
         </div>

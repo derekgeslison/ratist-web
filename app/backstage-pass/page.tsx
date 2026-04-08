@@ -14,13 +14,13 @@ const FEATURES = [
   { name: "Cine-Q daily trivia", free: true, pass: true },
   { name: "Cinephile tools (What Should I Watch?, Shared Cast & Crew, The Matchup, and more)", free: true, pass: true },
   { name: "Join Screening Room sessions", free: true, pass: true },
-  { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay },
-  { name: "Movie Club", free: false, pass: true, icon: Star },
-  { name: "My Analytics (detailed viewing stats)", free: false, pass: true, icon: BarChart3 },
-  { name: "Collections (curated recommendations)", free: false, pass: true, icon: Sparkles },
-  { name: "Critics Mode (250+ reviews required)", free: false, pass: true, icon: Star },
-  { name: "Live Review feature", free: false, pass: true, icon: Star },
-  { name: "Custom profile themes & colors", free: false, pass: true, icon: Palette },
+  { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay, href: "/backstage-pass/screening-room" },
+  { name: "Movie Club", free: false, pass: true, icon: Star, href: "/backstage-pass/movie-club" },
+  { name: "My Analytics (detailed viewing stats)", free: false, pass: true, icon: BarChart3, href: "/backstage-pass/analytics" },
+  { name: "Collections (curated recommendations)", free: false, pass: true, icon: Sparkles, href: "/backstage-pass/collections" },
+  { name: "Critics Mode (250+ reviews required)", free: false, pass: true, icon: Star, href: "/backstage-pass/critics-mode" },
+  { name: "Live Review feature", free: false, pass: true, icon: Star, href: "/backstage-pass/critics-mode" },
+  { name: "Custom profile themes & colors", free: false, pass: true, icon: Palette, href: "/backstage-pass/custom-themes" },
   { name: "Ad-free experience", free: false, pass: true, icon: Shield },
 ];
 
@@ -133,17 +133,22 @@ export default function BackstagePassPage() {
           <span className="text-sm font-semibold text-[var(--foreground-muted)] text-center">Free</span>
           <span className="text-sm font-semibold text-[var(--ratist-red)] text-center">Backstage</span>
         </div>
-        {FEATURES.map((f, i) => (
-          <div key={i} className={`grid grid-cols-[1fr_80px_80px] px-5 py-3 ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""}`}>
-            <span className="text-sm text-white">{f.name}</span>
-            <div className="flex justify-center">
-              {f.free ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />}
+        {FEATURES.map((f, i) => {
+          const row = (
+            <div key={i} className={`grid grid-cols-[1fr_80px_80px] px-5 py-3 ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""} ${"href" in f && f.href ? "hover:bg-[var(--surface-2)] cursor-pointer" : ""}`}>
+              <span className={`text-sm text-white ${"href" in f && f.href ? "hover:text-amber-400 transition-colors" : ""}`}>
+                {f.name} {"href" in f && f.href && <span className="text-[10px] text-[var(--foreground-muted)]">→</span>}
+              </span>
+              <div className="flex justify-center">
+                {f.free ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />}
+              </div>
+              <div className="flex justify-center">
+                <Check className="w-4 h-4 text-[var(--ratist-red)]" />
+              </div>
             </div>
-            <div className="flex justify-center">
-              <Check className="w-4 h-4 text-[var(--ratist-red)]" />
-            </div>
-          </div>
-        ))}
+          );
+          return "href" in f && f.href ? <Link key={i} href={f.href}>{row}</Link> : row;
+        })}
       </div>
 
       {/* Success/cancel messages from Stripe redirect */}
