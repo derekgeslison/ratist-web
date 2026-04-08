@@ -164,11 +164,12 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
           {/* Custom colors */}
           <div className="mb-5">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Custom Colors</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {([
                 { key: "accentColor" as const, label: "Accent", val: accent },
                 { key: "surfaceColor" as const, label: "Background", val: surface },
                 { key: "textColor" as const, label: "Text", val: text },
+                { key: "mutedColor" as const, label: "Secondary", val: muted },
               ]).map(({ key, label, val }) => (
                 <div key={key} className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-2.5">
                   <label className="text-[10px] text-[var(--foreground-muted)] mb-1.5 block">{label}</label>
