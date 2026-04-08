@@ -356,7 +356,7 @@ export default async function ProfilePage({ params }: Props) {
       <div className="relative">
         {/* Banner image or gradient */}
         {theme?.headerImage ? (
-          <div className="h-40 sm:h-52 w-full overflow-hidden">
+          <div className="h-40 sm:h-52 w-full overflow-hidden relative">
             <Image src={theme.headerImage} alt="" fill className="object-cover" unoptimized />
           </div>
         ) : (

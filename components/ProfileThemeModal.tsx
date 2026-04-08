@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { X, Check, Palette, RotateCcw } from "lucide-react";
+import { useState, useRef } from "react";
+import Image from "next/image";
+import { X, Check, Palette, RotateCcw, Upload, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { THEME_PRESETS, type ProfileTheme } from "@/lib/themes";
 
@@ -23,6 +24,10 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
   const [theme, setTheme] = useState<ProfileTheme>(currentTheme ?? {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [headerImage, setHeaderImage] = useState<string | null>(currentTheme?.headerImage ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function saveTheme() {
     if (!user) return;
@@ -41,6 +46,45 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
       }, 600);
     }
     setSaving(false);
+  }
+
+  async function uploadHeaderImage(file: File) {
+    if (!user) return;
+    setUploading(true);
+    setUploadError("");
+    const token = await user.getIdToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/profile/header-image", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (res.ok) {
+      const { headerImageUrl } = await res.json();
+      setHeaderImage(headerImageUrl);
+      setTheme((prev) => ({ ...prev, headerImage: headerImageUrl }));
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setUploadError(data.error ?? "Upload failed.");
+    }
+    setUploading(false);
+  }
+
+  async function removeHeaderImage() {
+    if (!user) return;
+    setUploading(true);
+    const token = await user.getIdToken();
+    await fetch("/api/profile/header-image", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setHeaderImage(null);
+    setTheme((prev) => {
+      const { headerImage: _, ...rest } = prev;
+      return rest;
+    });
+    setUploading(false);
   }
 
   function selectPreset(presetId: string) {
@@ -139,12 +183,65 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
             </div>
           </div>
 
+          {/* Header image */}
+          <div className="mb-5">
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Header Image</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadHeaderImage(f); }}
+            />
+            {headerImage ? (
+              <div className="relative rounded-xl overflow-hidden border border-[var(--border)]">
+                <div className="aspect-[4/1] relative">
+                  <Image src={headerImage} alt="Header" fill className="object-cover" unoptimized />
+                </div>
+                <div className="absolute bottom-2 right-2 flex gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="flex items-center gap-1 px-2 py-1 bg-black/70 text-white text-xs rounded-lg hover:bg-black/90 transition-colors"
+                  >
+                    <Upload className="w-3 h-3" /> Replace
+                  </button>
+                  <button
+                    onClick={removeHeaderImage}
+                    disabled={uploading}
+                    className="flex items-center gap-1 px-2 py-1 bg-black/70 text-red-400 text-xs rounded-lg hover:bg-black/90 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" /> Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full border-2 border-dashed border-[var(--border)] rounded-xl p-4 text-center hover:border-[var(--foreground-muted)] transition-colors disabled:opacity-50"
+              >
+                <Upload className="w-5 h-5 text-[var(--foreground-muted)] mx-auto mb-1" />
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  {uploading ? "Uploading..." : "Upload header image (JPEG, PNG, WebP · max 5 MB)"}
+                </p>
+              </button>
+            )}
+            {uploadError && <p className="text-xs text-red-400 mt-2">{uploadError}</p>}
+          </div>
+
           {/* Live preview — uses explicit inline colors, fully opaque */}
           <div className="mb-5">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Preview</p>
             <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${border}`, background: darkenHex(surface, 8) }}>
-              {/* Banner gradient */}
-              <div style={{ height: 48, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
+              {/* Banner gradient or image */}
+              {headerImage ? (
+                <div style={{ height: 48, position: "relative", overflow: "hidden" }}>
+                  <Image src={headerImage} alt="" fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div style={{ height: 48, background: `linear-gradient(135deg, ${surface}, ${surface2}, ${accent})` }} />
+              )}
               {/* Profile content area */}
               <div style={{ background: surface, padding: "0 12px 12px", marginTop: -16 }}>
                 <div className="flex items-end gap-2 mb-2">
