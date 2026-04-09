@@ -1,8 +1,8 @@
 "use client";
 
 import BadgeCard from "./BadgeCard";
-import type { BadgeTier } from "@/lib/badges";
-import { TIER_LABELS, TIER_COLORS } from "@/lib/badges";
+import type { BadgeTier } from "@/lib/badge-defs";
+import { TIER_LABELS, TIER_COLORS } from "@/lib/badge-defs";
 import { Trophy } from "lucide-react";
 
 interface BadgeData {

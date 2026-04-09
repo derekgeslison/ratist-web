@@ -1,20 +1,10 @@
 import { prisma } from "@/lib/prisma";
+// Re-export client-safe types and constants
+export { computeTier, TIER_LABELS, TIER_COLORS, CATEGORY_LABELS, CATEGORY_ORDER } from "@/lib/badge-defs";
+export type { BadgeCategory, BadgeTier } from "@/lib/badge-defs";
+import type { BadgeCategory } from "@/lib/badge-defs";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-
-export type BadgeCategory =
-  | "watching"
-  | "rating"
-  | "diary"
-  | "exploration"
-  | "screening"
-  | "community"
-  | "personality"
-  | "awards"
-  | "cineq"
-  | "social"
-  | "watchlist"
-  | "meta";
 
 export interface BadgeDef {
   slug: string;
@@ -45,34 +35,6 @@ export type TriggerEvent =
   | "cineq_submit"
   | "movie_club_rate"
   | "oscar_vote";
-
-export type BadgeTier = "none" | "bronze" | "silver" | "gold" | "premiere";
-
-// ─── Tier calculation ───────────────────────────────────────────────────────
-
-export function computeTier(earnedCount: number): BadgeTier {
-  if (earnedCount >= 42) return "premiere";
-  if (earnedCount >= 31) return "gold";
-  if (earnedCount >= 21) return "silver";
-  if (earnedCount >= 10) return "bronze";
-  return "none";
-}
-
-export const TIER_LABELS: Record<BadgeTier, string> = {
-  none: "No Tier",
-  bronze: "Bronze",
-  silver: "Silver",
-  gold: "Gold",
-  premiere: "Premiere",
-};
-
-export const TIER_COLORS: Record<BadgeTier, string> = {
-  none: "#6b7280",
-  bronze: "#cd7f32",
-  silver: "#c0c0c0",
-  gold: "#ffd700",
-  premiere: "#e5e4e2",
-};
 
 // ─── Check functions ────────────────────────────────────────────────────────
 
@@ -761,26 +723,3 @@ export async function checkAllBadges(userId: string): Promise<string[]> {
   }
 }
 
-// ─── Category labels ────────────────────────────────────────────────────────
-
-export const CATEGORY_LABELS: Record<BadgeCategory, string> = {
-  watching: "Watching Milestones",
-  rating: "Rating Milestones",
-  diary: "Film Diary & Habits",
-  exploration: "Exploration",
-  screening: "Screening Room",
-  community: "Community",
-  personality: "Personality & Opinion",
-  awards: "Awards & Events",
-  cineq: "Cine-Q",
-  social: "Social",
-  watchlist: "Watchlist",
-  meta: "Meta",
-};
-
-// Category display order
-export const CATEGORY_ORDER: BadgeCategory[] = [
-  "watching", "rating", "diary", "exploration", "screening",
-  "community", "personality", "awards", "cineq", "social",
-  "watchlist", "meta",
-];

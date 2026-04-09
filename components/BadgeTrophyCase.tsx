@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Trophy, ChevronRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import BadgeCard from "./BadgeCard";
-import type { BadgeTier } from "@/lib/badges";
-import { TIER_LABELS, TIER_COLORS } from "@/lib/badges";
+import type { BadgeTier } from "@/lib/badge-defs";
+import { TIER_LABELS, TIER_COLORS } from "@/lib/badge-defs";
 
 interface BadgeSummary {
   slug: string;
