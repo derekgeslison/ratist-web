@@ -237,7 +237,7 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
 
   // Watchlist
   const wlCount = await prisma.watchlistMovie.count({
-    where: { watchlist: { userId, isDefault: true } },
+    where: { watchlist: { userId } },
   });
   if (wlCount >= 25) await award("the-backlog");
 

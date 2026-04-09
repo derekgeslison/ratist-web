@@ -468,7 +468,7 @@ async function checkInfluencer(userId: string): Promise<boolean> {
 
 async function checkTheBacklog(userId: string): Promise<boolean> {
   const count = await prisma.watchlistMovie.count({
-    where: { watchlist: { userId, isDefault: true } },
+    where: { watchlist: { userId } },
   });
   return count >= 25;
 }
@@ -529,7 +529,7 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   // ── Awards & Events ──
   { slug: "awards-season", name: "Awards Season", description: "Review all Best Picture nominees in a given year", category: "awards", icon: "Medal", check: checkAwardsSeason },
   { slug: "ballot-caster", name: "Ballot Caster", description: "Vote on all Oscar categories in a given year", category: "awards", icon: "Vote", check: checkBallotCaster },
-  { slug: "club-member", name: "Club Member", description: "Participate in 10 weeks of Movie Club", category: "awards", icon: "Armchair", check: checkClubMember },
+  { slug: "club-member", name: "Club Member", description: "Participate in 10 weeks of Movie Club", category: "community", icon: "Armchair", check: checkClubMember },
 
   // ── Cine-Q ──
   { slug: "honor-student", name: "Honor Student", description: "Complete every Cine-Q quiz type on every difficulty", category: "cineq", icon: "Brain", check: checkHonorStudent },

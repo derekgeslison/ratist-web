@@ -84,7 +84,7 @@ export default function BadgeTrophyCase({ profileFirebaseUid }: Props) {
         href={`/profile/${profileFirebaseUid}/badges`}
         className="flex items-center gap-0.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors ml-1"
       >
-        {earnedCount}/${TOTAL_BADGES} <ChevronRight className="w-3 h-3" />
+        {earnedCount}/{TOTAL_BADGES} <ChevronRight className="w-3 h-3" />
       </Link>
     </div>
   );
