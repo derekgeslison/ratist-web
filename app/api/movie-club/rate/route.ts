@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { computeRatistScores } from "@/lib/ratings";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -79,5 +80,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  checkBadges(user.id, "movie_club_rate").catch(() => {});
+  if (markedAsSeen) checkBadges(user.id, "seen").catch(() => {});
   return NextResponse.json({ rating: clubRating, markedAsSeen });
 }

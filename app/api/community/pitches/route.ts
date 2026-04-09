@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
 import { checkCommunityRateLimit } from "@/lib/rate-limit";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -69,5 +70,6 @@ export async function POST(req: NextRequest) {
     include: { author: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
   });
 
+  checkBadges(user.id, "pitch_create").catch(() => {});
   return NextResponse.json({ item: { ...item, score: 0, voterIds: [], commentCount: 0 } });
 }

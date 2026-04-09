@@ -93,6 +93,7 @@ model User {
   adminLogs        AdminLog[] @relation("adminLogs")
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
+  userBadges       UserBadge[]
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -1406,4 +1407,19 @@ model AdminLog {
 
   @@index([adminId])
   @@map("admin_logs")
+}
+
+// ─── Badges / Achievements ──────────────────────────────────────────────────
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String   @map("user_id")
+  slug     String   // matches code-side badge registry key
+  earnedAt DateTime @default(now()) @map("earned_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slug])
+  @@index([userId, earnedAt])
+  @@map("user_badges")
 }

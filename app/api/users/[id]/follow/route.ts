@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { checkBadges } from "@/lib/badges";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -66,6 +67,8 @@ export async function POST(req: NextRequest, { params }: Props) {
     } catch { /* don't fail the follow */ }
 
     const followerCount = await prisma.userFollow.count({ where: { followingId: target.id } });
+    checkBadges(user.id, "follow").catch(() => {});
+    checkBadges(target.id, "got_followed").catch(() => {});
     return NextResponse.json({ following: true, followerCount });
   }
 }

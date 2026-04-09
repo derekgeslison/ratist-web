@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, Check, Shield, X } from "lucide-react";
+import { Bell, Check, Shield, Trophy, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface NotificationItem {
@@ -188,6 +188,10 @@ export default function NotificationsPage() {
               {n.type === "admin" ? (
                 <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)] flex items-center justify-center shrink-0">
                   <Shield className="w-4 h-4 text-white" />
+                </div>
+              ) : n.type === "badge" ? (
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <Trophy className="w-4 h-4 text-amber-400" />
                 </div>
               ) : n.actor?.avatarUrl ? (
                 <Image src={n.actor.avatarUrl} alt={n.actor.name} width={32} height={32} className="rounded-full shrink-0" />

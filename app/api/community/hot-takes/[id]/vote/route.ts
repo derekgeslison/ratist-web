@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
+import { checkBadges } from "@/lib/badges";
 
 async function getUser(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const votes = await prisma.hotTakeVote.findMany({ where: { hotTakeId: id } });
   const score = votes.reduce((sum, v) => sum + v.value, 0);
   const userVote = votes.find((v) => v.userId === user.id)?.value ?? 0;
+
+  const item = await prisma.hotTake.findUnique({ where: { id }, select: { authorId: true } });
+  if (item) checkBadges(item.authorId, "hottake_vote").catch(() => {});
 
   return NextResponse.json({ score, userVote });
 }

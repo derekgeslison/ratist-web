@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
+import { checkBadges } from "@/lib/badges";
 
 async function getUser(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -45,5 +46,6 @@ export async function POST(req: NextRequest) {
     _count: { nomineeId: true },
   });
 
+  checkBadges(user.id, "oscar_vote").catch(() => {});
   return NextResponse.json({ votes: votes.map((v) => ({ nomineeId: v.nomineeId, count: v._count.nomineeId })) });
 }

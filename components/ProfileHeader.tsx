@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 import CompareTasteButton from "./CompareTasteButton";
 import ShareButton from "./ShareButton";
+import BadgeTrophyCase from "./BadgeTrophyCase";
 
 interface Props {
   userName: string;
@@ -146,6 +147,9 @@ export default function ProfileHeader({
           <span className="text-xs text-[var(--foreground-muted)] self-center">Since {memberSince}</span>
         </div>
       )}
+
+      {/* Badge trophy case */}
+      {showStats && <BadgeTrophyCase profileFirebaseUid={profileFirebaseUid} />}
 
       {/* Action buttons */}
       <div className="flex items-center gap-2 flex-wrap">

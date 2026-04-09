@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getRatingStatus } from "@/lib/rating-status";
 import { getScoreEstimate } from "@/lib/profile";
+import { checkBadges } from "@/lib/badges";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -61,6 +62,8 @@ export async function POST(req: NextRequest, { params }: Props) {
           data: { userId: user.id, movieId: movie.id, watchedDate, isRewatch: false },
         }).catch(() => {}); // non-critical
       }
+      checkBadges(user.id, "seen").catch(() => {});
+      if (watchedDate) checkBadges(user.id, "watchlog").catch(() => {});
       return NextResponse.json({ seen: true });
     }
   } catch (err) {

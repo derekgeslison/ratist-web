@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         where: { id },
         data: { status: "POST_WATCH", finishedAt: new Date() },
       });
+      // Check badges for all participants
+      for (const p of session.participants) {
+        checkBadges(p.userId, "screening_end").catch(() => {});
+      }
       return NextResponse.json({ ok: true, allFinished: true });
     }
 
@@ -62,6 +67,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         where: { id },
         data: { status: "POST_WATCH", finishedAt: new Date() },
       });
+      // Check badges for all participants
+      for (const p of participants) {
+        checkBadges(p.userId, "screening_end").catch(() => {});
+      }
     }
 
     return NextResponse.json({ ok: true, allFinished });

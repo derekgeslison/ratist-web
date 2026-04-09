@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getShowDetails, getShowSeasonDetails } from "@/lib/tmdb";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -225,6 +226,10 @@ export async function POST(req: NextRequest, { params }: Props) {
       select: { seasonNumber: true, episodeNumber: true },
       orderBy: [{ seasonNumber: "asc" }, { episodeNumber: "asc" }],
     });
+
+    if (action !== "remove") {
+      checkBadges(user.id, "episode_seen").catch(() => {});
+    }
 
     return NextResponse.json({
       episodes: seenEpisodes,

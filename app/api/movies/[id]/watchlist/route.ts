@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { checkBadges } from "@/lib/badges";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     }));
 
     const inAnyList = allLists.some((l) => l.hasMovie);
+    if (!existing) checkBadges(user.id, "watchlist_add").catch(() => {});
 
     return NextResponse.json({
       watchlisted: inAnyList,

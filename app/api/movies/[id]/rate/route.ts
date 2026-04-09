@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
 import { rebuildUserProfile } from "@/lib/profile";
+import { checkBadges } from "@/lib/badges";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -130,6 +131,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Rebuild user profile/persona async
     rebuildUserProfile(user.id).catch(console.error);
+    checkBadges(user.id, "rate").catch(() => {});
+    checkBadges(user.id, "seen").catch(() => {});
 
     return NextResponse.json({ rating });
   } catch (err) {

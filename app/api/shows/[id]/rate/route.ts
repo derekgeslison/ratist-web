@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
+import { checkBadges } from "@/lib/badges";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -112,6 +113,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       create: { userId: user.id, tvShowId: tvShow.id },
       update: {},
     }).catch(() => {});
+
+    checkBadges(user.id, "rate").catch(() => {});
 
     return NextResponse.json({ rating });
   } catch (err) {

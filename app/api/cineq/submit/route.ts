@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,8 @@ export async function POST(req: NextRequest) {
         },
       });
     }
+
+    if (!isPartial) checkBadges(user.id, "cineq_submit").catch(() => {});
 
     return NextResponse.json({
       attemptId: attempt.id,
