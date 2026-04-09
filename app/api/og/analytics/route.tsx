@@ -60,9 +60,11 @@ export async function GET(request: Request) {
     if (tab === "overview") {
       tabTitle = "Movie Analytics";
 
-      const [ratingCount, seenCount] = await Promise.all([
+      const [ratingCount, seenCount, tvShowsSeen, episodesWatched] = await Promise.all([
         prisma.movieRating.count({ where: { userId: user.id } }),
         prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
+        prisma.userFavoriteShow.count({ where: { userId: user.id } }),
+        prisma.episodeSeen.count({ where: { userId: user.id } }),
       ]);
 
       const seenMovies = await prisma.userFavoriteMovie.findMany({
@@ -117,11 +119,12 @@ export async function GET(request: Request) {
 
       statsContent = (
         <div style={{ display: "flex", gap: 10 }}>
-          <Stat label="Seen" value={String(seenCount)} />
+          <Stat label="Movies Seen" value={String(seenCount)} />
           <Stat label="Rated" value={String(ratingCount)} />
           <Stat label="Hours" value={String(totalHours)} />
           <Stat label="Top Genre" value={favGenre} small />
-          {avgAge != null && <Stat label="Avg Age" value={`${avgAge}yr`} />}
+          {tvShowsSeen > 0 && <Stat label="Shows" value={String(tvShowsSeen)} />}
+          {episodesWatched > 0 && <Stat label="Episodes" value={String(episodesWatched)} />}
         </div>
       );
       badgeContent = <Badge text={profileType} color="#8b5cf6" />;
@@ -406,11 +409,15 @@ export async function GET(request: Request) {
     // ── Habits: Monthly bar chart + avg/month + streak ──
     else if (tab === "habits") {
       tabTitle = "Watching Habits";
-      const seenDated = await prisma.userFavoriteMovie.findMany({
-        where: { userId: user.id, watchedDate: { not: null } },
-        select: { watchedDate: true },
-        orderBy: { watchedDate: "asc" },
-      });
+      const [seenDated, tvShowsSeen, episodesWatched] = await Promise.all([
+        prisma.userFavoriteMovie.findMany({
+          where: { userId: user.id, watchedDate: { not: null } },
+          select: { watchedDate: true },
+          orderBy: { watchedDate: "asc" },
+        }),
+        prisma.userFavoriteShow.count({ where: { userId: user.id } }),
+        prisma.episodeSeen.count({ where: { userId: user.id } }),
+      ]);
       const monthCounts = new Array(12).fill(0);
       const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       for (const s of seenDated) {
@@ -454,10 +461,11 @@ export async function GET(request: Request) {
 
       statsContent = (
         <div style={{ display: "flex", gap: 10 }}>
-          <Stat label="Seen" value={String(seenCount)} />
+          <Stat label="Movies" value={String(seenCount)} />
           <Stat label="Hours" value={String(hours)} />
           <Stat label="Avg/Month" value={avgPerMonth} />
-          <Stat label="Peak Month" value={monthLabels[peakIdx]} />
+          {tvShowsSeen > 0 && <Stat label="Shows" value={String(tvShowsSeen)} />}
+          {episodesWatched > 0 && <Stat label="Episodes" value={String(episodesWatched)} />}
           <Stat label="Top Day" value={dayLabels[peakDay]} />
         </div>
       );

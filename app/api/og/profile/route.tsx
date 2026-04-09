@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     });
     if (!user) return new Response("Not found", { status: 404 });
 
-    const [ratingCount, seenCount, avgRating, tvRatingCount, tvSeenCount, topRatings, followerCount] = await Promise.all([
+    const [ratingCount, seenCount, avgRating, tvRatingCount, tvSeenCount, episodesWatched, topRatings, followerCount] = await Promise.all([
       prisma.movieRating.count({ where: { userId: user.id } }),
       prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
       prisma.movieRating.aggregate({
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       }),
       prisma.tVShowRating.count({ where: { userId: user.id } }),
       prisma.userFavoriteShow.count({ where: { userId: user.id } }),
+      prisma.episodeSeen.count({ where: { userId: user.id } }),
       prisma.movieRating.findMany({
         where: { userId: user.id, ratistRating: { not: null } },
         select: { ratistRating: true, movie: { select: { posterPath: true, title: true } } },
@@ -82,16 +83,20 @@ export async function GET(request: Request) {
           </div>
 
           {/* Stats row */}
-          <div style={{ display: "flex", gap: 32, marginBottom: 32 }}>
+          <div style={{ display: "flex", gap: 24, marginBottom: 32, flexWrap: "wrap" }}>
             {[
-              { label: "Rated", value: String(totalRated) },
-              { label: "Seen", value: String(totalSeen) },
+              { label: "Movies Rated", value: String(ratingCount) },
+              { label: "Movies Seen", value: String(seenCount) },
               { label: "Avg Rating", value: avg ? avg.toFixed(1) : "—", color: avg ? scoreHex(avg) : "#666" },
+              ...(tvSeenCount > 0 ? [
+                { label: "Shows Seen", value: String(tvSeenCount), color: "#60a5fa" },
+                { label: "Episodes", value: String(episodesWatched), color: "#60a5fa" },
+              ] : []),
               { label: "Followers", value: String(followerCount) },
             ].map((stat) => (
               <div key={stat.label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <span style={{ color: stat.color ?? "white", fontSize: 28, fontWeight: 800 }}>{stat.value}</span>
-                <span style={{ color: "#666", fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}>{stat.label}</span>
+                <span style={{ color: stat.color ?? "white", fontSize: 24, fontWeight: 800 }}>{stat.value}</span>
+                <span style={{ color: "#666", fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>{stat.label}</span>
               </div>
             ))}
           </div>

@@ -152,7 +152,7 @@ export default function ProfileHeader({
         <ShareButton
           text={`${userName} on The Ratist`}
           url={profileUrl}
-          cardImageUrl={ogImageUrl}
+          cardImageUrl={isOwnProfile ? ogImageUrl : undefined}
         />
         {!isPrivate && (
           <CompareTasteButton profileFirebaseUid={profileFirebaseUid} profileUserId={profileUserId} />
