@@ -24,7 +24,7 @@ export default function BadgeCard({ name, description, icon, earned, earnedAt, c
         className="flex items-center justify-center w-9 h-9 rounded-full border border-[var(--border)] bg-[var(--surface)] shrink-0"
         title={`${name}${earnedAt ? ` — earned ${new Date(earnedAt).toLocaleDateString()}` : ""}`}
       >
-        <IconComponent className="w-4 h-4 text-[var(--foreground-muted)]" />
+        <IconComponent className="w-4 h-4 text-[var(--foreground)]" />
       </div>
     );
   }

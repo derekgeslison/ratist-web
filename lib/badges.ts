@@ -499,10 +499,10 @@ export const BADGE_REGISTRY: BadgeDef[] = [
 
   // ── Film Diary & Habits ──
   { slug: "first-watch", name: "First Watch", description: "Log your first movie with a watch date", category: "diary", icon: "Calendar", permanent: true, check: checkFirstWatch },
-  { slug: "weekly-ritual", name: "Weekly Ritual", description: "Watch a movie every week for 4 consecutive weeks", category: "diary", icon: "CalendarCheck", check: checkWeeklyRitual },
-  { slug: "marathon-runner", name: "Marathon Runner", description: "Watch 10+ movies in a single month (dated in diary)", category: "diary", icon: "Timer", check: checkMarathonRunner },
+  { slug: "weekly-ritual", name: "Weekly Ritual", description: "Watch a movie every week for 4 consecutive weeks", category: "diary", icon: "CalendarCheck", permanent: true, check: checkWeeklyRitual },
+  { slug: "marathon-runner", name: "Marathon Runner", description: "Watch 10+ movies in a single month (dated in diary)", category: "diary", icon: "Timer", permanent: true, check: checkMarathonRunner },
   { slug: "diary-keeper", name: "Diary Keeper", description: "Log watch dates for 30 movies", category: "diary", icon: "BookMarked", check: checkDiaryKeeper },
-  { slug: "binge-watcher", name: "Binge Watcher", description: "Watch an entire season of a series in one day", category: "diary", icon: "Tv", check: checkBingeWatcher },
+  { slug: "binge-watcher", name: "Binge Watcher", description: "Watch an entire season of a series in one day", category: "diary", icon: "Tv", permanent: true, check: checkBingeWatcher },
 
   // ── Exploration ──
   { slug: "genre-explorer", name: "Genre Explorer", description: "See movies in 15+ genres", category: "exploration", icon: "Compass", check: checkGenreExplorer },
@@ -510,42 +510,42 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   { slug: "directors-cut", name: "Director's Cut", description: "Watch 5+ movies from the same director", category: "exploration", icon: "Megaphone", check: checkDirectorsCut },
 
   // ── Screening Room ──
-  { slug: "social-butterfly", name: "Social Butterfly", description: "Participate in 5 screening room sessions (each 1hr+)", category: "screening", icon: "Users", check: (uid) => checkScreeningParticipant(uid, 5) },
+  { slug: "social-butterfly", name: "Social Butterfly", description: "Participate in 5 screening room sessions (each 1hr+)", category: "screening", icon: "Users", permanent: true, check: (uid) => checkScreeningParticipant(uid, 5) },
   { slug: "screening-host", name: "Screening Host", description: "Host your first screening room session (1hr+)", category: "screening", icon: "Monitor", permanent: true, check: checkScreeningHost },
-  { slug: "pack-leader", name: "Pack Leader", description: "Host a screening room with 4+ participants (1hr+)", category: "screening", icon: "Shield", check: checkPackLeader },
+  { slug: "pack-leader", name: "Pack Leader", description: "Host a screening room with 4+ participants (1hr+)", category: "screening", icon: "Shield", permanent: true, check: checkPackLeader },
 
   // ── Community Tools ──
   { slug: "spotter", name: "Spotter", description: "Submit your first Looks Like pair", category: "community", icon: "Eye", permanent: true, check: (uid) => checkContentCreated("looksLike", uid) },
-  { slug: "trendsetter", name: "Trendsetter", description: "Have a Looks Like pair get 50+ net positive votes", category: "community", icon: "TrendingUp", check: (uid) => checkNetPositiveVotes("lookslike", uid, 50) },
+  { slug: "trendsetter", name: "Trendsetter", description: "Have a Looks Like pair get 50+ net positive votes", category: "community", icon: "TrendingUp", permanent: true, check: (uid) => checkNetPositiveVotes("lookslike", uid, 50) },
   { slug: "casting-director", name: "Casting Director", description: "Submit your first recast", category: "community", icon: "UserCog", permanent: true, check: (uid) => checkContentCreated("recast", uid) },
-  { slug: "fan-casting", name: "Fan Casting", description: "Have a recast get 50+ net positive votes", category: "community", icon: "Heart", check: (uid) => checkNetPositiveVotes("recast", uid, 50) },
+  { slug: "fan-casting", name: "Fan Casting", description: "Have a recast get 50+ net positive votes", category: "community", icon: "Heart", permanent: true, check: (uid) => checkNetPositiveVotes("recast", uid, 50) },
   { slug: "first-flame", name: "First Flame", description: "Post your first Hot Take", category: "community", icon: "Flame", permanent: true, check: (uid) => checkContentCreated("hotTake", uid) },
-  { slug: "fire-starter", name: "Fire Starter", description: "Have a Hot Take get 50+ net positive votes", category: "community", icon: "Sparkles", check: (uid) => checkNetPositiveVotes("hottake", uid, 50) },
+  { slug: "fire-starter", name: "Fire Starter", description: "Have a Hot Take get 50+ net positive votes", category: "community", icon: "Sparkles", permanent: true, check: (uid) => checkNetPositiveVotes("hottake", uid, 50) },
   { slug: "the-pitch", name: "The Pitch", description: "Post your first Pitch", category: "community", icon: "Lightbulb", permanent: true, check: (uid) => checkContentCreated("moviePitch", uid) },
-  { slug: "green-light", name: "Green Light", description: "Have a Pitch get 50+ net positive votes", category: "community", icon: "CircleDot", check: (uid) => checkNetPositiveVotes("pitch", uid, 50) },
+  { slug: "green-light", name: "Green Light", description: "Have a Pitch get 50+ net positive votes", category: "community", icon: "CircleDot", permanent: true, check: (uid) => checkNetPositiveVotes("pitch", uid, 50) },
 
   // ── Personality & Opinion ──
   { slug: "contrarian", name: "Contrarian", description: "Rate a movie 3+ points from the community average", category: "personality", icon: "ArrowUpDown", permanent: true, check: checkContrarian },
 
   // ── Awards & Events ──
-  { slug: "awards-season", name: "Awards Season", description: "Review all Best Picture nominees in a given year", category: "awards", icon: "Medal", check: checkAwardsSeason },
-  { slug: "ballot-caster", name: "Ballot Caster", description: "Vote on all Oscar categories in a given year", category: "awards", icon: "Vote", check: checkBallotCaster },
-  { slug: "club-member", name: "Club Member", description: "Participate in 10 weeks of Movie Club", category: "community", icon: "Armchair", check: checkClubMember },
+  { slug: "awards-season", name: "Awards Season", description: "Review all Best Picture nominees in a given year", category: "awards", icon: "Medal", permanent: true, check: checkAwardsSeason },
+  { slug: "ballot-caster", name: "Ballot Caster", description: "Vote on all Oscar categories in a given year", category: "awards", icon: "Vote", permanent: true, check: checkBallotCaster },
+  { slug: "club-member", name: "Club Member", description: "Participate in 10 weeks of Movie Club", category: "community", icon: "Armchair", permanent: true, check: checkClubMember },
 
   // ── Cine-Q ──
-  { slug: "honor-student", name: "Honor Student", description: "Complete every Cine-Q quiz type on every difficulty", category: "cineq", icon: "Brain", check: checkHonorStudent },
-  { slug: "cram-session", name: "Cram Session", description: "Score 2,000+ Cine-Q points in one day", category: "cineq", icon: "BrainCircuit", check: checkCramSession },
-  { slug: "valedictorian", name: "Valedictorian", description: "Score 20,000+ Cine-Q points all time", category: "cineq", icon: "GraduationCap", check: checkValedictorian },
+  { slug: "honor-student", name: "Honor Student", description: "Complete every Cine-Q quiz type on every difficulty", category: "cineq", icon: "Brain", permanent: true, check: checkHonorStudent },
+  { slug: "cram-session", name: "Cram Session", description: "Score 2,000+ Cine-Q points in one day", category: "cineq", icon: "BrainCircuit", permanent: true, check: checkCramSession },
+  { slug: "valedictorian", name: "Valedictorian", description: "Score 20,000+ Cine-Q points all time", category: "cineq", icon: "GraduationCap", permanent: true, check: checkValedictorian },
 
   // ── Social ──
   { slug: "first-follow", name: "First Follow", description: "Follow your first user", category: "social", icon: "UserPlus", permanent: true, check: checkFirstFollow },
-  { slug: "influencer", name: "Influencer", description: "Reach 50 followers", category: "social", icon: "Megaphone", check: checkInfluencer },
+  { slug: "influencer", name: "Influencer", description: "Reach 50 followers", category: "social", icon: "Megaphone", permanent: true, check: checkInfluencer },
 
   // ── Watchlist ──
-  { slug: "the-backlog", name: "The Backlog", description: "Add 25 movies to your watchlist", category: "watchlist", icon: "ListPlus", check: checkTheBacklog },
+  { slug: "the-backlog", name: "The Backlog", description: "Add 25 movies to your watchlist", category: "watchlist", icon: "ListPlus", permanent: true, check: checkTheBacklog },
 
   // ── Meta ──
-  { slug: "completionist-supreme", name: "Completionist Supreme", description: "Acquire all other badges", category: "meta", icon: "Gem", check: checkCompletionistSupreme },
+  { slug: "completionist-supreme", name: "Completionist Supreme", description: "Acquire all other badges", category: "meta", icon: "Gem", permanent: true, check: checkCompletionistSupreme },
 ];
 
 // ─── Trigger Map ────────────────────────────────────────────────────────────
