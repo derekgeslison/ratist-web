@@ -77,32 +77,35 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   if (seenCount >= 500) await award("film-scholar");
   if (seenCount >= 1000) await award("living-encyclopedia");
 
-  // Rating milestones
-  const ratingCount = await prisma.movieRating.count({ where: { userId, ratistRating: { not: null } } });
+  // Rating milestones (only standard + critic, not basic/quick)
+  const ratingCount = await prisma.movieRating.count({ where: { userId, ratistRating: { not: null }, reviewType: { in: ["standard", "critic"] } } });
   if (ratingCount >= 1) await award("first-take");
   if (ratingCount >= 10) await award("critic-in-training");
   if (ratingCount >= 50) await award("seasoned-critic");
   if (ratingCount >= 100) await award("master-critic");
   if (ratingCount >= 250) await award("the-completionist");
 
-  // Quick draw
-  const quickCount = await prisma.movieRating.count({ where: { userId, reviewType: "basic" } });
-  if (quickCount >= 10) await award("quick-draw");
+  // Quick draw (movies + TV)
+  const [quickMovies, quickTV] = await Promise.all([
+    prisma.movieRating.count({ where: { userId, reviewType: "basic" } }),
+    prisma.tVShowRating.count({ where: { userId, reviewType: "basic" } }),
+  ]);
+  if ((quickMovies + quickTV) >= 10) await award("quick-draw");
 
-  // Diary
-  const watchLogDated = await prisma.userWatchLog.count({ where: { userId, watchedDate: { not: null } } });
-  if (watchLogDated >= 1) await award("first-watch");
-  if (watchLogDated >= 30) await award("diary-keeper");
+  // Diary (using UserFavoriteMovie.watchedDate as source of truth)
+  const datedCount = await prisma.userFavoriteMovie.count({ where: { userId, watchedDate: { not: null } } });
+  if (datedCount >= 1) await award("first-watch");
+  if (datedCount >= 30) await award("diary-keeper");
 
   // Marathon runner
-  if (watchLogDated >= 10) {
-    const logs = await prisma.userWatchLog.findMany({
+  if (datedCount >= 10) {
+    const dated = await prisma.userFavoriteMovie.findMany({
       where: { userId, watchedDate: { not: null } },
       select: { watchedDate: true },
     });
     const months = new Map<string, number>();
-    for (const log of logs) {
-      const d = log.watchedDate!;
+    for (const movie of dated) {
+      const d = movie.watchedDate!;
       const key = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
       months.set(key, (months.get(key) ?? 0) + 1);
     }
@@ -111,13 +114,19 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
     }
   }
 
-  // Genre explorer
+  // Genre explorer (movies + TV shows)
   const genreResult = await prisma.$queryRaw<{ count: bigint }[]>`
-    SELECT COUNT(DISTINCT g.id) as count
-    FROM user_favorite_movies ufm
-    JOIN movie_genres mg ON mg.movie_id = ufm.movie_id
-    JOIN genres g ON g.id = mg.genre_id
-    WHERE ufm.user_id = ${userId}
+    SELECT COUNT(DISTINCT genre_id) as count FROM (
+      SELECT mg.genre_id
+      FROM user_favorite_movies ufm
+      JOIN movie_genres mg ON mg.movie_id = ufm.movie_id
+      WHERE ufm.user_id = ${userId}
+      UNION
+      SELECT tsg.genre_id
+      FROM user_favorite_shows ufs
+      JOIN tv_show_genres tsg ON tsg.tv_show_id = ufs.tv_show_id
+      WHERE ufs.user_id = ${userId}
+    ) combined
   `;
   if (Number(genreResult[0]?.count ?? 0) >= 15) await award("genre-explorer");
 
@@ -195,9 +204,6 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   const pitchCount = await prisma.moviePitch.count({ where: { authorId: userId } });
   if (pitchCount >= 1) await award("the-pitch");
 
-  // Rater personality (3+ ratings)
-  if (ratingCount >= 3) await award("rater-personality");
-
   // Contrarian
   const contrarianResult = await prisma.$queryRaw<{ count: bigint }[]>`
     SELECT COUNT(*) as count
@@ -236,9 +242,9 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   if (wlCount >= 25) await award("the-backlog");
 
   // Completionist supreme (last)
-  if (newlyEarned.length > 0 || earned.size >= 41) {
+  if (newlyEarned.length > 0 || earned.size >= 40) {
     const total = earned.size;
-    if (total >= 41) await award("completionist-supreme");
+    if (total >= 40) await award("completionist-supreme");
   }
 
   return newlyEarned;

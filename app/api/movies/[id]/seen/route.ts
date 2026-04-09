@@ -108,6 +108,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
       data: { watchedDate: parsedDate },
     });
 
+    if (parsedDate) checkBadges(user.id, "watchlog").catch(() => {});
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Seen date update error:", err);

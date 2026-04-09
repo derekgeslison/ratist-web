@@ -10,6 +10,7 @@ import {
   CATEGORY_ORDER,
   CATEGORY_LABELS,
 } from "@/lib/badges";
+import { TOTAL_BADGES } from "@/lib/badge-defs";
 import BadgeGrid from "@/components/BadgeGrid";
 
 interface Props {
@@ -75,7 +76,7 @@ export default async function BadgesPage({ params }: Props) {
         categories={categories}
         tier={tier}
         earnedCount={earned.length}
-        totalCount={42}
+        totalCount={TOTAL_BADGES}
       />
     </div>
   );

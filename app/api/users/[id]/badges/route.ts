@@ -7,6 +7,7 @@ import {
   CATEGORY_ORDER,
   CATEGORY_LABELS,
 } from "@/lib/badges";
+import { TOTAL_BADGES } from "@/lib/badge-defs";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     return NextResponse.json({
       tier: "none",
       earnedCount: 0,
-      totalCount: 42,
+      totalCount: TOTAL_BADGES,
       badges: [],
     });
   }
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     return NextResponse.json({
       tier,
       earnedCount: earned.length,
-      totalCount: 42,
+      totalCount: TOTAL_BADGES,
       badges: recentBadges,
     });
   }
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest, { params }: Props) {
   return NextResponse.json({
     tier,
     earnedCount: earned.length,
-    totalCount: 42,
+    totalCount: TOTAL_BADGES,
     badges,
     categories: CATEGORY_ORDER.map((key) => ({ key, label: CATEGORY_LABELS[key] })),
   });

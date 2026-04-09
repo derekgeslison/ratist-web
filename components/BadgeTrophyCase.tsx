@@ -6,7 +6,7 @@ import { Trophy, ChevronRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import BadgeCard from "./BadgeCard";
 import type { BadgeTier } from "@/lib/badge-defs";
-import { TIER_LABELS, TIER_COLORS } from "@/lib/badge-defs";
+import { TIER_LABELS, TIER_COLORS, TOTAL_BADGES } from "@/lib/badge-defs";
 
 interface BadgeSummary {
   slug: string;
@@ -58,7 +58,7 @@ export default function BadgeTrophyCase({ profileFirebaseUid }: Props) {
           backgroundColor: `${TIER_COLORS[tier]}20`,
           border: `1.5px solid ${TIER_COLORS[tier]}`,
         }}
-        title={`${TIER_LABELS[tier]} — ${earnedCount}/42 badges`}
+        title={`${TIER_LABELS[tier]} — ${earnedCount}/${TOTAL_BADGES} badges`}
       >
         <Trophy className="w-3.5 h-3.5" style={{ color: TIER_COLORS[tier] }} />
       </div>
@@ -84,7 +84,7 @@ export default function BadgeTrophyCase({ profileFirebaseUid }: Props) {
         href={`/profile/${profileFirebaseUid}/badges`}
         className="flex items-center gap-0.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors ml-1"
       >
-        {earnedCount}/42 <ChevronRight className="w-3 h-3" />
+        {earnedCount}/${TOTAL_BADGES} <ChevronRight className="w-3 h-3" />
       </Link>
     </div>
   );

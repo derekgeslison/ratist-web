@@ -17,8 +17,10 @@ export type BadgeCategory =
 
 export type BadgeTier = "none" | "bronze" | "silver" | "gold" | "premiere";
 
+export const TOTAL_BADGES = 41;
+
 export function computeTier(earnedCount: number): BadgeTier {
-  if (earnedCount >= 42) return "premiere";
+  if (earnedCount >= TOTAL_BADGES) return "premiere";
   if (earnedCount >= 31) return "gold";
   if (earnedCount >= 21) return "silver";
   if (earnedCount >= 10) return "bronze";

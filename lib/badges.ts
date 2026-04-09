@@ -44,40 +44,41 @@ async function checkSeenCount(userId: string, target: number): Promise<boolean> 
 }
 
 async function checkRatingCount(userId: string, target: number): Promise<boolean> {
+  // Only count standard and critic ratings (not basic/quick)
   const count = await prisma.movieRating.count({
-    where: { userId, ratistRating: { not: null } },
+    where: { userId, ratistRating: { not: null }, reviewType: { in: ["standard", "critic"] } },
   });
   return count >= target;
 }
 
 async function checkQuickDraw(userId: string): Promise<boolean> {
-  const count = await prisma.movieRating.count({
-    where: { userId, reviewType: "basic" },
-  });
-  return count >= 10;
+  // Count quick ratings from both movies and TV shows
+  const [movieCount, tvCount] = await Promise.all([
+    prisma.movieRating.count({ where: { userId, reviewType: "basic" } }),
+    prisma.tVShowRating.count({ where: { userId, reviewType: "basic" } }),
+  ]);
+  return (movieCount + tvCount) >= 10;
 }
 
 async function checkFirstWatch(userId: string): Promise<boolean> {
-  const count = await prisma.userWatchLog.count({
+  const count = await prisma.userFavoriteMovie.count({
     where: { userId, watchedDate: { not: null } },
   });
   return count >= 1;
 }
 
 async function checkWeeklyRitual(userId: string): Promise<boolean> {
-  // Get all watch log dates from the last 12 weeks
-  const twelveWeeksAgo = new Date();
-  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
-  const logs = await prisma.userWatchLog.findMany({
-    where: { userId, watchedDate: { not: null, gte: twelveWeeksAgo } },
+  // Get all seen movie dates (using UserFavoriteMovie as the source of truth)
+  const movies = await prisma.userFavoriteMovie.findMany({
+    where: { userId, watchedDate: { not: null } },
     select: { watchedDate: true },
   });
-  if (logs.length < 4) return false;
+  if (movies.length < 4) return false;
 
   // Bucket by ISO week number
   const weeks = new Set<string>();
-  for (const log of logs) {
-    const d = log.watchedDate!;
+  for (const movie of movies) {
+    const d = movie.watchedDate!;
     const yearWeek = getISOYearWeek(d);
     weeks.add(yearWeek);
   }
@@ -114,16 +115,16 @@ function isConsecutiveWeek(a: string, b: string): boolean {
 }
 
 async function checkMarathonRunner(userId: string): Promise<boolean> {
-  const logs = await prisma.userWatchLog.findMany({
+  const movies = await prisma.userFavoriteMovie.findMany({
     where: { userId, watchedDate: { not: null } },
     select: { watchedDate: true },
   });
-  if (logs.length < 10) return false;
+  if (movies.length < 10) return false;
 
   // Group by year-month
   const months = new Map<string, number>();
-  for (const log of logs) {
-    const d = log.watchedDate!;
+  for (const movie of movies) {
+    const d = movie.watchedDate!;
     const key = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}`;
     months.set(key, (months.get(key) ?? 0) + 1);
   }
@@ -134,7 +135,7 @@ async function checkMarathonRunner(userId: string): Promise<boolean> {
 }
 
 async function checkDiaryKeeper(userId: string): Promise<boolean> {
-  const count = await prisma.userWatchLog.count({
+  const count = await prisma.userFavoriteMovie.count({
     where: { userId, watchedDate: { not: null } },
   });
   return count >= 30;
@@ -186,12 +187,19 @@ async function checkBingeWatcher(userId: string): Promise<boolean> {
 }
 
 async function checkGenreExplorer(userId: string): Promise<boolean> {
+  // Count distinct genres from both movies and TV shows the user has seen
   const result = await prisma.$queryRaw<{ count: bigint }[]>`
-    SELECT COUNT(DISTINCT g.id) as count
-    FROM user_favorite_movies ufm
-    JOIN movie_genres mg ON mg.movie_id = ufm.movie_id
-    JOIN genres g ON g.id = mg.genre_id
-    WHERE ufm.user_id = ${userId}
+    SELECT COUNT(DISTINCT genre_id) as count FROM (
+      SELECT mg.genre_id
+      FROM user_favorite_movies ufm
+      JOIN movie_genres mg ON mg.movie_id = ufm.movie_id
+      WHERE ufm.user_id = ${userId}
+      UNION
+      SELECT tsg.genre_id
+      FROM user_favorite_shows ufs
+      JOIN tv_show_genres tsg ON tsg.tv_show_id = ufs.tv_show_id
+      WHERE ufs.user_id = ${userId}
+    ) combined
   `;
   return Number(result[0]?.count ?? 0) >= 15;
 }
@@ -335,16 +343,6 @@ async function checkNetPositiveVotes(
   return result.length > 0;
 }
 
-async function checkRaterPersonality(userId: string): Promise<boolean> {
-  // Need at least 3 ratings to determine personality
-  const ratings = await prisma.movieRating.findMany({
-    where: { userId, ratistRating: { not: null } },
-    select: { ratistRating: true },
-    take: 3,
-  });
-  return ratings.length >= 3;
-}
-
 async function checkContrarian(userId: string): Promise<boolean> {
   // Check if user has any rating that's 3+ points from the TMDB community average
   const result = await prisma.$queryRaw<{ count: bigint }[]>`
@@ -477,7 +475,7 @@ async function checkTheBacklog(userId: string): Promise<boolean> {
 
 async function checkCompletionistSupreme(userId: string): Promise<boolean> {
   const count = await prisma.userBadge.count({ where: { userId } });
-  return count >= 41; // all other badges
+  return count >= 40; // all other badges
 }
 
 // ─── Badge Registry ─────────────────────────────────────────────────────────
@@ -526,7 +524,6 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   { slug: "green-light", name: "Green Light", description: "Have a Pitch get 50+ net positive votes", category: "community", icon: "CircleDot", check: (uid) => checkNetPositiveVotes("pitch", uid, 50) },
 
   // ── Personality & Opinion ──
-  { slug: "rater-personality", name: "Rater Personality", description: "Earn your rater personality type", category: "personality", icon: "Fingerprint", check: checkRaterPersonality },
   { slug: "contrarian", name: "Contrarian", description: "Rate a movie 3+ points from the community average", category: "personality", icon: "ArrowUpDown", check: checkContrarian },
 
   // ── Awards & Events ──
@@ -559,7 +556,7 @@ const TRIGGER_MAP: Record<TriggerEvent, string[]> = {
   ],
   rate: [
     "first-take", "critic-in-training", "seasoned-critic", "master-critic",
-    "the-completionist", "quick-draw", "rater-personality", "contrarian",
+    "the-completionist", "quick-draw", "contrarian",
     "awards-season",
   ],
   watchlog: [
@@ -711,7 +708,7 @@ export async function checkAllBadges(userId: string): Promise<string[]> {
     // Check completionist supreme last
     if (!earnedSet.has("completionist-supreme") && newlyEarned.length > 0) {
       const total = earnedSet.size + newlyEarned.length;
-      if (total >= 41) {
+      if (total >= 40) {
         await prisma.userBadge.create({ data: { userId, slug: "completionist-supreme" } });
         newlyEarned.push("completionist-supreme");
       }
