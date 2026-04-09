@@ -45,17 +45,18 @@ async function checkSeenCount(userId: string, target: number): Promise<boolean> 
 }
 
 async function checkRatingCount(userId: string, target: number): Promise<boolean> {
-  // Only count standard and critic ratings (not basic/quick)
+  // Only count ratings where the user actually filled out the Ratist form
+  // (plot is a required field — null means it was a quick rating or import)
   const count = await prisma.movieRating.count({
-    where: { userId, ratistRating: { not: null }, reviewType: { in: ["standard", "critic"] } },
+    where: { userId, ratistRating: { not: null }, plot: { not: null } },
   });
   return count >= target;
 }
 
 async function checkQuickDraw(userId: string): Promise<boolean> {
-  // Count quick ratings from both movies and TV shows
+  // Count ratings without component scores (quick ratings + imports = no form filled)
   const [movieCount, tvCount] = await Promise.all([
-    prisma.movieRating.count({ where: { userId, reviewType: "basic" } }),
+    prisma.movieRating.count({ where: { userId, ratistRating: { not: null }, plot: null } }),
     prisma.tVShowRating.count({ where: { userId, reviewType: "basic" } }),
   ]);
   return (movieCount + tvCount) >= 10;
@@ -69,7 +70,7 @@ async function checkFirstWatch(userId: string): Promise<boolean> {
 }
 
 async function checkWeeklyRitual(userId: string): Promise<boolean> {
-  // Get all seen movie dates (using UserFavoriteMovie as the source of truth)
+  // Get all seen movie dates (all time — badge is permanent once earned)
   const movies = await prisma.userFavoriteMovie.findMany({
     where: { userId, watchedDate: { not: null } },
     select: { watchedDate: true },
@@ -495,7 +496,7 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   { slug: "seasoned-critic", name: "Seasoned Critic", description: "Complete 50 Ratist ratings", category: "rating", icon: "Award", check: (uid) => checkRatingCount(uid, 50) },
   { slug: "master-critic", name: "Master Critic", description: "Complete 100 Ratist ratings", category: "rating", icon: "Crown", check: (uid) => checkRatingCount(uid, 100) },
   { slug: "the-completionist", name: "The Completionist", description: "Complete 250 Ratist ratings", category: "rating", icon: "Trophy", check: (uid) => checkRatingCount(uid, 250) },
-  { slug: "quick-draw", name: "Quick Draw", description: "Submit 10 quick ratings", category: "rating", icon: "Zap", check: checkQuickDraw },
+  { slug: "quick-draw", name: "Quick Draw", description: "Submit 10 quick ratings", category: "rating", icon: "Zap", permanent: true, check: checkQuickDraw },
 
   // ── Film Diary & Habits ──
   { slug: "first-watch", name: "First Watch", description: "Log your first movie with a watch date", category: "diary", icon: "Calendar", permanent: true, check: checkFirstWatch },

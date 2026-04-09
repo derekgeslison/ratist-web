@@ -77,17 +77,17 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   if (seenCount >= 500) await award("film-scholar");
   if (seenCount >= 1000) await award("living-encyclopedia");
 
-  // Rating milestones (only standard + critic, not basic/quick)
-  const ratingCount = await prisma.movieRating.count({ where: { userId, ratistRating: { not: null }, reviewType: { in: ["standard", "critic"] } } });
+  // Rating milestones (only ratings where user filled out the Ratist form — plot is required)
+  const ratingCount = await prisma.movieRating.count({ where: { userId, ratistRating: { not: null }, plot: { not: null } } });
   if (ratingCount >= 1) await award("first-take");
   if (ratingCount >= 10) await award("critic-in-training");
   if (ratingCount >= 50) await award("seasoned-critic");
   if (ratingCount >= 100) await award("master-critic");
   if (ratingCount >= 250) await award("the-completionist");
 
-  // Quick draw (movies + TV)
+  // Quick draw (ratings without component scores — quick ratings + imports)
   const [quickMovies, quickTV] = await Promise.all([
-    prisma.movieRating.count({ where: { userId, reviewType: "basic" } }),
+    prisma.movieRating.count({ where: { userId, ratistRating: { not: null }, plot: null } }),
     prisma.tVShowRating.count({ where: { userId, reviewType: "basic" } }),
   ]);
   if ((quickMovies + quickTV) >= 10) await award("quick-draw");
@@ -111,6 +111,32 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
     }
     for (const count of months.values()) {
       if (count >= 10) { await award("marathon-runner"); break; }
+    }
+  }
+
+  // Weekly ritual (4 consecutive weeks with a movie watched)
+  if (datedCount >= 4) {
+    const allDated = await prisma.userFavoriteMovie.findMany({
+      where: { userId, watchedDate: { not: null } },
+      select: { watchedDate: true },
+    });
+    const weeks = new Set<string>();
+    for (const m of allDated) {
+      const d = m.watchedDate!;
+      const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      utc.setUTCDate(utc.getUTCDate() + 4 - (utc.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil(((utc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+      weeks.add(`${utc.getUTCFullYear()}-W${weekNo.toString().padStart(2, "0")}`);
+    }
+    const sorted = [...weeks].sort();
+    let consecutive = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const [yA, wA] = sorted[i - 1].split("-W").map(Number);
+      const [yB, wB] = sorted[i].split("-W").map(Number);
+      const isConsec = (yA === yB && wB === wA + 1) || (yB === yA + 1 && wB === 1 && wA >= 52);
+      if (isConsec) { consecutive++; if (consecutive >= 4) { await award("weekly-ritual"); break; } }
+      else { consecutive = 1; }
     }
   }
 
