@@ -3,7 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
 import { rebuildUserProfile } from "@/lib/profile";
-import { checkBadges } from "@/lib/badges";
+import { checkBadges, recheckBadges } from "@/lib/badges";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -161,6 +161,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     // Rebuild user profile after deletion
     rebuildUserProfile(user.id).catch(console.error);
+    recheckBadges(user.id, "rate").catch(() => {});
 
     return NextResponse.json({ ok: true });
   } catch (err) {

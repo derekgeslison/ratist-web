@@ -12,6 +12,7 @@ export interface BadgeDef {
   description: string;
   category: BadgeCategory;
   icon: string; // lucide icon name
+  permanent?: boolean; // true = cannot be un-earned (first-time achievements)
   check: (userId: string) => Promise<boolean>;
 }
 
@@ -489,7 +490,7 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   { slug: "living-encyclopedia", name: "Living Encyclopedia", description: "Mark 1,000 movies as seen", category: "watching", icon: "BookOpen", check: (uid) => checkSeenCount(uid, 1000) },
 
   // ── Rating Milestones ──
-  { slug: "first-take", name: "First Take", description: "Complete your first Ratist rating", category: "rating", icon: "Star", check: (uid) => checkRatingCount(uid, 1) },
+  { slug: "first-take", name: "First Take", description: "Complete your first Ratist rating", category: "rating", icon: "Star", permanent: true, check: (uid) => checkRatingCount(uid, 1) },
   { slug: "critic-in-training", name: "Critic in Training", description: "Complete 10 Ratist ratings", category: "rating", icon: "PenTool", check: (uid) => checkRatingCount(uid, 10) },
   { slug: "seasoned-critic", name: "Seasoned Critic", description: "Complete 50 Ratist ratings", category: "rating", icon: "Award", check: (uid) => checkRatingCount(uid, 50) },
   { slug: "master-critic", name: "Master Critic", description: "Complete 100 Ratist ratings", category: "rating", icon: "Crown", check: (uid) => checkRatingCount(uid, 100) },
@@ -497,7 +498,7 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   { slug: "quick-draw", name: "Quick Draw", description: "Submit 10 quick ratings", category: "rating", icon: "Zap", check: checkQuickDraw },
 
   // ── Film Diary & Habits ──
-  { slug: "first-watch", name: "First Watch", description: "Log your first movie with a watch date", category: "diary", icon: "Calendar", check: checkFirstWatch },
+  { slug: "first-watch", name: "First Watch", description: "Log your first movie with a watch date", category: "diary", icon: "Calendar", permanent: true, check: checkFirstWatch },
   { slug: "weekly-ritual", name: "Weekly Ritual", description: "Watch a movie every week for 4 consecutive weeks", category: "diary", icon: "CalendarCheck", check: checkWeeklyRitual },
   { slug: "marathon-runner", name: "Marathon Runner", description: "Watch 10+ movies in a single month (dated in diary)", category: "diary", icon: "Timer", check: checkMarathonRunner },
   { slug: "diary-keeper", name: "Diary Keeper", description: "Log watch dates for 30 movies", category: "diary", icon: "BookMarked", check: checkDiaryKeeper },
@@ -510,21 +511,21 @@ export const BADGE_REGISTRY: BadgeDef[] = [
 
   // ── Screening Room ──
   { slug: "social-butterfly", name: "Social Butterfly", description: "Participate in 5 screening room sessions (each 1hr+)", category: "screening", icon: "Users", check: (uid) => checkScreeningParticipant(uid, 5) },
-  { slug: "screening-host", name: "Screening Host", description: "Host your first screening room session (1hr+)", category: "screening", icon: "Monitor", check: checkScreeningHost },
+  { slug: "screening-host", name: "Screening Host", description: "Host your first screening room session (1hr+)", category: "screening", icon: "Monitor", permanent: true, check: checkScreeningHost },
   { slug: "pack-leader", name: "Pack Leader", description: "Host a screening room with 4+ participants (1hr+)", category: "screening", icon: "Shield", check: checkPackLeader },
 
   // ── Community Tools ──
-  { slug: "spotter", name: "Spotter", description: "Submit your first Looks Like pair", category: "community", icon: "Eye", check: (uid) => checkContentCreated("looksLike", uid) },
+  { slug: "spotter", name: "Spotter", description: "Submit your first Looks Like pair", category: "community", icon: "Eye", permanent: true, check: (uid) => checkContentCreated("looksLike", uid) },
   { slug: "trendsetter", name: "Trendsetter", description: "Have a Looks Like pair get 50+ net positive votes", category: "community", icon: "TrendingUp", check: (uid) => checkNetPositiveVotes("lookslike", uid, 50) },
-  { slug: "casting-director", name: "Casting Director", description: "Submit your first recast", category: "community", icon: "UserCog", check: (uid) => checkContentCreated("recast", uid) },
+  { slug: "casting-director", name: "Casting Director", description: "Submit your first recast", category: "community", icon: "UserCog", permanent: true, check: (uid) => checkContentCreated("recast", uid) },
   { slug: "fan-casting", name: "Fan Casting", description: "Have a recast get 50+ net positive votes", category: "community", icon: "Heart", check: (uid) => checkNetPositiveVotes("recast", uid, 50) },
-  { slug: "first-flame", name: "First Flame", description: "Post your first Hot Take", category: "community", icon: "Flame", check: (uid) => checkContentCreated("hotTake", uid) },
+  { slug: "first-flame", name: "First Flame", description: "Post your first Hot Take", category: "community", icon: "Flame", permanent: true, check: (uid) => checkContentCreated("hotTake", uid) },
   { slug: "fire-starter", name: "Fire Starter", description: "Have a Hot Take get 50+ net positive votes", category: "community", icon: "Sparkles", check: (uid) => checkNetPositiveVotes("hottake", uid, 50) },
-  { slug: "the-pitch", name: "The Pitch", description: "Post your first Pitch", category: "community", icon: "Lightbulb", check: (uid) => checkContentCreated("moviePitch", uid) },
+  { slug: "the-pitch", name: "The Pitch", description: "Post your first Pitch", category: "community", icon: "Lightbulb", permanent: true, check: (uid) => checkContentCreated("moviePitch", uid) },
   { slug: "green-light", name: "Green Light", description: "Have a Pitch get 50+ net positive votes", category: "community", icon: "CircleDot", check: (uid) => checkNetPositiveVotes("pitch", uid, 50) },
 
   // ── Personality & Opinion ──
-  { slug: "contrarian", name: "Contrarian", description: "Rate a movie 3+ points from the community average", category: "personality", icon: "ArrowUpDown", check: checkContrarian },
+  { slug: "contrarian", name: "Contrarian", description: "Rate a movie 3+ points from the community average", category: "personality", icon: "ArrowUpDown", permanent: true, check: checkContrarian },
 
   // ── Awards & Events ──
   { slug: "awards-season", name: "Awards Season", description: "Review all Best Picture nominees in a given year", category: "awards", icon: "Medal", check: checkAwardsSeason },
@@ -537,7 +538,7 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   { slug: "valedictorian", name: "Valedictorian", description: "Score 20,000+ Cine-Q points all time", category: "cineq", icon: "GraduationCap", check: checkValedictorian },
 
   // ── Social ──
-  { slug: "first-follow", name: "First Follow", description: "Follow your first user", category: "social", icon: "UserPlus", check: checkFirstFollow },
+  { slug: "first-follow", name: "First Follow", description: "Follow your first user", category: "social", icon: "UserPlus", permanent: true, check: checkFirstFollow },
   { slug: "influencer", name: "Influencer", description: "Reach 50 followers", category: "social", icon: "Megaphone", check: checkInfluencer },
 
   // ── Watchlist ──
@@ -675,6 +676,49 @@ export async function checkBadges(
     return newlyEarned;
   } catch {
     return [];
+  }
+}
+
+/**
+ * Re-check earned badges for a trigger and revoke any non-permanent badges
+ * that are no longer valid. Called on "undo" actions (unsee, delete rating, unfollow).
+ * Fire-and-forget — never throws.
+ */
+export async function recheckBadges(
+  userId: string,
+  trigger: TriggerEvent,
+): Promise<void> {
+  try {
+    const slugsToCheck = TRIGGER_MAP[trigger] ?? [];
+    if (slugsToCheck.length === 0) return;
+
+    // Find earned badges for these slugs
+    const earned = await prisma.userBadge.findMany({
+      where: { userId, slug: { in: slugsToCheck } },
+      select: { slug: true },
+    });
+    if (earned.length === 0) return;
+
+    for (const { slug } of earned) {
+      const def = BADGE_MAP.get(slug);
+      if (!def || def.permanent) continue; // skip permanent badges
+      try {
+        const stillValid = await def.check(userId);
+        if (!stillValid) {
+          await prisma.userBadge.deleteMany({ where: { userId, slug } });
+        }
+      } catch {
+        // skip
+      }
+    }
+
+    // Also re-check completionist supreme if any badge was potentially revoked
+    const totalEarned = await prisma.userBadge.count({ where: { userId } });
+    if (totalEarned < 40) {
+      await prisma.userBadge.deleteMany({ where: { userId, slug: "completionist-supreme" } });
+    }
+  } catch {
+    // Non-critical
   }
 }
 

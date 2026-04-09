@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
-import { checkBadges } from "@/lib/badges";
+import { checkBadges, recheckBadges } from "@/lib/badges";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -148,6 +148,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     });
 
     if (deleted.count === 0) return NextResponse.json({ error: "No rating found" }, { status: 404 });
+    recheckBadges(user.id, "rate").catch(() => {});
 
     return NextResponse.json({ ok: true });
   } catch (err) {

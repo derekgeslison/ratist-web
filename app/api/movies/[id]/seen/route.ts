@@ -3,7 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getRatingStatus } from "@/lib/rating-status";
 import { getScoreEstimate } from "@/lib/profile";
-import { checkBadges } from "@/lib/badges";
+import { checkBadges, recheckBadges } from "@/lib/badges";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -47,6 +47,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.userFavoriteMovie.delete({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       });
+      recheckBadges(user.id, "seen").catch(() => {});
+      recheckBadges(user.id, "watchlog").catch(() => {});
       return NextResponse.json({ seen: false });
     } else {
       // Respect autoDateOnSeen preference (or noDate flag from onboarding)

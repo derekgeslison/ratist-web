@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { checkBadges } from "@/lib/badges";
+import { checkBadges, recheckBadges } from "@/lib/badges";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -86,6 +86,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.watchlistMovie.delete({
         where: { watchlistId_movieId: { watchlistId: defaultList.id, movieId: movie.id } },
       });
+      recheckBadges(user.id, "watchlist_add").catch(() => {});
     } else {
       // Add at end of custom order
       const maxOrder = await prisma.watchlistMovie.aggregate({

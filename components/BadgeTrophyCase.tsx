@@ -50,17 +50,17 @@ export default function BadgeTrophyCase({ profileFirebaseUid }: Props) {
   if (!loaded || earnedCount === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 mb-3">
-      {/* Tier badge */}
+    <div className="flex items-center gap-3 mb-3">
+      {/* Tier badge — larger, visually distinct */}
       <div
-        className="flex items-center justify-center w-7 h-7 rounded-full shrink-0"
+        className="flex items-center justify-center w-11 h-11 rounded-full shrink-0"
         style={{
           backgroundColor: `${TIER_COLORS[tier]}20`,
-          border: `1.5px solid ${TIER_COLORS[tier]}`,
+          border: `2px solid ${TIER_COLORS[tier]}`,
         }}
         title={`${TIER_LABELS[tier]} — ${earnedCount}/${TOTAL_BADGES} badges`}
       >
-        <Trophy className="w-3.5 h-3.5" style={{ color: TIER_COLORS[tier] }} />
+        <Trophy className="w-5 h-5" style={{ color: TIER_COLORS[tier] }} />
       </div>
 
       {/* Recent badges */}
