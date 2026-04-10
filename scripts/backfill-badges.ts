@@ -247,12 +247,43 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   const clubRatingCount = await prisma.movieClubRating.count({ where: { userId } });
   if (clubRatingCount >= 10) await award("club-member");
 
-  // Cine-Q
-  const cineqTotal = await prisma.cineQAttempt.aggregate({
-    where: { userId, status: "completed" },
-    _sum: { rawScore: true },
-  });
-  if ((cineqTotal._sum.rawScore ?? 0) >= 20000) await award("valedictorian");
+  // Cine-Q (weighted scores)
+  const cramResult = await prisma.$queryRaw<{ total: number }[]>`
+    SELECT SUM(
+      raw_score * CASE difficulty
+        WHEN 'hard' THEN 2.0
+        WHEN 'medium' THEN 1.5
+        ELSE 1.0
+      END
+    ) as total
+    FROM cineq_attempts
+    WHERE user_id = ${userId}
+      AND status = 'completed'
+    GROUP BY DATE(created_at)
+    HAVING SUM(
+      raw_score * CASE difficulty
+        WHEN 'hard' THEN 2.0
+        WHEN 'medium' THEN 1.5
+        ELSE 1.0
+      END
+    ) >= 2000
+    LIMIT 1
+  `;
+  if (cramResult.length > 0) await award("cram-session");
+
+  const valedResult = await prisma.$queryRaw<{ total: number }[]>`
+    SELECT SUM(
+      raw_score * CASE difficulty
+        WHEN 'hard' THEN 2.0
+        WHEN 'medium' THEN 1.5
+        ELSE 1.0
+      END
+    ) as total
+    FROM cineq_attempts
+    WHERE user_id = ${userId}
+      AND status = 'completed'
+  `;
+  if (Number(valedResult[0]?.total ?? 0) >= 20000) await award("valedictorian");
 
   // Social
   const followingCount = await prisma.userFollow.count({ where: { followerId: userId } });
