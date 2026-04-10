@@ -6,9 +6,10 @@ import { useAuth } from "@/context/AuthContext";
 const REACTIONS = [
   { type: "thumbs-up", emoji: "👍", label: "Thumbs Up" },
   { type: "thumbs-down", emoji: "👎", label: "Thumbs Down" },
-  { type: "great-take", emoji: "👏", label: "Great Take" },
-  { type: "mind-blown", emoji: "🤯", label: "Mind Blown" },
-  { type: "disagree", emoji: "🤔", label: "Disagree" },
+  { type: "applause", emoji: "👏", label: "Applause" },
+  { type: "hot-take", emoji: "🔥", label: "Hot Take" },
+  { type: "insightful", emoji: "💡", label: "Insightful" },
+  { type: "popcorn", emoji: "🍿", label: "Popcorn" },
   { type: "funny", emoji: "😂", label: "Funny" },
 ];
 
