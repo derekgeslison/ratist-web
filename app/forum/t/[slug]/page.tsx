@@ -222,6 +222,7 @@ export default function ThreadPage({ params }: Props) {
           userVote={userDebateVote}
           onJoin={() => loadThread()}
           onBoot={() => loadThread()}
+          opponentJoinedAt={thread.opponentJoinedAt}
         />
       )}
 

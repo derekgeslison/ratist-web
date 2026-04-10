@@ -26,6 +26,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "Not a debate thread" }, { status: 400 });
   }
 
+  // Debaters can't vote on their own debate
+  if (user.id === thread.authorId || user.id === thread.opponentId) {
+    return NextResponse.json({ error: "Debaters cannot vote on their own debate" }, { status: 400 });
+  }
+
   // Upsert vote
   await prisma.forumDebateVote.upsert({
     where: { userId_threadId: { userId: user.id, threadId: thread.id } },

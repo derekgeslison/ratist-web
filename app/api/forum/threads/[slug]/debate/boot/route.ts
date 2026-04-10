@@ -21,6 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     include: {
       posts: { orderBy: { createdAt: "asc" }, select: { id: true, authorId: true } },
     },
+    // opponentJoinedAt is included by default (not a relation)
   });
 
   if (!thread) return NextResponse.json({ error: "Thread not found" }, { status: 404 });
@@ -45,10 +46,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     }, { status: 400 });
   }
 
-  // Check 12-hour wait — use the opponent's first post time, or the thread updatedAt if they haven't posted
-  const joinTime = opponentFirstPost
-    ? new Date(thread.updatedAt) // approximate — when they joined
-    : new Date(thread.updatedAt);
+  // Check 12-hour wait from when the opponent actually joined
+  const joinTime = thread.opponentJoinedAt ? new Date(thread.opponentJoinedAt) : new Date(thread.updatedAt);
   const hoursSinceJoin = (Date.now() - joinTime.getTime()) / (1000 * 60 * 60);
 
   if (hoursSinceJoin < 12) {
@@ -77,6 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       where: { id: thread.id },
       data: {
         opponentId: null,
+        opponentJoinedAt: null,
         bootedUserIds: { push: bootedId },
       },
     });

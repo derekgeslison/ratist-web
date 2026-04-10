@@ -830,12 +830,13 @@ model ForumThread {
   isLocked    Boolean  @default(false) @map("is_locked")
   viewCount   Int      @default(0) @map("view_count")
   opponentId  String?  @map("opponent_id") // debate threads: open challenge, anyone can claim
+  opponentJoinedAt DateTime? @map("opponent_joined_at") // when the challenger accepted
   bootedUserIds String[] @default([]) @map("booted_user_ids") // users who were booted from this debate
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   author      User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  opponent    User?              @relation("forumDebateOpponent", fields: [opponentId], references: [id])
+  opponent    User?              @relation("forumDebateOpponent", fields: [opponentId], references: [id], onDelete: SetNull)
   posts       ForumPost[]
   media       ForumThreadMedia[]
   people      ForumThreadPerson[]
@@ -845,6 +846,7 @@ model ForumThread {
   followers   ForumThreadFollow[]
 
   @@index([threadType])
+  @@index([createdAt])
   @@map("forum_threads")
 }
 
@@ -861,6 +863,7 @@ model ForumPost {
   author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   reactions ForumReaction[]
 
+  @@index([threadId, createdAt])
   @@map("forum_posts")
 }
 

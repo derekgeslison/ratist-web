@@ -238,7 +238,10 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                     {comment.likeCount > 0 && comment.likeCount}
                   </button>
                   <button
-                    onClick={() => { setReplyingTo(replyingTo === replyTo ? null : replyTo); setReplyText(""); }}
+                    onClick={() => {
+                      if (replyingTo === replyTo) { setReplyingTo(null); setReplyText(""); }
+                      else { setReplyingTo(replyTo); setReplyText(`@${comment.user.name} `); }
+                    }}
                     className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
                   >
                     <Reply className="w-3 h-3" /> Reply

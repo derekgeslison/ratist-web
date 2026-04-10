@@ -205,6 +205,8 @@ export async function DELETE(req: NextRequest, { params }: Props) {
     if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (!canDelete(user, thread.authorId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    // Delete orphaned comments first, then the thread (cascade handles posts)
+    await prisma.comment.deleteMany({ where: { targetType: "forumThread", targetId: thread.id } });
     await prisma.forumThread.delete({ where: { id: thread.id } });
     return NextResponse.json({ deleted: true });
   } catch (err) {

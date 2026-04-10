@@ -21,9 +21,10 @@ interface Props {
   userVote: string | null;
   onJoin?: () => void;
   onBoot?: () => void;
+  opponentJoinedAt?: string | null;
 }
 
-export default function DebateView({ threadSlug, op, opponent, voteCounts, userVote: initialVote, onJoin, onBoot }: Props) {
+export default function DebateView({ threadSlug, op, opponent, voteCounts, userVote: initialVote, onJoin, onBoot, opponentJoinedAt }: Props) {
   const { user } = useAuth();
   const [userVote, setUserVote] = useState(initialVote);
   const [counts, setCounts] = useState(voteCounts ?? { op: 0, opponent: 0 });
@@ -145,18 +146,30 @@ export default function DebateView({ threadSlug, op, opponent, voteCounts, userV
       </div>
 
       {/* Boot challenger button (OP only) */}
-      {isOP && opponent && (
-        <div className="mb-2">
-          <button
-            onClick={bootChallenger}
-            disabled={booting}
-            className="text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
-          >
-            {booting ? "Removing..." : "Remove challenger"}
-          </button>
-          {bootError && <p className="text-[10px] text-red-400 mt-0.5">{bootError}</p>}
-        </div>
-      )}
+      {isOP && opponent && (() => {
+        const joinTime = opponentJoinedAt ? new Date(opponentJoinedAt).getTime() : Date.now();
+        const hoursSince = (Date.now() - joinTime) / (1000 * 60 * 60);
+        const canBoot = hoursSince >= 12;
+        const hoursLeft = Math.ceil(12 - hoursSince);
+        return (
+          <div className="mb-2">
+            {canBoot ? (
+              <button
+                onClick={bootChallenger}
+                disabled={booting}
+                className="text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
+              >
+                {booting ? "Removing..." : "Remove challenger"}
+              </button>
+            ) : (
+              <p className="text-[10px] text-[var(--foreground-muted)]">
+                Can remove challenger in {hoursLeft}h
+              </p>
+            )}
+            {bootError && <p className="text-[10px] text-red-400 mt-0.5">{bootError}</p>}
+          </div>
+        );
+      })()}
 
       {/* Vote tally bar */}
       {opponent && total > 0 && (

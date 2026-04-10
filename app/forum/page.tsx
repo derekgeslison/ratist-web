@@ -18,6 +18,7 @@ const TYPES = [
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
+  { value: "trending", label: "Trending" },
   { value: "replies", label: "Most Replies" },
   { value: "views", label: "Most Viewed" },
 ];

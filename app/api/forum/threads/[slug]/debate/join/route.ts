@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
   const updated = await prisma.forumThread.update({
     where: { id: thread.id },
-    data: { opponentId: user.id },
+    data: { opponentId: user.id, opponentJoinedAt: new Date() },
     include: {
       opponent: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
     },

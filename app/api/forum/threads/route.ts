@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
     let orderBy: any = [{ isPinned: "desc" }, { createdAt: "desc" }];
     if (sort === "replies") orderBy = [{ isPinned: "desc" }, { posts: { _count: "desc" } }];
     else if (sort === "views") orderBy = [{ isPinned: "desc" }, { viewCount: "desc" }];
+    else if (sort === "trending") orderBy = [{ isPinned: "desc" }, { updatedAt: "desc" }]; // most recently active
 
     const [threads, total] = await Promise.all([
       prisma.forumThread.findMany({
