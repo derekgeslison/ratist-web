@@ -122,26 +122,32 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
         </div>
       )}
 
-      {/* Linked media posters + people */}
+      {/* Linked media + people as compact chips */}
       {(media.length > 0 || (people && people.length > 0)) && (
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
           {media.map((m) => (
-            <div key={`${m.mediaType}-${m.tmdbId}`} className="relative w-8 h-12 rounded overflow-hidden shrink-0 border border-[var(--border)]">
-              {m.posterPath ? (
-                <Image src={`https://image.tmdb.org/t/p/w92${m.posterPath}`} alt={m.title} fill sizes="32px" className="object-cover" />
-              ) : (
-                <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
-              )}
-            </div>
+            <span key={`${m.mediaType}-${m.tmdbId}`} className="inline-flex items-center gap-1.5 bg-[var(--surface-2)] rounded-full pl-1 pr-2.5 py-0.5">
+              <div className="relative w-5 h-7 rounded-sm overflow-hidden shrink-0">
+                {m.posterPath ? (
+                  <Image src={`https://image.tmdb.org/t/p/w92${m.posterPath}`} alt={m.title} fill sizes="20px" className="object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-[var(--surface)]" />
+                )}
+              </div>
+              <span className="text-[10px] text-[var(--foreground-muted)] truncate max-w-[100px]">{m.title}</span>
+            </span>
           ))}
           {people?.map((p) => (
-            <div key={p.tmdbId} className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 border border-[var(--border)]">
-              {p.profilePath ? (
-                <Image src={`https://image.tmdb.org/t/p/w45${p.profilePath}`} alt={p.name} fill sizes="32px" className="object-cover" />
-              ) : (
-                <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center text-[8px] font-bold text-white">{p.name[0]}</div>
-              )}
-            </div>
+            <span key={p.tmdbId} className="inline-flex items-center gap-1 bg-[var(--surface-2)] rounded-full pl-0.5 pr-2 py-0.5">
+              <div className="relative w-5 h-5 rounded-full overflow-hidden shrink-0">
+                {p.profilePath ? (
+                  <Image src={`https://image.tmdb.org/t/p/w45${p.profilePath}`} alt={p.name} fill sizes="20px" className="object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-[var(--surface)] flex items-center justify-center text-[7px] font-bold text-white">{p.name[0]}</div>
+                )}
+              </div>
+              <span className="text-[10px] text-[var(--foreground-muted)]">{p.name}</span>
+            </span>
           ))}
         </div>
       )}
