@@ -1,46 +1,97 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { checkCommunityRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+const VALID_TYPES = ["discussion", "theory", "poll", "recommendation", "debate"];
+const PAGE_SIZE = 20;
 
 async function getUser(req: NextRequest) {
   const authorization = req.headers.get("authorization");
   if (!authorization?.startsWith("Bearer ")) return null;
   try {
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
-    return prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    return prisma.user.findUnique({
+      where: { firebaseUid: decoded.uid },
+      select: { id: true, isAdmin: true, firebaseUid: true, name: true },
+    });
   } catch {
     return null;
   }
 }
 
-// GET /api/forum/threads?categorySlug=general
+// GET /api/forum/threads?type=theory&tag=plot-hole&sort=newest&search=inception&tmdbId=123&mediaType=movie&page=1
 export async function GET(req: NextRequest) {
   try {
-    const categorySlug = req.nextUrl.searchParams.get("categorySlug");
-    const where = categorySlug
-      ? { category: { slug: categorySlug } }
-      : {};
+    const { searchParams } = req.nextUrl;
+    const type = searchParams.get("type");
+    const tag = searchParams.get("tag");
+    const sort = searchParams.get("sort") ?? "newest";
+    const search = searchParams.get("search");
+    const tmdbId = searchParams.get("tmdbId");
+    const mediaType = searchParams.get("mediaType");
+    const page = Math.max(1, Number(searchParams.get("page") ?? 1));
 
-    const threads = await prisma.forumThread.findMany({
-      where,
-      include: {
-        author: { select: { id: true, name: true, avatarUrl: true } },
-        category: { select: { name: true, slug: true } },
-        _count: { select: { posts: true } },
-        posts: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          include: { author: { select: { name: true } } },
+    // Build where clause
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = {};
+    if (type && VALID_TYPES.includes(type)) where.threadType = type;
+    if (tag) where.tags = { some: { tag } };
+    if (tmdbId && mediaType) {
+      where.media = { some: { tmdbId: Number(tmdbId), mediaType } };
+    }
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: "insensitive" } },
+        { media: { some: { title: { contains: search, mode: "insensitive" } } } },
+        { tags: { some: { tag: { contains: search, mode: "insensitive" } } } },
+        { people: { some: { name: { contains: search, mode: "insensitive" } } } },
+      ];
+    }
+
+    // Sort
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let orderBy: any = [{ isPinned: "desc" }, { createdAt: "desc" }];
+    if (sort === "replies") orderBy = [{ isPinned: "desc" }, { posts: { _count: "desc" } }];
+    else if (sort === "views") orderBy = [{ isPinned: "desc" }, { viewCount: "desc" }];
+
+    const [threads, total] = await Promise.all([
+      prisma.forumThread.findMany({
+        where,
+        include: {
+          author: {
+            select: {
+              id: true, firebaseUid: true, name: true, avatarUrl: true,
+              _count: { select: { userBadges: true, ratings: true } },
+            },
+          },
+          media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+          tags: { select: { tag: true } },
+          _count: { select: { posts: true } },
+          posts: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { author: { select: { name: true } }, createdAt: true },
+          },
         },
-      },
-      orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
-    });
+        orderBy,
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      prisma.forumThread.count({ where }),
+    ]);
 
-    return NextResponse.json({ threads });
-  } catch {
-    return NextResponse.json({ threads: [] });
+    return NextResponse.json({
+      threads,
+      total,
+      page,
+      totalPages: Math.ceil(total / PAGE_SIZE),
+    });
+  } catch (err) {
+    console.error("Forum threads GET error:", err);
+    return NextResponse.json({ threads: [], total: 0 });
   }
 }
 
@@ -49,32 +100,118 @@ export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { categoryId, title, content } = await req.json();
-  if (!categoryId || !title?.trim() || !content?.trim()) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  const rateLimitMsg = await checkCommunityRateLimit(user.id, user.isAdmin, "forumThread");
+  if (rateLimitMsg) return NextResponse.json({ error: rateLimitMsg }, { status: 429 });
+
+  const body = await req.json();
+  const { threadType, title, content, hasSpoilers, media, people, tags, pollOptions } = body;
+
+  if (!title?.trim() || !content?.trim()) {
+    return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
+  }
+  if (!threadType || !VALID_TYPES.includes(threadType)) {
+    return NextResponse.json({ error: "Invalid thread type" }, { status: 400 });
+  }
+  if (title.length > 200) {
+    return NextResponse.json({ error: "Title max 200 characters" }, { status: 400 });
+  }
+  if (content.length > 10000) {
+    return NextResponse.json({ error: "Content max 10,000 characters" }, { status: 400 });
   }
 
-  // Generate unique slug from title
-  const baseSlug = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 80);
+  // Validate media (max 4)
+  const mediaItems = Array.isArray(media) ? media.slice(0, 4) : [];
+  // Validate tags (max 10)
+  const tagItems = Array.isArray(tags)
+    ? [...new Set(tags.map((t: string) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 10)
+    : [];
+  // Validate poll options
+  if (threadType === "poll") {
+    if (!Array.isArray(pollOptions) || pollOptions.length < 2 || pollOptions.length > 10) {
+      return NextResponse.json({ error: "Polls require 2-10 options" }, { status: 400 });
+    }
+  }
+
+  // Generate unique slug
+  const baseSlug = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
   const existing = await prisma.forumThread.count({ where: { slug: { startsWith: baseSlug } } });
   const slug = existing > 0 ? `${baseSlug}-${Date.now()}` : baseSlug;
 
-  const thread = await prisma.forumThread.create({
-    data: {
-      categoryId,
-      authorId: user.id,
-      title: title.trim(),
-      slug,
-    },
-  });
+  // Create everything in a transaction
+  const thread = await prisma.$transaction(async (tx) => {
+    const t = await tx.forumThread.create({
+      data: {
+        authorId: user.id,
+        title: title.trim(),
+        slug,
+        threadType,
+        hasSpoilers: hasSpoilers === true,
+      },
+    });
 
-  // First post is the thread body
-  await prisma.forumPost.create({
-    data: {
-      threadId: thread.id,
-      authorId: user.id,
-      content: content.trim(),
-    },
+    // First post
+    await tx.forumPost.create({
+      data: { threadId: t.id, authorId: user.id, content: content.trim() },
+    });
+
+    // Media links
+    for (const m of mediaItems) {
+      if (!m.tmdbId || !m.mediaType || !m.title) continue;
+      // Try to find existing movie/show in DB for FK
+      let movieId: string | null = null;
+      let tvShowId: string | null = null;
+      if (m.mediaType === "movie") {
+        const movie = await tx.movie.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+        movieId = movie?.id ?? null;
+      } else if (m.mediaType === "tv") {
+        const show = await tx.tVShow.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+        tvShowId = show?.id ?? null;
+      }
+      await tx.forumThreadMedia.create({
+        data: {
+          threadId: t.id,
+          tmdbId: m.tmdbId,
+          mediaType: m.mediaType,
+          title: m.title,
+          posterPath: m.posterPath ?? null,
+          movieId,
+          tvShowId,
+        },
+      });
+    }
+
+    // People links
+    const peopleItems = Array.isArray(people) ? people : [];
+    for (const p of peopleItems) {
+      if (!p.tmdbId || !p.name) continue;
+      const celeb = await tx.celebrity.findUnique({ where: { tmdbId: p.tmdbId }, select: { id: true } });
+      await tx.forumThreadPerson.create({
+        data: {
+          threadId: t.id,
+          tmdbId: p.tmdbId,
+          name: p.name,
+          profilePath: p.profilePath ?? null,
+          celebrityId: celeb?.id ?? null,
+        },
+      });
+    }
+
+    // Tags
+    for (const tag of tagItems) {
+      await tx.forumThreadTag.create({ data: { threadId: t.id, tag } });
+    }
+
+    // Poll
+    if (threadType === "poll" && Array.isArray(pollOptions)) {
+      const poll = await tx.forumPoll.create({ data: { threadId: t.id } });
+      for (const label of pollOptions) {
+        if (typeof label === "string" && label.trim()) {
+          await tx.forumPollOption.create({ data: { pollId: poll.id, label: label.trim() } });
+        }
+      }
+    }
+
+    return t;
   });
 
   return NextResponse.json({ thread });

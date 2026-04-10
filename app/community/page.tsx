@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Community Hub", description: "Join The Ratist community: submit hot takes, suggest recasts, find celebrity lookalikes, and engage with fellow movie lovers." };
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard } from "lucide-react";
+import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 
@@ -57,6 +57,14 @@ const HUB_FEATURES = [
     description: "Timed movie & TV trivia — clues drip in, guess fast for more points. Daily challenges & leaderboards.",
     color: "text-pink-400",
     border: "hover:border-pink-400",
+  },
+  {
+    href: "/forum",
+    icon: MessageSquare,
+    title: "Forums",
+    description: "Discuss movies and shows, share theories, run polls, and debate with the community.",
+    color: "text-cyan-400",
+    border: "hover:border-cyan-400",
   },
   {
     href: "/community/movie-club",

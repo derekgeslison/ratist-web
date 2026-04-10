@@ -46,6 +46,10 @@ model User {
   pjVotes        PunchAndJudyOverallVote[]
   forumThreads   ForumThread[]
   forumPosts     ForumPost[]
+  forumReactions ForumReaction[]
+  forumPollVotes ForumPollVote[]
+  forumDebateVotes ForumDebateVote[]
+  forumDebateOpponent ForumThread[] @relation("forumDebateOpponent")
   looksLikes     LooksLike[]
   looksLikeVotes LooksLikeVote[]
   oscarVotes     OscarVote[]
@@ -199,6 +203,7 @@ model Movie {
   rankings         UserMovieRanking[]
   movieClubWeeks   MovieClubWeek[]
   screeningSessions ScreeningSession[]
+  forumThreadMedia  ForumThreadMedia[]
 
   @@map("movies")
 }
@@ -239,6 +244,7 @@ model Celebrity {
 
   movieRoles MovieCast[]
   tvShowRoles TVShowCast[]
+  forumThreadPeople ForumThreadPerson[]
 
   @@map("celebrities")
 }
@@ -295,6 +301,7 @@ model TVShow {
   favoritedBy UserFavoriteShow[]
   watchlistEntries WatchlistShow[]
   rankings         UserMovieRanking[]
+  forumThreadMedia ForumThreadMedia[]
 
   @@map("tv_shows")
 }
@@ -811,34 +818,30 @@ model PunchAndJudyOverallVote {
 }
 
 // Forums
-model ForumCategory {
-  id          String @id @default(cuid())
-  name        String @unique
-  slug        String @unique
-  description String?
-  sortOrder   Int    @default(0) @map("sort_order")
-
-  threads ForumThread[]
-
-  @@map("forum_categories")
-}
-
 model ForumThread {
-  id         String   @id @default(cuid())
-  categoryId String   @map("category_id")
-  authorId   String   @map("author_id")
-  title      String
-  slug       String   @unique
-  isPinned   Boolean  @default(false) @map("is_pinned")
-  isLocked   Boolean  @default(false) @map("is_locked")
-  viewCount  Int      @default(0) @map("view_count")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  authorId    String   @map("author_id")
+  title       String
+  slug        String   @unique
+  threadType  String   @default("discussion") @map("thread_type") // "discussion" | "theory" | "poll" | "recommendation" | "debate"
+  hasSpoilers Boolean  @default(false) @map("has_spoilers")
+  isPinned    Boolean  @default(false) @map("is_pinned")
+  isLocked    Boolean  @default(false) @map("is_locked")
+  viewCount   Int      @default(0) @map("view_count")
+  opponentId  String?  @map("opponent_id") // debate threads: open challenge, anyone can claim
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  category ForumCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  posts    ForumPost[]
+  author      User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  opponent    User?              @relation("forumDebateOpponent", fields: [opponentId], references: [id])
+  posts       ForumPost[]
+  media       ForumThreadMedia[]
+  people      ForumThreadPerson[]
+  tags        ForumThreadTag[]
+  poll        ForumPoll?
+  debateVotes ForumDebateVote[]
 
+  @@index([threadType])
   @@map("forum_threads")
 }
 
@@ -846,15 +849,116 @@ model ForumPost {
   id        String   @id @default(cuid())
   threadId  String   @map("thread_id")
   authorId  String   @map("author_id")
-  content   String
+  content   String   @db.Text
   isEdited  Boolean  @default(false) @map("is_edited")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  thread    ForumThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions ForumReaction[]
 
   @@map("forum_posts")
+}
+
+model ForumThreadMedia {
+  id         String  @id @default(cuid())
+  threadId   String  @map("thread_id")
+  movieId    String? @map("movie_id")
+  tvShowId   String? @map("tv_show_id")
+  tmdbId     Int     @map("tmdb_id")
+  mediaType  String  @map("media_type") // "movie" | "tv"
+  title      String
+  posterPath String? @map("poster_path")
+
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  movie  Movie?      @relation(fields: [movieId], references: [id])
+  tvShow TVShow?     @relation(fields: [tvShowId], references: [id])
+
+  @@map("forum_thread_media")
+}
+
+model ForumThreadPerson {
+  id          String  @id @default(cuid())
+  threadId    String  @map("thread_id")
+  celebrityId String? @map("celebrity_id")
+  tmdbId      Int     @map("tmdb_id")
+  name        String
+  profilePath String? @map("profile_path")
+
+  thread    ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  celebrity Celebrity?  @relation(fields: [celebrityId], references: [id])
+
+  @@map("forum_thread_people")
+}
+
+model ForumThreadTag {
+  id       String @id @default(cuid())
+  threadId String @map("thread_id")
+  tag      String
+
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([tag])
+  @@map("forum_thread_tags")
+}
+
+model ForumReaction {
+  id           String @id @default(cuid())
+  postId       String @map("post_id")
+  userId       String @map("user_id")
+  reactionType String @map("reaction_type") // "great-take" | "mind-blown" | "disagree" | "funny"
+
+  post ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId, reactionType])
+  @@map("forum_reactions")
+}
+
+model ForumPoll {
+  id       String @id @default(cuid())
+  threadId String @unique @map("thread_id")
+
+  thread  ForumThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  options ForumPollOption[]
+
+  @@map("forum_polls")
+}
+
+model ForumPollOption {
+  id     String @id @default(cuid())
+  pollId String @map("poll_id")
+  label  String
+
+  poll  ForumPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes ForumPollVote[]
+
+  @@map("forum_poll_options")
+}
+
+model ForumPollVote {
+  userId   String @map("user_id")
+  optionId String @map("option_id")
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option ForumPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, optionId])
+  @@map("forum_poll_votes")
+}
+
+model ForumDebateVote {
+  id       String @id @default(cuid())
+  userId   String @map("user_id")
+  threadId String @map("thread_id")
+  side     String // "op" | "opponent"
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId])
+  @@map("forum_debate_votes")
 }
 
 // ─── Community Hub ────────────────────────────────────────────────────────────

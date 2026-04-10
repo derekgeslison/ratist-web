@@ -2,33 +2,22 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { use } from "react";
 import { ArrowLeft, Lock, Pin, Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
+import TypeBadge from "@/components/forum/TypeBadge";
+import AuthorFlair from "@/components/forum/AuthorFlair";
+import ReactionBar from "@/components/forum/ReactionBar";
+import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
+import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
+import SpoilerGate from "@/components/forum/SpoilerGate";
+import PollDisplay from "@/components/forum/PollDisplay";
+import DebateView from "@/components/forum/DebateView";
 
-interface ForumPost {
-  id: string;
-  content: string;
-  isEdited: boolean;
-  createdAt: string;
-  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
-}
-
-interface Thread {
-  id: string;
-  title: string;
-  slug: string;
-  isPinned: boolean;
-  isLocked: boolean;
-  viewCount: number;
-  createdAt: string;
-  category: { id: string; name: string; slug: string };
-  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
-  posts: ForumPost[];
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Thread = any;
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -38,6 +27,8 @@ export default function ThreadPage({ params }: Props) {
   const { slug } = use(params);
   const { user } = useAuth();
   const [thread, setThread] = useState<Thread | null>(null);
+  const [userPollVote, setUserPollVote] = useState<string | null>(null);
+  const [userDebateVote, setUserDebateVote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,10 +41,14 @@ export default function ThreadPage({ params }: Props) {
       const token = await user.getIdToken();
       headers["Authorization"] = `Bearer ${token}`;
     }
-    fetch(`/api/forum/threads/${slug}`, { headers })
-      .then((r) => r.json())
-      .then((data) => { setThread(data.thread ?? null); setLoading(false); })
-      .catch(() => setLoading(false));
+    const res = await fetch(`/api/forum/threads/${slug}`, { headers }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setThread(data.thread ?? null);
+      setUserPollVote(data.userPollVote ?? null);
+      setUserDebateVote(data.userDebateVote ?? null);
+    }
+    setLoading(false);
   }
 
   useEffect(() => { loadThread(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -88,59 +83,95 @@ export default function ThreadPage({ params }: Props) {
   if (loading) return <p className="text-[var(--foreground-muted)] text-center py-16">Loading thread...</p>;
   if (!thread) return <p className="text-[var(--foreground-muted)] text-center py-16">Thread not found.</p>;
 
-  return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <Link
-        href={`/forum/c/${thread.category.slug}`}
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-4 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> {thread.category.name}
-      </Link>
+  const isDebate = thread.threadType === "debate";
+  const canReply = !thread.isLocked && (!isDebate || !thread.opponentId ||
+    (user && (user.uid === thread.author.firebaseUid || user.uid === thread.opponent?.firebaseUid)));
 
-      <div className="mb-6">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
+  const threadContent = (
+    <>
+      {/* Thread header */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <TypeBadge type={thread.threadType} />
           {thread.isPinned && <Pin className="w-4 h-4 text-yellow-400 shrink-0" />}
           {thread.isLocked && <Lock className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />}
-          <h1 className="text-xl font-bold text-white leading-tight">{thread.title}</h1>
         </div>
+        <h1 className="text-xl font-bold text-white leading-tight mb-2">{thread.title}</h1>
         <p className="text-xs text-[var(--foreground-muted)]">
-          {thread.posts.length} post{thread.posts.length !== 1 ? "s" : ""} · {thread.viewCount} views
+          {thread.posts?.length ?? 0} post{(thread.posts?.length ?? 0) !== 1 ? "s" : ""} · {thread.viewCount} views
           {thread.isLocked && <span className="ml-2 text-yellow-600">· Thread locked</span>}
         </p>
       </div>
 
-      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
+      {/* Linked media */}
+      <LinkedMediaRow media={thread.media ?? []} />
+
+      {/* Linked people */}
+      <LinkedPeopleRow people={thread.people ?? []} />
+
+      {/* Tags */}
+      {thread.tags?.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {thread.tags.map((t: { tag: string }) => (
+            <Link key={t.tag} href={`/forum?tag=${t.tag}`} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white transition-colors">
+              {t.tag}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-4" />
+
+      {/* Debate header */}
+      {isDebate && (
+        <DebateView
+          threadSlug={slug}
+          op={thread.author}
+          opponent={thread.opponent}
+          voteCounts={thread.debateVoteCounts}
+          userVote={userDebateVote}
+          onJoin={() => loadThread()}
+        />
+      )}
+
+      {/* Poll */}
+      {thread.threadType === "poll" && thread.poll && (
+        <PollDisplay
+          threadSlug={slug}
+          options={thread.poll.options}
+          userVote={userPollVote}
+        />
+      )}
 
       {/* Posts */}
       <div className="space-y-4 mb-8">
-        {thread.posts.map((post, idx) => (
-          <div key={post.id} className={`flex gap-4 ${idx === 0 ? "bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5" : "bg-[var(--surface)]/50 border border-[var(--border)]/50 rounded-xl p-4"}`}>
-            <div className="shrink-0 flex flex-col items-center gap-2">
-              <div className="relative w-9 h-9 rounded-full overflow-hidden bg-[var(--surface-2)] border border-[var(--border)]">
-                {post.author.avatarUrl ? (
-                  <Image src={post.author.avatarUrl} alt="" fill sizes="36px" className="object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white bg-[var(--ratist-red)]">
-                    {post.author.name[0].toUpperCase()}
-                  </div>
-                )}
-              </div>
-            </div>
+        {(thread.posts ?? []).map((post: Thread, idx: number) => (
+          <div key={post.id} className={`flex gap-3 ${idx === 0 ? "bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4" : "bg-[var(--surface)]/50 border border-[var(--border)]/50 rounded-xl p-4"}`}>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <Link href={`/profile/${post.author.firebaseUid}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
-                  {post.author.name}
-                </Link>
-                {idx === 0 && <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] font-medium">OP</span>}
-                <span className="text-xs text-[var(--foreground-muted)]">
-                  {new Date(post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                  {post.isEdited && " (edited)"}
-                </span>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <AuthorFlair
+                  firebaseUid={post.author.firebaseUid}
+                  name={post.author.name}
+                  avatarUrl={post.author.avatarUrl}
+                  badgeCount={post.author._count?.userBadges ?? 0}
+                  ratingCount={post.author._count?.ratings ?? 0}
+                  isOP={idx === 0}
+                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-[var(--foreground-muted)]">
+                    {new Date(post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                    {post.isEdited && " (edited)"}
+                  </span>
+                  <ReportButton targetType="forumPost" targetId={post.id} />
+                </div>
               </div>
               <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{post.content}</p>
-              <div className="flex justify-end mt-2">
-                <ReportButton targetType="forumPost" targetId={post.id} />
-              </div>
+              <ReactionBar
+                postId={post.id}
+                threadSlug={slug}
+                counts={post.reactionCounts ?? {}}
+                userReactions={post.userReactions ?? []}
+              />
             </div>
           </div>
         ))}
@@ -148,10 +179,12 @@ export default function ThreadPage({ params }: Props) {
       </div>
 
       {/* Reply form */}
-      {!thread.isLocked && (
+      {canReply && (
         user ? (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-3">Post a Reply</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">
+              {isDebate ? "Your Turn" : "Post a Reply"}
+            </h3>
             <form onSubmit={submitReply}>
               <textarea
                 value={reply}
@@ -176,9 +209,26 @@ export default function ThreadPage({ params }: Props) {
           </div>
         ) : (
           <div className="text-center py-6 text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to reply to this thread.
+            <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to reply.
           </div>
         )
+      )}
+    </>
+  );
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      <Link
+        href="/forum"
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-4 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" /> Forums
+      </Link>
+
+      {thread.hasSpoilers ? (
+        <SpoilerGate>{threadContent}</SpoilerGate>
+      ) : (
+        threadContent
       )}
     </div>
   );

@@ -1,42 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { MessageSquare, Users, Clock } from "lucide-react";
+import { MessageSquare, Search, ChevronDown } from "lucide-react";
+import ThreadCard from "@/components/forum/ThreadCard";
 import AdUnit from "@/components/AdUnit";
 
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  _count: { threads: number };
-  threads: {
-    id: string;
-    title: string;
-    slug: string;
-    updatedAt: string;
-    author: { name: string };
-    _count: { posts: number };
-  }[];
-}
+const TYPES = [
+  { value: "", label: "All" },
+  { value: "discussion", label: "Discussion" },
+  { value: "theory", label: "Theory" },
+  { value: "poll", label: "Poll" },
+  { value: "recommendation", label: "Recommendation" },
+  { value: "debate", label: "Debate" },
+];
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "replies", label: "Most Replies" },
+  { value: "views", label: "Most Viewed" },
+];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Thread = any;
 
 export default function ForumPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
+  const [type, setType] = useState("");
+  const [tag, setTag] = useState("");
+  const [sort, setSort] = useState("newest");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
 
+  const fetchThreads = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (type) params.set("type", type);
+    if (tag) params.set("tag", tag);
+    if (sort) params.set("sort", sort);
+    if (search) params.set("search", search);
+    params.set("page", String(page));
+
+    const res = await fetch(`/api/forum/threads?${params}`).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setThreads(data.threads ?? []);
+      setTotalPages(data.totalPages ?? 1);
+    }
+    setLoading(false);
+  }, [type, tag, sort, search, page]);
+
+  useEffect(() => { fetchThreads(); }, [fetchThreads]);
+
+  // Fetch popular tags once
   useEffect(() => {
-    fetch("/api/forum/categories")
-      .then((r) => r.json())
-      .then((data) => { setCategories(data.categories ?? []); setLoading(false); })
-      .catch(() => setLoading(false));
+    fetch("/api/forum/tags").then((r) => r.json()).then((d) => setPopularTags(d.tags ?? [])).catch(() => {});
   }, []);
+
+  // Read tag from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlTag = params.get("tag");
+    if (urlTag) setTag(urlTag);
+  }, []);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <MessageSquare className="w-6 h-6 text-[var(--ratist-red)]" />
+          <MessageSquare className="w-6 h-6 text-cyan-400" />
           <h1 className="text-2xl font-bold text-white">Forums</h1>
         </div>
         <Link
@@ -47,42 +90,109 @@ export default function ForumPage() {
         </Link>
       </div>
 
-      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
+      {/* Search */}
+      <form onSubmit={handleSearch} className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search threads, movies, actors, tags..."
+            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+        </div>
+      </form>
 
+      {/* Type tabs */}
+      <div className="flex items-center gap-1 mb-3 overflow-x-auto pb-1">
+        {TYPES.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => { setType(t.value); setPage(1); }}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+              type === t.value
+                ? "bg-[var(--ratist-red)] text-white"
+                : "bg-[var(--surface)] text-[var(--foreground-muted)] hover:text-white border border-[var(--border)]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tags + Sort row */}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0">
+          {tag && (
+            <button
+              onClick={() => { setTag(""); setPage(1); }}
+              className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] font-semibold whitespace-nowrap"
+            >
+              {tag} ✕
+            </button>
+          )}
+          {popularTags.filter((t) => t.tag !== tag).slice(0, 8).map((t) => (
+            <button
+              key={t.tag}
+              onClick={() => { setTag(t.tag); setPage(1); }}
+              className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white whitespace-nowrap transition-colors"
+            >
+              {t.tag}
+            </button>
+          ))}
+        </div>
+        <div className="relative shrink-0">
+          <select
+            value={sort}
+            onChange={(e) => { setSort(e.target.value); setPage(1); }}
+            className="appearance-none bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-3 pr-8 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
+          >
+            {SORT_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-muted)] pointer-events-none" />
+        </div>
+      </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-4" />
+
+      {/* Thread feed */}
       {loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading...</p>
-      ) : categories.length === 0 ? (
+      ) : threads.length === 0 ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-8 text-center">
           <MessageSquare className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-3 opacity-40" />
-          <p className="text-[var(--foreground-muted)] mb-1">No forum categories yet.</p>
-          <p className="text-xs text-[var(--foreground-muted)] opacity-70">Categories will appear here once the database is set up.</p>
+          <p className="text-[var(--foreground-muted)] mb-1">No threads found.</p>
+          <p className="text-xs text-[var(--foreground-muted)] opacity-70">Be the first to start a discussion!</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {categories.map((cat) => (
-            <div key={cat.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <div className="p-5 border-b border-[var(--border)]">
-                <Link href={`/forum/c/${cat.slug}`} className="text-base font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
-                  {cat.name}
-                </Link>
-                {cat.description && (
-                  <p className="text-xs text-[var(--foreground-muted)] mt-1">{cat.description}</p>
-                )}
-                <div className="flex items-center gap-4 mt-2 text-xs text-[var(--foreground-muted)]">
-                  <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {cat._count.threads} thread{cat._count.threads !== 1 ? "s" : ""}</span>
-                </div>
-              </div>
-              {cat.threads[0] && (
-                <div className="px-5 py-3 text-xs text-[var(--foreground-muted)] flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Clock className="w-3 h-3 shrink-0" />
-                    <span className="truncate">Latest: <Link href={`/forum/t/${cat.threads[0].slug}`} className="text-white hover:text-[var(--ratist-red)] transition-colors">{cat.threads[0].title}</Link></span>
-                  </div>
-                  <span className="shrink-0">by {cat.threads[0].author.name}</span>
-                </div>
-              )}
-            </div>
+        <div className="space-y-3">
+          {threads.map((t: Thread) => (
+            <ThreadCard key={t.id} {...t} />
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="px-3 py-1.5 text-xs text-[var(--foreground-muted)] border border-[var(--border)] rounded-lg hover:text-white disabled:opacity-30 transition-colors"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-[var(--foreground-muted)]">Page {page} of {totalPages}</span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            className="px-3 py-1.5 text-xs text-[var(--foreground-muted)] border border-[var(--border)] rounded-lg hover:text-white disabled:opacity-30 transition-colors"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

@@ -27,6 +27,17 @@ interface Review {
   createdAt: string;
 }
 
+interface Discussion {
+  id: string;
+  title: string;
+  slug: string;
+  threadType: string;
+  authorName: string;
+  postCount: number;
+  viewCount: number;
+  createdAt: string;
+}
+
 interface Props {
   movie: TMDBMovie;
   trailerKey: string | null;
@@ -37,9 +48,11 @@ interface Props {
   streaming: TMDBWatchProvider[] | null;
   rent: TMDBWatchProvider[] | null;
   reviews: Review[];
+  discussions?: Discussion[];
+  tmdbId?: number;
 }
 
-const TABS = ["Overview", "Cast & Crew", "Media", "Parents' Guide"] as const;
+const TABS = ["Overview", "Cast & Crew", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
@@ -62,6 +75,8 @@ export default function MovieDetailTabs({
   streaming,
   rent,
   reviews,
+  discussions = [],
+  tmdbId,
 }: Props) {
   function tabToHash(tab: Tab): string {
     return tab.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-").replace(/'/g, "");
@@ -383,6 +398,63 @@ export default function MovieDetailTabs({
 
           {images.length === 0 && !trailerKey && (
             <p className="text-[var(--foreground-muted)] text-sm py-8 text-center">No media available for this title.</p>
+          )}
+        </div>
+      )}
+
+      {/* ── DISCUSSIONS TAB ── */}
+      {activeTab === "Discussions" && (
+        <div className="pb-16">
+          {discussions.length > 0 ? (
+            <div className="space-y-3">
+              {/* Fan Theories section */}
+              {discussions.some((d) => d.threadType === "theory") && (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-purple-400 bg-purple-500/20">Fan Theories</span>
+                    <span className="text-[10px] text-yellow-400">May contain spoilers</span>
+                  </div>
+                  {discussions.filter((d) => d.threadType === "theory").map((d) => (
+                    <Link key={d.id} href={`/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{d.title}</p>
+                        <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>
+                      </div>
+                    </Link>
+                  ))}
+                  {discussions.some((d) => d.threadType !== "theory") && <hr className="border-[var(--border)] my-3" />}
+                </>
+              )}
+              {/* Other discussions */}
+              {discussions.filter((d) => d.threadType !== "theory").map((d) => (
+                <Link key={d.id} href={`/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{d.title}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10">
+              <p className="text-[var(--foreground-muted)] mb-3">No discussions yet for this movie.</p>
+              <Link
+                href={`/forum/new?mediaType=movie&tmdbId=${tmdbId ?? movie.id}&title=${encodeURIComponent(movie.title)}&posterPath=${encodeURIComponent(movie.poster_path ?? "")}`}
+                className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors"
+              >
+                Start a Discussion
+              </Link>
+            </div>
+          )}
+          {discussions.length > 0 && (
+            <div className="text-center mt-4">
+              <Link
+                href={`/forum/new?mediaType=movie&tmdbId=${tmdbId ?? movie.id}&title=${encodeURIComponent(movie.title)}&posterPath=${encodeURIComponent(movie.poster_path ?? "")}`}
+                className="text-sm text-[var(--ratist-red)] hover:underline"
+              >
+                + Start a new discussion
+              </Link>
+            </div>
           )}
         </div>
       )}

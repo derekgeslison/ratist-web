@@ -6,6 +6,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
   hotTake: { max: 2, windowDays: 3 },
   looksLike: { max: 2, windowDays: 3 },
   moviePitch: { max: 1, windowDays: 5 },
+  forumThread: { max: 5, windowDays: 1 },
 };
 
 /**
@@ -16,7 +17,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
 export async function checkCommunityRateLimit(
   userId: string,
   isAdmin: boolean,
-  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch"
+  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread"
 ): Promise<string | null> {
   if (isAdmin) return null;
 
@@ -52,6 +53,10 @@ export async function checkCommunityRateLimit(
     recentCount = await prisma.moviePitch.count({
       where: { authorId: userId, createdAt: { gte: windowStart } },
     });
+  } else if (featureType === "forumThread") {
+    recentCount = await prisma.forumThread.count({
+      where: { authorId: userId, createdAt: { gte: windowStart } },
+    });
   }
 
   if (recentCount >= limits.max) {
@@ -60,7 +65,11 @@ export async function checkCommunityRateLimit(
       hotTake: "Hot Takes",
       looksLike: "Looks Like pairs",
       moviePitch: "Pitches",
+      forumThread: "forum threads",
     };
+    if (featureType === "forumThread") {
+      return `You can create up to ${limits.max} forum threads per day.`;
+    }
     if (featureType === "moviePitch") {
       return "You can only submit 1 pitch every 5 days. This is to prevent spam, and it ensures your submission is more likely to be read and interacted with.";
     }

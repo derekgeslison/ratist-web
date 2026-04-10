@@ -154,6 +154,26 @@ export default async function MovieDetailPage({ params }: Props) {
     // DB not ready yet
   }
 
+  // Fetch forum threads linked to this movie
+  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string }[] = [];
+  try {
+    const linkedThreads = await prisma.forumThread.findMany({
+      where: { media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
+      select: {
+        id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
+        author: { select: { name: true } },
+        _count: { select: { posts: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    });
+    discussions = linkedThreads.map((t) => ({
+      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
+      authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
+      createdAt: t.createdAt.toISOString(),
+    }));
+  } catch { /* DB not ready */ }
+
   const trailerKey = getTrailerKey(movie);
   const mpaaRating = getMpaaRating(movie);
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
@@ -355,6 +375,8 @@ export default async function MovieDetailPage({ params }: Props) {
             user: r.user,
             createdAt: r.createdAt.toISOString(),
           }))}
+          discussions={discussions}
+          tmdbId={movie.id}
         />
       </div>
     </div>
