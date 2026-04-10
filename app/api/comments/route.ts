@@ -5,7 +5,7 @@ import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildPunchAndJu
 
 export const dynamic = "force-dynamic";
 
-const VALID_TARGETS = ["review", "blog", "lookslike", "recast", "hottake", "oscar_category", "pitch", "movieclub", "movieclub_prompt"];
+const VALID_TARGETS = ["review", "blog", "lookslike", "recast", "hottake", "oscar_category", "pitch", "movieclub", "movieclub_prompt", "forumThread"];
 
 async function getAuthedUser(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -156,6 +156,18 @@ export async function POST(req: NextRequest) {
     } else if (targetType === "oscar_category") {
       replyMessage = `${user.name} replied to your comment in Oscar Picks`;
       link = "/community/oscar-picks";
+    } else if (targetType === "forumThread") {
+      const thread = await prisma.forumThread.findUnique({
+        where: { id: targetId },
+        select: { authorId: true, title: true, slug: true },
+      });
+      if (thread) {
+        contentOwnerId = thread.authorId;
+        link = `/forum/t/${thread.slug}`;
+        const snippet = thread.title.length > 50 ? thread.title.slice(0, 50) + "…" : thread.title;
+        notifMessage = `${user.name} commented on your thread "${snippet}"`;
+        replyMessage = `${user.name} replied to your comment on "${snippet}"`;
+      }
     }
 
     if (parentId) {

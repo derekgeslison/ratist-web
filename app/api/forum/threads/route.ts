@@ -84,9 +84,9 @@ export async function GET(req: NextRequest) {
           },
           _count: { select: { posts: true } },
           posts: {
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "asc" },
             take: 1,
-            select: { author: { select: { name: true } }, createdAt: true },
+            select: { content: true },
           },
         },
         orderBy,

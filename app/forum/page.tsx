@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { MessageSquare, Search, ChevronDown } from "lucide-react";
 import ThreadCard from "@/components/forum/ThreadCard";
@@ -35,6 +35,7 @@ export default function ForumPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [popularTags, setPopularTags] = useState<{ tag: string; count: number }[]>([]);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchThreads = useCallback(async () => {
     setLoading(true);
@@ -68,10 +69,13 @@ export default function ForumPage() {
     if (urlTag) setTag(urlTag);
   }, []);
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
+  function handleSearchInput(value: string) {
+    setSearchInput(value);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(() => {
+      setSearch(value);
+      setPage(1);
+    }, 400);
   }
 
   return (
@@ -91,21 +95,16 @@ export default function ForumPage() {
       </div>
 
       {/* Search */}
-      <form onSubmit={handleSearch} className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => {
-              setSearchInput(e.target.value);
-              if (e.target.value === "" && search) { setSearch(""); setPage(1); }
-            }}
-            placeholder="Search threads, movies, actors, tags..."
-            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-          />
-        </div>
-      </form>
+      <div className="mb-4 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => handleSearchInput(e.target.value)}
+          placeholder="Search threads, movies, actors, tags..."
+          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+        />
+      </div>
 
       {/* Type tabs */}
       <div className="flex items-center gap-1 mb-3 overflow-x-auto pb-1">

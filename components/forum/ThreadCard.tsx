@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { MessageSquare, Eye, AlertTriangle, Tv, Swords } from "lucide-react";
+import { MessageSquare, Eye, AlertTriangle, Swords } from "lucide-react";
 import TypeBadge from "./TypeBadge";
 import AuthorFlair from "./AuthorFlair";
 
@@ -35,6 +35,7 @@ interface ThreadCardProps {
   people?: { tmdbId: number; name: string; profilePath: string | null }[];
   tags: { tag: string }[];
   poll?: { options: PollOption[] } | null;
+  posts?: { content: string }[];
   _count: { posts: number };
 }
 
@@ -50,8 +51,12 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, _count }: ThreadCardProps) {
+export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, _count }: ThreadCardProps) {
   const totalPollVotes = poll?.options?.reduce((s, o) => s + o._count.votes, 0) ?? 0;
+  const opContent = posts?.[0]?.content ?? "";
+  const contentPreview = opContent.length > 120 ? opContent.slice(0, 120) + "…" : opContent;
+  // Comment count = posts - 1 (OP post isn't a comment) -- now using CommentSection, so show actual comment count from _count
+  const commentCount = Math.max(0, _count.posts - 1);
 
   return (
     <Link href={`/forum/t/${slug}`} className={`block bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 transition-colors hover:border-[var(--foreground-muted)]/30 ${isPinned ? "border-yellow-500/30" : ""}`}>
@@ -59,9 +64,12 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
       <div className="flex items-start gap-2 mb-2">
         <TypeBadge type={threadType} />
         {hasSpoilers && <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />}
-        <span className="text-sm font-semibold text-white leading-snug flex-1">
-          {title}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold text-white leading-snug">{title}</span>
+          {contentPreview && (
+            <p className="text-xs text-[var(--foreground-muted)] mt-0.5 line-clamp-1">{contentPreview}</p>
+          )}
+        </div>
       </div>
 
       {/* Debate: show debaters */}
@@ -124,11 +132,6 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
               ) : (
                 <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center text-[8px] text-[var(--foreground-muted)]">?</div>
               )}
-              {m.mediaType === "tv" && (
-                <div className="absolute top-0 left-0 bg-blue-600/90 rounded-br px-0.5">
-                  <Tv className="w-2 h-2 text-white" />
-                </div>
-              )}
             </div>
           ))}
           {people?.map((p) => (
@@ -166,7 +169,7 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
           />
         )}
         <div className={`flex items-center gap-3 text-xs text-[var(--foreground-muted)] shrink-0 ${threadType === "debate" ? "ml-auto" : ""}`}>
-          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {_count.posts}</span>
+          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {commentCount}</span>
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
           <span>{timeAgo(createdAt)}</span>
         </div>

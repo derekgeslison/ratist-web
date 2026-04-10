@@ -100,8 +100,8 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
                   <Image src={`https://image.tmdb.org/t/p/w92${s.posterPath}`} alt="" fill sizes="24px" className="object-cover" />
                 </div>
               )}
+              {s.mediaType === "tv" && <Tv className="w-3 h-3 text-blue-400 shrink-0" />}
               <span className="text-xs text-white truncate max-w-[120px]">{s.title}</span>
-              {s.mediaType === "tv" ? <Tv className="w-3 h-3 text-blue-400 shrink-0" /> : <Film className="w-3 h-3 text-[var(--ratist-red)] shrink-0" />}
               <button onClick={() => removeItem(s.tmdbId, s.mediaType)} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-3 h-3" /></button>
             </div>
           ))}
@@ -132,26 +132,19 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
               onClick={() => addItem(r)}
               className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-[var(--surface-2)] transition-colors"
             >
-              <div className="relative w-8 h-12 rounded overflow-hidden shrink-0">
-                {r.posterPath ? (
+              {r.posterPath ? (
+                <div className="relative w-8 h-12 rounded overflow-hidden shrink-0">
                   <Image src={`https://image.tmdb.org/t/p/w92${r.posterPath}`} alt="" fill sizes="32px" className="object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-[var(--surface-2)]" />
-                )}
-                {r.mediaType === "tv" && (
-                  <div className="absolute top-0.5 left-0.5 bg-blue-600/90 text-white rounded px-0.5 py-px flex items-center gap-0.5 z-10">
-                    <Tv className="w-2 h-2" />
-                  </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="w-8 h-12 rounded bg-[var(--surface-2)] shrink-0" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
+                  {r.mediaType === "tv" && <Tv className="w-3 h-3 text-blue-400 shrink-0" />}
                   <p className="text-sm text-white truncate">{r.title ?? r.name}</p>
-                  {r.releaseDate && <span className="text-xs text-[var(--foreground-muted)] shrink-0">{r.releaseDate.slice(0, 4)}</span>}
+                  {r.releaseDate && <span className="text-xs text-[var(--foreground-muted)] shrink-0">({r.releaseDate.slice(0, 4)})</span>}
                 </div>
-                <p className="text-[10px] text-[var(--foreground-muted)]">
-                  {r.mediaType === "tv" ? "TV Show" : "Movie"}
-                </p>
               </div>
             </button>
           ))}
