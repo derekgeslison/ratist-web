@@ -41,7 +41,7 @@ export default function PollBuilder({ options, onChange }: Props) {
               className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
             />
             {options.length > 2 && (
-              <button onClick={() => removeOption(i)} className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+              <button type="button" onClick={() => removeOption(i)} className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             )}
@@ -49,6 +49,7 @@ export default function PollBuilder({ options, onChange }: Props) {
         ))}
         {options.length < 10 && (
           <button
+            type="button"
             onClick={addOption}
             className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
           >

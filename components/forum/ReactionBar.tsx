@@ -49,14 +49,11 @@ export default function ReactionBar({ postId, threadSlug, counts: initialCounts,
     }
   }
 
-  const hasAny = REACTIONS.some((r) => (counts[r.type] ?? 0) > 0);
-
   return (
     <div className="flex items-center gap-1 mt-2">
       {REACTIONS.map((r) => {
         const count = counts[r.type] ?? 0;
         const active = userReactions.includes(r.type);
-        if (!user && count === 0) return null;
         return (
           <button
             key={r.type}
@@ -66,7 +63,9 @@ export default function ReactionBar({ postId, threadSlug, counts: initialCounts,
             className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors ${
               active
                 ? "border-[var(--ratist-red)]/40 bg-[var(--ratist-red)]/10 text-white"
-                : "border-[var(--border)] bg-transparent text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
+                : count > 0
+                  ? "border-[var(--border)] bg-transparent text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
+                  : "border-transparent text-[var(--foreground-muted)] opacity-40 hover:opacity-100"
             } ${!user ? "opacity-50 cursor-default" : "cursor-pointer"}`}
           >
             <span>{r.emoji}</span>
@@ -74,20 +73,6 @@ export default function ReactionBar({ postId, threadSlug, counts: initialCounts,
           </button>
         );
       })}
-      {!hasAny && user && (
-        <div className="flex items-center gap-1">
-          {REACTIONS.map((r) => (
-            <button
-              key={r.type}
-              onClick={() => toggleReaction(r.type)}
-              title={r.label}
-              className="text-sm opacity-40 hover:opacity-100 transition-opacity"
-            >
-              {r.emoji}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Film, Search, ImageIcon } from "lucide-react";
+import { ArrowLeft, Film, Search, ImageIcon, MessageSquare } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
@@ -389,6 +389,49 @@ export default async function CelebrityPage({ params }: Props) {
           </div>
         </section>
       )}
+
+      {/* Forum discussions about this person */}
+      <CelebrityDiscussions tmdbId={person.id} personName={person.name} />
     </div>
+  );
+}
+
+async function CelebrityDiscussions({ tmdbId, personName }: { tmdbId: number; personName: string }) {
+  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number }[] = [];
+  try {
+    const threads = await prisma.forumThread.findMany({
+      where: { people: { some: { tmdbId } } },
+      select: {
+        id: true, title: true, slug: true, threadType: true,
+        author: { select: { name: true } },
+        _count: { select: { posts: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    });
+    discussions = threads.map((t) => ({
+      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
+      authorName: t.author.name, postCount: t._count.posts,
+    }));
+  } catch { /* DB not ready */ }
+
+  if (discussions.length === 0) return null;
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+        <MessageSquare className="w-5 h-5 text-cyan-400" /> Forum Discussions
+      </h2>
+      <div className="space-y-2">
+        {discussions.map((d) => (
+          <Link key={d.id} href={`/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{d.title}</p>
+              <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }

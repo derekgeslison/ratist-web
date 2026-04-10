@@ -67,8 +67,21 @@ export async function GET(req: NextRequest) {
               _count: { select: { userBadges: true, ratings: true } },
             },
           },
+          opponent: {
+            select: { id: true, firebaseUid: true, name: true, avatarUrl: true },
+          },
           media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+          people: { select: { tmdbId: true, name: true, profilePath: true } },
           tags: { select: { tag: true } },
+          poll: {
+            include: {
+              options: {
+                include: { _count: { select: { votes: true } } },
+                orderBy: { id: "asc" },
+                take: 4,
+              },
+            },
+          },
           _count: { select: { posts: true } },
           posts: {
             orderBy: { createdAt: "desc" },

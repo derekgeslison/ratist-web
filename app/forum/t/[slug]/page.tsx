@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { use } from "react";
-import { ArrowLeft, Lock, Pin, Send } from "lucide-react";
+import { ArrowLeft, Lock, Pin, Send, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
@@ -26,6 +27,7 @@ interface Props {
 export default function ThreadPage({ params }: Props) {
   const { slug } = use(params);
   const { user } = useAuth();
+  const router = useRouter();
   const [thread, setThread] = useState<Thread | null>(null);
   const [userPollVote, setUserPollVote] = useState<string | null>(null);
   const [userDebateVote, setUserDebateVote] = useState<string | null>(null);
@@ -80,10 +82,21 @@ export default function ThreadPage({ params }: Props) {
     }
   }
 
+  async function deleteThread() {
+    if (!user || !thread || !confirm("Are you sure you want to delete this thread? This cannot be undone.")) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/forum/threads/${slug}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) router.push("/forum");
+  }
+
   if (loading) return <p className="text-[var(--foreground-muted)] text-center py-16">Loading thread...</p>;
   if (!thread) return <p className="text-[var(--foreground-muted)] text-center py-16">Thread not found.</p>;
 
   const isDebate = thread.threadType === "debate";
+  const isAuthor = user?.uid === thread.author.firebaseUid;
   const canReply = !thread.isLocked && (!isDebate || !thread.opponentId ||
     (user && (user.uid === thread.author.firebaseUid || user.uid === thread.opponent?.firebaseUid)));
 
@@ -97,10 +110,17 @@ export default function ThreadPage({ params }: Props) {
           {thread.isLocked && <Lock className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />}
         </div>
         <h1 className="text-xl font-bold text-white leading-tight mb-2">{thread.title}</h1>
-        <p className="text-xs text-[var(--foreground-muted)]">
-          {thread.posts?.length ?? 0} post{(thread.posts?.length ?? 0) !== 1 ? "s" : ""} · {thread.viewCount} views
-          {thread.isLocked && <span className="ml-2 text-yellow-600">· Thread locked</span>}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-[var(--foreground-muted)]">
+            {thread.posts?.length ?? 0} post{(thread.posts?.length ?? 0) !== 1 ? "s" : ""} · {thread.viewCount} views
+            {thread.isLocked && <span className="ml-2 text-yellow-600">· Thread locked</span>}
+          </p>
+          {isAuthor && (
+            <button onClick={deleteThread} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Linked media */}
@@ -183,7 +203,11 @@ export default function ThreadPage({ params }: Props) {
         user ? (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <h3 className="text-sm font-semibold text-white mb-3">
-              {isDebate ? "Your Turn" : "Post a Reply"}
+              {isDebate ? (
+                thread.posts?.length > 0 && thread.posts[thread.posts.length - 1].author.firebaseUid === user.uid
+                  ? "Waiting for opponent..."
+                  : "Your Turn"
+              ) : "Post a Reply"}
             </h3>
             <form onSubmit={submitReply}>
               <textarea

@@ -27,8 +27,8 @@ export default function PersonLinker({ selected, onChange }: Props) {
     try {
       const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      setResults((data.results ?? []).slice(0, 8).map((r: { id: number; name: string; profile_path: string | null }) => ({
-        tmdbId: r.id, name: r.name, profilePath: r.profile_path,
+      setResults((data.results ?? []).slice(0, 8).map((r: { id: number; name: string; profilePath: string | null }) => ({
+        tmdbId: r.id, name: r.name, profilePath: r.profilePath,
       })));
     } catch {
       setResults([]);

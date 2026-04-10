@@ -10,6 +10,7 @@ interface Debater {
   firebaseUid: string;
   name: string;
   avatarUrl: string | null;
+  _count?: { userBadges: number; ratings: number };
 }
 
 interface Props {
@@ -76,7 +77,10 @@ export default function DebateView({ threadSlug, op, opponent, voteCounts, userV
           )}
         </div>
         <Link href={`/profile/${debater.firebaseUid}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)]">{debater.name}</Link>
-        <p className="text-[10px] text-[var(--foreground-muted)] mb-2">{label}</p>
+        <p className="text-[10px] text-[var(--foreground-muted)]">{label}</p>
+        {debater._count && (
+          <p className="text-[10px] text-[var(--foreground-muted)] mb-2">{debater._count.ratings} ratings · {debater._count.userBadges} badges</p>
+        )}
         {opponent && !isDebater && user && (
           <button
             onClick={() => castVote(side)}

@@ -172,12 +172,12 @@ function NewThreadForm() {
         <TagInput tags={tags} onChange={setTags} max={10} />
 
         {/* Spoiler toggle */}
-        <label className="flex items-center gap-3 cursor-pointer">
+        <button type="button" onClick={() => setHasSpoilers(!hasSpoilers)} className="flex items-center gap-3 cursor-pointer">
           <div className={`relative w-10 h-5 rounded-full transition-colors ${hasSpoilers ? "bg-yellow-500" : "bg-[var(--surface-2)]"}`}>
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${hasSpoilers ? "translate-x-5" : "translate-x-0.5"}`} />
           </div>
           <span className="text-sm text-[var(--foreground-muted)]">Contains spoilers</span>
-        </label>
+        </button>
 
         {/* Poll builder (conditional) */}
         {threadType === "poll" && (

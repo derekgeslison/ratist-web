@@ -80,6 +80,26 @@ export default async function ShowDetailPage({ params }: Props) {
     })
     .catch(() => {});
 
+  // Fetch forum discussions linked to this show
+  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string }[] = [];
+  try {
+    const linkedThreads = await prisma.forumThread.findMany({
+      where: { media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+      select: {
+        id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
+        author: { select: { name: true } },
+        _count: { select: { posts: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    });
+    discussions = linkedThreads.map((t) => ({
+      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
+      authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
+      createdAt: t.createdAt.toISOString(),
+    }));
+  } catch { /* DB not ready */ }
+
   const trailerKey = getShowTrailerKey(show);
   const contentRating = getShowContentRating(show);
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
@@ -253,6 +273,8 @@ export default async function ShowDetailPage({ params }: Props) {
           streaming={watchProviders?.flatrate ?? null}
           rent={watchProviders?.rent ?? null}
           seasons={seasons}
+          discussions={discussions}
+          tmdbId={show.id}
         />
       </div>
     </div>

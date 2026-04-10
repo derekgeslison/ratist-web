@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Search, X, Film, Tv } from "lucide-react";
+// Film and Tv icons used for selected chips and search result badges
 
 interface MediaItem {
   tmdbId: number;
@@ -21,9 +22,8 @@ interface SearchResult {
   id: number;
   title?: string;
   name?: string;
-  poster_path: string | null;
-  release_date?: string;
-  first_air_date?: string;
+  posterPath: string | null;
+  releaseDate?: string;
 }
 
 export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
@@ -64,7 +64,7 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
       tmdbId: r.id,
       mediaType: r.mediaType,
       title: r.title ?? r.name ?? "Unknown",
-      posterPath: r.poster_path,
+      posterPath: r.posterPath,
     }]);
     setQuery("");
     setResults([]);
@@ -132,18 +132,25 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
               onClick={() => addItem(r)}
               className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-[var(--surface-2)] transition-colors"
             >
-              {r.poster_path ? (
-                <div className="relative w-8 h-12 rounded overflow-hidden shrink-0">
-                  <Image src={`https://image.tmdb.org/t/p/w92${r.poster_path}`} alt="" fill sizes="32px" className="object-cover" />
-                </div>
-              ) : (
-                <div className="w-8 h-12 rounded bg-[var(--surface-2)] shrink-0" />
-              )}
+              <div className="relative w-8 h-12 rounded overflow-hidden shrink-0">
+                {r.posterPath ? (
+                  <Image src={`https://image.tmdb.org/t/p/w92${r.posterPath}`} alt="" fill sizes="32px" className="object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-[var(--surface-2)]" />
+                )}
+                {r.mediaType === "tv" && (
+                  <div className="absolute top-0.5 left-0.5 bg-blue-600/90 text-white rounded px-0.5 py-px flex items-center gap-0.5 z-10">
+                    <Tv className="w-2 h-2" />
+                  </div>
+                )}
+              </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-white truncate">{r.title ?? r.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm text-white truncate">{r.title ?? r.name}</p>
+                  {r.releaseDate && <span className="text-xs text-[var(--foreground-muted)] shrink-0">{r.releaseDate.slice(0, 4)}</span>}
+                </div>
                 <p className="text-[10px] text-[var(--foreground-muted)]">
                   {r.mediaType === "tv" ? "TV Show" : "Movie"}
-                  {(r.release_date || r.first_air_date) && ` · ${(r.release_date ?? r.first_air_date ?? "").slice(0, 4)}`}
                 </p>
               </div>
             </button>
