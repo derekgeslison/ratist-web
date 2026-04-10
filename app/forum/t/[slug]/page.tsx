@@ -204,6 +204,9 @@ export default function ThreadPage({ params }: Props) {
           <TypeBadge type={thread.threadType} />
           {thread.isPinned && <Pin className="w-4 h-4 text-yellow-400 shrink-0" />}
           {thread.isLocked && <Lock className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />}
+          {thread.threadType === "debate" && thread.updatedAt && (Date.now() - new Date(thread.updatedAt).getTime()) > 5 * 24 * 60 * 60 * 1000 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400">Inactive</span>
+          )}
         </div>
         <h1 className="text-xl font-bold text-white leading-tight mb-2">{thread.title}</h1>
         <div className="flex items-center justify-between">

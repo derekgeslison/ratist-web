@@ -53,6 +53,13 @@ export async function GET(req: NextRequest) {
     if (tag) where.tags = { some: { tag } };
     const authorId = searchParams.get("authorId");
     if (authorId) where.authorId = authorId;
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo + "T23:59:59");
+    }
     if (tmdbId && mediaType) {
       where.media = { some: { tmdbId: Number(tmdbId), mediaType } };
     }

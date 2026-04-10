@@ -70,6 +70,7 @@ export default async function UserForumPage({ params }: Props) {
       opponent: t.debateVotes.filter((v) => v.side === "opponent").length,
     } : null,
     createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
   }));
 
   return (

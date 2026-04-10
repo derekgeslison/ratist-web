@@ -38,6 +38,7 @@ interface ThreadCardProps {
   posts?: { content: string }[];
   commentCount?: number;
   debateVoteCounts?: { op: number; opponent: number } | null;
+  updatedAt?: string;
   _count: { posts: number };
 }
 
@@ -53,13 +54,16 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, commentCount: commentCountProp, debateVoteCounts, _count }: ThreadCardProps) {
+export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, commentCount: commentCountProp, debateVoteCounts, updatedAt, _count }: ThreadCardProps) {
   const totalPollVotes = poll?.options?.reduce((s, o) => s + o._count.votes, 0) ?? 0;
   const opContent = posts?.[0]?.content ?? "";
   const contentPreview = opContent.length > 120 ? opContent.slice(0, 120) + "…" : opContent;
   const displayCommentCount = commentCountProp ?? Math.max(0, _count.posts - 1);
   // Debate exchange count (ForumPosts minus the OP)
   const debateExchangeCount = Math.max(0, _count.posts - 1);
+  // Debate inactive if no activity in 5 days
+  const isDebateInactive = threadType === "debate" && updatedAt &&
+    (Date.now() - new Date(updatedAt).getTime()) > 5 * 24 * 60 * 60 * 1000;
 
   return (
     <Link href={`/forum/t/${slug}`} className={`block bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 transition-colors hover:border-[var(--foreground-muted)]/30 ${isPinned ? "border-yellow-500/30" : ""}`}>
@@ -68,6 +72,7 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
         <div className="flex items-start gap-2">
           <TypeBadge type={threadType} />
           {hasSpoilers && <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />}
+          {isDebateInactive && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400 shrink-0">Inactive</span>}
           <div className="flex-1 min-w-0">
             <span className="text-sm font-semibold text-white leading-snug">{title}</span>
             {contentPreview && (
