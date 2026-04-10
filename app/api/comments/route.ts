@@ -195,6 +195,50 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Notify thread followers (forumThread only, max 1 per 12h per follower per thread)
+    if (targetType === "forumThread" && link) {
+      try {
+        const followers = await prisma.forumThreadFollow.findMany({
+          where: { threadId: targetId },
+          select: { userId: true },
+        });
+        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+        for (const follower of followers) {
+          // Skip the commenter, the content owner (already notified), and the parent comment author (already notified)
+          if (follower.userId === user.id) continue;
+          if (follower.userId === contentOwnerId) continue;
+          if (parentId) {
+            const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { userId: true } });
+            if (parent && follower.userId === parent.userId) continue;
+          }
+          // Check 12-hour cooldown for this follower on this thread
+          const recent = await prisma.notification.findFirst({
+            where: {
+              userId: follower.userId,
+              type: "comment",
+              targetType: "forumThread",
+              targetId,
+              createdAt: { gte: twelveHoursAgo },
+            },
+          });
+          if (!recent) {
+            const snippet = link.includes("/forum/t/") ? link : "";
+            await prisma.notification.create({
+              data: {
+                userId: follower.userId,
+                type: "comment",
+                actorId: user.id,
+                targetType: "forumThread",
+                targetId,
+                message: `New activity on a thread you follow`,
+                link,
+              },
+            });
+          }
+        }
+      } catch { /* non-critical */ }
+    }
+
     return NextResponse.json({
       comment: {
         id: comment.id,

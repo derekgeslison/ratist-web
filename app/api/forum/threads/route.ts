@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
       where.followers = { some: { userId: currentUserId } };
     }
     if (tag) where.tags = { some: { tag } };
+    const authorId = searchParams.get("authorId");
+    if (authorId) where.authorId = authorId;
     if (tmdbId && mediaType) {
       where.media = { some: { tmdbId: Number(tmdbId), mediaType } };
     }

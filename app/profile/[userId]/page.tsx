@@ -86,6 +86,7 @@ export default async function ProfilePage({ params }: Props) {
     seenShows,
     allTVRatings,
     episodesSeen,
+    forumThreadCount,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
     prisma.movieRating.aggregate({
@@ -216,6 +217,7 @@ export default async function ProfilePage({ params }: Props) {
       where: { userId: user.id },
       orderBy: [{ watchedDate: "desc" }, { createdAt: "desc" }],
     }),
+    prisma.forumThread.count({ where: { authorId: user.id } }),
   ]);
 
   // Cine-Q stats
@@ -425,6 +427,7 @@ export default async function ProfilePage({ params }: Props) {
                 avgRating={avgRatingValue}
                 memberSince={user.createdAt.getFullYear()}
                 hasTheme={!!theme}
+                forumThreadCount={forumThreadCount}
               />
             </div>
           </div>

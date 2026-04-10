@@ -23,11 +23,12 @@ interface Props {
   avgRating: number | null;
   memberSince: number;
   hasTheme?: boolean;
+  forumThreadCount?: number;
 }
 
 export default function ProfileHeader({
   userName, bio, isPrivate, profileFirebaseUid, profileUserId, inviteCode,
-  ratingCount, tvRatingCount = 0, seenCount, tvSeenCount = 0, avgRating, memberSince, hasTheme,
+  ratingCount, tvRatingCount = 0, seenCount, tvSeenCount = 0, avgRating, memberSince, hasTheme, forumThreadCount = 0,
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
@@ -143,6 +144,11 @@ export default function ProfileHeader({
             <span className="text-[var(--foreground-muted)]">
               Avg <strong style={{ color: scoreColor(avgRating) }}>{avgRating.toFixed(1)}</strong>
             </span>
+          )}
+          {forumThreadCount > 0 && (
+            <Link href={`/profile/${profileFirebaseUid}/forum`} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
+              <strong className="text-[var(--foreground)]">{forumThreadCount}</strong> forum post{forumThreadCount !== 1 ? "s" : ""}
+            </Link>
           )}
           <span className="text-xs text-[var(--foreground-muted)] self-center">Since {memberSince}</span>
         </div>
