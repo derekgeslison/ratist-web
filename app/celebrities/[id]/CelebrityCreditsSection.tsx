@@ -99,8 +99,18 @@ export default function CelebrityCreditsSection({
 
   // Determine display label for each credit based on active role filter
   function getRoleLabel(item: Credit): string | undefined {
-    if (roleFilter === "all" || roleFilter === "Actor") {
-      // Default: show character name if they acted, otherwise first crew job
+    if (roleFilter === "all") {
+      // Show all roles: character name + all crew jobs combined
+      const parts: string[] = [];
+      if (item.character) parts.push(item.character);
+      if (item.jobs?.length) {
+        for (const job of item.jobs) {
+          if (!parts.includes(job)) parts.push(job);
+        }
+      }
+      return parts.join(", ") || undefined;
+    }
+    if (roleFilter === "Actor") {
       return item.character || item.jobs?.[0];
     }
     // Specific crew filter: show the actual matching job title from TMDB

@@ -80,8 +80,8 @@ export default function Navbar() {
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies & TV" },
-    ...(user ? [{ href: "/for-you", label: "For You" }] : []),
     { href: "/celebrities", label: "Celebrities" },
+    ...(user ? [{ href: "/for-you", label: "For You" }] : []),
     { href: "/community", label: "Community" },
     { href: "/tools", label: "Tools" },
   ];

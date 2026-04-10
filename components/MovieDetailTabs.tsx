@@ -260,32 +260,45 @@ export default function MovieDetailTabs({
       {activeTab === "Cast & Crew" && (
         <div className="space-y-10 pb-16">
           {/* Directors / key crew */}
-          {(directors.length > 0 || writers.length > 0) && (
-            <section>
-              <h2 className="text-base font-semibold text-white mb-4">Filmmakers</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {[...directors, ...writers.slice(0, 4)].map((member, i) => (
-                  <Link key={`${member.id}-${i}`} href={`/celebrities/${member.id}`} className="group flex flex-col items-center text-center gap-1.5">
-                    <div className="relative w-full aspect-square rounded-full overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                      {member.profile_path ? (
-                        <Image
-                          src={`https://image.tmdb.org/t/p/w185${member.profile_path}`}
-                          alt={member.name}
-                          fill
-                          sizes="100px"
-                          className="object-cover object-top"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-2xl">👤</div>
-                      )}
-                    </div>
-                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{member.name}</p>
-                    <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{member.job}</p>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
+          {(directors.length > 0 || writers.length > 0) && (() => {
+            // Deduplicate crew by person ID and combine roles
+            const filmmakerMap = new Map<number, { id: number; name: string; profile_path: string | null; jobs: string[] }>();
+            for (const member of [...directors, ...writers.slice(0, 4)]) {
+              const existing = filmmakerMap.get(member.id);
+              if (existing) {
+                if (!existing.jobs.includes(member.job)) existing.jobs.push(member.job);
+              } else {
+                filmmakerMap.set(member.id, { id: member.id, name: member.name, profile_path: member.profile_path, jobs: [member.job] });
+              }
+            }
+            const filmmakers = [...filmmakerMap.values()];
+            return (
+              <section>
+                <h2 className="text-base font-semibold text-white mb-4">Filmmakers</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {filmmakers.map((member) => (
+                    <Link key={member.id} href={`/celebrities/${member.id}`} className="group flex flex-col items-center text-center gap-1.5">
+                      <div className="relative w-full aspect-square rounded-full overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                        {member.profile_path ? (
+                          <Image
+                            src={`https://image.tmdb.org/t/p/w185${member.profile_path}`}
+                            alt={member.name}
+                            fill
+                            sizes="100px"
+                            className="object-cover object-top"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-2xl">👤</div>
+                        )}
+                      </div>
+                      <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{member.name}</p>
+                      <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{member.jobs.join(", ")}</p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
 
           {/* Full cast */}
           {cast.length > 0 && (

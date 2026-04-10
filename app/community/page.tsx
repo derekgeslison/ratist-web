@@ -110,18 +110,20 @@ export default async function CommunityPage() {
   let users: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; _count: { ratings: number } }[] = [];
   let fetchError = false;
   try {
-    users = await prisma.user.findMany({
-      where: { isPrivate: false, deletedAt: null, bannedAt: null },
-      select: {
-        id: true,
-        firebaseUid: true,
-        name: true,
-        avatarUrl: true,
-        _count: { select: { ratings: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 24,
-    });
+    const userSelect = {
+      id: true, firebaseUid: true, name: true, avatarUrl: true,
+      _count: { select: { ratings: true } },
+    } as const;
+    const userWhere = { isPrivate: false, deletedAt: null, bannedAt: null };
+    // Mix: top 12 by rating count + 12 newest, deduped
+    const [topRaters, newest] = await Promise.all([
+      prisma.user.findMany({ where: userWhere, select: userSelect, orderBy: { ratings: { _count: "desc" } }, take: 12 }),
+      prisma.user.findMany({ where: userWhere, select: userSelect, orderBy: { createdAt: "desc" }, take: 12 }),
+    ]);
+    const seen = new Set<string>();
+    for (const u of [...topRaters, ...newest]) {
+      if (!seen.has(u.id)) { seen.add(u.id); users.push(u); }
+    }
   } catch {
     fetchError = true;
   }
