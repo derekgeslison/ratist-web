@@ -76,37 +76,6 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
           </div>
         </div>
 
-        {/* Debate: show debaters */}
-        {threadType === "debate" && (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
-                {author.avatarUrl ? (
-                  <Image src={author.avatarUrl} alt="" fill sizes="24px" className="object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-[var(--ratist-red)]">{author.name[0]}</div>
-                )}
-              </div>
-              <span className="text-xs text-white">{author.name}</span>
-            </div>
-            <Swords className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-            {opponent ? (
-              <div className="flex items-center gap-1.5">
-                <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
-                  {opponent.avatarUrl ? (
-                    <Image src={opponent.avatarUrl} alt="" fill sizes="24px" className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-blue-600">{opponent.name[0]}</div>
-                  )}
-                </div>
-                <span className="text-xs text-white">{opponent.name}</span>
-              </div>
-            ) : (
-              <span className="text-xs text-orange-400 italic">Waiting for challenger...</span>
-            )}
-          </div>
-        )}
-
         {/* Poll preview */}
         {threadType === "poll" && poll?.options && poll.options.length > 0 && (
           <div className="space-y-1">
@@ -167,17 +136,41 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
           </div>
         )}
 
-        {/* Bottom row: author/debate info (left) + stats (right) */}
+        {/* Bottom row: author/debaters (left) + stats (right) */}
         <div className="flex items-center justify-between gap-3">
           {threadType === "debate" ? (
-            <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)]">
-              {debateExchangeCount > 0 && <span>{debateExchangeCount} exchange{debateExchangeCount !== 1 ? "s" : ""}</span>}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
+                  {author.avatarUrl ? (
+                    <Image src={author.avatarUrl} alt="" fill sizes="24px" className="object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-[var(--ratist-red)]">{author.name[0]}</div>
+                  )}
+                </div>
+                <span className="text-xs text-white">{author.name}</span>
+              </div>
+              <Swords className="w-3 h-3 text-orange-400 shrink-0" />
+              {opponent ? (
+                <div className="flex items-center gap-1.5">
+                  <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
+                    {opponent.avatarUrl ? (
+                      <Image src={opponent.avatarUrl} alt="" fill sizes="24px" className="object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white bg-blue-600">{opponent.name[0]}</div>
+                    )}
+                  </div>
+                  <span className="text-xs text-white">{opponent.name}</span>
+                </div>
+              ) : (
+                <span className="text-xs text-orange-400 italic">Waiting for challenger...</span>
+              )}
+              {debateExchangeCount > 0 && <span className="text-[10px] text-[var(--foreground-muted)]">· {debateExchangeCount} exchange{debateExchangeCount !== 1 ? "s" : ""}</span>}
               {debateVoteCounts && (debateVoteCounts.op + debateVoteCounts.opponent) > 0 && (
-                <span className="flex items-center gap-1">
-                  <span className="text-[var(--ratist-red)]">{debateVoteCounts.op}</span>
-                  <span>-</span>
+                <span className="flex items-center gap-1 text-[10px]">
+                  · <span className="text-[var(--ratist-red)]">{debateVoteCounts.op}</span>
+                  <span className="text-[var(--foreground-muted)]">-</span>
                   <span className="text-blue-400">{debateVoteCounts.opponent}</span>
-                  <span>votes</span>
                 </span>
               )}
             </div>

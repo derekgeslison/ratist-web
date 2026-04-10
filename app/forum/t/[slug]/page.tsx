@@ -221,6 +221,7 @@ export default function ThreadPage({ params }: Props) {
           voteCounts={thread.debateVoteCounts}
           userVote={userDebateVote}
           onJoin={() => loadThread()}
+          onBoot={() => loadThread()}
         />
       )}
 

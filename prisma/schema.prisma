@@ -830,6 +830,7 @@ model ForumThread {
   isLocked    Boolean  @default(false) @map("is_locked")
   viewCount   Int      @default(0) @map("view_count")
   opponentId  String?  @map("opponent_id") // debate threads: open challenge, anyone can claim
+  bootedUserIds String[] @default([]) @map("booted_user_ids") // users who were booted from this debate
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

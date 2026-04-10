@@ -20,19 +20,42 @@ interface Props {
   voteCounts: { op: number; opponent: number } | null;
   userVote: string | null;
   onJoin?: () => void;
+  onBoot?: () => void;
 }
 
-export default function DebateView({ threadSlug, op, opponent, voteCounts, userVote: initialVote, onJoin }: Props) {
+export default function DebateView({ threadSlug, op, opponent, voteCounts, userVote: initialVote, onJoin, onBoot }: Props) {
   const { user } = useAuth();
   const [userVote, setUserVote] = useState(initialVote);
   const [counts, setCounts] = useState(voteCounts ?? { op: 0, opponent: 0 });
   const [voting, setVoting] = useState(false);
+  const [booting, setBooting] = useState(false);
+  const [bootError, setBootError] = useState("");
 
   // Sync with parent on auto-refresh
   useEffect(() => { if (voteCounts) setCounts(voteCounts); }, [voteCounts]);
   const [joining, setJoining] = useState(false);
 
   const isDebater = user && (user.uid === op.firebaseUid || user.uid === opponent?.firebaseUid);
+  const isOP = user?.uid === op.firebaseUid;
+
+  async function bootChallenger() {
+    if (!user || booting || !opponent) return;
+    if (!confirm("Boot this challenger? All debate exchanges and votes will be cleared. This cannot be undone.")) return;
+    setBooting(true);
+    setBootError("");
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/forum/threads/${threadSlug}/debate/boot`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) {
+      onBoot?.();
+    } else {
+      const data = await res?.json().catch(() => null);
+      setBootError(data?.error ?? "Failed to boot challenger");
+    }
+    setBooting(false);
+  }
 
   async function castVote(side: "op" | "opponent") {
     if (!user || voting || isDebater) return;
@@ -120,6 +143,20 @@ export default function DebateView({ threadSlug, op, opponent, voteCounts, userV
           </div>
         )}
       </div>
+
+      {/* Boot challenger button (OP only) */}
+      {isOP && opponent && (
+        <div className="mb-2">
+          <button
+            onClick={bootChallenger}
+            disabled={booting}
+            className="text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
+          >
+            {booting ? "Removing..." : "Remove challenger"}
+          </button>
+          {bootError && <p className="text-[10px] text-red-400 mt-0.5">{bootError}</p>}
+        </div>
+      )}
 
       {/* Vote tally bar */}
       {opponent && total > 0 && (

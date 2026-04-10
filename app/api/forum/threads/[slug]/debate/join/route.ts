@@ -22,6 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (thread.threadType !== "debate") return NextResponse.json({ error: "Not a debate thread" }, { status: 400 });
   if (thread.opponentId) return NextResponse.json({ error: "Opponent spot already taken" }, { status: 409 });
   if (thread.authorId === user.id) return NextResponse.json({ error: "You can't debate yourself" }, { status: 400 });
+  if (thread.bootedUserIds.includes(user.id)) return NextResponse.json({ error: "You were removed from this debate and cannot rejoin" }, { status: 403 });
 
   const updated = await prisma.forumThread.update({
     where: { id: thread.id },
