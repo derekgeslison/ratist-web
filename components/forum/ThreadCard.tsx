@@ -104,19 +104,6 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
             ) : (
               <span className="text-xs text-orange-400 italic">Waiting for challenger...</span>
             )}
-            <span className="flex items-center gap-3 text-[10px] text-[var(--foreground-muted)] ml-auto flex-wrap justify-end">
-              {debateExchangeCount > 0 && <span>{debateExchangeCount} exchange{debateExchangeCount !== 1 ? "s" : ""}</span>}
-              {debateVoteCounts && (debateVoteCounts.op + debateVoteCounts.opponent) > 0 && (
-                <span className="flex items-center gap-1">
-                  <span className="text-[var(--ratist-red)]">{debateVoteCounts.op}</span>
-                  <span>-</span>
-                  <span className="text-blue-400">{debateVoteCounts.opponent}</span>
-                </span>
-              )}
-              <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
-              <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
-              <span>{timeAgo(createdAt)}</span>
-            </span>
           </div>
         )}
 
@@ -180,9 +167,21 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
           </div>
         )}
 
-        {/* Author + stats */}
-        {threadType !== "debate" && (
-          <div className="flex items-center justify-between gap-3">
+        {/* Bottom row: author/debate info (left) + stats (right) */}
+        <div className="flex items-center justify-between gap-3">
+          {threadType === "debate" ? (
+            <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)]">
+              {debateExchangeCount > 0 && <span>{debateExchangeCount} exchange{debateExchangeCount !== 1 ? "s" : ""}</span>}
+              {debateVoteCounts && (debateVoteCounts.op + debateVoteCounts.opponent) > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="text-[var(--ratist-red)]">{debateVoteCounts.op}</span>
+                  <span>-</span>
+                  <span className="text-blue-400">{debateVoteCounts.opponent}</span>
+                  <span>votes</span>
+                </span>
+              )}
+            </div>
+          ) : (
             <AuthorFlair
               firebaseUid={author.firebaseUid}
               name={author.name}
@@ -190,13 +189,13 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
               badgeCount={author._count.userBadges}
               ratingCount={author._count.ratings}
             />
-            <div className="flex items-center gap-3 text-xs text-[var(--foreground-muted)] shrink-0">
-              <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
-              <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
-              <span>{timeAgo(createdAt)}</span>
-            </div>
+          )}
+          <div className="flex items-center gap-3 text-xs text-[var(--foreground-muted)] shrink-0">
+            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
+            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
+            <span>{timeAgo(createdAt)}</span>
           </div>
-        )}
+        </div>
       </div>
     </Link>
   );

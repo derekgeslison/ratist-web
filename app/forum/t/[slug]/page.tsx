@@ -93,6 +93,15 @@ export default function ThreadPage({ params }: Props) {
     return () => clearInterval(interval);
   }, [thread?.threadType, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Check if debate chat needs scroll button on load/refresh
+  useEffect(() => {
+    const el = chatContainerRef.current;
+    if (el) {
+      const needsScroll = el.scrollHeight - el.scrollTop - el.clientHeight > 60;
+      setShowScrollBtn(needsScroll);
+    }
+  }, [thread?.posts?.length]);
+
   // Auto-scroll debate chat when new messages arrive and user is near bottom
   useEffect(() => {
     if (!thread || thread.threadType !== "debate") return;
