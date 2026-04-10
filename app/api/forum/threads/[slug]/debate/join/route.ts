@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { notify } from "@/lib/notifications";
 
 async function getUser(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -29,6 +30,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       opponent: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
     },
   });
+
+  // Notify the OP that someone accepted their challenge
+  notify({
+    recipientId: thread.authorId,
+    actorId: user.id,
+    type: "comment",
+    targetType: "forumThread",
+    targetId: thread.id,
+    message: `${user.name} accepted your debate challenge on "${thread.title}"`,
+    link: `/forum/t/${slug}`,
+  }).catch(() => {});
 
   return NextResponse.json({ opponent: updated.opponent });
 }

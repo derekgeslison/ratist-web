@@ -164,9 +164,9 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
         </div>
       )}
 
-      {/* Author + stats (skip for debate since we already show debaters) */}
-      <div className="flex items-center justify-between gap-3">
-        {threadType !== "debate" && (
+      {/* Author + stats */}
+      {threadType !== "debate" ? (
+        <div className="flex items-center justify-between gap-3">
           <AuthorFlair
             firebaseUid={author.firebaseUid}
             name={author.name}
@@ -174,13 +174,19 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
             badgeCount={author._count.userBadges}
             ratingCount={author._count.ratings}
           />
-        )}
-        <div className={`flex items-center gap-3 text-xs text-[var(--foreground-muted)] shrink-0 ${threadType === "debate" ? "ml-auto" : ""}`}>
+          <div className="flex items-center gap-3 text-xs text-[var(--foreground-muted)] shrink-0">
+            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
+            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
+            <span>{timeAgo(createdAt)}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-end gap-3 text-xs text-[var(--foreground-muted)]">
           <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
           <span>{timeAgo(createdAt)}</span>
         </div>
-      </div>
+      )}
     </Link>
   );
 }

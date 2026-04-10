@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
+import { notify } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,20 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   // Update thread updatedAt
   await prisma.forumThread.update({ where: { id: thread.id }, data: { updatedAt: new Date() } });
+
+  // Debate: notify the other debater that it's their turn
+  if (thread.threadType === "debate" && thread.opponentId) {
+    const otherDebater = user.id === thread.authorId ? thread.opponentId : thread.authorId;
+    notify({
+      recipientId: otherDebater,
+      actorId: user.id,
+      type: "comment",
+      targetType: "forumThread",
+      targetId: thread.id,
+      message: `It's your turn in the debate "${thread.title}"`,
+      link: `/forum/t/${slug}`,
+    }).catch(() => {});
+  }
 
   return NextResponse.json({ post });
 }

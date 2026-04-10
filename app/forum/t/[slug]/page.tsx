@@ -57,6 +57,13 @@ export default function ThreadPage({ params }: Props) {
 
   useEffect(() => { loadThread(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-refresh for debate threads (vote counts + new messages) every 15 seconds
+  useEffect(() => {
+    if (!thread || thread.threadType !== "debate") return;
+    const interval = setInterval(() => { loadThread(); }, 15000);
+    return () => clearInterval(interval);
+  }, [thread?.threadType, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function submitReply(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !reply.trim()) return;
