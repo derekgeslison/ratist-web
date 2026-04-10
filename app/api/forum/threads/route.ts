@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
             },
           },
           _count: { select: { posts: true } },
+          // Comment count comes from the Comment model, not ForumPost
           posts: {
             orderBy: { createdAt: "asc" },
             take: 1,
@@ -96,8 +97,24 @@ export async function GET(req: NextRequest) {
       prisma.forumThread.count({ where }),
     ]);
 
+    // Batch fetch comment counts from Comment model
+    const threadIds = threads.map((t) => t.id);
+    const commentCounts = threadIds.length > 0
+      ? await prisma.comment.groupBy({
+          by: ["targetId"],
+          where: { targetType: "forumThread", targetId: { in: threadIds } },
+          _count: { id: true },
+        })
+      : [];
+    const commentCountMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
+
+    const enrichedThreads = threads.map((t) => ({
+      ...t,
+      commentCount: commentCountMap.get(t.id) ?? 0,
+    }));
+
     return NextResponse.json({
-      threads,
+      threads: enrichedThreads,
       total,
       page,
       totalPages: Math.ceil(total / PAGE_SIZE),

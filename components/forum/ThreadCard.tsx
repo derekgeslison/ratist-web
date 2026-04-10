@@ -36,6 +36,7 @@ interface ThreadCardProps {
   tags: { tag: string }[];
   poll?: { options: PollOption[] } | null;
   posts?: { content: string }[];
+  commentCount?: number;
   _count: { posts: number };
 }
 
@@ -51,12 +52,12 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, _count }: ThreadCardProps) {
+export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, commentCount: commentCountProp, _count }: ThreadCardProps) {
   const totalPollVotes = poll?.options?.reduce((s, o) => s + o._count.votes, 0) ?? 0;
   const opContent = posts?.[0]?.content ?? "";
   const contentPreview = opContent.length > 120 ? opContent.slice(0, 120) + "…" : opContent;
-  // Comment count = posts - 1 (OP post isn't a comment) -- now using CommentSection, so show actual comment count from _count
-  const commentCount = Math.max(0, _count.posts - 1);
+  // Use commentCount from API (Comment model), fall back to posts - 1 for debate threads
+  const displayCommentCount = commentCountProp ?? Math.max(0, _count.posts - 1);
 
   return (
     <Link href={`/forum/t/${slug}`} className={`block bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 transition-colors hover:border-[var(--foreground-muted)]/30 ${isPinned ? "border-yellow-500/30" : ""}`}>
@@ -74,7 +75,7 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
 
       {/* Debate: show debaters */}
       {threadType === "debate" && (
-        <div className="flex items-center gap-3 mb-2">
+        <div className={`flex items-center gap-3 ${media.length > 0 || (people && people.length > 0) || tags.length > 0 ? "mb-2" : ""}`}>
           <div className="flex items-center gap-1.5">
             <div className="relative w-6 h-6 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
               {author.avatarUrl ? (
@@ -175,7 +176,7 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
           />
         )}
         <div className={`flex items-center gap-3 text-xs text-[var(--foreground-muted)] shrink-0 ${threadType === "debate" ? "ml-auto" : ""}`}>
-          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {commentCount}</span>
+          <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
           <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
           <span>{timeAgo(createdAt)}</span>
         </div>

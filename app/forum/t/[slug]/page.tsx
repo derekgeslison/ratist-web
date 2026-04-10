@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { use } from "react";
 import { ArrowLeft, Lock, Pin, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -198,32 +199,44 @@ export default function ThreadPage({ params }: Props) {
 
       {/* Discussion — threaded comment section */}
       {isDebate ? (
-        /* Debate: keep custom alternating reply form */
         <>
-          {/* Show debate replies (posts after OP) as flat list since debates alternate */}
-          {thread.posts?.slice(1).map((post: Thread) => (
-            <div key={post.id} className={`flex gap-3 mb-3 rounded-xl p-3 ${post.author.firebaseUid === thread.author.firebaseUid ? "bg-[var(--ratist-red)]/5 border border-[var(--ratist-red)]/20" : "bg-blue-500/5 border border-blue-500/20"}`}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <AuthorFlair
-                    firebaseUid={post.author.firebaseUid}
-                    name={post.author.name}
-                    avatarUrl={post.author.avatarUrl}
-                    badgeCount={post.author._count?.userBadges ?? 0}
-                    ratingCount={post.author._count?.ratings ?? 0}
-                  />
-                  <span className="text-xs text-[var(--foreground-muted)]">
-                    {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  </span>
-                </div>
-                <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{post.content}</p>
+          {/* Debate chat-style exchange */}
+          {thread.posts?.length > 1 && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4">
+              <h3 className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide mb-3">Debate Exchange</h3>
+              <div className="max-h-[500px] overflow-y-auto space-y-3 pr-1">
+                {thread.posts.slice(1).map((post: Thread) => {
+                  const isOP = post.author.firebaseUid === thread.author.firebaseUid;
+                  return (
+                    <div key={post.id} className={`flex ${isOP ? "justify-start" : "justify-end"}`}>
+                      <div className={`max-w-[85%] flex gap-2 ${isOP ? "flex-row" : "flex-row-reverse"}`}>
+                        <div className={`relative w-7 h-7 rounded-full overflow-hidden shrink-0 border ${isOP ? "border-[var(--ratist-red)]/30" : "border-blue-500/30"}`}>
+                          {post.author.avatarUrl ? (
+                            <Image src={post.author.avatarUrl} alt="" fill sizes="28px" className="object-cover" />
+                          ) : (
+                            <div className={`w-full h-full flex items-center justify-center text-[9px] font-bold text-white ${isOP ? "bg-[var(--ratist-red)]" : "bg-blue-600"}`}>
+                              {post.author.name[0]}
+                            </div>
+                          )}
+                        </div>
+                        <div className={`rounded-xl px-3 py-2 ${isOP ? "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20" : "bg-blue-500/10 border border-blue-500/20"}`}>
+                          <p className="text-sm text-white/90 whitespace-pre-wrap">{post.content}</p>
+                          <p className="text-[10px] text-[var(--foreground-muted)] mt-1">
+                            {new Date(post.createdAt).toLocaleTimeString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={bottomRef} />
               </div>
             </div>
-          ))}
-          <div ref={bottomRef} />
-          {/* Debate reply form */}
+          )}
+
+          {/* Debate reply form — only for debaters */}
           {canReply && user && (
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mt-4">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4">
               <h3 className="text-sm font-semibold text-white mb-2">
                 {thread.posts?.length > 0 && thread.posts[thread.posts.length - 1].author.firebaseUid === user.uid
                   ? "Waiting for opponent..."
@@ -248,6 +261,14 @@ export default function ThreadPage({ params }: Props) {
               </form>
             </div>
           )}
+
+          {/* Audience comments below the debate */}
+          <h3 className="text-sm font-semibold text-white mb-2">Audience Comments</h3>
+          <CommentSection
+            targetType="forumThread"
+            targetId={thread.id}
+            disabled={thread.isLocked}
+          />
         </>
       ) : (
         /* All other thread types: use threaded CommentSection */
