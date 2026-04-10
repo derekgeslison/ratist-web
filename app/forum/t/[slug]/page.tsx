@@ -7,6 +7,7 @@ import { ArrowLeft, Lock, Pin, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
+import CommentSection from "@/components/CommentSection";
 import AdUnit from "@/components/AdUnit";
 import TypeBadge from "@/components/forum/TypeBadge";
 import AuthorFlair from "@/components/forum/AuthorFlair";
@@ -163,79 +164,98 @@ export default function ThreadPage({ params }: Props) {
         />
       )}
 
-      {/* Posts */}
-      <div className="space-y-4 mb-8">
-        {(thread.posts ?? []).map((post: Thread, idx: number) => (
-          <div key={post.id} className={`flex gap-3 ${idx === 0 ? "bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4" : "bg-[var(--surface)]/50 border border-[var(--border)]/50 rounded-xl p-4"}`}>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <AuthorFlair
-                  firebaseUid={post.author.firebaseUid}
-                  name={post.author.name}
-                  avatarUrl={post.author.avatarUrl}
-                  badgeCount={post.author._count?.userBadges ?? 0}
-                  ratingCount={post.author._count?.ratings ?? 0}
-                  isOP={idx === 0}
-                />
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-[var(--foreground-muted)]">
-                    {new Date(post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                    {post.isEdited && " (edited)"}
-                  </span>
-                  <ReportButton targetType="forumPost" targetId={post.id} />
-                </div>
-              </div>
-              <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{post.content}</p>
-              <ReactionBar
-                postId={post.id}
-                threadSlug={slug}
-                counts={post.reactionCounts ?? {}}
-                userReactions={post.userReactions ?? []}
+      {/* OP Post */}
+      {thread.posts?.[0] && (() => {
+        const op = thread.posts[0];
+        return (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <AuthorFlair
+                firebaseUid={op.author.firebaseUid}
+                name={op.author.name}
+                avatarUrl={op.author.avatarUrl}
+                badgeCount={op.author._count?.userBadges ?? 0}
+                ratingCount={op.author._count?.ratings ?? 0}
+                isOP
               />
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-[var(--foreground-muted)]">
+                  {new Date(op.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                </span>
+                <ReportButton targetType="forumPost" targetId={op.id} />
+              </div>
             </div>
+            <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{op.content}</p>
+            <ReactionBar
+              postId={op.id}
+              threadSlug={slug}
+              counts={op.reactionCounts ?? {}}
+              userReactions={op.userReactions ?? []}
+            />
           </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
+        );
+      })()}
 
-      {/* Reply form */}
-      {canReply && (
-        user ? (
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-3">
-              {isDebate ? (
-                thread.posts?.length > 0 && thread.posts[thread.posts.length - 1].author.firebaseUid === user.uid
-                  ? "Waiting for opponent..."
-                  : "Your Turn"
-              ) : "Post a Reply"}
-            </h3>
-            <form onSubmit={submitReply}>
-              <textarea
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                placeholder="Write your reply..."
-                rows={4}
-                maxLength={5000}
-                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none mb-2"
-              />
-              {error && <p className="text-sm text-red-400 mb-2">{error}</p>}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--foreground-muted)]">{reply.length}/5000</span>
-                <button
-                  type="submit"
-                  disabled={submitting || !reply.trim()}
-                  className="flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2 rounded-full disabled:opacity-40 transition-colors"
-                >
-                  <Send className="w-4 h-4" /> Reply
-                </button>
+      {/* Discussion — threaded comment section */}
+      {isDebate ? (
+        /* Debate: keep custom alternating reply form */
+        <>
+          {/* Show debate replies (posts after OP) as flat list since debates alternate */}
+          {thread.posts?.slice(1).map((post: Thread) => (
+            <div key={post.id} className={`flex gap-3 mb-3 rounded-xl p-3 ${post.author.firebaseUid === thread.author.firebaseUid ? "bg-[var(--ratist-red)]/5 border border-[var(--ratist-red)]/20" : "bg-blue-500/5 border border-blue-500/20"}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <AuthorFlair
+                    firebaseUid={post.author.firebaseUid}
+                    name={post.author.name}
+                    avatarUrl={post.author.avatarUrl}
+                    badgeCount={post.author._count?.userBadges ?? 0}
+                    ratingCount={post.author._count?.ratings ?? 0}
+                  />
+                  <span className="text-xs text-[var(--foreground-muted)]">
+                    {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </div>
+                <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{post.content}</p>
               </div>
-            </form>
-          </div>
-        ) : (
-          <div className="text-center py-6 text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to reply.
-          </div>
-        )
+            </div>
+          ))}
+          <div ref={bottomRef} />
+          {/* Debate reply form */}
+          {canReply && user && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mt-4">
+              <h3 className="text-sm font-semibold text-white mb-2">
+                {thread.posts?.length > 0 && thread.posts[thread.posts.length - 1].author.firebaseUid === user.uid
+                  ? "Waiting for opponent..."
+                  : "Your Turn"}
+              </h3>
+              <form onSubmit={submitReply}>
+                <textarea
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  placeholder="Write your argument..."
+                  rows={3}
+                  maxLength={5000}
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none mb-2"
+                />
+                {error && <p className="text-sm text-red-400 mb-2">{error}</p>}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--foreground-muted)]">{reply.length}/5000</span>
+                  <button type="submit" disabled={submitting || !reply.trim()} className="flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2 rounded-full disabled:opacity-40 transition-colors">
+                    <Send className="w-4 h-4" /> Reply
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </>
+      ) : (
+        /* All other thread types: use threaded CommentSection */
+        <CommentSection
+          targetType="forumThread"
+          targetId={thread.id}
+          disabled={thread.isLocked}
+        />
       )}
     </>
   );

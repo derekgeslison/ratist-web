@@ -97,7 +97,10 @@ export default function ForumPage() {
           <input
             type="text"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              if (e.target.value === "" && search) { setSearch(""); setPage(1); }
+            }}
             placeholder="Search threads, movies, actors, tags..."
             className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
           />
