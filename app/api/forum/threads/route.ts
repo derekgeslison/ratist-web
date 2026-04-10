@@ -32,12 +32,24 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const tmdbId = searchParams.get("tmdbId");
     const mediaType = searchParams.get("mediaType");
+    const followingOnly = searchParams.get("following") === "true";
     const page = Math.max(1, Number(searchParams.get("page") ?? 1));
+
+    // Get current user for following filter
+    let currentUserId: string | null = null;
+    if (followingOnly) {
+      const user = await getUser(req);
+      currentUserId = user?.id ?? null;
+      if (!currentUserId) return NextResponse.json({ threads: [], total: 0 });
+    }
 
     // Build where clause
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {};
     if (type && VALID_TYPES.includes(type)) where.threadType = type;
+    if (followingOnly && currentUserId) {
+      where.followers = { some: { userId: currentUserId } };
+    }
     if (tag) where.tags = { some: { tag } };
     if (tmdbId && mediaType) {
       where.media = { some: { tmdbId: Number(tmdbId), mediaType } };

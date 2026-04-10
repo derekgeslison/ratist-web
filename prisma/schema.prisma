@@ -50,6 +50,7 @@ model User {
   forumPollVotes ForumPollVote[]
   forumDebateVotes ForumDebateVote[]
   forumDebateOpponent ForumThread[] @relation("forumDebateOpponent")
+  forumThreadFollows  ForumThreadFollow[]
   looksLikes     LooksLike[]
   looksLikeVotes LooksLikeVote[]
   oscarVotes     OscarVote[]
@@ -840,6 +841,7 @@ model ForumThread {
   tags        ForumThreadTag[]
   poll        ForumPoll?
   debateVotes ForumDebateVote[]
+  followers   ForumThreadFollow[]
 
   @@index([threadType])
   @@map("forum_threads")
@@ -959,6 +961,18 @@ model ForumDebateVote {
 
   @@unique([userId, threadId])
   @@map("forum_debate_votes")
+}
+
+model ForumThreadFollow {
+  userId   String   @map("user_id")
+  threadId String   @map("thread_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([userId, threadId])
+  @@map("forum_thread_follows")
 }
 
 // ─── Community Hub ────────────────────────────────────────────────────────────

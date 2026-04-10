@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { MessageSquare, Search, ChevronDown } from "lucide-react";
+import { MessageSquare, Search, ChevronDown, Bell } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import ThreadCard from "@/components/forum/ThreadCard";
 import AdUnit from "@/components/AdUnit";
 
@@ -25,11 +26,13 @@ const SORT_OPTIONS = [
 type Thread = any;
 
 export default function ForumPage() {
+  const { user } = useAuth();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState("");
   const [tag, setTag] = useState("");
   const [sort, setSort] = useState("newest");
+  const [followingOnly, setFollowingOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
@@ -44,16 +47,23 @@ export default function ForumPage() {
     if (tag) params.set("tag", tag);
     if (sort) params.set("sort", sort);
     if (search) params.set("search", search);
+    if (followingOnly) params.set("following", "true");
     params.set("page", String(page));
 
-    const res = await fetch(`/api/forum/threads?${params}`).catch(() => null);
+    const headers: Record<string, string> = {};
+    if (followingOnly && user) {
+      const token = await user.getIdToken();
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`/api/forum/threads?${params}`, { headers }).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
       setThreads(data.threads ?? []);
       setTotalPages(data.totalPages ?? 1);
     }
     setLoading(false);
-  }, [type, tag, sort, search, page]);
+  }, [type, tag, sort, search, page, followingOnly, user]);
 
   useEffect(() => { fetchThreads(); }, [fetchThreads]);
 
@@ -106,8 +116,20 @@ export default function ForumPage() {
         />
       </div>
 
-      {/* Type tabs */}
+      {/* Type tabs + Following filter */}
       <div className="flex items-center gap-1 mb-3 overflow-x-auto pb-1">
+        {user && (
+          <button
+            onClick={() => { setFollowingOnly(!followingOnly); setPage(1); }}
+            className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+              followingOnly
+                ? "bg-[var(--ratist-red)] text-white"
+                : "bg-[var(--surface)] text-[var(--foreground-muted)] hover:text-white border border-[var(--border)]"
+            }`}
+          >
+            <Bell className="w-3 h-3" /> Following
+          </button>
+        )}
         {TYPES.map((t) => (
           <button
             key={t.value}

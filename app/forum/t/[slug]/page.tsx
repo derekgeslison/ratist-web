@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { use } from "react";
-import { ArrowLeft, Lock, Pin, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Lock, Pin, Send, Trash2, ChevronDown, Bell, BellOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
@@ -37,7 +37,10 @@ export default function ThreadPage({ params }: Props) {
   const [reply, setReply] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [following, setFollowing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevPostCount = useRef(0);
 
   async function loadThread() {
     const headers: Record<string, string> = {};
@@ -57,12 +60,52 @@ export default function ThreadPage({ params }: Props) {
 
   useEffect(() => { loadThread(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-refresh for debate threads (vote counts + new messages) every 15 seconds
+  // Fetch follow status
   useEffect(() => {
-    if (!thread || thread.threadType !== "debate") return;
+    if (!user) return;
+    user.getIdToken().then((token) => {
+      fetch(`/api/forum/threads/${slug}/follow`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => setFollowing(d.following ?? false))
+        .catch(() => {});
+    });
+  }, [user, slug]);
+
+  async function toggleFollow() {
+    if (!user) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/forum/threads/${slug}/follow`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setFollowing(data.following);
+    }
+  }
+
+  // Auto-refresh for debate and poll threads every 15 seconds
+  useEffect(() => {
+    if (!thread || (thread.threadType !== "debate" && thread.threadType !== "poll")) return;
     const interval = setInterval(() => { loadThread(); }, 15000);
     return () => clearInterval(interval);
   }, [thread?.threadType, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll debate chat when new messages arrive and user is near bottom
+  useEffect(() => {
+    if (!thread || thread.threadType !== "debate") return;
+    const postCount = thread.posts?.length ?? 0;
+    if (postCount > prevPostCount.current && prevPostCount.current > 0) {
+      const container = chatContainerRef.current;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        if (isNearBottom) {
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+        }
+      }
+    }
+    prevPostCount.current = postCount;
+  }, [thread?.posts?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submitReply(e: React.FormEvent) {
     e.preventDefault();
@@ -124,11 +167,18 @@ export default function ThreadPage({ params }: Props) {
             {thread.posts?.length ?? 0} post{(thread.posts?.length ?? 0) !== 1 ? "s" : ""} · {thread.viewCount} views
             {thread.isLocked && <span className="ml-2 text-yellow-600">· Thread locked</span>}
           </p>
-          {isAuthor && (
-            <button onClick={deleteThread} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
-              <Trash2 className="w-3 h-3" /> Delete
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {user && (
+              <button onClick={toggleFollow} className={`flex items-center gap-1 text-xs transition-colors ${following ? "text-[var(--ratist-red)]" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                {following ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
+              </button>
+            )}
+            {isAuthor && (
+              <button onClick={deleteThread} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                <Trash2 className="w-3 h-3" /> Delete
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -209,9 +259,18 @@ export default function ThreadPage({ params }: Props) {
         <>
           {/* Debate chat-style exchange */}
           {thread.posts?.length > 1 && (
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4">
-              <h3 className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide mb-3">Debate Exchange</h3>
-              <div className="max-h-[500px] overflow-y-auto space-y-3 pr-1">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4 relative">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide">Debate Exchange</h3>
+                <button
+                  onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+                  className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white transition-colors"
+                  title="Scroll to latest"
+                >
+                  Latest <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
+              <div ref={chatContainerRef} className="max-h-[500px] overflow-y-auto space-y-3 pr-1">
                 {thread.posts.slice(1).map((post: Thread) => {
                   const isOP = post.author.firebaseUid === thread.author.firebaseUid;
                   return (
