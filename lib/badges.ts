@@ -438,7 +438,7 @@ async function checkHonorStudent(userId: string): Promise<boolean> {
 }
 
 async function checkCramSession(userId: string): Promise<boolean> {
-  // Sum weighted scores (raw_score * difficulty multiplier) per day
+  // Sum weighted scores (raw_score * difficulty multiplier) per day — daily mode only
   const result = await prisma.$queryRaw<{ total: number }[]>`
     SELECT SUM(
       raw_score * CASE difficulty
@@ -450,6 +450,7 @@ async function checkCramSession(userId: string): Promise<boolean> {
     FROM cineq_attempts
     WHERE user_id = ${userId}
       AND status = 'completed'
+      AND mode = 'daily'
     GROUP BY DATE(created_at)
     HAVING SUM(
       raw_score * CASE difficulty
@@ -464,7 +465,7 @@ async function checkCramSession(userId: string): Promise<boolean> {
 }
 
 async function checkValedictorian(userId: string): Promise<boolean> {
-  // Sum weighted scores (raw_score * difficulty multiplier)
+  // Sum weighted scores (raw_score * difficulty multiplier) — daily mode only
   const result = await prisma.$queryRaw<{ total: number }[]>`
     SELECT SUM(
       raw_score * CASE difficulty
@@ -476,6 +477,7 @@ async function checkValedictorian(userId: string): Promise<boolean> {
     FROM cineq_attempts
     WHERE user_id = ${userId}
       AND status = 'completed'
+      AND mode = 'daily'
   `;
   return Number(result[0]?.total ?? 0) >= 20000;
 }

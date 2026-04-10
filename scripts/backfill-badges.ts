@@ -247,7 +247,7 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   const clubRatingCount = await prisma.movieClubRating.count({ where: { userId } });
   if (clubRatingCount >= 10) await award("club-member");
 
-  // Cine-Q (weighted scores)
+  // Cine-Q (weighted scores — daily mode only)
   const cramResult = await prisma.$queryRaw<{ total: number }[]>`
     SELECT SUM(
       raw_score * CASE difficulty
@@ -259,6 +259,7 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
     FROM cineq_attempts
     WHERE user_id = ${userId}
       AND status = 'completed'
+      AND mode = 'daily'
     GROUP BY DATE(created_at)
     HAVING SUM(
       raw_score * CASE difficulty
@@ -282,6 +283,7 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
     FROM cineq_attempts
     WHERE user_id = ${userId}
       AND status = 'completed'
+      AND mode = 'daily'
   `;
   if (Number(valedResult[0]?.total ?? 0) >= 20000) await award("valedictorian");
 
