@@ -89,7 +89,7 @@ export default function CineQPage() {
   const [quizError, setQuizError] = useState("");
 
   // Mini leaderboard data
-  const [miniLeader, setMiniLeader] = useState<{ name: string; avatarUrl: string | null; firebaseUid: string; rawScore: number; difficulty: string; mediaType: string } | null>(null);
+  const [miniLeader, setMiniLeader] = useState<{ name: string; avatarUrl: string | null; firebaseUid: string; score: number; difficulty: string; mediaType: string } | null>(null);
   const [communityAvg, setCommunityAvg] = useState<number | null>(null);
 
   const fetchStats = useCallback(async () => {
@@ -113,9 +113,9 @@ export default function CineQPage() {
       let totalScore = 0, totalCount = 0;
       for (const result of allResults) {
         for (const entry of result.entries ?? []) {
-          totalScore += entry.rawScore; totalCount++;
-          if (!best || entry.rawScore > best.rawScore) {
-            best = { ...entry.user, rawScore: entry.rawScore, difficulty: result.difficulty ?? "", mediaType: result.mediaType ?? "" };
+          totalScore += entry.weightedScore; totalCount++;
+          if (!best || entry.weightedScore > best.score) {
+            best = { ...entry.user, score: entry.weightedScore, difficulty: result.difficulty ?? "", mediaType: result.mediaType ?? "" };
           }
         }
       }
@@ -312,7 +312,7 @@ export default function CineQPage() {
                   {miniLeader.avatarUrl && <Image src={miniLeader.avatarUrl} alt="" width={28} height={28} className="w-7 h-7 rounded-full object-cover" />}
                   <div>
                     <Link href={`/profile/${miniLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400">{miniLeader.name}</Link>
-                    <p className="text-xs text-[var(--foreground-muted)]">{miniLeader.rawScore.toFixed(1)} pts · {miniLeader.difficulty} · {miniLeader.mediaType === "both" ? "Both" : miniLeader.mediaType === "tv" ? "TV" : "Movies"}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">{miniLeader.score.toFixed(1)} pts · {miniLeader.difficulty} · {miniLeader.mediaType === "both" ? "Both" : miniLeader.mediaType === "tv" ? "TV" : "Movies"}</p>
                   </div>
                 </>
               ) : (

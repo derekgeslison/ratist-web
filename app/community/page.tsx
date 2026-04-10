@@ -75,18 +75,26 @@ function getPacificDate(): string {
 
 export default async function CommunityPage() {
   // Fetch today's Cine-Q leader
-  let cineqLeader: { name: string; avatarUrl: string | null; firebaseUid: string; rawScore: number; difficulty: string } | null = null;
+  let cineqLeader: { name: string; avatarUrl: string | null; firebaseUid: string; score: number; difficulty: string } | null = null;
   try {
     const today = getPacificDate();
     const todayDailies = await prisma.cineQDaily.findMany({ where: { date: today }, select: { id: true } });
     if (todayDailies.length > 0) {
-      const topAttempt = await prisma.cineQAttempt.findFirst({
-        where: { dailyId: { in: todayDailies.map((d) => d.id) }, status: "completed" },
-        orderBy: { rawScore: "desc" },
-        select: { rawScore: true, difficulty: true, user: { select: { name: true, avatarUrl: true, firebaseUid: true } } },
-      });
-      if (topAttempt) {
-        cineqLeader = { ...topAttempt.user, rawScore: topAttempt.rawScore, difficulty: topAttempt.difficulty };
+      const dailyIds = todayDailies.map((d) => d.id);
+      const topResults = await prisma.$queryRaw<{ firebase_uid: string; name: string; avatar_url: string | null; weighted_score: number; difficulty: string }[]>`
+        SELECT u.firebase_uid, u.name, u.avatar_url,
+          a.raw_score * CASE a.difficulty WHEN 'hard' THEN 2.0 WHEN 'medium' THEN 1.5 ELSE 1.0 END as weighted_score,
+          a.difficulty
+        FROM cineq_attempts a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.daily_id = ANY(${dailyIds})
+          AND a.status = 'completed'
+        ORDER BY weighted_score DESC
+        LIMIT 1
+      `;
+      if (topResults.length > 0) {
+        const top = topResults[0];
+        cineqLeader = { name: top.name, avatarUrl: top.avatar_url, firebaseUid: top.firebase_uid, score: Math.round(top.weighted_score * 10) / 10, difficulty: top.difficulty };
       }
     }
   } catch { /* ignore */ }
@@ -157,7 +165,7 @@ export default async function CommunityPage() {
               <div className="min-w-0">
                 <Link href={`/profile/${cineqLeader.firebaseUid}`} className="text-sm font-semibold text-white hover:text-pink-400 block truncate">{cineqLeader.name}</Link>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-pink-400">{cineqLeader.rawScore.toFixed(1)} pts</span>
+                  <span className="text-sm font-bold text-pink-400">{cineqLeader.score.toFixed(1)} pts</span>
                   <span className="text-xs text-[var(--foreground-muted)] capitalize">({cineqLeader.difficulty})</span>
                 </div>
               </div>
