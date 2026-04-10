@@ -222,7 +222,9 @@ export async function POST(req: NextRequest) {
             },
           });
           if (!recent) {
-            const snippet = link.includes("/forum/t/") ? link : "";
+            const thread2 = await prisma.forumThread.findUnique({ where: { id: targetId }, select: { title: true } });
+            const threadTitle = thread2?.title ?? "a thread";
+            const titleSnippet = threadTitle.length > 60 ? threadTitle.slice(0, 60) + "…" : threadTitle;
             await prisma.notification.create({
               data: {
                 userId: follower.userId,
@@ -230,7 +232,7 @@ export async function POST(req: NextRequest) {
                 actorId: user.id,
                 targetType: "forumThread",
                 targetId,
-                message: `New activity on a thread you follow`,
+                message: `New activity on "${titleSnippet}"`,
                 link,
               },
             });

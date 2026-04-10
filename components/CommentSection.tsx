@@ -222,9 +222,9 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
 
             {/* Text with @mention highlighting */}
             <p className="text-sm text-white/90 mt-0.5 whitespace-pre-wrap break-words">
-              {comment.text.split(/(@\S+)/g).map((part, i) =>
-                part.startsWith("@") ? (
-                  <span key={i} className="text-[var(--ratist-red)] font-medium">{part}</span>
+              {comment.text.split(/(@\[[^\]]+\])/g).map((part, i) =>
+                part.match(/^@\[.+\]$/) ? (
+                  <span key={i} className="text-[var(--ratist-red)] font-medium">@{part.slice(2, -1)}</span>
                 ) : part
               )}
             </p>
@@ -249,7 +249,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                       else {
                         setReplyingTo(replyTo);
                         const isSelf = user?.uid === comment.user.firebaseUid;
-                        setReplyText(isSelf ? "" : `@${comment.user.name} `);
+                        setReplyText(isSelf ? "" : `@[${comment.user.name}] `);
                       }
                     }}
                     className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
@@ -293,6 +293,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                   className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
                   onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(comment.id); } }}
+                  onFocus={(e) => { const len = e.target.value.length; e.target.setSelectionRange(len, len); }}
                   autoFocus
                 />
                 <button
