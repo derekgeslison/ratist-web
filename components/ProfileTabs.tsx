@@ -564,19 +564,19 @@ export default function ProfileTabs({
                 <span className="text-lg">🧠</span> Cine-Q
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
-                  <p className="text-lg font-bold text-white">{cineqStats.weightedLifetime.toLocaleString()}</p>
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-3 text-center min-w-0">
+                  <p className={`font-bold text-white ${cineqStats.weightedLifetime >= 10000 ? "text-base" : "text-lg"}`}>{cineqStats.weightedLifetime.toLocaleString()}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Lifetime Pts</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-3 text-center min-w-0">
                   <p className="text-lg font-bold text-white">{cineqStats.avgScore.toFixed(1)}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Avg Score</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-3 text-center min-w-0">
                   <p className="text-lg font-bold text-white">{cineqStats.bestScore.toFixed(1)}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Best Score</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-3 text-center min-w-0">
                   <p className="text-lg font-bold text-white">{cineqStats.totalQuizzes}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Quizzes Played</p>
                 </div>
