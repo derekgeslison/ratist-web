@@ -59,7 +59,7 @@ export default function CineQLeaderboardPage() {
       {MEDIA_TYPES.map(({ value: mt, label, icon: Icon, color }) => {
         const hasAnyEntries = DIFFS.some((d) => (data[`${mt}-${d}`]?.entries.length ?? 0) > 0);
         const totalParticipants = new Set(DIFFS.flatMap((d) => (data[`${mt}-${d}`]?.entries ?? []).map((e) => e.user.firebaseUid))).size;
-        const allScores = DIFFS.flatMap((d) => (data[`${mt}-${d}`]?.entries ?? []).map((e) => e.rawScore));
+        const allScores = DIFFS.flatMap((d) => (data[`${mt}-${d}`]?.entries ?? []).map((e) => e.weightedScore));
         const avgScore = allScores.length > 0 ? (allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
 
         return (
@@ -82,7 +82,7 @@ export default function CineQLeaderboardPage() {
                   const key = `${mt}-${diff}`;
                   const section = data[key];
                   const entries = section?.entries ?? [];
-                  const diffAvg = entries.length > 0 ? (entries.reduce((s, e) => s + e.rawScore, 0) / entries.length).toFixed(1) : "–";
+                  const diffAvg = entries.length > 0 ? (entries.reduce((s, e) => s + e.weightedScore, 0) / entries.length).toFixed(1) : "–";
                   return (
                     <div key={diff} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
                       <div className="flex items-center justify-between mb-3">
@@ -112,7 +112,7 @@ export default function CineQLeaderboardPage() {
                               <Link href={`/profile/${entry.user.firebaseUid}`} className="flex-1 text-xs text-white hover:text-pink-400 truncate">
                                 {entry.user.name}
                               </Link>
-                              <span className="text-xs font-bold text-white">{entry.rawScore.toFixed(1)}</span>
+                              <span className="text-xs font-bold text-white">{entry.weightedScore.toFixed(1)}</span>
                             </div>
                           ))}
                         </div>
