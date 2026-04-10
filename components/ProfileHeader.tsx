@@ -124,10 +124,22 @@ export default function ProfileHeader({
       {showStats && (
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm mb-3">
           {followerCount != null && (
-            <span className="text-[var(--foreground-muted)]"><strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}</span>
+            isOwnProfile ? (
+              <Link href="/connections" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
+                <strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}
+              </Link>
+            ) : (
+              <span className="text-[var(--foreground-muted)]"><strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}</span>
+            )
           )}
           {followingCount != null && (
-            <span className="text-[var(--foreground-muted)]"><strong className="text-[var(--foreground)]">{followingCount}</strong> following</span>
+            isOwnProfile ? (
+              <Link href="/connections" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
+                <strong className="text-[var(--foreground)]">{followingCount}</strong> following
+              </Link>
+            ) : (
+              <span className="text-[var(--foreground-muted)]"><strong className="text-[var(--foreground)]">{followingCount}</strong> following</span>
+            )
           )}
           <span className="text-[var(--foreground-muted)] flex items-center gap-1">
             <Film className="w-3 h-3" /> <strong className="text-[var(--foreground)]">{movieRatings}</strong> rated

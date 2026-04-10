@@ -12,6 +12,7 @@ import {
 } from "@/lib/badges";
 import { TOTAL_BADGES } from "@/lib/badge-defs";
 import BadgeGrid from "@/components/BadgeGrid";
+import AdUnit from "@/components/AdUnit";
 
 interface Props {
   params: Promise<{ userId: string }>;
@@ -70,6 +71,8 @@ export default async function BadgesPage({ params }: Props) {
         <span className="text-[var(--foreground-muted)]">/</span>
         <h1 className="text-lg font-bold text-[var(--foreground)]">Badges</h1>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PROFILE ?? ""} format="auto" className="mb-4" />
 
       <BadgeGrid
         badges={badges}

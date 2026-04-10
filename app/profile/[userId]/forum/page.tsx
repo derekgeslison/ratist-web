@@ -5,6 +5,7 @@ import { ArrowLeft, MessageSquare } from "lucide-react";
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import ThreadCard from "@/components/forum/ThreadCard";
+import AdUnit from "@/components/AdUnit";
 
 interface Props {
   params: Promise<{ userId: string }>;
@@ -88,6 +89,8 @@ export default async function UserForumPage({ params }: Props) {
           <MessageSquare className="w-5 h-5 text-cyan-400" /> Forum Posts
         </h1>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-4" />
 
       {enriched.length === 0 ? (
         <div className="text-center py-10 text-[var(--foreground-muted)]">

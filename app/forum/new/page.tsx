@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, PenLine } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import AdUnit from "@/components/AdUnit";
 import MediaLinker from "@/components/forum/MediaLinker";
 import PersonLinker from "@/components/forum/PersonLinker";
 import TagInput from "@/components/forum/TagInput";
@@ -108,6 +109,8 @@ function NewThreadForm() {
         <PenLine className="w-5 h-5 text-cyan-400" />
         <h1 className="text-xl font-bold text-white">Start a New Thread</h1>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-4" />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Thread type */}

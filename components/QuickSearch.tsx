@@ -129,7 +129,7 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
       </form>
 
       {/* Dropdown */}
-      {open && totalResults > 0 && (
+      {open && query.trim().length >= 2 && !loading && (
         <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50 min-w-[280px]">
           {(() => {
             let flatIdx = 0;
@@ -213,6 +213,11 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
               return null;
             });
           })()}
+
+          {/* No results message */}
+          {totalResults === 0 && (
+            <p className="px-4 py-3 text-xs text-[var(--foreground-muted)] text-center">No quick results found</p>
+          )}
 
           {/* View all */}
           <button
