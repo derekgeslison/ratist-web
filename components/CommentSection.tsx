@@ -220,8 +220,14 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
               <span className="text-[var(--foreground-muted)]">{timeAgo(comment.createdAt)}</span>
             </div>
 
-            {/* Text */}
-            <p className="text-sm text-white/90 mt-0.5 whitespace-pre-wrap break-words">{comment.text}</p>
+            {/* Text with @mention highlighting */}
+            <p className="text-sm text-white/90 mt-0.5 whitespace-pre-wrap break-words">
+              {comment.text.split(/(@\S+)/g).map((part, i) =>
+                part.startsWith("@") ? (
+                  <span key={i} className="text-[var(--ratist-red)] font-medium">{part}</span>
+                ) : part
+              )}
+            </p>
 
             {/* Actions */}
             <div className="flex items-center gap-3 mt-1">
@@ -240,7 +246,11 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                   <button
                     onClick={() => {
                       if (replyingTo === replyTo) { setReplyingTo(null); setReplyText(""); }
-                      else { setReplyingTo(replyTo); setReplyText(`@${comment.user.name} `); }
+                      else {
+                        setReplyingTo(replyTo);
+                        const isSelf = user?.uid === comment.user.firebaseUid;
+                        setReplyText(isSelf ? "" : `@${comment.user.name} `);
+                      }
                     }}
                     className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
                   >

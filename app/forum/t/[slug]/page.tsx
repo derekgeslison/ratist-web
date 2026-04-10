@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { use } from "react";
-import { ArrowLeft, Lock, Pin, Send, Trash2, ChevronDown, Bell, BellOff } from "lucide-react";
+import { ArrowLeft, Lock, Pin, Send, Trash2, ChevronDown, Bell, BellOff, Pencil, LockOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
@@ -38,6 +38,9 @@ export default function ThreadPage({ params }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [following, setFollowing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevPostCount = useRef(0);
@@ -61,7 +64,7 @@ export default function ThreadPage({ params }: Props) {
 
   useEffect(() => { loadThread(); }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch follow status
+  // Fetch follow status + admin check
   useEffect(() => {
     if (!user) return;
     user.getIdToken().then((token) => {
@@ -69,8 +72,38 @@ export default function ThreadPage({ params }: Props) {
         .then((r) => r.json())
         .then((d) => setFollowing(d.following ?? false))
         .catch(() => {});
+      fetch("/api/auth/admin-check", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => setIsAdmin(d.isAdmin ?? false))
+        .catch(() => {});
     });
   }, [user, slug]);
+
+  async function toggleAdmin(field: "isLocked" | "isPinned") {
+    if (!user || !isAdmin || !thread) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/forum/threads/${slug}/admin`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: !thread[field] }),
+    }).catch(() => null);
+    if (res?.ok) loadThread();
+  }
+
+  async function saveEdit(postId: string) {
+    if (!user || !editContent.trim()) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/forum/posts/${postId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ content: editContent }),
+    }).catch(() => null);
+    if (res?.ok) {
+      setEditingPostId(null);
+      setEditContent("");
+      loadThread();
+    }
+  }
 
   async function toggleFollow() {
     if (!user) return;
@@ -184,7 +217,17 @@ export default function ThreadPage({ params }: Props) {
                 {following ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}
               </button>
             )}
-            {isAuthor && (
+            {isAdmin && (
+              <>
+                <button onClick={() => toggleAdmin("isPinned")} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-yellow-400 transition-colors">
+                  <Pin className="w-3 h-3" /> {thread.isPinned ? "Unpin" : "Pin"}
+                </button>
+                <button onClick={() => toggleAdmin("isLocked")} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-yellow-400 transition-colors">
+                  {thread.isLocked ? <><LockOpen className="w-3 h-3" /> Unlock</> : <><Lock className="w-3 h-3" /> Lock</>}
+                </button>
+              </>
+            )}
+            {(isAuthor || isAdmin) && (
               <button onClick={deleteThread} className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
                 <Trash2 className="w-3 h-3" /> Delete
               </button>
@@ -252,11 +295,33 @@ export default function ThreadPage({ params }: Props) {
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs text-[var(--foreground-muted)]">
                   {new Date(op.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                  {op.isEdited && " (edited)"}
                 </span>
+                {(isAuthor || isAdmin) && editingPostId !== op.id && (
+                  <button onClick={() => { setEditingPostId(op.id); setEditContent(op.content); }} className="text-[var(--foreground-muted)] hover:text-white transition-colors">
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
                 <ReportButton targetType="forumPost" targetId={op.id} />
               </div>
             </div>
-            <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{op.content}</p>
+            {editingPostId === op.id ? (
+              <div>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={6}
+                  maxLength={10000}
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-3 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y mb-2"
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <button onClick={() => { setEditingPostId(null); setEditContent(""); }} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">Cancel</button>
+                  <button onClick={() => saveEdit(op.id)} disabled={!editContent.trim()} className="text-xs bg-[var(--ratist-red)] text-white px-3 py-1 rounded-full disabled:opacity-40">Save</button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{op.content}</p>
+            )}
             <ReactionBar
               postId={op.id}
               threadSlug={slug}
