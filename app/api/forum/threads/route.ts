@@ -94,8 +94,8 @@ export async function GET(req: NextRequest) {
               },
             },
           },
+          debateVotes: { select: { side: true } },
           _count: { select: { posts: true } },
-          // Comment count comes from the Comment model, not ForumPost
           posts: {
             orderBy: { createdAt: "asc" },
             take: 1,
@@ -123,6 +123,11 @@ export async function GET(req: NextRequest) {
     const enrichedThreads = threads.map((t) => ({
       ...t,
       commentCount: commentCountMap.get(t.id) ?? 0,
+      debateVoteCounts: t.threadType === "debate" ? {
+        op: t.debateVotes.filter((v: { side: string }) => v.side === "op").length,
+        opponent: t.debateVotes.filter((v: { side: string }) => v.side === "opponent").length,
+      } : null,
+      debateVotes: undefined,
     }));
 
     return NextResponse.json({

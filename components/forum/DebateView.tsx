@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -27,6 +27,9 @@ export default function DebateView({ threadSlug, op, opponent, voteCounts, userV
   const [userVote, setUserVote] = useState(initialVote);
   const [counts, setCounts] = useState(voteCounts ?? { op: 0, opponent: 0 });
   const [voting, setVoting] = useState(false);
+
+  // Sync with parent on auto-refresh
+  useEffect(() => { if (voteCounts) setCounts(voteCounts); }, [voteCounts]);
   const [joining, setJoining] = useState(false);
 
   const isDebater = user && (user.uid === op.firebaseUid || user.uid === opponent?.firebaseUid);

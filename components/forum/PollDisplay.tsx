@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 interface PollOption {
@@ -21,6 +21,10 @@ export default function PollDisplay({ threadSlug, options: initialOptions, userV
   const [options, setOptions] = useState(initialOptions);
   const [userVote, setUserVote] = useState(initialUserVote);
   const [voting, setVoting] = useState(false);
+
+  // Sync with parent when props update (auto-refresh)
+  useEffect(() => { setOptions(initialOptions); }, [initialOptions]);
+  useEffect(() => { setUserVote(initialUserVote); }, [initialUserVote]);
 
   const totalVotes = options.reduce((s, o) => s + (o._count?.votes ?? o.votes ?? 0), 0);
   const hasVoted = !!userVote;

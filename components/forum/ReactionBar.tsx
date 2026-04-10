@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 const REACTIONS = [
+  { type: "thumbs-up", emoji: "👍", label: "Thumbs Up" },
+  { type: "thumbs-down", emoji: "👎", label: "Thumbs Down" },
   { type: "great-take", emoji: "👏", label: "Great Take" },
   { type: "mind-blown", emoji: "🤯", label: "Mind Blown" },
   { type: "disagree", emoji: "🤔", label: "Disagree" },
@@ -21,6 +23,10 @@ export default function ReactionBar({ postId, threadSlug, counts: initialCounts,
   const { user } = useAuth();
   const [counts, setCounts] = useState(initialCounts);
   const [userReactions, setUserReactions] = useState(initialUserReactions);
+
+  // Sync with parent on auto-refresh
+  useEffect(() => { setCounts(initialCounts); }, [initialCounts]);
+  useEffect(() => { setUserReactions(initialUserReactions); }, [initialUserReactions]);
 
   async function toggleReaction(reactionType: string) {
     if (!user) return;

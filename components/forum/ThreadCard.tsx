@@ -37,6 +37,7 @@ interface ThreadCardProps {
   poll?: { options: PollOption[] } | null;
   posts?: { content: string }[];
   commentCount?: number;
+  debateVoteCounts?: { op: number; opponent: number } | null;
   _count: { posts: number };
 }
 
@@ -52,7 +53,7 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, commentCount: commentCountProp, _count }: ThreadCardProps) {
+export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPinned, viewCount, createdAt, author, opponent, media, people, tags, poll, posts, commentCount: commentCountProp, debateVoteCounts, _count }: ThreadCardProps) {
   const totalPollVotes = poll?.options?.reduce((s, o) => s + o._count.votes, 0) ?? 0;
   const opContent = posts?.[0]?.content ?? "";
   const contentPreview = opContent.length > 120 ? opContent.slice(0, 120) + "…" : opContent;
@@ -103,9 +104,19 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
             ) : (
               <span className="text-xs text-orange-400 italic">Waiting for challenger...</span>
             )}
-            {debateExchangeCount > 0 && (
-              <span className="text-[10px] text-[var(--foreground-muted)] ml-auto">{debateExchangeCount} exchange{debateExchangeCount !== 1 ? "s" : ""}</span>
-            )}
+            <span className="flex items-center gap-3 text-[10px] text-[var(--foreground-muted)] ml-auto flex-wrap justify-end">
+              {debateExchangeCount > 0 && <span>{debateExchangeCount} exchange{debateExchangeCount !== 1 ? "s" : ""}</span>}
+              {debateVoteCounts && (debateVoteCounts.op + debateVoteCounts.opponent) > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="text-[var(--ratist-red)]">{debateVoteCounts.op}</span>
+                  <span>-</span>
+                  <span className="text-blue-400">{debateVoteCounts.opponent}</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
+              <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
+              <span>{timeAgo(createdAt)}</span>
+            </span>
           </div>
         )}
 
@@ -170,7 +181,7 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
         )}
 
         {/* Author + stats */}
-        {threadType !== "debate" ? (
+        {threadType !== "debate" && (
           <div className="flex items-center justify-between gap-3">
             <AuthorFlair
               firebaseUid={author.firebaseUid}
@@ -184,12 +195,6 @@ export default function ThreadCard({ slug, title, threadType, hasSpoilers, isPin
               <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
               <span>{timeAgo(createdAt)}</span>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-end gap-3 text-xs text-[var(--foreground-muted)]">
-            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {displayCommentCount}</span>
-            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {viewCount}</span>
-            <span>{timeAgo(createdAt)}</span>
           </div>
         )}
       </div>

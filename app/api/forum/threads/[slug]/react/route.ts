@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 
-const VALID_REACTIONS = ["great-take", "mind-blown", "disagree", "funny"];
+const VALID_REACTIONS = ["thumbs-up", "thumbs-down", "great-take", "mind-blown", "disagree", "funny"];
 
 async function getUser(req: NextRequest) {
   const auth = req.headers.get("authorization");

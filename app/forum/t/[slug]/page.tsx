@@ -41,6 +41,7 @@ export default function ThreadPage({ params }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevPostCount = useRef(0);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   async function loadThread() {
     const headers: Record<string, string> = {};
@@ -84,10 +85,11 @@ export default function ThreadPage({ params }: Props) {
     }
   }
 
-  // Auto-refresh for debate and poll threads every 15 seconds
+  // Auto-refresh: 15s for debate/poll, 30s for others (reactions, comments)
   useEffect(() => {
-    if (!thread || (thread.threadType !== "debate" && thread.threadType !== "poll")) return;
-    const interval = setInterval(() => { loadThread(); }, 15000);
+    if (!thread) return;
+    const ms = (thread.threadType === "debate" || thread.threadType === "poll") ? 15000 : 30000;
+    const interval = setInterval(() => { loadThread(); }, ms);
     return () => clearInterval(interval);
   }, [thread?.threadType, slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -260,17 +262,15 @@ export default function ThreadPage({ params }: Props) {
           {/* Debate chat-style exchange */}
           {thread.posts?.length > 1 && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4 relative">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide">Debate Exchange</h3>
-                <button
-                  onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
-                  className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white transition-colors"
-                  title="Scroll to latest"
-                >
-                  Latest <ChevronDown className="w-3 h-3" />
-                </button>
-              </div>
-              <div ref={chatContainerRef} className="max-h-[500px] overflow-y-auto space-y-3 pr-1">
+              <h3 className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide mb-3">Debate Exchange</h3>
+              <div
+                ref={chatContainerRef}
+                className="max-h-[500px] overflow-y-auto space-y-3 pr-1 relative"
+                onScroll={() => {
+                  const el = chatContainerRef.current;
+                  if (el) setShowScrollBtn(el.scrollHeight - el.scrollTop - el.clientHeight > 60);
+                }}
+              >
                 {thread.posts.slice(1).map((post: Thread) => {
                   const isOP = post.author.firebaseUid === thread.author.firebaseUid;
                   return (
@@ -296,6 +296,14 @@ export default function ThreadPage({ params }: Props) {
                   );
                 })}
                 <div ref={bottomRef} />
+                {showScrollBtn && (
+                  <button
+                    onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+                    className="sticky bottom-1 left-1/2 -translate-x-1/2 bg-[var(--surface-2)] border border-[var(--border)] rounded-full p-1.5 shadow-lg z-10"
+                  >
+                    <ChevronDown className="w-3 h-3 text-white" />
+                  </button>
+                )}
               </div>
             </div>
           )}
