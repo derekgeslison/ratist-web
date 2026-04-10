@@ -66,13 +66,8 @@ export async function GET(req: NextRequest, { params }: Props) {
 
   if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Increment view count (fire-and-forget)
-  prisma.forumThread.update({
-    where: { id: thread.id },
-    data: { viewCount: { increment: 1 } },
-  }).catch(() => null);
-
-  // Get current user's poll vote if applicable
+  // Get current user for view dedup + poll/debate votes
+  let viewerId: string | null = null;
   let userPollVote: string | null = null;
   let userDebateVote: string | null = null;
   const authorization = req.headers.get("authorization");
@@ -80,6 +75,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     try {
       const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
       const viewer = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true } });
+      viewerId = viewer?.id ?? null;
       if (viewer) {
         if (thread.poll) {
           const vote = await prisma.forumPollVote.findFirst({
@@ -98,6 +94,35 @@ export async function GET(req: NextRequest, { params }: Props) {
       }
     } catch { /* not logged in */ }
   }
+
+  // Increment view count with 3-minute per-user cooldown (fire-and-forget)
+  (async () => {
+    try {
+      if (viewerId) {
+        const threeMinAgo = new Date(Date.now() - 3 * 60 * 1000);
+        const existing = await prisma.forumThreadView.findUnique({
+          where: { userId_threadId: { userId: viewerId, threadId: thread.id } },
+        });
+        if (!existing || existing.lastViewedAt < threeMinAgo) {
+          await prisma.forumThreadView.upsert({
+            where: { userId_threadId: { userId: viewerId, threadId: thread.id } },
+            create: { userId: viewerId, threadId: thread.id },
+            update: { lastViewedAt: new Date() },
+          });
+          await prisma.forumThread.update({
+            where: { id: thread.id },
+            data: { viewCount: { increment: 1 } },
+          });
+        }
+      } else {
+        // Logged-out users: just increment (no dedup possible without cookies)
+        await prisma.forumThread.update({
+          where: { id: thread.id },
+          data: { viewCount: { increment: 1 } },
+        });
+      }
+    } catch { /* non-critical */ }
+  })();
 
   // Aggregate debate votes
   const debateVoteCounts = thread.threadType === "debate" ? {

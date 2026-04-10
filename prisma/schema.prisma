@@ -51,6 +51,7 @@ model User {
   forumDebateVotes ForumDebateVote[]
   forumDebateOpponent ForumThread[] @relation("forumDebateOpponent")
   forumThreadFollows  ForumThreadFollow[]
+  forumThreadViews    ForumThreadView[]
   looksLikes     LooksLike[]
   looksLikeVotes LooksLikeVote[]
   oscarVotes     OscarVote[]
@@ -844,6 +845,7 @@ model ForumThread {
   poll        ForumPoll?
   debateVotes ForumDebateVote[]
   followers   ForumThreadFollow[]
+  views       ForumThreadView[]
 
   @@index([threadType])
   @@index([createdAt])
@@ -965,6 +967,18 @@ model ForumDebateVote {
 
   @@unique([userId, threadId])
   @@map("forum_debate_votes")
+}
+
+model ForumThreadView {
+  userId    String   @map("user_id")
+  threadId  String   @map("thread_id")
+  lastViewedAt DateTime @default(now()) @map("last_viewed_at")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@id([userId, threadId])
+  @@map("forum_thread_views")
 }
 
 model ForumThreadFollow {
