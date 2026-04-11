@@ -18,6 +18,7 @@ import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
 import SpoilerGate from "@/components/forum/SpoilerGate";
 import PollDisplay from "@/components/forum/PollDisplay";
 import DebateView from "@/components/forum/DebateView";
+import LinkedText from "@/components/forum/LinkedText";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Thread = any;
@@ -328,7 +329,7 @@ export default function ThreadPage({ params }: Props) {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{op.content}</p>
+              <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap"><LinkedText text={op.content} /></p>
             )}
             <ReactionBar
               postId={op.id}
@@ -370,7 +371,7 @@ export default function ThreadPage({ params }: Props) {
                           )}
                         </div>
                         <div className={`rounded-xl px-3 py-2 ${isOP ? "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20" : "bg-blue-500/10 border border-blue-500/20"}`}>
-                          <p className="text-sm text-white/90 whitespace-pre-wrap">{post.content}</p>
+                          <p className="text-sm text-white/90 whitespace-pre-wrap"><LinkedText text={post.content} /></p>
                           <p className="text-[10px] text-[var(--foreground-muted)] mt-1">
                             {new Date(post.createdAt).toLocaleTimeString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                           </p>

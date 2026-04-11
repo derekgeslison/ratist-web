@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { checkCommunityRateLimit } from "@/lib/rate-limit";
+import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +187,17 @@ export async function POST(req: NextRequest) {
   if (threadType === "poll") {
     if (!Array.isArray(pollOptions) || pollOptions.length < 2 || pollOptions.length > 10) {
       return NextResponse.json({ error: "Polls require 2-10 options" }, { status: 400 });
+    }
+  }
+
+  // Check URLs in content for safety
+  const urls = extractUrls(content);
+  if (urls.length > 0) {
+    const unsafeUrls = await checkUrlSafety(urls);
+    if (unsafeUrls.length > 0) {
+      return NextResponse.json({
+        error: "Your post contains links flagged as potentially unsafe. Please remove them and try again.",
+      }, { status: 400 });
     }
   }
 

@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
 import { notify } from "@/lib/notifications";
+import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +187,17 @@ export async function POST(req: NextRequest, { params }: Props) {
   const { content } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "Content required" }, { status: 400 });
   if (content.length > 5000) return NextResponse.json({ error: "Reply max 5,000 characters" }, { status: 400 });
+
+  // Check URLs for safety
+  const urls = extractUrls(content);
+  if (urls.length > 0) {
+    const unsafeUrls = await checkUrlSafety(urls);
+    if (unsafeUrls.length > 0) {
+      return NextResponse.json({
+        error: "Your reply contains links flagged as potentially unsafe. Please remove them and try again.",
+      }, { status: 400 });
+    }
+  }
 
   const post = await prisma.forumPost.create({
     data: { threadId: thread.id, authorId: user.id, content: content.trim() },
