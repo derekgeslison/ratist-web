@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, Check, Shield, Trophy, X } from "lucide-react";
+import { Bell, Check, Shield, Trophy, X, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface NotificationItem {
@@ -145,6 +145,9 @@ export default function NotificationsPage() {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-[var(--foreground-muted)] hover:text-white transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <Bell className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl font-bold text-white">Notifications</h1>
           {unread > 0 && (

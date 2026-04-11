@@ -329,7 +329,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ collections });
+    const ratistReviewCount = await prisma.movieRating.count({
+      where: { userId: user.id, plot: { not: null } },
+    });
+    return NextResponse.json({ collections, ratistReviewCount });
   } catch (err) {
     console.error("Collections error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

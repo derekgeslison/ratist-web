@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
@@ -32,6 +32,7 @@ export default function CollectionsPage() {
   const { hasPass, loading: subLoading } = useSubscription();
   const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [ratistReviewCount, setRatistReviewCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addingToWatchlist, setAddingToWatchlist] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export default function CollectionsPage() {
         if (!res.ok) { setError("Failed to load collections."); setLoading(false); return; }
         const data = await res.json();
         setCollections(data.collections ?? []);
+        if (data.ratistReviewCount != null) setRatistReviewCount(data.ratistReviewCount);
       } catch {
         setError("Failed to load collections.");
       } finally {
@@ -147,7 +149,20 @@ export default function CollectionsPage() {
         <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Collections</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Personalized movie recommendations based on your taste, ratings, and watch history.</p>
+      <p className="text-[var(--foreground-muted)] mb-4">Personalized movie recommendations based on your taste, ratings, and watch history.</p>
+
+      {ratistReviewCount != null && ratistReviewCount < 10 && (
+        <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-white font-medium">Your collections will improve with more reviews</p>
+            <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+              You have {ratistReviewCount} of 10 Ratist reviews needed for personalized collections.
+              Quick reviews don&apos;t count — fill out the full rating form for better results.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm rounded-lg px-4 py-2.5 mb-4 flex items-center justify-between">

@@ -81,10 +81,10 @@ export async function getPromoEligibleUsers(): Promise<{
   eligible: { id: string; name: string; email: string; reviewCount: number }[];
   alreadyGranted: number;
 }> {
-  // Count standard reviews per user
+  // Count actual Ratist reviews per user (plot not null proves form was filled, not imported)
   const reviewCounts = await prisma.movieRating.groupBy({
     by: ["userId"],
-    where: { reviewType: { in: ["standard", "critic"] }, ratistRating: { not: null } },
+    where: { ratistRating: { not: null }, plot: { not: null } },
     _count: { id: true },
     having: { id: { _count: { gte: 10 } } },
   });

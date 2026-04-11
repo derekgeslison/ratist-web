@@ -313,6 +313,11 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) { console.error("Top picks error:", e); }
 
+    // Count Ratist reviews (not quick/imported) for disclaimer
+    const ratistReviewCount = await prisma.movieRating.count({
+      where: { userId: user.id, plot: { not: null } },
+    });
+
     return NextResponse.json({
       topPicks,
       followActivity,
@@ -320,6 +325,7 @@ export async function GET(req: NextRequest) {
       trendingInCluster,
       unwatchedWatchlist,
       completeTheRating,
+      ratistReviewCount,
     });
   } catch (err) {
     console.error("For You feed error:", err);

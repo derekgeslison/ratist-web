@@ -244,11 +244,11 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
         </div>
       )}
 
-      {/* Personal rating or estimate */}
-      {(displayScore != null || estimatedRating != null) && (
+      {/* Personal rating or estimate — always show R badge */}
+      {loaded && (
         <div className="flex flex-col gap-1">
           <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
-            {ratistScore != null ? "Your Rating" : isImported ? "Your Rating" : "Your Score Estimate"}
+            {ratistScore != null ? "Your Rating" : isImported ? "Your Rating" : estimatedRating != null ? "Your Score Estimate" : "Ratist Rating"}
           </span>
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="R" width={16} height={16} className="w-4 h-4 opacity-80" />
@@ -256,10 +256,12 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
               <span className="text-lg font-bold" style={{ color: scoreColor(displayScore) }}>
                 {displayScore.toFixed(1)}
               </span>
-            ) : (
-              <span className="text-lg font-bold italic" style={{ color: scoreColor(estimatedRating!) }}>
-                ~{estimatedRating!.toFixed(1)}
+            ) : estimatedRating != null ? (
+              <span className="text-lg font-bold italic" style={{ color: scoreColor(estimatedRating) }}>
+                ~{estimatedRating.toFixed(1)}
               </span>
+            ) : (
+              <span className="text-lg font-bold text-[var(--foreground-muted)]">—</span>
             )}
             {isImported && (
               <span className="text-xs text-blue-400 cursor-help" title="Complete the full Ratist review for better taste matching">

@@ -53,6 +53,7 @@ interface FeedData {
   trendingInCluster: MediaItem[];
   unwatchedWatchlist: MediaItem[];
   completeTheRating: IncompleteItem[];
+  ratistReviewCount?: number;
 }
 
 function toMovieProps(item: MediaItem) {
@@ -221,6 +222,19 @@ export default function ForYouPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+      {data?.ratistReviewCount != null && data.ratistReviewCount < 10 && (
+        <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20 rounded-xl px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-white font-medium">Your recommendations will improve with more reviews</p>
+            <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+              You have {data.ratistReviewCount} of 10 Ratist reviews needed for personalized recommendations.
+              Quick reviews don&apos;t count — fill out the full rating form for better results.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">For You</h1>
