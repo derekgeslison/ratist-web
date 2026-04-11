@@ -10,6 +10,7 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
   type User,
   getAdditionalUserInfo,
@@ -141,18 +142,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signInWithEmail(email: string, password: string) {
-    await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    if (!cred.user.emailVerified) {
+      // Send another verification email in case they need it
+      await sendEmailVerification(cred.user).catch(() => {});
+      await firebaseSignOut(auth);
+      throw new Error("EMAIL_NOT_VERIFIED");
+    }
   }
 
   async function signUpWithEmail(email: string, password: string, name: string) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
+    // Send verification email
+    await sendEmailVerification(cred.user);
+    // Sync user to DB so they exist, but sign them out until verified
     const token = await cred.user.getIdToken();
     await fetch("/api/auth/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name, email, avatarUrl: null }),
     });
+    await firebaseSignOut(auth);
   }
 
   async function resetPassword(email: string) {

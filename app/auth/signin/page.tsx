@@ -64,13 +64,18 @@ function SignInForm() {
     try {
       if (mode === "signup") {
         await signUpWithEmail(email, password, name);
-        router.push("/onboarding");
+        router.push("/auth/verify-email");
       } else {
         await signInWithEmail(email, password);
         router.push(redirectTo ?? "/");
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Authentication failed");
+      const msg = e instanceof Error ? e.message : "Authentication failed";
+      if (msg === "EMAIL_NOT_VERIFIED") {
+        router.push("/auth/verify-email");
+        return;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
