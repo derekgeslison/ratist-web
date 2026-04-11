@@ -13,9 +13,10 @@ interface PersonItem {
 interface Props {
   selected: PersonItem[];
   onChange: (items: PersonItem[]) => void;
+  max?: number;
 }
 
-export default function PersonLinker({ selected, onChange }: Props) {
+export default function PersonLinker({ selected, onChange, max = 4 }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonItem[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -42,6 +43,7 @@ export default function PersonLinker({ selected, onChange }: Props) {
   }
 
   function addPerson(p: PersonItem) {
+    if (selected.length >= max) return;
     if (selected.some((s) => s.tmdbId === p.tmdbId)) return;
     onChange([...selected, p]);
     setQuery("");
@@ -60,7 +62,7 @@ export default function PersonLinker({ selected, onChange }: Props) {
   return (
     <div ref={containerRef} className="relative">
       <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">
-        Link Actors / Directors <span className="text-xs opacity-60">(optional)</span>
+        Link Actors / Directors <span className="text-xs opacity-60">(optional, max {max})</span>
       </label>
 
       {selected.length > 0 && (
@@ -83,17 +85,19 @@ export default function PersonLinker({ selected, onChange }: Props) {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => { handleInput(e.target.value); setShowDropdown(true); }}
-          onFocus={() => results.length > 0 && setShowDropdown(true)}
-          placeholder="Search actors or directors..."
-          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-        />
-      </div>
+      {selected.length < max && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => { handleInput(e.target.value); setShowDropdown(true); }}
+            onFocus={() => results.length > 0 && setShowDropdown(true)}
+            placeholder="Search actors or directors..."
+            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+        </div>
+      )}
 
       {showDropdown && results.length > 0 && (
         <div className="absolute z-20 w-full mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg max-h-60 overflow-y-auto">

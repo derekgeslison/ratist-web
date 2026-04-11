@@ -87,7 +87,7 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
   return (
     <div ref={containerRef} className="relative">
       <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">
-        Link Movies / TV Shows <span className="text-xs opacity-60">(max {max})</span>
+        Link Movies / TV Shows <span className="text-xs opacity-60">(optional, max {max})</span>
       </label>
 
       {/* Selected chips */}
