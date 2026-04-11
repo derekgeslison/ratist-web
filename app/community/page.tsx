@@ -125,7 +125,11 @@ export default async function CommunityPage() {
       prisma.forumThread.count(),
       prisma.comment.count({ where: { targetType: "forumThread" } }),
       prisma.movieClubMember.count(),
-      prisma.movieClubWeek.findFirst({ where: { status: { in: ["watching", "discussion"] } }, orderBy: { weekNumber: "desc" }, select: { weekNumber: true } }),
+      prisma.movieClubWeek.findFirst({
+        where: { status: { in: ["voting", "watching", "discussion"] } },
+        orderBy: { weekNumber: "desc" },
+        select: { status: true, movieId: true, movie: { select: { title: true, releaseDate: true } } },
+      }),
     ]);
     featureStats = {
       "/community/looks-like": `${looksLikeCount} pairs · ${looksLikeVotes.toLocaleString()} votes`,
@@ -135,7 +139,13 @@ export default async function CommunityPage() {
       "/community/pitches": `${pitchCount} pitches · ${pitchVotes.toLocaleString()} votes`,
       "/community/cineq": cineqLeader ? `Today's leader: ${cineqLeader.score} pts` : "Play today's quiz",
       "/forum": `${forumThreads} threads · ${forumComments} comments`,
-      "/community/movie-club": `Week ${movieClubWeek?.weekNumber ?? 1} · ${movieClubMembers} members`,
+      "/community/movie-club": movieClubWeek
+        ? movieClubWeek.status === "voting"
+          ? `Voting now · ${movieClubMembers} members`
+          : movieClubWeek.movie
+            ? `${movieClubWeek.movie.title}${movieClubWeek.movie.releaseDate ? ` (${movieClubWeek.movie.releaseDate.slice(0, 4)})` : ""} · ${movieClubMembers} members`
+            : `${movieClubMembers} members`
+        : `${movieClubMembers} members`,
     };
   } catch { /* ignore */ }
 
