@@ -125,7 +125,7 @@ export default async function CommunityPage() {
       prisma.forumThread.count(),
       prisma.comment.count({ where: { targetType: "forumThread" } }),
       prisma.movieClubMember.count(),
-      prisma.movieClubWeek.findFirst({ orderBy: { weekNumber: "desc" }, select: { weekNumber: true } }),
+      prisma.movieClubWeek.findFirst({ where: { status: { in: ["watching", "discussion"] } }, orderBy: { weekNumber: "desc" }, select: { weekNumber: true } }),
     ]);
     featureStats = {
       "/community/looks-like": `${looksLikeCount} pairs · ${looksLikeVotes.toLocaleString()} votes`,
