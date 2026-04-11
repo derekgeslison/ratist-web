@@ -83,11 +83,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
       if (firebaseUser) {
+        // Block unverified email/password users
+        const isEmailProvider = firebaseUser.providerData.some((p) => p.providerId === "password");
+        if (isEmailProvider && !firebaseUser.emailVerified) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        setUser(firebaseUser);
+        setLoading(false);
         await syncUser(firebaseUser);
       } else {
+        setUser(null);
+        setLoading(false);
         setAccountStatus(null);
       }
     });
