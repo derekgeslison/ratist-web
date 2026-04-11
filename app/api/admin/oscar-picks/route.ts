@@ -59,6 +59,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === "approve-suggestion") {
+    const { suggestionId } = body;
+    const suggestion = await prisma.oscarSuggestion.findUnique({ where: { id: suggestionId } });
+    if (!suggestion) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await prisma.$transaction(async (tx) => {
+      await tx.oscarSuggestion.update({ where: { id: suggestionId }, data: { isApproved: true } });
+      await tx.oscarNominee.create({
+        data: {
+          categoryId: suggestion.categoryId,
+          tmdbMovieId: suggestion.tmdbMovieId,
+          movieTitle: suggestion.movieTitle,
+          posterPath: suggestion.posterPath,
+          nomineeDetail: suggestion.nomineeDetail,
+        },
+      });
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "reject-suggestion") {
+    const { suggestionId } = body;
+    await prisma.oscarSuggestion.update({ where: { id: suggestionId }, data: { isRejected: true } });
+    return NextResponse.json({ ok: true });
+  }
+
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
 
@@ -70,7 +95,18 @@ export async function GET(req: NextRequest) {
     include: {
       categories: {
         orderBy: { sortOrder: "asc" },
-        include: { nominees: true, _count: { select: { votes: true } } },
+        include: {
+          nominees: true,
+          _count: { select: { votes: true } },
+          suggestions: {
+            where: { isApproved: false, isRejected: false },
+            include: {
+              suggester: { select: { name: true } },
+              _count: { select: { seconds: true } },
+            },
+            orderBy: { createdAt: "desc" },
+          },
+        },
       },
     },
     orderBy: { year: "desc" },

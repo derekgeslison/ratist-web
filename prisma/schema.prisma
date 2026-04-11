@@ -55,6 +55,8 @@ model User {
   looksLikes     LooksLike[]
   looksLikeVotes LooksLikeVote[]
   oscarVotes     OscarVote[]
+  oscarSuggestions      OscarSuggestion[]      @relation("oscarSuggestions")
+  oscarSuggestionSeconds OscarSuggestionSecond[]
   recasts        Recast[]
   recastVotes    RecastVote[]
   hotTakes       HotTake[]
@@ -1048,9 +1050,10 @@ model OscarCategory {
   slug        String // e.g. "best-picture"
   sortOrder   Int    @default(0) @map("sort_order")
 
-  oscarYear  OscarYear      @relation(fields: [oscarYearId], references: [id], onDelete: Cascade)
-  nominees   OscarNominee[]
-  votes      OscarVote[]
+  oscarYear   OscarYear      @relation(fields: [oscarYearId], references: [id], onDelete: Cascade)
+  nominees    OscarNominee[]
+  votes       OscarVote[]
+  suggestions OscarSuggestion[]
 
   @@unique([oscarYearId, slug])
   @@map("oscar_categories")
@@ -1082,6 +1085,38 @@ model OscarVote {
 
   @@id([userId, categoryId])
   @@map("oscar_votes")
+}
+
+model OscarSuggestion {
+  id           String   @id @default(cuid())
+  categoryId   String   @map("category_id")
+  suggesterId  String   @map("suggester_id")
+  tmdbMovieId  Int      @map("tmdb_movie_id")
+  movieTitle   String   @map("movie_title")
+  posterPath   String?  @map("poster_path")
+  nomineeDetail String? @map("nominee_detail") // actor/director name for acting categories
+  isApproved   Boolean  @default(false) @map("is_approved") // true once auto-approved at threshold
+  isRejected   Boolean  @default(false) @map("is_rejected") // admin rejected
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  category  OscarCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  suggester User                 @relation("oscarSuggestions", fields: [suggesterId], references: [id], onDelete: Cascade)
+  seconds   OscarSuggestionSecond[]
+
+  @@unique([categoryId, tmdbMovieId, nomineeDetail])
+  @@map("oscar_suggestions")
+}
+
+model OscarSuggestionSecond {
+  userId       String @map("user_id")
+  suggestionId String @map("suggestion_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestion OscarSuggestion  @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, suggestionId])
+  @@map("oscar_suggestion_seconds")
 }
 
 // Recast
