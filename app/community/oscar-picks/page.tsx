@@ -97,6 +97,13 @@ export default function OscarPicksPage() {
     setMyVotes(mine);
   }, [user, years]);
 
+  // Load suggestions for all categories when active year changes
+  useEffect(() => {
+    const yearData = years.find((y) => y.id === activeYear);
+    if (!yearData || yearData.isComplete) return;
+    yearData.categories.forEach((cat) => loadSuggestions(cat.id));
+  }, [activeYear, years]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function loadSuggestions(categoryId: string) {
     const headers: Record<string, string> = {};
     if (user) { const token = await user.getIdToken(); headers["Authorization"] = `Bearer ${token}`; }
@@ -342,18 +349,51 @@ export default function OscarPicksPage() {
                         </div>
                       )}
 
-                      {/* Suggest + Comment row */}
+                      {/* Pending community suggestions — always visible */}
+                      {(suggestions[cat.id] ?? []).filter((s) => !s.isApproved).length > 0 && (
+                        <div className="px-5 py-3 border-t border-[var(--border)]">
+                          <p className="text-[10px] text-yellow-400 uppercase tracking-wider mb-2">Community Suggestions — second to add as nominee</p>
+                          <div className="space-y-2">
+                            {(suggestions[cat.id] ?? []).filter((s) => !s.isApproved).map((s) => (
+                              <div key={s.id} className="flex items-center gap-3 bg-[var(--surface-2)] border border-dashed border-yellow-400/20 rounded-lg px-3 py-2">
+                                {s.posterPath && (
+                                  <Image src={`${TMDB_IMG}${s.posterPath}`} alt="" width={24} height={36} className="rounded shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-white truncate">{s.movieTitle}</p>
+                                  {s.nomineeDetail && <p className="text-[10px] text-[var(--foreground-muted)]">{s.nomineeDetail}</p>}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[10px] text-[var(--foreground-muted)]">{s.secondCount}/50</span>
+                                  {user && (
+                                    <button
+                                      onClick={() => secondSuggestion(cat.id, s.id)}
+                                      disabled={s.secondedByMe || !user}
+                                      className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                                        s.secondedByMe
+                                          ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-400"
+                                          : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-yellow-400 hover:text-yellow-400"
+                                      }`}
+                                    >
+                                      <ThumbsUp className="w-3 h-3" /> {s.secondedByMe ? "Seconded" : "Second"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Actions row: suggest + comments */}
                       <div className="px-5 py-2 border-t border-[var(--border)] flex items-center gap-4">
                         {user && !activeYearData.isComplete && (
                           <button
-                            onClick={() => {
-                              if (suggestingCategory === cat.id) { setSuggestingCategory(null); }
-                              else { setSuggestingCategory(cat.id); loadSuggestions(cat.id); }
-                            }}
+                            onClick={() => setSuggestingCategory(suggestingCategory === cat.id ? null : cat.id)}
                             className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-yellow-400 transition-colors"
                           >
                             <Plus className="w-3.5 h-3.5" />
-                            {suggestingCategory === cat.id ? "Hide Suggestions" : "Suggest Nominee"}
+                            {suggestingCategory === cat.id ? "Cancel" : "Suggest Nominee"}
                           </button>
                         )}
                         <button
@@ -368,11 +408,10 @@ export default function OscarPicksPage() {
                         </button>
                       </div>
 
-                      {/* Suggestions panel */}
+                      {/* Suggest nominee form (toggle) */}
                       {suggestingCategory === cat.id && (
                         <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface-2)]/50">
-                          {/* Search to suggest */}
-                          <div className="relative mb-3">
+                          <div className="relative mb-2">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-muted)]" />
                             <input
                               type="text"
@@ -383,7 +422,7 @@ export default function OscarPicksPage() {
                             />
                           </div>
                           {suggestResults.length > 0 && (
-                            <div className="space-y-1 mb-3 max-h-40 overflow-y-auto">
+                            <div className="space-y-1 max-h-40 overflow-y-auto">
                               {suggestResults.map((movie) => (
                                 <button
                                   key={movie.id}
@@ -399,36 +438,6 @@ export default function OscarPicksPage() {
                                     {movie.releaseDate && <p className="text-[10px] text-[var(--foreground-muted)]">{movie.releaseDate.slice(0, 4)}</p>}
                                   </div>
                                 </button>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Pending suggestions */}
-                          {(suggestions[cat.id] ?? []).filter((s) => !s.isApproved).length > 0 && (
-                            <div className="space-y-2 mt-3">
-                              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">Community Suggestions</p>
-                              {(suggestions[cat.id] ?? []).filter((s) => !s.isApproved).map((s) => (
-                                <div key={s.id} className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2">
-                                  {s.posterPath && (
-                                    <Image src={`${TMDB_IMG}${s.posterPath}`} alt="" width={24} height={36} className="rounded shrink-0" />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-white truncate">{s.movieTitle}</p>
-                                    {s.nomineeDetail && <p className="text-[10px] text-[var(--foreground-muted)]">{s.nomineeDetail}</p>}
-                                    <p className="text-[10px] text-[var(--foreground-muted)]">{s.secondCount}/50 seconds needed</p>
-                                  </div>
-                                  <button
-                                    onClick={() => secondSuggestion(cat.id, s.id)}
-                                    disabled={s.secondedByMe}
-                                    className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                                      s.secondedByMe
-                                        ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-400"
-                                        : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-yellow-400 hover:text-yellow-400"
-                                    }`}
-                                  >
-                                    <ThumbsUp className="w-3 h-3" /> {s.secondedByMe ? "Seconded" : "Second"}
-                                  </button>
-                                </div>
                               ))}
                             </div>
                           )}

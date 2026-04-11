@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === "remove-nominee") {
+    const { nomineeId } = body;
+    await prisma.oscarNominee.delete({ where: { id: nomineeId } });
+    return NextResponse.json({ ok: true });
+  }
+
   if (action === "approve-suggestion") {
     const { suggestionId } = body;
     const suggestion = await prisma.oscarSuggestion.findUnique({ where: { id: suggestionId } });

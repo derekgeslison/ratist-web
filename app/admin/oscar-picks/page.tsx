@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Trophy, Plus, CheckCircle2, Lock, Trash2 } from "lucide-react";
+import { Trophy, Plus, CheckCircle2, Lock, Trash2, X, ThumbsUp } from "lucide-react";
 import Image from "next/image";
 
 const TMDB_POSTER = "https://image.tmdb.org/t/p/w92";
@@ -30,10 +30,19 @@ interface Nominee {
   isWinner: boolean;
 }
 
+interface Suggestion {
+  id: string;
+  movieTitle: string;
+  nomineeDetail: string | null;
+  suggester: { name: string };
+  _count: { seconds: number };
+}
+
 interface Category {
   id: string;
   name: string;
   nominees: Nominee[];
+  suggestions?: Suggestion[];
   _count?: { votes: number };
 }
 
@@ -224,14 +233,39 @@ export default function AdminOscarPicksPage() {
                                   <span className="text-sm text-white">{n.movieTitle}</span>
                                   {n.nomineeDetail && <span className="text-xs text-[var(--foreground-muted)] ml-2">— {n.nomineeDetail}</span>}
                                 </div>
-                                {n.isWinner ? (
-                                  <span className="flex items-center gap-1 text-xs text-yellow-400"><Trophy className="w-3 h-3" /> Winner</span>
-                                ) : !activeYearData.isComplete ? (
-                                  <button onClick={() => doAction({ action: "mark-winner", nomineeId: n.id })} title="Mark as real winner"
-                                    className="text-[var(--foreground-muted)] hover:text-yellow-400 transition-colors shrink-0" >
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  </button>
-                                ) : null}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {n.isWinner ? (
+                                    <span className="flex items-center gap-1 text-xs text-yellow-400"><Trophy className="w-3 h-3" /> Winner</span>
+                                  ) : !activeYearData.isComplete ? (
+                                    <button onClick={() => doAction({ action: "mark-winner", nomineeId: n.id })} title="Mark as real winner"
+                                      className="text-[var(--foreground-muted)] hover:text-yellow-400 transition-colors" >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    </button>
+                                  ) : null}
+                                  {!activeYearData.isComplete && (
+                                    <button onClick={() => { if (confirm(`Remove "${n.movieTitle}" from ${cat.name}?`)) doAction({ action: "remove-nominee", nomineeId: n.id }); }}
+                                      title="Remove nominee"
+                                      className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Community suggestions */}
+                        {cat.suggestions && cat.suggestions.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-[10px] text-yellow-400 uppercase tracking-wider mb-1">Pending Suggestions</p>
+                            {cat.suggestions.map((s: { id: string; movieTitle: string; nomineeDetail: string | null; suggester: { name: string }; _count: { seconds: number } }) => (
+                              <div key={s.id} className="flex items-center gap-2 py-1.5 text-sm">
+                                <span className="text-white flex-1">{s.movieTitle}{s.nomineeDetail ? ` — ${s.nomineeDetail}` : ""}</span>
+                                <span className="text-[10px] text-[var(--foreground-muted)]">by {s.suggester.name}</span>
+                                <span className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)]"><ThumbsUp className="w-3 h-3" /> {s._count.seconds}</span>
+                                <button onClick={() => doAction({ action: "approve-suggestion", suggestionId: s.id })} className="text-xs text-green-400 hover:text-green-300">Approve</button>
+                                <button onClick={() => doAction({ action: "reject-suggestion", suggestionId: s.id })} className="text-xs text-red-400 hover:text-red-300">Reject</button>
                               </div>
                             ))}
                           </div>
