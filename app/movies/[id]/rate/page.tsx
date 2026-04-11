@@ -114,6 +114,7 @@ export default function RateMoviePage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
   // Critic mode comments
   const [fieldComments, setFieldComments] = useState<Record<string, string>>({});
   const [categoryComments, setCategoryComments] = useState<Record<string, string>>({});
@@ -212,6 +213,8 @@ export default function RateMoviePage() {
     if (!hasAnyValue) return;
     const draft = { values, overallRating, reviewText, mode, hasSpoilers, commentsDisabled, fieldComments, categoryComments, savedAt: Date.now() };
     localStorage.setItem(draftKey, JSON.stringify(draft));
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
   }, [values, overallRating, reviewText, mode, hasSpoilers, commentsDisabled, fieldComments, categoryComments, draftKey, draftLoaded]);
 
   function clearDraft() {
@@ -609,7 +612,13 @@ export default function RateMoviePage() {
             </button>
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-[var(--foreground-muted)]">Your progress is auto-saved locally</p>
+            <p className="text-xs text-[var(--foreground-muted)]">
+              {showSaved ? (
+                <span className="text-green-400 transition-opacity">Draft saved</span>
+              ) : (
+                "Your progress is auto-saved locally"
+              )}
+            </p>
             <button
               type="button"
               onClick={clearDraft}
