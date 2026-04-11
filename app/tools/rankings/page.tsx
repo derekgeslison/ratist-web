@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { GripVertical, Star, ChevronUp, ChevronDown, Plus, Search, X, Trash2, Pencil } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -337,7 +338,7 @@ export default function RankingsPage() {
 
       {!user ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to see and rank your movies.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to see and rank your movies.
         </div>
       ) : (
         <>

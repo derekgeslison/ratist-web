@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Swords, Star, Bell, Ticket } from "lucide-react";
@@ -200,12 +201,11 @@ export default function Navbar() {
               </div>
               </div>
             ) : (
-              <Link
-                href="/auth/signin"
+              <SignInLink
                 className="hidden sm:flex items-center gap-1.5 text-sm font-medium bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white px-4 py-1.5 rounded-full transition-colors"
               >
                 Sign In
-              </Link>
+              </SignInLink>
             )}
 
             <button
@@ -261,7 +261,7 @@ export default function Navbar() {
             ) : (
               <>
                 <Link href="/about" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><BookOpen className="w-4 h-4" /> About The Ratist</Link>
-                <Link href="/auth/signin" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--ratist-red)] font-medium"><User className="w-4 h-4" /> Sign In</Link>
+                <SignInLink onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--ratist-red)] font-medium"><User className="w-4 h-4" /> Sign In</SignInLink>
               </>
             )}
           </nav>

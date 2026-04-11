@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle, Trash2, Tv } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
@@ -383,7 +384,7 @@ export default function RecastPage() {
       {!user && !showForm && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
           <p className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-blue-400 hover:underline">Sign in</Link> to suggest recasts and vote.
+            <SignInLink className="text-blue-400 hover:underline">Sign in</SignInLink> to suggest recasts and vote.
           </p>
         </div>
       )}

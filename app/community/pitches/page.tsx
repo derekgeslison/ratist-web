@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Lightbulb, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2, Search, Film, Tv } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
@@ -232,7 +233,7 @@ export default function PitchesPage() {
       {!user && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
           <p className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-emerald-400 hover:underline">Sign in</Link> to pitch your ideas and vote.
+            <SignInLink className="text-emerald-400 hover:underline">Sign in</SignInLink> to pitch your ideas and vote.
           </p>
         </div>
       )}

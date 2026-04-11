@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw, Plus, CalendarDays } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
@@ -543,7 +544,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
       {/* Sign-in prompt */}
       {!user && loaded && (
         <p className="text-xs text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to rate this movie and get your personal Ratist score.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to rate this movie and get your personal Ratist score.
         </p>
       )}
     </div>

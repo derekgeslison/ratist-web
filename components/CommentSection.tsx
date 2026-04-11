@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { Heart, Reply, Trash2, ChevronDown, ChevronUp, Send } from "lucide-react";
 import ReportButton from "./ReportButton";
 import { useAuth } from "@/context/AuthContext";
@@ -361,7 +362,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
             </div>
           ) : !user ? (
             <p className="text-xs text-[var(--foreground-muted)] mt-2">
-              <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to comment.
+              <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to comment.
             </p>
           ) : null}
         </>

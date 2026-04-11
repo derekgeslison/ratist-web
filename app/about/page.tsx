@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { Star, BarChart3, Users, Swords, Film, Brain, Shield, Zap, Tv, Sparkles, RefreshCw, Map } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -171,12 +172,11 @@ export default function AboutPage() {
         <h2 className="text-2xl font-bold text-white mb-3">Ready to rate the right way?</h2>
         <p className="text-sm text-[var(--foreground-muted)] mb-6">Free to use. Better data. Go Pro for an ad-free experience.</p>
         <div className="flex items-center justify-center gap-4">
-          <Link
-            href="/auth/signin"
+          <SignInLink
             className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-8 py-3 rounded-full transition-colors"
           >
             Get started
-          </Link>
+          </SignInLink>
           <Link
             href="/movies"
             className="border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] font-semibold px-8 py-3 rounded-full transition-colors"

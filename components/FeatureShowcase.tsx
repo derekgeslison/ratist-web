@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Ticket, Check } from "lucide-react";
@@ -110,9 +111,9 @@ export default function FeatureShowcase({ title, subtitle, icon: Icon, iconColor
                 <Ticket className="w-4 h-4" /> Get the Backstage Pass — from $3.99/month
               </Link>
             ) : (
-              <Link href="/auth/signin" className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors">
+              <SignInLink className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors">
                 Sign in to subscribe
-              </Link>
+              </SignInLink>
             )}
           </>
         )}

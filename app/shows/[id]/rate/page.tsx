@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -67,6 +67,7 @@ interface ShowInfo { name: string; poster_path: string | null; first_air_date: s
 export default function RateShowPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [show, setShow] = useState<ShowInfo | null>(null);
@@ -99,7 +100,7 @@ export default function RateShowPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.push("/auth/signin"); return; }
+    if (!user) { router.push(`/auth/signin?redirect=${encodeURIComponent(pathname)}`); return; }
 
     user.getIdToken().then((token) => {
       const scopeParam = ratingScope === "season" ? `?scope=season&season=${seasonNumber}` : "";

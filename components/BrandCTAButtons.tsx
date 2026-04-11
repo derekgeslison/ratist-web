@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { useAuth } from "@/context/AuthContext";
 
 export default function BrandCTAButtons() {
@@ -23,12 +24,11 @@ export default function BrandCTAButtons() {
             Explore Tools
           </Link>
         ) : (
-          <Link
-            href="/auth/signin"
+          <SignInLink
             className="px-5 py-2 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white text-sm font-medium rounded-full border border-[var(--border)] transition-colors"
           >
             Join Free
-          </Link>
+          </SignInLink>
         )
       )}
     </div>

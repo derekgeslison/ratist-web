@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { Eye, Search, Calendar, ArrowUpDown, ChevronLeft, ChevronRight, List, ScrollText, Sparkles, Film, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -381,7 +382,7 @@ export default function SeenPage() {
 
       {!user ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to see your film diary.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to see your film diary.
         </div>
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading…</p>

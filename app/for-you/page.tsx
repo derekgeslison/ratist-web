@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { useAuth } from "@/context/AuthContext";
 import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check } from "lucide-react";
 import Image from "next/image";
@@ -203,9 +204,9 @@ export default function ForYouPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <h1 className="text-2xl font-bold text-white mb-4">For You</h1>
         <p className="text-[var(--foreground-muted)] mb-6">Your personalized feed of recommendations, activity, and things to watch.</p>
-        <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-6 py-3 rounded-full transition-colors">
+        <SignInLink className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-6 py-3 rounded-full transition-colors">
           Sign in to get started
-        </Link>
+        </SignInLink>
       </div>
     );
   }

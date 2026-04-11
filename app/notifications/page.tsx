@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Bell, Check, Shield, Trophy, X, ArrowLeft } from "lucide-react";
@@ -163,7 +164,7 @@ export default function NotificationsPage() {
 
       {!user ? (
         <div className="text-center py-20 text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to see notifications.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to see notifications.
         </div>
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading...</p>

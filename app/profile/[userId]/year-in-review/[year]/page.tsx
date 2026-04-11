@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { scoreColor } from "@/lib/ratings";
@@ -372,9 +373,9 @@ export default async function YearInReviewPage({ params }: Props) {
       {/* Footer CTA for non-members */}
       <div className="text-center py-6 border-t border-[var(--border)]">
         <p className="text-sm text-[var(--foreground-muted)] mb-3">Track and rate your own movies on The Ratist</p>
-        <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-[var(--ratist-red)]/90 transition-colors">
+        <SignInLink className="inline-block bg-[var(--ratist-red)] text-white text-sm font-semibold px-6 py-2.5 rounded-full hover:bg-[var(--ratist-red)]/90 transition-colors">
           Join for free
-        </Link>
+        </SignInLink>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Community Hub", description: "Join The Ratist community: submit hot takes, suggest recasts, find celebrity lookalikes, and engage with fellow movie lovers." };
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
@@ -204,7 +205,7 @@ export default async function CommunityPage() {
         ) : users.length === 0 ? (
           <div className="text-center py-20 text-[var(--foreground-muted)]">
             <p>No community members yet. Be the first to sign up!</p>
-            <Link href="/auth/signin" className="mt-4 inline-block text-[var(--ratist-red)] hover:underline">Join now →</Link>
+            <SignInLink className="mt-4 inline-block text-[var(--ratist-red)] hover:underline">Join now →</SignInLink>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
@@ -75,7 +76,7 @@ export default function ComparePage() {
   if (!user) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center text-[var(--foreground-muted)]">
-        <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to compare taste profiles.
+        <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to compare taste profiles.
       </div>
     );
   }

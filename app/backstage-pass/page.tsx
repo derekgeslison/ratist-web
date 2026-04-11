@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { Ticket, Check, X, Star, BarChart3, MonitorPlay, Palette, Shield, Sparkles } from "lucide-react";
 
 const FEATURES = [
@@ -117,9 +118,9 @@ export default function BackstagePassPage() {
                 {checkingOut ? "Redirecting to checkout..." : `Get Backstage Pass — ${selectedPlan === "annual" ? "$39.99/year" : "$3.99/month"}`}
               </button>
             ) : (
-              <Link href="/auth/signin" className="inline-block px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors">
+              <SignInLink className="inline-block px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors">
                 Sign in to subscribe
-              </Link>
+              </SignInLink>
             )}
           </div>
         </>

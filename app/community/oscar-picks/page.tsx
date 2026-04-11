@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Trophy, CheckCircle2, Lock, MessageCircle } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import AdUnit from "@/components/AdUnit";
@@ -186,7 +187,7 @@ export default function OscarPicksPage() {
               {!user && !activeYearData.isComplete && (
                 <div className="px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl mb-6 text-center">
                   <p className="text-sm text-[var(--foreground-muted)]">
-                    <Link href="/auth/signin" className="text-yellow-400 hover:underline">Sign in</Link> to cast your picks.
+                    <SignInLink className="text-yellow-400 hover:underline">Sign in</SignInLink> to cast your picks.
                   </p>
                 </div>
               )}

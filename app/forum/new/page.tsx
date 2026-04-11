@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, PenLine } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AdUnit from "@/components/AdUnit";
@@ -93,7 +94,7 @@ function NewThreadForm() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <p className="text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to start a new thread.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to start a new thread.
         </p>
       </div>
     );

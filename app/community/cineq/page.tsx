@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { Brain, Film, Tv, Monitor, Trophy, Zap, ArrowLeft, RotateCcw, ChevronRight } from "lucide-react";
 import ShareButton from "@/components/ShareButton";
@@ -280,7 +281,7 @@ export default function CineQPage() {
       <Brain className="w-10 h-10 text-[var(--ratist-red)] mx-auto mb-4" />
       <h1 className="text-2xl font-bold text-white mb-2">Cine-Q</h1>
       <p className="text-[var(--foreground-muted)] mb-6">Test your movie and TV knowledge with timed trivia.</p>
-      <Link href="/auth/signin" className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-6 py-3 rounded-full transition-colors">Sign in to play</Link>
+      <SignInLink className="inline-block bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold px-6 py-3 rounded-full transition-colors">Sign in to play</SignInLink>
     </div>
   );
 

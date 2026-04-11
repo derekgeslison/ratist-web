@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X, Clock, TrendingUp, MessageCircle, Trash2 } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
@@ -290,7 +291,7 @@ export default function LooksLikePage() {
       {!user && !showForm && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
           <p className="text-sm text-[var(--foreground-muted)]">
-            <Link href="/auth/signin" className="text-purple-400 hover:underline">Sign in</Link> to submit pairs and vote.
+            <SignInLink className="text-purple-400 hover:underline">Sign in</SignInLink> to submit pairs and vote.
           </p>
         </div>
       )}

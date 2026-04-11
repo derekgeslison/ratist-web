@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { Film, Tv } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/ratings";
@@ -475,15 +476,12 @@ export default function ProfileTabs({
                 <p className="text-xs text-[var(--foreground-muted)] mb-3">
                   Create a free account to get your taste match score with {profileUserName}.
                 </p>
-                <Link
-                  href="/auth/signin"
-                  className="inline-block w-full bg-[var(--ratist-red)] text-white text-sm font-semibold py-2 rounded-lg hover:bg-[var(--ratist-red)]/90 transition-colors"
-                >
+                <SignInLink className="inline-block w-full bg-[var(--ratist-red)] text-white text-sm font-semibold py-2 rounded-lg hover:bg-[var(--ratist-red)]/90 transition-colors text-center">
                   Join The Ratist
-                </Link>
-                <Link href="/auth/signin" className="block mt-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+                </SignInLink>
+                <SignInLink className="block mt-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
                   Already a member? Sign in
-                </Link>
+                </SignInLink>
               </div>
             )}
 

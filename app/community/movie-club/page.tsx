@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Clapperboard, Users, Calendar, MessageCircle, Clock, Lock, Star, HelpCircle } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 
@@ -116,7 +117,7 @@ export default function MovieClubPage() {
         </div>
       ) : (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-center">
-          <Link href="/auth/signin" className="text-sm text-[var(--ratist-red)] hover:underline">Sign in to join the Movie Club</Link>
+          <SignInLink className="text-sm text-[var(--ratist-red)] hover:underline">Sign in to join the Movie Club</SignInLink>
         </div>
       )}
 

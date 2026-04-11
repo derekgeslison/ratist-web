@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -93,6 +93,7 @@ interface MovieInfo { title: string; poster_path: string | null; release_date: s
 export default function RateMoviePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const { hasPass, loading: subLoading } = useSubscription();
   const [standardReviewCount, setStandardReviewCount] = useState(0);
@@ -132,7 +133,7 @@ export default function RateMoviePage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) { router.push("/auth/signin"); return; }
+    if (!user) { router.push(`/auth/signin?redirect=${encodeURIComponent(pathname)}`); return; }
 
     // Check for screening room pre-fill data
     const prefillKey = `screening-prefill-${id}`;

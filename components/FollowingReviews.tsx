@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import ReviewCard from "./ReviewCard";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 
 interface Review {
   id: string;
@@ -57,7 +58,7 @@ export default function FollowingReviews({ movieTmdbId }: Props) {
   if (!user) {
     return (
       <div className="text-center py-16 text-[var(--foreground-muted)]">
-        <p className="mb-2"><Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to see reviews from people you follow.</p>
+        <p className="mb-2"><SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to see reviews from people you follow.</p>
       </div>
     );
   }

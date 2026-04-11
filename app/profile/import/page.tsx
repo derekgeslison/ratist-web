@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Upload, CheckCircle, XCircle, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -168,6 +168,7 @@ const BATCH_SIZE = 10;
 export default function ImportPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const fileRef = useRef<HTMLInputElement>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -179,7 +180,7 @@ export default function ImportPage() {
 
   if (authLoading) return null;
   if (!user) {
-    router.push("/auth/signin");
+    router.push(`/auth/signin?redirect=${encodeURIComponent(pathname)}`);
     return null;
   }
 

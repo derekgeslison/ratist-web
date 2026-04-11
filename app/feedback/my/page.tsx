@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -49,7 +50,7 @@ export default function MyFeedbackPage() {
     return (
       <div className="max-w-xl mx-auto px-4 py-16 text-center">
         <p className="text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to view your feedback.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to view your feedback.
         </p>
       </div>
     );

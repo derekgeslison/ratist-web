@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import SignInLink from "@/components/SignInLink";
 import { useSearchParams } from "next/navigation";
 import { Search, Film, Users, ExternalLink, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -214,7 +215,7 @@ function ActorLookupContent() {
 
       {!user && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 text-sm text-[var(--foreground-muted)]">
-          <Link href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</Link> to see results filtered to your watched movies and shows.
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to see results filtered to your watched movies and shows.
         </div>
       )}
 
