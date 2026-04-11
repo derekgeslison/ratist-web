@@ -154,8 +154,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signUpWithEmail(email: string, password: string, name: string) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
-    // Send verification email
-    await sendEmailVerification(cred.user);
+    // Send verification email (non-blocking — don't fail signup if this errors)
+    await sendEmailVerification(cred.user).catch((err) => {
+      console.warn("Failed to send verification email:", err?.code ?? err);
+    });
     // Sync user to DB so they exist, but sign them out until verified
     const token = await cred.user.getIdToken();
     await fetch("/api/auth/sync", {
