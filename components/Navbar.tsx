@@ -34,7 +34,8 @@ export default function Navbar() {
       const res = await fetch("/api/notifications?countOnly=1", { headers: { Authorization: `Bearer ${token}` } });
       if (!cancelled && res.ok) {
         const data = await res.json();
-        setUnreadCount(data.unreadCount ?? 0);
+        const newCount = data.unreadCount ?? 0;
+        setUnreadCount((prev) => prev === newCount ? prev : newCount);
       }
     }
     function onNotifUpdate(e: Event) {
