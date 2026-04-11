@@ -77,9 +77,16 @@ export default function FeedbackPage() {
         <h1 className="text-xl font-bold text-white">Submit Feedback</h1>
       </div>
 
-      <p className="text-sm text-[var(--foreground-muted)] mb-6">
-        Found a bug? Have a feature idea? Let us know — we read every submission.
-      </p>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-sm text-[var(--foreground-muted)]">
+          Found a bug? Have a feature idea? Let us know — we read every submission.
+        </p>
+        {user && (
+          <Link href="/feedback/my" className="text-xs text-[var(--ratist-red)] hover:underline shrink-0 ml-4">
+            My Submissions
+          </Link>
+        )}
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Category */}

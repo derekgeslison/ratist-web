@@ -30,7 +30,6 @@ const STATUS_COLORS: Record<string, string> = {
   open: "bg-blue-500/20 text-blue-400",
   in_progress: "bg-yellow-500/20 text-yellow-400",
   resolved: "bg-green-500/20 text-green-400",
-  closed: "bg-gray-500/20 text-gray-400",
 };
 
 export default function AdminFeedbackPage() {
@@ -118,7 +117,6 @@ export default function AdminFeedbackPage() {
                     <option value="open">Open</option>
                     <option value="in_progress">In Progress</option>
                     <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
                   </select>
                   <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--foreground-muted)] pointer-events-none" />
                 </div>

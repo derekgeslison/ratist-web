@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest) {
         targetType: "feedback",
         targetId: updated.id,
         message: `An admin responded to your feedback`,
-        link: "/feedback",
+        link: "/feedback/my",
       },
     }).catch(() => {});
   }
