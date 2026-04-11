@@ -8,6 +8,7 @@ import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, Refr
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
+import { scoreColor } from "@/lib/ratings";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
@@ -20,6 +21,7 @@ interface MediaItem {
   voteAverage: number;
   releaseDate: string | null;
   user?: { name: string; firebaseUid: string; avatarUrl: string | null };
+  userRating?: number | null;
 }
 
 interface BecauseYouLikedSection {
@@ -83,16 +85,37 @@ function toShowProps(item: MediaItem) {
   };
 }
 
-function MediaGrid({ items }: { items: MediaItem[] }) {
+function MediaGrid({ items, showUser }: { items: MediaItem[]; showUser?: boolean }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-      {items.map((item) =>
-        item.type === "tv" ? (
-          <ShowCard key={`tv-${item.tmdbId}`} show={toShowProps(item) as never} />
-        ) : (
-          <MovieCard key={`movie-${item.tmdbId}`} movie={toMovieProps(item) as never} />
-        )
-      )}
+      {items.map((item) => (
+        <div key={`${item.type}-${item.tmdbId}-${item.user?.firebaseUid ?? ""}`}>
+          {item.type === "tv" ? (
+            <ShowCard show={toShowProps(item) as never} />
+          ) : (
+            <MovieCard movie={toMovieProps(item) as never} />
+          )}
+          {showUser && item.user && (
+            <Link href={`/profile/${item.user.firebaseUid}`} className="flex items-center gap-1.5 mt-1.5 group">
+              {item.userRating != null && (
+                <span className="text-[10px] font-bold" style={{ color: scoreColor(item.userRating) }}>
+                  {item.userRating.toFixed(1)}
+                </span>
+              )}
+              {item.user.avatarUrl ? (
+                <Image src={item.user.avatarUrl} alt="" width={16} height={16} className="rounded-full shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[7px] text-[var(--foreground-muted)] shrink-0">
+                  {item.user.name[0]}
+                </div>
+              )}
+              <span className="text-[10px] text-[var(--foreground-muted)] group-hover:text-white transition-colors truncate">
+                {item.user.name}
+              </span>
+            </Link>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -328,7 +351,7 @@ export default function ForYouPage() {
             <Users className="w-5 h-5 text-[var(--ratist-red)]" />
             <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
           </div>
-          <MediaGrid items={data.followActivity} />
+          <MediaGrid items={data.followActivity} showUser />
         </section>
       )}
 
