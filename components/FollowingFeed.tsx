@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import MovieCard from "./MovieCard";
 import ShowCard from "./ShowCard";
+import { scoreColor } from "@/lib/ratings";
 import type { TMDBMovie, TMDBShow } from "@/lib/tmdb";
 
 interface FeedItem {
@@ -15,6 +17,7 @@ interface FeedItem {
   posterPath: string | null;
   voteAverage: number;
   releaseDate: string | null;
+  rating: number | null;
   user: { name: string; firebaseUid: string; avatarUrl: string | null };
 }
 
@@ -73,16 +76,21 @@ export default function FollowingFeed() {
                   } as unknown as TMDBMovie}
                 />
               )}
-              <div className="flex items-center gap-1 mt-1 px-0.5">
+              <Link href={`/profile/${item.user.firebaseUid}`} className="flex items-center gap-1 mt-1 px-0.5 group">
+                {item.rating != null && (
+                  <span className="text-[10px] font-bold shrink-0" style={{ color: scoreColor(item.rating) }}>
+                    {Number(item.rating).toFixed(1)}
+                  </span>
+                )}
                 {item.user.avatarUrl ? (
-                  <Image src={item.user.avatarUrl} alt="" width={14} height={14} className="w-3.5 h-3.5 rounded-full object-cover" />
+                  <Image src={item.user.avatarUrl} alt="" width={14} height={14} className="w-3.5 h-3.5 rounded-full object-cover shrink-0" />
                 ) : (
-                  <div className="w-3.5 h-3.5 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-[6px] font-bold text-white">
+                  <div className="w-3.5 h-3.5 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-[6px] font-bold text-white shrink-0">
                     {item.user.name[0]}
                   </div>
                 )}
-                <span className="text-[10px] text-[var(--foreground-muted)] line-clamp-1">{item.user.name}</span>
-              </div>
+                <span className="text-[10px] text-[var(--foreground-muted)] group-hover:text-white transition-colors line-clamp-1">{item.user.name}</span>
+              </Link>
             </div>
           ))}
         </div>
