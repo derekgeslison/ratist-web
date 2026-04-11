@@ -77,13 +77,13 @@ export async function GET(req: NextRequest) {
           type: "movie" as const, tmdbId: r.movie.tmdbId, title: r.movie.title,
           posterPath: r.movie.posterPath, voteAverage: r.movie.voteAverage ?? 0,
           releaseDate: r.movie.releaseDate, createdAt: r.createdAt.toISOString(),
-          user: r.user, userRating: r.ratistRating ?? r.overallRating,
+          user: r.user, userRating: r.ratistRating != null ? Number(r.ratistRating) : r.overallRating != null ? Number(r.overallRating) : null,
         })),
         ...tvRatings.map((r) => ({
           type: "tv" as const, tmdbId: r.tvShow.tmdbId, title: r.tvShow.name,
           posterPath: r.tvShow.posterPath, voteAverage: 0,
           releaseDate: r.tvShow.firstAirDate, createdAt: r.createdAt.toISOString(),
-          user: r.user, userRating: r.ratistRating ?? r.overallRating,
+          user: r.user, userRating: r.ratistRating != null ? Number(r.ratistRating) : r.overallRating != null ? Number(r.overallRating) : null,
         })),
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 15);
     }
