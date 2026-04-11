@@ -108,6 +108,37 @@ export default async function CommunityPage() {
     }
   } catch { /* ignore */ }
 
+  // Fetch engagement stats for feature cards
+  let featureStats: Record<string, string> = {};
+  try {
+    const [looksLikeCount, looksLikeVotes, recastCount, recastVotes, hotTakeCount, hotTakeVotes,
+           pitchCount, pitchVotes, oscarVotes, forumThreads, forumComments, movieClubMembers, movieClubWeek] = await Promise.all([
+      prisma.looksLike.count(),
+      prisma.looksLikeVote.count(),
+      prisma.recast.count(),
+      prisma.recastVote.count(),
+      prisma.hotTake.count(),
+      prisma.hotTakeVote.count(),
+      prisma.moviePitch.count(),
+      prisma.moviePitchVote.count(),
+      prisma.oscarVote.count(),
+      prisma.forumThread.count(),
+      prisma.comment.count({ where: { targetType: "forumThread" } }),
+      prisma.movieClubMember.count(),
+      prisma.movieClubWeek.findFirst({ orderBy: { weekNumber: "desc" }, select: { weekNumber: true } }),
+    ]);
+    featureStats = {
+      "/community/looks-like": `${looksLikeCount} pairs · ${looksLikeVotes.toLocaleString()} votes`,
+      "/community/oscar-picks": `${oscarVotes.toLocaleString()} votes cast`,
+      "/community/recast": `${recastCount} recasts · ${recastVotes.toLocaleString()} votes`,
+      "/community/hot-takes": `${hotTakeCount} takes · ${hotTakeVotes.toLocaleString()} votes`,
+      "/community/pitches": `${pitchCount} pitches · ${pitchVotes.toLocaleString()} votes`,
+      "/community/cineq": cineqLeader ? `Today's leader: ${cineqLeader.score} pts` : "Play today's quiz",
+      "/forum": `${forumThreads} threads · ${forumComments} comments`,
+      "/community/movie-club": `Week ${movieClubWeek?.weekNumber ?? 1} · ${movieClubMembers} members`,
+    };
+  } catch { /* ignore */ }
+
   let users: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; _count: { ratings: number } }[] = [];
   let fetchError = false;
   try {
@@ -156,6 +187,9 @@ export default async function CommunityPage() {
             <div>
               <h2 className={`text-base font-semibold text-white group-hover:${color} transition-colors mb-1`}>{title}</h2>
               <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{description}</p>
+              {featureStats[href] && (
+                <p className={`text-xs ${color} mt-1.5 opacity-70`}>{featureStats[href]}</p>
+              )}
             </div>
           </Link>
         ); })}
