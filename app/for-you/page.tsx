@@ -228,7 +228,7 @@ export default function ForYouPage() {
           <div>
             <p className="text-sm text-white font-medium">Your recommendations will improve with more reviews</p>
             <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-              You have {data.ratistReviewCount} of 10 Ratist reviews needed for personalized recommendations.
+              You have {data.ratistReviewCount}{" "}of 10 Ratist reviews needed for personalized recommendations.
               Quick reviews don&apos;t count — fill out the full rating form for better results.
             </p>
           </div>

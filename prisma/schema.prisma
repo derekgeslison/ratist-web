@@ -96,6 +96,8 @@ model User {
 
   reportsMade      Report[]  @relation("reportsMade")
   reportsResolved  Report[]  @relation("reportsResolved")
+  feedbackSubmitted Feedback[] @relation("feedbackSubmitted")
+  feedbackReplied   Feedback[] @relation("feedbackReplied")
   adminLogs        AdminLog[] @relation("adminLogs")
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
@@ -1513,6 +1515,24 @@ model Report {
   resolver User? @relation("reportsResolved", fields: [resolvedBy], references: [id], onDelete: SetNull)
 
   @@map("reports")
+}
+
+model Feedback {
+  id           String    @id @default(cuid())
+  userId       String?   @map("user_id") // null for non-logged-in users
+  email        String?   // for non-logged-in users or contact
+  category     String    // "bug" | "inaccurate_info" | "feature_request" | "account_issue" | "content_issue" | "other"
+  message      String    @db.Text
+  status       String    @default("open") // "open" | "in_progress" | "resolved" | "closed"
+  adminReply   String?   @db.Text @map("admin_reply")
+  repliedBy    String?   @map("replied_by")
+  repliedAt    DateTime? @map("replied_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user     User? @relation("feedbackSubmitted", fields: [userId], references: [id], onDelete: SetNull)
+  replier  User? @relation("feedbackReplied", fields: [repliedBy], references: [id], onDelete: SetNull)
+
+  @@map("feedback")
 }
 
 model SiteSpotlight {

@@ -157,7 +157,7 @@ export default function CollectionsPage() {
           <div>
             <p className="text-sm text-white font-medium">Your collections will improve with more reviews</p>
             <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-              You have {ratistReviewCount} of 10 Ratist reviews needed for personalized collections.
+              You have {ratistReviewCount}{" "}of 10 Ratist reviews needed for personalized collections.
               Quick reviews don&apos;t count — fill out the full rating form for better results.
             </p>
           </div>

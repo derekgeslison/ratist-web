@@ -69,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex items-center justify-center gap-4 mt-3">
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
               <a href="/about" className="hover:text-white transition-colors">About</a>
+              <a href="/feedback" className="hover:text-white transition-colors">Submit Feedback</a>
             </div>
             <div className="flex items-center justify-center gap-3 mt-3">
               {/* TMDB attribution — required by their API Terms of Service */}
