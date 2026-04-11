@@ -19,7 +19,7 @@ export default function PersonalizedSection() {
           </p>
         </div>
         <Link
-          href="/auth"
+          href="/auth/signin"
           className="shrink-0 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold text-sm px-5 py-2.5 rounded-full transition-colors"
         >
           Get Started

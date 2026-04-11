@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-export default function SignInPage() {
+function SignInForm() {
   const { signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail } = useAuth();
   const router = useRouter();
-  const redirectTo = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") : null;
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -200,5 +201,13 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[80vh] flex items-center justify-center"><p className="text-[var(--foreground-muted)]">Loading...</p></div>}>
+      <SignInForm />
+    </Suspense>
   );
 }
