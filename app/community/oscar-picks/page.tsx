@@ -58,6 +58,7 @@ export default function OscarPicksPage() {
   const [suggestDetail, setSuggestDetail] = useState("");
   const [suggestions, setSuggestions] = useState<Record<string, { id: string; movieTitle: string; posterPath: string | null; nomineeDetail: string | null; secondCount: number; isApproved: boolean; secondedByMe: boolean }[]>>({});
   const [suggestSubmitting, setSuggestSubmitting] = useState(false);
+  const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/community/oscar-picks")
@@ -350,11 +351,17 @@ export default function OscarPicksPage() {
                       )}
 
                       {/* Pending community suggestions — always visible */}
-                      {(suggestions[cat.id] ?? []).filter((s) => !s.isApproved).length > 0 && (
+                      {(() => {
+                        const pending = (suggestions[cat.id] ?? []).filter((s) => !s.isApproved);
+                        if (pending.length === 0) return null;
+                        const isExpanded = expandedSuggestions.has(cat.id);
+                        const visible = isExpanded ? pending : pending.slice(0, 5);
+                        const hiddenCount = pending.length - 5;
+                        return (
                         <div className="px-5 py-3 border-t border-[var(--border)]">
                           <p className="text-[10px] text-yellow-400 uppercase tracking-wider mb-2">Community Suggestions — second to add as nominee</p>
                           <div className="space-y-2">
-                            {(suggestions[cat.id] ?? []).filter((s) => !s.isApproved).map((s) => (
+                            {visible.map((s) => (
                               <div key={s.id} className="flex items-center gap-3 bg-[var(--surface-2)] border border-dashed border-yellow-400/20 rounded-lg px-3 py-2">
                                 {s.posterPath && (
                                   <Image src={`${TMDB_IMG}${s.posterPath}`} alt="" width={24} height={36} className="rounded shrink-0" />
@@ -382,8 +389,25 @@ export default function OscarPicksPage() {
                               </div>
                             ))}
                           </div>
+                          {hiddenCount > 0 && !isExpanded && (
+                            <button
+                              onClick={() => setExpandedSuggestions((prev) => new Set(prev).add(cat.id))}
+                              className="text-xs text-yellow-400 hover:text-yellow-300 mt-2 transition-colors"
+                            >
+                              Show {hiddenCount} more suggestion{hiddenCount !== 1 ? "s" : ""}
+                            </button>
+                          )}
+                          {isExpanded && hiddenCount > 0 && (
+                            <button
+                              onClick={() => setExpandedSuggestions((prev) => { const s = new Set(prev); s.delete(cat.id); return s; })}
+                              className="text-xs text-[var(--foreground-muted)] hover:text-white mt-2 transition-colors"
+                            >
+                              Show less
+                            </button>
+                          )}
                         </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Actions row: suggest + comments */}
                       <div className="px-5 py-2 border-t border-[var(--border)] flex items-center gap-4">
