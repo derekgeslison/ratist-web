@@ -28,6 +28,7 @@ interface AccountStatus {
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  needsOnboarding: boolean;
   accountStatus: AccountStatus | null;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
   signInWithFacebook: () => Promise<{ isNewUser: boolean }>;
@@ -46,6 +47,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
 
   const syncUser = useCallback(async (firebaseUser: User, restoreAction?: string) => {
@@ -71,11 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
       setAccountStatus(null);
-      // Redirect to onboarding if not completed
-      if (data.needsOnboarding && typeof window !== "undefined" && !window.location.pathname.startsWith("/onboarding")) {
-        window.location.href = "/onboarding";
-        return false;
-      }
+      setNeedsOnboarding(data.needsOnboarding === true);
       return true;
     }
     return true;
@@ -207,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus }}>
       {children}
     </AuthContext.Provider>
   );
