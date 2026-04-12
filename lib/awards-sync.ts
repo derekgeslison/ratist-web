@@ -160,7 +160,7 @@ export async function syncMovieAwards(
     }
   }
 
-  await markSynced("movie", movieId);
+  if (count > 0) await markSynced("movie", movieId);
   return count;
 }
 
@@ -228,7 +228,7 @@ export async function syncCelebrityAwards(
     }
   }
 
-  await markSynced("celebrity", celebrityId);
+  if (count > 0) await markSynced("celebrity", celebrityId);
   return count;
 }
 
@@ -295,6 +295,6 @@ export async function syncTVShowAwards(
     }
   }
 
-  await markSynced("tvshow", tvShowId);
+  if (count > 0) await markSynced("tvshow", tvShowId);
   return count;
 }

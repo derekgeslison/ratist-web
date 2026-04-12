@@ -188,40 +188,49 @@ async function ensureMovie(tmdbId: number, imdbId?: string | null): Promise<stri
 
 async function fetchAndSyncMovieAwards(movieId: string, tmdbId: number, imdbId?: string | null): Promise<number> {
   const entityFilter = imdbId
-    ? `{ ?movie wdt:P4947 "${tmdbId}" } UNION { ?movie wdt:P345 "${imdbId}" }`
-    : `?movie wdt:P4947 "${tmdbId}"`;
+    ? `{ ?entity wdt:P4947 "${tmdbId}" } UNION { ?entity wdt:P345 "${imdbId}" }`
+    : `?entity wdt:P4947 "${tmdbId}"`;
 
-  const query = `
-    SELECT ?awardUri ?awardLabel ?isWinnerVal ?year ?ceremonyLabel WHERE {
+  // Split into two queries to avoid Wikidata UNION timeouts
+  const winsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel WHERE {
       ${entityFilter}
-      {
-        ?movie p:P166 ?stmt .
-        ?stmt ps:P166 ?awardUri .
-        BIND("win" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-      } UNION {
-        ?movie p:P1411 ?stmt .
-        ?stmt ps:P1411 ?awardUri .
-        BIND("nom" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-      }
+      ?entity p:P166 ?stmt .
+      ?stmt ps:P166 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
       ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
-    }
-    LIMIT 500
+    } LIMIT 200
+  `;
+  const nomsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel WHERE {
+      ${entityFilter}
+      ?entity p:P1411 ?stmt .
+      ?stmt ps:P1411 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
+      ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
+    } LIMIT 200
   `;
 
-  const bindings = await sparqlFetch(query);
-  let count = 0;
+  const [wins, noms] = await Promise.all([
+    sparqlFetch(winsQuery).catch(() => []),
+    sparqlFetch(nomsQuery).catch(() => []),
+  ]);
 
-  for (const b of bindings) {
+  type Binding = { [key: string]: { value: string } | undefined };
+  const allBindings: { b: Binding; isWinner: boolean }[] = [
+    ...wins.map((b: Binding) => ({ b, isWinner: true })),
+    ...noms.map((b: Binding) => ({ b, isWinner: false })),
+  ];
+
+  let count = 0;
+  for (const { b, isWinner } of allBindings) {
     const categoryLabel = b.awardLabel?.value ?? "Unknown";
     const wikidataId = b.awardUri?.value?.match(/Q\d+$/)?.[0] ?? null;
     const body = identifyAwardBody(categoryLabel);
     if (!body) continue;
 
-    const isWinner = b.isWinnerVal?.value === "win";
     const year = b.year?.value ? parseInt(b.year.value) : null;
     const ceremony = b.ceremonyLabel?.value ?? null;
 
@@ -240,12 +249,14 @@ async function fetchAndSyncMovieAwards(movieId: string, tmdbId: number, imdbId?:
     }
   }
 
-  // Mark synced
-  await prisma.awardsSyncLog.upsert({
-    where: { entityType_entityId: { entityType: "movie", entityId: movieId } },
-    create: { entityType: "movie", entityId: movieId },
-    update: { syncedAt: new Date() },
-  });
+  // Only mark synced if we actually got results
+  if (count > 0) {
+    await prisma.awardsSyncLog.upsert({
+      where: { entityType_entityId: { entityType: "movie", entityId: movieId } },
+      create: { entityType: "movie", entityId: movieId },
+      update: { syncedAt: new Date() },
+    });
+  }
 
   return count;
 }

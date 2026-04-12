@@ -102,189 +102,162 @@ export interface WikidataAwardResult {
   personLabel: string | null;
 }
 
+// ─── Shared helpers for split queries ────────────────────────────────────────
+
+function buildEntityFilter(idProp: string, tmdbId: number, imdbId?: string | null): string {
+  return imdbId
+    ? `{ ?entity wdt:${idProp} "${tmdbId}" } UNION { ?entity wdt:P345 "${imdbId}" }`
+    : `?entity wdt:${idProp} "${tmdbId}"`;
+}
+
+function mapBindings(bindings: SparqlBinding[], isWinner: boolean): WikidataAwardResult[] {
+  return bindings.map((b) => ({
+    awardWikidataId: qid(val(b, "awardUri")),
+    categoryLabel: val(b, "awardLabel") ?? "Unknown Award",
+    isWinner,
+    year: b.year?.value ? parseInt(b.year.value) : null,
+    ceremonyLabel: val(b, "ceremonyLabel"),
+    forWorkTmdbId: b.workTmdbId?.value ? parseInt(b.workTmdbId.value) : null,
+    forWorkImdbId: val(b, "workImdbId"),
+    forWorkLabel: val(b, "workLabel"),
+    personTmdbId: b.personTmdbId?.value ? parseInt(b.personTmdbId.value) : null,
+    personLabel: val(b, "personLabel"),
+  }));
+}
+
 // ─── Movie awards query ─────────────────────────────────────────────────────
 
 /**
  * Fetch all awards/nominations for a movie from Wikidata.
- * Awards can be on the movie item itself (e.g. Best Picture) or on person items
- * with a "for work" qualifier pointing to this movie.
+ * Uses two separate queries (wins + nominations) to avoid UNION timeouts.
  */
 export async function fetchMovieAwards(
   tmdbId: number,
   imdbId?: string | null
 ): Promise<WikidataAwardResult[]> {
-  // Build entity lookup: try TMDB ID first, then IMDb ID
-  const entityFilter = imdbId
-    ? `{ ?movie wdt:P4947 "${tmdbId}" } UNION { ?movie wdt:P345 "${imdbId}" }`
-    : `?movie wdt:P4947 "${tmdbId}"`;
+  const entityFilter = buildEntityFilter("P4947", tmdbId, imdbId);
 
-  const query = `
-    SELECT ?awardUri ?awardLabel ?isWinnerVal ?year ?ceremonyLabel ?personLabel ?personTmdbId WHERE {
+  const winsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel WHERE {
       ${entityFilter}
-
-      {
-        # Awards on the movie itself (e.g. Best Picture)
-        ?movie p:P166 ?stmt .
-        ?stmt ps:P166 ?awardUri .
-        BIND("win" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-        OPTIONAL {
-          ?stmt pq:P1346 ?person .
-          ?person rdfs:label ?personLabel . FILTER(LANG(?personLabel) = "en")
-          OPTIONAL { ?person wdt:P4985 ?personTmdbId }
-        }
-      } UNION {
-        # Nominations on the movie itself
-        ?movie p:P1411 ?stmt .
-        ?stmt ps:P1411 ?awardUri .
-        BIND("nom" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-        OPTIONAL {
-          ?stmt pq:P1346 ?person .
-          ?person rdfs:label ?personLabel . FILTER(LANG(?personLabel) = "en")
-          OPTIONAL { ?person wdt:P4985 ?personTmdbId }
-        }
-      }
-
+      ?entity p:P166 ?stmt .
+      ?stmt ps:P166 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
       ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
-    }
-    LIMIT 500
+    } LIMIT 200
   `;
 
-  const bindings = await sparqlFetch(query);
-  return bindings.map((b) => ({
-    awardWikidataId: qid(val(b, "awardUri")),
-    categoryLabel: val(b, "awardLabel") ?? "Unknown Award",
-    isWinner: val(b, "isWinnerVal") === "win",
-    year: b.year?.value ? parseInt(b.year.value) : null,
-    ceremonyLabel: val(b, "ceremonyLabel"),
-    forWorkTmdbId: null,
-    forWorkImdbId: null,
-    forWorkLabel: null,
-    personTmdbId: b.personTmdbId?.value ? parseInt(b.personTmdbId.value) : null,
-    personLabel: val(b, "personLabel"),
-  }));
+  const nomsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel WHERE {
+      ${entityFilter}
+      ?entity p:P1411 ?stmt .
+      ?stmt ps:P1411 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
+      ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
+    } LIMIT 200
+  `;
+
+  const [wins, noms] = await Promise.all([
+    sparqlFetch(winsQuery).catch(() => []),
+    sparqlFetch(nomsQuery).catch(() => []),
+  ]);
+
+  return [...mapBindings(wins, true), ...mapBindings(noms, false)];
 }
 
 // ─── Person awards query ────────────────────────────────────────────────────
 
 /**
  * Fetch all awards/nominations for a person (actor, director, etc.) from Wikidata.
+ * Uses two separate queries to avoid UNION timeouts.
  */
 export async function fetchPersonAwards(
   tmdbId: number,
   imdbId?: string | null
 ): Promise<WikidataAwardResult[]> {
-  const entityFilter = imdbId
-    ? `{ ?person wdt:P4985 "${tmdbId}" } UNION { ?person wdt:P345 "${imdbId}" }`
-    : `?person wdt:P4985 "${tmdbId}"`;
+  const entityFilter = buildEntityFilter("P4985", tmdbId, imdbId);
 
-  const query = `
-    SELECT ?awardUri ?awardLabel ?isWinnerVal ?year ?ceremonyLabel ?workLabel ?workTmdbId ?workImdbId WHERE {
+  const winsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel ?workLabel ?workTmdbId ?workImdbId WHERE {
       ${entityFilter}
-
-      {
-        ?person p:P166 ?stmt .
-        ?stmt ps:P166 ?awardUri .
-        BIND("win" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-        OPTIONAL {
-          ?stmt pq:P1686 ?work .
-          ?work rdfs:label ?workLabel . FILTER(LANG(?workLabel) = "en")
-          OPTIONAL { ?work wdt:P4947 ?workTmdbId }
-          OPTIONAL { ?work wdt:P345 ?workImdbId }
-        }
-      } UNION {
-        ?person p:P1411 ?stmt .
-        ?stmt ps:P1411 ?awardUri .
-        BIND("nom" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-        OPTIONAL {
-          ?stmt pq:P1686 ?work .
-          ?work rdfs:label ?workLabel . FILTER(LANG(?workLabel) = "en")
-          OPTIONAL { ?work wdt:P4947 ?workTmdbId }
-          OPTIONAL { ?work wdt:P345 ?workImdbId }
-        }
+      ?entity p:P166 ?stmt .
+      ?stmt ps:P166 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
+      OPTIONAL {
+        ?stmt pq:P1686 ?work .
+        ?work rdfs:label ?workLabel . FILTER(LANG(?workLabel) = "en")
+        OPTIONAL { ?work wdt:P4947 ?workTmdbId }
+        OPTIONAL { ?work wdt:P345 ?workImdbId }
       }
-
       ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
-    }
-    LIMIT 500
+    } LIMIT 200
   `;
 
-  const bindings = await sparqlFetch(query);
-  return bindings.map((b) => ({
-    awardWikidataId: qid(val(b, "awardUri")),
-    categoryLabel: val(b, "awardLabel") ?? "Unknown Award",
-    isWinner: val(b, "isWinnerVal") === "win",
-    year: b.year?.value ? parseInt(b.year.value) : null,
-    ceremonyLabel: val(b, "ceremonyLabel"),
-    forWorkTmdbId: b.workTmdbId?.value ? parseInt(b.workTmdbId.value) : null,
-    forWorkImdbId: val(b, "workImdbId"),
-    forWorkLabel: val(b, "workLabel"),
-    personTmdbId: null,
-    personLabel: null,
-  }));
+  const nomsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel ?workLabel ?workTmdbId ?workImdbId WHERE {
+      ${entityFilter}
+      ?entity p:P1411 ?stmt .
+      ?stmt ps:P1411 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
+      OPTIONAL {
+        ?stmt pq:P1686 ?work .
+        ?work rdfs:label ?workLabel . FILTER(LANG(?workLabel) = "en")
+        OPTIONAL { ?work wdt:P4947 ?workTmdbId }
+        OPTIONAL { ?work wdt:P345 ?workImdbId }
+      }
+      ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
+    } LIMIT 200
+  `;
+
+  const [wins, noms] = await Promise.all([
+    sparqlFetch(winsQuery).catch(() => []),
+    sparqlFetch(nomsQuery).catch(() => []),
+  ]);
+
+  return [...mapBindings(wins, true), ...mapBindings(noms, false)];
 }
 
 // ─── TV show awards query ───────────────────────────────────────────────────
 
 /**
  * Fetch awards for a TV show. Uses IMDb ID since Wikidata lacks a TMDB TV ID property.
+ * Uses two separate queries to avoid UNION timeouts.
  */
 export async function fetchTVShowAwards(
   imdbId: string
 ): Promise<WikidataAwardResult[]> {
-  const query = `
-    SELECT ?awardUri ?awardLabel ?isWinnerVal ?year ?ceremonyLabel ?personLabel ?personTmdbId WHERE {
-      ?show wdt:P345 "${imdbId}" .
-
-      {
-        ?show p:P166 ?stmt .
-        ?stmt ps:P166 ?awardUri .
-        BIND("win" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-        OPTIONAL {
-          ?stmt pq:P1346 ?person .
-          ?person rdfs:label ?personLabel . FILTER(LANG(?personLabel) = "en")
-          OPTIONAL { ?person wdt:P4985 ?personTmdbId }
-        }
-      } UNION {
-        ?show p:P1411 ?stmt .
-        ?stmt ps:P1411 ?awardUri .
-        BIND("nom" AS ?isWinnerVal)
-        OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
-        OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
-        OPTIONAL {
-          ?stmt pq:P1346 ?person .
-          ?person rdfs:label ?personLabel . FILTER(LANG(?personLabel) = "en")
-          OPTIONAL { ?person wdt:P4985 ?personTmdbId }
-        }
-      }
-
+  const winsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel WHERE {
+      ?entity wdt:P345 "${imdbId}" .
+      ?entity p:P166 ?stmt .
+      ?stmt ps:P166 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
       ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
-    }
-    LIMIT 500
+    } LIMIT 200
   `;
 
-  const bindings = await sparqlFetch(query);
-  return bindings.map((b) => ({
-    awardWikidataId: qid(val(b, "awardUri")),
-    categoryLabel: val(b, "awardLabel") ?? "Unknown Award",
-    isWinner: val(b, "isWinnerVal") === "win",
-    year: b.year?.value ? parseInt(b.year.value) : null,
-    ceremonyLabel: val(b, "ceremonyLabel"),
-    forWorkTmdbId: null,
-    forWorkImdbId: null,
-    forWorkLabel: null,
-    personTmdbId: b.personTmdbId?.value ? parseInt(b.personTmdbId.value) : null,
-    personLabel: val(b, "personLabel"),
-  }));
+  const nomsQuery = `
+    SELECT ?awardUri ?awardLabel ?year ?ceremonyLabel WHERE {
+      ?entity wdt:P345 "${imdbId}" .
+      ?entity p:P1411 ?stmt .
+      ?stmt ps:P1411 ?awardUri .
+      OPTIONAL { ?stmt pq:P585 ?date . BIND(YEAR(?date) AS ?year) }
+      OPTIONAL { ?stmt pq:P805 ?ceremony . ?ceremony rdfs:label ?ceremonyLabel . FILTER(LANG(?ceremonyLabel) = "en") }
+      ?awardUri rdfs:label ?awardLabel . FILTER(LANG(?awardLabel) = "en")
+    } LIMIT 200
+  `;
+
+  const [wins, noms] = await Promise.all([
+    sparqlFetch(winsQuery).catch(() => []),
+    sparqlFetch(nomsQuery).catch(() => []),
+  ]);
+
+  return [...mapBindings(wins, true), ...mapBindings(noms, false)];
 }
 
 // ─── Bulk query: Oscar-nominated movie TMDB IDs ─────────────────────────────
