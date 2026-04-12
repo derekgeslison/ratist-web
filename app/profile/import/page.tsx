@@ -215,9 +215,38 @@ export default function ImportPage() {
     return null;
   }
 
+  const [resolving, setResolving] = useState(false);
+
+  async function resolveImdbTitles(parsed: ParsedRow[]): Promise<ParsedRow[]> {
+    // Resolve IMDb IDs to real titles via TMDB find endpoint
+    const needsResolving = parsed.filter((r) => r.imdbId && r.title === r.imdbId);
+    if (needsResolving.length === 0) return parsed;
+
+    setResolving(true);
+    const resolved = [...parsed];
+    // Resolve in small batches to avoid hammering the API
+    for (let i = 0; i < needsResolving.length; i++) {
+      const row = needsResolving[i];
+      try {
+        const res = await fetch(`/api/tmdb/find?imdbId=${row.imdbId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.title) {
+            const idx = resolved.findIndex((r) => r.imdbId === row.imdbId);
+            if (idx >= 0) {
+              resolved[idx] = { ...resolved[idx], title: data.title, year: data.year };
+            }
+          }
+        }
+      } catch { /* skip */ }
+    }
+    setResolving(false);
+    return resolved;
+  }
+
   function handleFile(file: File) {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const csv = e.target?.result as string;
       const detected = detectPlatform(csv);
       const activePlatform = platform ?? detected;
@@ -231,11 +260,17 @@ export default function ImportPage() {
         return;
       }
 
-      const parsed = activePlatform === "letterboxd" ? parseLetterboxd(csv) : parseIMDb(csv);
+      let parsed = activePlatform === "letterboxd" ? parseLetterboxd(csv) : parseIMDb(csv);
       if (parsed.length === 0) {
         setError("No movies found in the file. Make sure you exported the Ratings/Diary list (not watchlist).");
         return;
       }
+
+      // Resolve IMDb IDs to real titles for preview
+      if (activePlatform === "imdb" && parsed.some((r) => r.imdbId && r.title === r.imdbId)) {
+        parsed = await resolveImdbTitles(parsed);
+      }
+
       setRows(parsed);
     };
     reader.readAsText(file);
@@ -377,7 +412,8 @@ export default function ImportPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-medium text-white">
-              Found <strong>{rows.length}</strong> movies
+              Found <strong>{rows.length}</strong> {rows.length === 1 ? "title" : "titles"}
+              {resolving && <span className="text-xs text-[var(--foreground-muted)] ml-2">Looking up titles...</span>}
             </p>
             <p className="text-xs text-[var(--foreground-muted)]">Preview: first 5 rows</p>
           </div>

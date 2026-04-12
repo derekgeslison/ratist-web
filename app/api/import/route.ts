@@ -30,15 +30,22 @@ interface TMDBMovieDetail {
   vote_average: number | null;
 }
 
-async function findByIMDbId(imdbId: string): Promise<TMDBSearchResult | null> {
+interface FindResult extends TMDBSearchResult {
+  mediaType: "movie" | "tv";
+  name?: string; // TV show name
+  first_air_date?: string;
+}
+
+async function findByIMDbId(imdbId: string): Promise<FindResult | null> {
   if (!API_KEY) return null;
   try {
     const res = await fetch(`${TMDB_BASE}/find/${imdbId}?api_key=${API_KEY}&external_source=imdb_id`, { next: { revalidate: 0 } });
     if (!res.ok) return null;
     const data = await res.json();
     const movie = data.movie_results?.[0];
-    if (movie) return { id: movie.id, title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date, genre_ids: movie.genre_ids ?? [] };
-    // Could also be a TV show — skip for now (import is movie-focused)
+    if (movie) return { id: movie.id, title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date, genre_ids: movie.genre_ids ?? [], mediaType: "movie" };
+    const show = data.tv_results?.[0];
+    if (show) return { id: show.id, title: show.name, name: show.name, poster_path: show.poster_path, release_date: show.first_air_date, first_air_date: show.first_air_date, genre_ids: show.genre_ids ?? [], mediaType: "tv" };
     return null;
   } catch {
     return null;
@@ -101,15 +108,70 @@ export async function POST(req: NextRequest) {
     for (const row of rows) {
       try {
         // Search TMDB — prefer IMDb ID lookup, fall back to title search
-        const tmdbResult = row.imdbId
-          ? await findByIMDbId(row.imdbId) ?? await searchTMDB(row.title, row.year)
-          : await searchTMDB(row.title, row.year);
+        const findResult = row.imdbId ? await findByIMDbId(row.imdbId) : null;
+        const tmdbResult = findResult ?? await searchTMDB(row.title, row.year);
         if (!tmdbResult) {
           failed++;
           errors.push(`Not found: "${row.imdbId ?? row.title}" (${row.year ?? "unknown year"})`);
           continue;
         }
 
+        const isTV = findResult?.mediaType === "tv";
+
+        // ── TV SHOW IMPORT ──
+        if (isTV) {
+          const tvShow = await prisma.tVShow.upsert({
+            where: { tmdbId: tmdbResult.id },
+            create: {
+              tmdbId: tmdbResult.id,
+              name: findResult?.name ?? tmdbResult.title,
+              posterPath: tmdbResult.poster_path,
+              firstAirDate: findResult?.first_air_date ?? tmdbResult.release_date,
+            },
+            update: {
+              ...(tmdbResult.poster_path ? { posterPath: tmdbResult.poster_path } : {}),
+            },
+          });
+
+          // Mark as seen (no watch date for TV imports)
+          await prisma.userFavoriteShow.upsert({
+            where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
+            create: { userId: user.id, tvShowId: tvShow.id },
+            update: {},
+          });
+
+          // Check for existing series rating
+          const existingTVRating = await prisma.tVShowRating.findFirst({
+            where: { userId: user.id, tvShowId: tvShow.id, ratingScope: "series" },
+            select: { id: true, plot: true },
+          });
+          if (existingTVRating?.plot != null) { skipped++; continue; }
+
+          // Create/update series-level rating
+          if (existingTVRating) {
+            await prisma.tVShowRating.update({
+              where: { id: existingTVRating.id },
+              data: {
+                ...(row.rating != null ? { overallRating: row.rating, ratistRating: row.rating } : {}),
+              },
+            });
+          } else {
+            await prisma.tVShowRating.create({
+              data: {
+                userId: user.id,
+                tvShowId: tvShow.id,
+                ratingScope: "series",
+                seasonNumber: 0,
+                overallRating: row.rating ?? null,
+                ratistRating: row.rating ?? null,
+              },
+            });
+          }
+          imported++;
+          continue;
+        }
+
+        // ── MOVIE IMPORT ──
         // Fetch runtime from TMDB details
         const details = await fetchTMDBDetails(tmdbResult.id);
 
