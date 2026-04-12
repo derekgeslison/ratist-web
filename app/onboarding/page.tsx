@@ -155,9 +155,28 @@ function StepIndicator({ step }: { step: number }) {
 }
 
 export default function OnboardingPage() {
-  const { user } = useAuth();
+  const { user, needsOnboarding } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState(1);
+
+  // Read step from URL hash on mount
+  const [step, setStepState] = useState(() => {
+    if (typeof window === "undefined") return 1;
+    const hash = parseInt(window.location.hash.replace("#step-", ""), 10);
+    return hash >= 1 && hash <= TOTAL_STEPS ? hash : 1;
+  });
+
+  // Sync step to URL hash
+  function setStep(n: number) {
+    setStepState(n);
+    window.history.replaceState(null, "", `#step-${n}`);
+  }
+
+  // If user already completed onboarding (came back via browser back), skip to step 2
+  useEffect(() => {
+    if (!needsOnboarding && step === 1) {
+      setStep(2);
+    }
+  }, [needsOnboarding]); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   const [componentScores, setComponentScores] = useState<Record<string, number>>(
     Object.fromEntries(COMPONENTS.map((c) => [c.key, 5]))
