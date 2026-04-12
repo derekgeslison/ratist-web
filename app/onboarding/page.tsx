@@ -132,7 +132,7 @@ const CLASSIC_SHOW_IDS = [
   69050,  // Riverdale
 ];
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 function StepIndicator({ step }: { step: number }) {
   return (
@@ -362,7 +362,45 @@ export default function OnboardingPage() {
           )}
 
           {/* ── STEP 1: Genre preferences ── */}
+          {/* ── STEP 1: Terms of Service ── */}
           {step === 1 && (
+            <div>
+              <h2 className="text-xl font-bold text-white mb-2">Welcome to The Ratist</h2>
+              <p className="text-sm text-[var(--foreground-muted)] mb-6">
+                Before we get started, please review and accept our Terms of Service.
+              </p>
+              <label className="flex items-start gap-2.5 mb-6 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={tosAccepted}
+                  onChange={(e) => setTosAccepted(e.target.checked)}
+                  className="mt-0.5 rounded border-[var(--border)] accent-[var(--ratist-red)]"
+                />
+                <span className="text-sm text-[var(--foreground-muted)] group-hover:text-white transition-colors">
+                  I agree to The Ratist&apos;s{" "}
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">
+                    Terms of Service
+                  </a>
+                </span>
+              </label>
+              <button
+                onClick={async () => {
+                  if (!tosAccepted || !user) return;
+                  // Mark onboarding complete immediately — remaining steps are optional
+                  const token = await user.getIdToken();
+                  await fetch("/api/auth/onboarded", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+                  setStep(2);
+                }}
+                disabled={!tosAccepted}
+                className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Continue <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 2: Genres ── */}
+          {step === 2 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-1">What genres do you love?</h2>
               <p className="text-sm text-[var(--foreground-muted)] mb-2">
@@ -387,35 +425,20 @@ export default function OnboardingPage() {
                   );
                 })}
               </div>
-              <label className="flex items-start gap-2.5 mb-4 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={tosAccepted}
-                  onChange={(e) => setTosAccepted(e.target.checked)}
-                  className="mt-0.5 rounded border-[var(--border)] accent-[var(--ratist-red)]"
-                />
-                <span className="text-xs text-[var(--foreground-muted)] group-hover:text-white transition-colors">
-                  I agree to The Ratist&apos;s{" "}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">
-                    Terms of Service
-                  </a>
-                </span>
-              </label>
               <button
-                onClick={() => setStep(2)}
-                disabled={!tosAccepted}
-                className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setStep(3)}
+                className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2"
               >
                 Continue <ChevronRight className="w-4 h-4" />
               </button>
-              <button onClick={() => { if (tosAccepted) setStep(2); }} className={`w-full mt-3 text-sm transition-colors ${tosAccepted ? "text-[var(--foreground-muted)] hover:text-white" : "text-[var(--foreground-muted)]/40 cursor-not-allowed"}`}>
+              <button onClick={() => setStep(3)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
                 Skip for now
               </button>
             </div>
           )}
 
-          {/* ── STEP 2: Component weights ── */}
-          {step === 2 && (
+          {/* ── STEP 3: Component weights ── */}
+          {step === 3 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-1">What matters most to you?</h2>
               <p className="text-sm text-[var(--foreground-muted)] mb-2">
@@ -441,17 +464,17 @@ export default function OnboardingPage() {
                 ))}
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setStep(1)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
-                <button onClick={() => setStep(3)} className="flex-grow py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => setStep(2)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
+                <button onClick={() => setStep(4)} className="flex-grow py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2">
                   Continue <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              <button onClick={() => setStep(3)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip for now</button>
+              <button onClick={() => setStep(4)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip for now</button>
             </div>
           )}
 
-          {/* ── STEP 3: Mark movies & shows seen ── */}
-          {step === 3 && (
+          {/* ── STEP 4: Mark movies & shows seen ── */}
+          {step === 4 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-1">Which of these have you seen?</h2>
               <p className="text-sm text-[var(--foreground-muted)] mb-3">
@@ -539,20 +562,20 @@ export default function OnboardingPage() {
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(2)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
+                <button onClick={() => setStep(3)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
                 <button
-                  onClick={() => setStep(4)}
+                  onClick={() => setStep(5)}
                   className="flex-grow py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2"
                 >
                   {(seenMovieIds.size + seenShowIds.size) > 0 ? `Continue with ${seenMovieIds.size + seenShowIds.size} marked` : "Continue"} <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              <button onClick={() => setStep(4)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip for now</button>
+              <button onClick={() => setStep(5)} className="w-full mt-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">Skip for now</button>
             </div>
           )}
 
-          {/* ── STEP 4: Import or rate one movie ── */}
-          {step === 4 && (
+          {/* ── STEP 5: Import or rate one movie ── */}
+          {step === 5 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-1">Add your ratings</h2>
               <p className="text-sm text-[var(--foreground-muted)] mb-5">
@@ -687,7 +710,7 @@ export default function OnboardingPage() {
               )}
 
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setStep(3)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
+                <button onClick={() => setStep(4)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
                 <button
                   onClick={savePrefsAndFinish}
                   disabled={saving}
