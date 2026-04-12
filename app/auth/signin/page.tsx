@@ -17,6 +17,7 @@ function SignInForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showVerifyLink, setShowVerifyLink] = useState(false);
 
   async function handleGoogle() {
     setError("");
@@ -71,11 +72,17 @@ function SignInForm() {
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Authentication failed";
+      const code = (e as { code?: string })?.code;
       if (msg === "EMAIL_NOT_VERIFIED") {
         router.push("/auth/verify-email");
         return;
       }
-      setError(msg);
+      if (code === "auth/invalid-credential") {
+        setError("Invalid email or password. If you recently signed up, make sure you've verified your email first.");
+        setShowVerifyLink(true);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -178,7 +185,16 @@ function SignInForm() {
                 </div>
               )}
             </div>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && (
+              <div>
+                <p className="text-sm text-red-400">{error}</p>
+                {showVerifyLink && (
+                  <Link href="/auth/verify-email" className="text-xs text-[var(--ratist-red)] hover:underline mt-1 inline-block">
+                    Need to verify your email? →
+                  </Link>
+                )}
+              </div>
+            )}
             <button
               type="submit"
               disabled={loading}

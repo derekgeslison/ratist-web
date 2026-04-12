@@ -84,7 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Block unverified email/password users
+        // Block unverified email/password users from accessing the app
+        // Don't sign out here — that causes a race condition with signInWithEmail
         const isEmailProvider = firebaseUser.providerData.some((p) => p.providerId === "password");
         if (isEmailProvider && !firebaseUser.emailVerified) {
           setUser(null);
