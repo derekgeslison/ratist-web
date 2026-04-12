@@ -56,10 +56,8 @@ function AwardBodyCard({ group }: { group: AwardBodyGroup }) {
             {group.winCount > 0 && (
               <span className="text-amber-400">{group.winCount} {group.winCount === 1 ? "win" : "wins"}</span>
             )}
-            {group.winCount > 0 && group.nomCount > group.winCount && " · "}
-            {group.nomCount > group.winCount && (
-              <span>{group.nomCount - group.winCount} nom{group.nomCount - group.winCount !== 1 ? "s" : ""}</span>
-            )}
+            {group.winCount > 0 && group.nomCount > 0 && " · "}
+            <span>{group.nomCount} nom{group.nomCount !== 1 ? "s" : ""}</span>
           </span>
         </div>
         {hasMore && (
@@ -82,7 +80,7 @@ function AwardBodyCard({ group }: { group: AwardBodyGroup }) {
             {nom.isWinner ? (
               <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             ) : (
-              <div className="w-3.5 h-3.5 rounded-full border border-[var(--foreground-muted)] shrink-0 opacity-30" />
+              <Award className="w-3.5 h-3.5 text-[var(--foreground-muted)] shrink-0 opacity-50" />
             )}
 
             {/* Film poster thumbnail */}

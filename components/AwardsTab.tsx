@@ -60,12 +60,10 @@ function AwardBodySection({ group }: { group: AwardBodyGroup }) {
             {group.winCount > 0 && (
               <span className="text-amber-400">{group.winCount} {group.winCount === 1 ? "win" : "wins"}</span>
             )}
-            {group.winCount > 0 && group.nomCount > group.winCount && (
+            {group.winCount > 0 && group.nomCount > 0 && (
               <span> &middot; </span>
             )}
-            {group.nomCount > group.winCount && (
-              <span>{group.nomCount - group.winCount} {group.nomCount - group.winCount === 1 ? "nomination" : "nominations"}</span>
-            )}
+            <span>{group.nomCount} {group.nomCount === 1 ? "nomination" : "nominations"}</span>
           </span>
         </div>
         {expanded ? (
@@ -87,7 +85,7 @@ function AwardBodySection({ group }: { group: AwardBodyGroup }) {
               {nom.isWinner ? (
                 <Trophy className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
               ) : (
-                <div className="w-4 h-4 rounded-full border border-[var(--foreground-muted)] mt-0.5 shrink-0 opacity-40" />
+                <Award className="w-4 h-4 text-[var(--foreground-muted)] mt-0.5 shrink-0 opacity-50" />
               )}
 
               <div className="flex-1 min-w-0">
