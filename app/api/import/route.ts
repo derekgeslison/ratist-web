@@ -147,28 +147,18 @@ export async function POST(req: NextRequest) {
           });
           if (existingTVRating) { skipped++; continue; }
 
-          // Create/update series-level rating (as basic/quick review)
-          if (existingTVRating) {
-            await prisma.tVShowRating.update({
-              where: { id: existingTVRating.id },
-              data: {
-                ...(row.rating != null ? { overallRating: row.rating, ratistRating: row.rating } : {}),
-                reviewType: "basic",
-              },
-            });
-          } else {
-            await prisma.tVShowRating.create({
-              data: {
-                userId: user.id,
-                tvShowId: tvShow.id,
-                ratingScope: "series",
-                seasonNumber: 0,
-                overallRating: row.rating ?? null,
-                ratistRating: row.rating ?? null,
-                reviewType: "basic",
-              },
-            });
-          }
+          // Create series-level rating (as basic/quick review)
+          await prisma.tVShowRating.create({
+            data: {
+              userId: user.id,
+              tvShowId: tvShow.id,
+              ratingScope: "series",
+              seasonNumber: 0,
+              overallRating: row.rating ?? null,
+              ratistRating: row.rating ?? null,
+              reviewType: "basic",
+            },
+          });
           imported++;
           continue;
         }
@@ -251,28 +241,17 @@ export async function POST(req: NextRequest) {
           update: { ...(row.watchedDate ? { watchedDate: watchedAt } : {}) },
         });
 
-        // Create/update rating — set both overallRating AND ratistRating
-        if (existingRating) {
-          await prisma.movieRating.update({
-            where: { id: existingRating.id },
-            data: {
-              ...(row.rating != null ? { overallRating: row.rating, ratistRating: row.rating } : {}),
-              ...(row.review ? { reviewText: row.review } : {}),
-              importSource: source,
-            },
-          });
-        } else {
-          await prisma.movieRating.create({
-            data: {
-              userId: user.id,
-              movieId: movie.id,
-              overallRating: row.rating ?? null,
-              ratistRating: row.rating ?? null,
-              reviewText: row.review ?? null,
-              importSource: source,
-            },
-          });
-        }
+        // Create rating — set both overallRating AND ratistRating
+        await prisma.movieRating.create({
+          data: {
+            userId: user.id,
+            movieId: movie.id,
+            overallRating: row.rating ?? null,
+            ratistRating: row.rating ?? null,
+            reviewText: row.review ?? null,
+            importSource: source,
+          },
+        });
 
         imported++;
       } catch (err) {
