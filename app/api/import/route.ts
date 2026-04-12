@@ -147,12 +147,13 @@ export async function POST(req: NextRequest) {
           });
           if (existingTVRating?.plot != null) { skipped++; continue; }
 
-          // Create/update series-level rating
+          // Create/update series-level rating (as basic/quick review)
           if (existingTVRating) {
             await prisma.tVShowRating.update({
               where: { id: existingTVRating.id },
               data: {
                 ...(row.rating != null ? { overallRating: row.rating, ratistRating: row.rating } : {}),
+                reviewType: "basic",
               },
             });
           } else {
@@ -164,6 +165,7 @@ export async function POST(req: NextRequest) {
                 seasonNumber: 0,
                 overallRating: row.rating ?? null,
                 ratistRating: row.rating ?? null,
+                reviewType: "basic",
               },
             });
           }
