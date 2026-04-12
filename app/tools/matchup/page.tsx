@@ -60,22 +60,39 @@ function MoviePicker({ label, onSelect, onClear, selected, mediaType = "movie" }
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MovieResult[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    if (selected || query.length < 2) { setResults([]); return; }
+    if (selected || query.length < 2) { setResults([]); setHasMore(false); return; }
     const endpoint = mediaType === "tv" ? "/api/tmdb/tv/search" : "/api/tmdb/movie/search";
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${endpoint}?q=${encodeURIComponent(query)}&page=1`);
         if (!res.ok) { setResults([]); return; }
         const data = await res.json();
         setResults(data.results ?? []);
+        setPage(1);
+        setHasMore(1 < (data.totalPages ?? 1));
       } catch {
         setResults([]);
       }
     }, 300);
     return () => clearTimeout(t);
   }, [query, selected, mediaType]);
+
+  async function loadMore() {
+    const endpoint = mediaType === "tv" ? "/api/tmdb/tv/search" : "/api/tmdb/movie/search";
+    const nextPage = page + 1;
+    try {
+      const res = await fetch(`${endpoint}?q=${encodeURIComponent(query)}&page=${nextPage}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setResults((prev) => [...prev, ...(data.results ?? [])]);
+      setPage(nextPage);
+      setHasMore(nextPage < (data.totalPages ?? 1));
+    } catch { /* ignore */ }
+  }
 
   if (selected) {
     const detailHref = mediaType === "tv" ? `/shows/${selected.id}` : `/movies/${selected.id}`;
@@ -109,7 +126,7 @@ function MoviePicker({ label, onSelect, onClear, selected, mediaType = "movie" }
         <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={mediaType === "tv" ? "Search show…" : "Search movie…"}
           className="w-full pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-xs sm:text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]" />
         {results.length > 0 && (
-          <div className="absolute z-10 top-full mt-1 w-[200px] sm:w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-xl">
+          <div className="absolute z-10 top-full mt-1 w-[200px] sm:w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-xl max-h-72 overflow-y-auto">
             {results.map((m) => (
               <button key={m.id} onClick={() => { onSelect(m); setResults([]); }}
                 className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
@@ -122,6 +139,11 @@ function MoviePicker({ label, onSelect, onClear, selected, mediaType = "movie" }
                 </div>
               </button>
             ))}
+            {hasMore && (
+              <button onClick={loadMore} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+                Load more results...
+              </button>
+            )}
           </div>
         )}
       </div>

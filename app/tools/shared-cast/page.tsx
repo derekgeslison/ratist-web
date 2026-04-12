@@ -122,24 +122,34 @@ export default function SharedCastPage() {
     fetchResults(selected, minOverlap, mode);
   }, [selected, minOverlap, mode, fetchResults, hydrated]);
 
-  async function handleSearch(q: string) {
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [lastSearchQuery, setLastSearchQuery] = useState("");
+
+  async function handleSearch(q: string, page = 1) {
     setQuery(q);
-    if (q.length < 2) { setSearchResults([]); return; }
+    if (q.length < 2) { setSearchResults([]); setSearchHasMore(false); return; }
+    if (page === 1) setLastSearchQuery(q);
     try {
       if (mode === "movies-to-people") {
-        // Search both movies and TV shows
         const [movieRes, showRes] = await Promise.all([
-          fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`).then((r) => r.json()),
-          fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`).then((r) => r.json()),
+          fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false&page=${page}`).then((r) => r.json()),
+          fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false&page=${page}`).then((r) => r.json()),
         ]);
-        const movies = (movieRes.results ?? []).slice(0, 5).map((m: { id: number; title: string; poster_path: string | null; release_date?: string }) => ({ ...m, media_type: "movie" }));
-        const shows = (showRes.results ?? []).slice(0, 5).map((s: { id: number; name: string; poster_path: string | null; first_air_date?: string }) => ({ ...s, title: s.name, release_date: s.first_air_date, media_type: "tv" }));
-        setSearchResults([...movies, ...shows].slice(0, 8));
+        const movies = (movieRes.results ?? []).map((m: { id: number; title: string; poster_path: string | null; release_date?: string }) => ({ ...m, media_type: "movie" }));
+        const shows = (showRes.results ?? []).map((s: { id: number; name: string; poster_path: string | null; first_air_date?: string }) => ({ ...s, title: s.name, release_date: s.first_air_date, media_type: "tv" }));
+        const newResults = [...movies, ...shows];
+        setSearchResults(page === 1 ? newResults : (prev) => [...prev, ...newResults]);
+        setSearchPage(page);
+        setSearchHasMore(page < (movieRes.total_pages ?? 1) || page < (showRes.total_pages ?? 1));
       } else {
-        const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false`);
+        const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&include_adult=false&page=${page}`);
         if (!res.ok) { setSearchResults([]); return; }
         const data = await res.json();
-        setSearchResults((data.results ?? []).slice(0, 8));
+        const newResults = data.results ?? [];
+        setSearchResults(page === 1 ? newResults : (prev) => [...prev, ...newResults]);
+        setSearchPage(page);
+        setSearchHasMore(page < (data.total_pages ?? 1));
       }
     } catch {
       setSearchResults([]);
@@ -204,9 +214,9 @@ export default function SharedCastPage() {
           className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] disabled:opacity-50"
         />
         {searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden max-h-72 overflow-y-auto">
             {searchResults.map((r) => (
-              <button key={r.id} onClick={() => addItem(r)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left">
+              <button key={`${r.id}-${(r as { media_type?: string }).media_type ?? "p"}`} onClick={() => addItem(r)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left">
                 {(r.poster_path || r.profile_path) ? (
                   <Image src={posterUrl(r.poster_path ?? r.profile_path ?? null, "w92")} alt="" width={32} height={48} className="rounded w-8 h-12 object-cover shrink-0" />
                 ) : <div className="w-8 h-12 rounded bg-[var(--surface-2)] shrink-0" />}
@@ -221,6 +231,14 @@ export default function SharedCastPage() {
                 </div>
               </button>
             ))}
+            {searchHasMore && (
+              <button
+                onClick={() => handleSearch(lastSearchQuery, searchPage + 1)}
+                className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]"
+              >
+                Load more results...
+              </button>
+            )}
           </div>
         )}
       </div>

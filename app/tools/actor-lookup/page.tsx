@@ -53,14 +53,22 @@ function ActorLookupContent() {
     } catch { /* ignore */ }
   }, [mode, selectedPerson, seenItems, selectedContent, castList]);
 
-  async function searchPerson(q: string) {
+  const [personPage, setPersonPage] = useState(1);
+  const [personHasMore, setPersonHasMore] = useState(false);
+  const [lastPersonQuery, setLastPersonQuery] = useState("");
+
+  async function searchPerson(q: string, page = 1) {
     setPersonQuery(q);
     setError(null);
-    if (q.length < 2) { setPersonResults([]); return; }
+    if (q.length < 2) { setPersonResults([]); setPersonHasMore(false); return; }
+    if (page === 1) setLastPersonQuery(q);
     try {
-      const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`);
+      const res = await fetch(`https://api.themoviedb.org/3/search/person?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=${page}`);
       const data = await res.json();
-      setPersonResults((data.results ?? []).slice(0, 6));
+      const newResults = data.results ?? [];
+      setPersonResults(page === 1 ? newResults : (prev) => [...prev, ...newResults]);
+      setPersonPage(page);
+      setPersonHasMore(page < (data.total_pages ?? 1));
     } catch {
       setPersonResults([]);
       setError("Failed to search people. Please try again.");
@@ -85,22 +93,28 @@ function ActorLookupContent() {
     setLoadingItems(false);
   }
 
-  async function searchContent(q: string) {
+  const [contentPage, setContentPage] = useState(1);
+  const [contentHasMore, setContentHasMore] = useState(false);
+  const [lastContentQuery, setLastContentQuery] = useState("");
+
+  async function searchContent(q: string, page = 1) {
     setContentQuery(q);
-    setSelectedContent(null);
-    setCastList(null);
+    if (page === 1) { setSelectedContent(null); setCastList(null); }
     setError(null);
-    if (q.length < 2) { setContentResults([]); return; }
+    if (q.length < 2) { setContentResults([]); setContentHasMore(false); return; }
+    if (page === 1) setLastContentQuery(q);
     try {
-      // Search both movies and TV shows
       const [movieRes, tvRes] = await Promise.all([
-        fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`),
-        fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}`),
+        fetch(`https://api.themoviedb.org/3/search/movie?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=${page}`),
+        fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=${page}`),
       ]);
       const [movieData, tvData] = await Promise.all([movieRes.json(), tvRes.json()]);
-      const movies = (movieData.results ?? []).slice(0, 4).map((m: ContentSearchResult) => ({ ...m, mediaType: "movie" as const }));
-      const shows = (tvData.results ?? []).slice(0, 3).map((s: ContentSearchResult) => ({ ...s, mediaType: "tv" as const }));
-      setContentResults([...movies, ...shows]);
+      const movies = (movieData.results ?? []).map((m: ContentSearchResult) => ({ ...m, mediaType: "movie" as const }));
+      const shows = (tvData.results ?? []).map((s: ContentSearchResult) => ({ ...s, mediaType: "tv" as const }));
+      const newResults = [...movies, ...shows];
+      setContentResults(page === 1 ? newResults : (prev) => [...prev, ...newResults]);
+      setContentPage(page);
+      setContentHasMore(page < (movieData.total_pages ?? 1) || page < (tvData.total_pages ?? 1));
     } catch {
       setContentResults([]);
       setError("Failed to search content. Please try again.");
@@ -250,7 +264,7 @@ function ActorLookupContent() {
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
             />
             {personResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden max-h-72 overflow-y-auto">
                 {personResults.map((p) => (
                   <button key={p.id} onClick={() => selectPerson(p)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left">
                     {p.profile_path ? (
@@ -262,6 +276,11 @@ function ActorLookupContent() {
                     </div>
                   </button>
                 ))}
+                {personHasMore && (
+                  <button onClick={() => searchPerson(lastPersonQuery, personPage + 1)} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+                    Load more results...
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -354,7 +373,7 @@ function ActorLookupContent() {
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
             />
             {contentResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden max-h-72 overflow-y-auto">
                 {contentResults.map((item) => (
                   <button key={`${item.mediaType}-${item.id}`} onClick={() => selectContent(item)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left">
                     {item.poster_path ? (
@@ -371,6 +390,11 @@ function ActorLookupContent() {
                     )}
                   </button>
                 ))}
+                {contentHasMore && (
+                  <button onClick={() => searchContent(lastContentQuery, contentPage + 1)} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+                    Load more results...
+                  </button>
+                )}
               </div>
             )}
           </div>

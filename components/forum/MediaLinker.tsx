@@ -34,17 +34,23 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const search = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults([]); return; }
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const search = useCallback(async (q: string, p = 1) => {
+    if (q.length < 2) { setResults([]); setHasMore(false); return; }
     setSearching(true);
     try {
       const [movieRes, tvRes] = await Promise.all([
-        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(q)}`).then((r) => r.json()),
-        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(q)}`).then((r) => r.json()),
+        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(q)}&page=${p}`).then((r) => r.json()),
+        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(q)}&page=${p}`).then((r) => r.json()),
       ]);
-      const movies = (movieRes.results ?? []).slice(0, 5).map((r: SearchResult) => ({ ...r, mediaType: "movie" as const }));
-      const shows = (tvRes.results ?? []).slice(0, 5).map((r: SearchResult) => ({ ...r, mediaType: "tv" as const }));
-      setResults([...movies, ...shows]);
+      const movies = (movieRes.results ?? []).map((r: SearchResult) => ({ ...r, mediaType: "movie" as const }));
+      const shows = (tvRes.results ?? []).map((r: SearchResult) => ({ ...r, mediaType: "tv" as const }));
+      const newResults = [...movies, ...shows];
+      setResults(p === 1 ? newResults : (prev) => [...prev, ...newResults]);
+      setPage(p);
+      setHasMore(p < (movieRes.totalPages ?? 1) || p < (tvRes.totalPages ?? 1));
     } catch {
       setResults([]);
     }
@@ -148,6 +154,11 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
               </div>
             </button>
           ))}
+          {hasMore && (
+            <button onClick={() => search(query, page + 1)} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+              Load more results...
+            </button>
+          )}
         </div>
       )}
       {showDropdown && searching && <p className="text-xs text-[var(--foreground-muted)] mt-1">Searching...</p>}

@@ -5,15 +5,16 @@ const BASE = "https://api.themoviedb.org/3";
 
 export async function GET(req: NextRequest) {
   const query = req.nextUrl.searchParams.get("q");
-  if (!query) return NextResponse.json({ results: [] });
+  const page = req.nextUrl.searchParams.get("page") ?? "1";
+  if (!query) return NextResponse.json({ results: [], totalPages: 0 });
 
   const res = await fetch(
-    `${BASE}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=1`,
+    `${BASE}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=${page}`,
     { next: { revalidate: 300 } }
   );
   const data = await res.json();
 
-  const results = (data.results ?? []).slice(0, 8).map((p: {
+  const results = (data.results ?? []).map((p: {
     id: number;
     name: string;
     profile_path: string | null;
@@ -25,5 +26,5 @@ export async function GET(req: NextRequest) {
     department: p.known_for_department,
   }));
 
-  return NextResponse.json({ results });
+  return NextResponse.json({ results, totalPages: data.total_pages ?? 1 });
 }

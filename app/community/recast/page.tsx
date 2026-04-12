@@ -48,16 +48,29 @@ function PersonSearch({ label, onSelect, onClear }: { label: string; onSelect: (
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonResult[]>([]);
   const [selected, setSelected] = useState<PersonResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    if (selected || query.length < 2) { setResults([]); return; }
+    if (selected || query.length < 2) { setResults([]); setHasMore(false); return; }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(query)}&page=1`);
       const data = await res.json();
       setResults(data.results ?? []);
+      setPage(1);
+      setHasMore(1 < (data.totalPages ?? 1));
     }, 300);
     return () => clearTimeout(t);
   }, [query, selected]);
+
+  async function loadMore() {
+    const nextPage = page + 1;
+    const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(query)}&page=${nextPage}`);
+    const data = await res.json();
+    setResults((prev) => [...prev, ...(data.results ?? [])]);
+    setPage(nextPage);
+    setHasMore(nextPage < (data.totalPages ?? 1));
+  }
 
   function clear() { setQuery(""); setSelected(null); setResults([]); onClear(); }
 
@@ -78,7 +91,7 @@ function PersonSearch({ label, onSelect, onClear }: { label: string; onSelect: (
         </div>
       )}
       {!selected && results.length > 0 && (
-        <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg">
+        <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg max-h-72 overflow-y-auto">
           {results.map((p) => (
             <button key={p.id} onClick={() => { setSelected(p); setResults([]); onSelect(p); }}
               className="flex items-center gap-3 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
@@ -89,6 +102,11 @@ function PersonSearch({ label, onSelect, onClear }: { label: string; onSelect: (
               </div>
             </button>
           ))}
+          {hasMore && (
+            <button onClick={loadMore} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+              Load more results...
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -99,21 +117,39 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MovieResult[]>([]);
   const [selected, setSelected] = useState<MovieResult | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    if (selected || query.length < 2) { setResults([]); return; }
+    if (selected || query.length < 2) { setResults([]); setHasMore(false); return; }
     const t = setTimeout(async () => {
       const [movieRes, showRes] = await Promise.all([
-        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
-        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}&page=1`).then((r) => r.json()),
+        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(query)}&page=1`).then((r) => r.json()),
       ]);
       setResults([
         ...(movieRes.results ?? []).map((m: MovieResult) => ({ ...m, mediaType: "movie" as const })),
         ...(showRes.results ?? []).map((s: MovieResult) => ({ ...s, mediaType: "tv" as const })),
       ]);
+      setPage(1);
+      setHasMore(1 < (movieRes.totalPages ?? 1) || 1 < (showRes.totalPages ?? 1));
     }, 300);
     return () => clearTimeout(t);
   }, [query, selected]);
+
+  async function loadMore() {
+    const nextPage = page + 1;
+    const [movieRes, showRes] = await Promise.all([
+      fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(query)}&page=${nextPage}`).then((r) => r.json()),
+      fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(query)}&page=${nextPage}`).then((r) => r.json()),
+    ]);
+    setResults((prev) => [...prev,
+      ...(movieRes.results ?? []).map((m: MovieResult) => ({ ...m, mediaType: "movie" as const })),
+      ...(showRes.results ?? []).map((s: MovieResult) => ({ ...s, mediaType: "tv" as const })),
+    ]);
+    setPage(nextPage);
+    setHasMore(nextPage < (movieRes.totalPages ?? 1) || nextPage < (showRes.totalPages ?? 1));
+  }
 
   function clear() { setQuery(""); setSelected(null); setResults([]); onClear(); }
 
@@ -134,7 +170,7 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
         </div>
       )}
       {!selected && results.length > 0 && (
-        <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg">
+        <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg overflow-hidden shadow-lg max-h-72 overflow-y-auto">
           {results.map((m) => (
             <button key={m.id} onClick={() => { setSelected(m); setResults([]); onSelect(m); }}
               className="flex items-center gap-3 w-full px-3 py-2 hover:bg-[var(--surface-2)] text-left">
@@ -150,6 +186,11 @@ function MovieSearch({ onSelect, onClear }: { onSelect: (m: MovieResult) => void
               </div>
             </button>
           ))}
+          {hasMore && (
+            <button onClick={loadMore} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+              Load more results...
+            </button>
+          )}
         </div>
       )}
     </div>

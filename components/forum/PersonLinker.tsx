@@ -23,14 +23,20 @@ export default function PersonLinker({ selected, onChange, max = 4 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const search = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults([]); return; }
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const search = useCallback(async (q: string, p = 1) => {
+    if (q.length < 2) { setResults([]); setHasMore(false); return; }
     try {
-      const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(q)}&page=${p}`);
       const data = await res.json();
-      setResults((data.results ?? []).slice(0, 8).map((r: { id: number; name: string; profilePath: string | null }) => ({
+      const newResults = (data.results ?? []).map((r: { id: number; name: string; profilePath: string | null }) => ({
         tmdbId: r.id, name: r.name, profilePath: r.profilePath,
-      })));
+      }));
+      setResults(p === 1 ? newResults : (prev) => [...prev, ...newResults]);
+      setPage(p);
+      setHasMore(p < (data.totalPages ?? 1));
     } catch {
       setResults([]);
     }
@@ -117,6 +123,11 @@ export default function PersonLinker({ selected, onChange, max = 4 }: Props) {
               <span className="text-sm text-white">{p.name}</span>
             </button>
           ))}
+          {hasMore && (
+            <button onClick={() => search(query, page + 1)} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+              Load more results...
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -171,21 +171,40 @@ export default function RankingsPage() {
   }, [user]);
 
   // Add movie/show search
+  const [addMoviePage, setAddMoviePage] = useState(1);
+  const [addMovieHasMore, setAddMovieHasMore] = useState(false);
+
   useEffect(() => {
-    if (addMovieQuery.length < 2) { setAddMovieResults([]); return; }
+    if (addMovieQuery.length < 2) { setAddMovieResults([]); setAddMovieHasMore(false); return; }
     const t = setTimeout(async () => {
       const [movieRes, showRes] = await Promise.all([
-        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}`).then((r) => r.json()),
-        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(addMovieQuery)}`).then((r) => r.json()),
+        fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}&page=1`).then((r) => r.json()),
+        fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(addMovieQuery)}&page=1`).then((r) => r.json()),
       ]);
       const combined = [
         ...(movieRes.results ?? []).map((m: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...m, mediaType: "movie" as const })),
         ...(showRes.results ?? []).map((s: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...s, mediaType: "tv" as const })),
       ];
       setAddMovieResults(combined);
+      setAddMoviePage(1);
+      setAddMovieHasMore(1 < (movieRes.totalPages ?? 1) || 1 < (showRes.totalPages ?? 1));
     }, 300);
     return () => clearTimeout(t);
   }, [addMovieQuery]);
+
+  async function loadMoreAddMovies() {
+    const nextPage = addMoviePage + 1;
+    const [movieRes, showRes] = await Promise.all([
+      fetch(`/api/tmdb/movie/search?q=${encodeURIComponent(addMovieQuery)}&page=${nextPage}`).then((r) => r.json()),
+      fetch(`/api/tmdb/tv/search?q=${encodeURIComponent(addMovieQuery)}&page=${nextPage}`).then((r) => r.json()),
+    ]);
+    setAddMovieResults((prev) => [...prev,
+      ...(movieRes.results ?? []).map((m: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...m, mediaType: "movie" as const })),
+      ...(showRes.results ?? []).map((s: { id: number; title: string; posterPath: string | null; releaseDate: string }) => ({ ...s, mediaType: "tv" as const })),
+    ]);
+    setAddMoviePage(nextPage);
+    setAddMovieHasMore(nextPage < (movieRes.totalPages ?? 1) || nextPage < (showRes.totalPages ?? 1));
+  }
 
   async function saveRankings(newMovies: RankedMovie[]) {
     if (!user) return;
@@ -432,6 +451,11 @@ export default function RankingsPage() {
                       </button>
                     );
                   })}
+                  {addMovieHasMore && (
+                    <button onClick={loadMoreAddMovies} className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors border-t border-[var(--border)]">
+                      Load more results...
+                    </button>
+                  )}
                 </div>
               )}
             </div>
