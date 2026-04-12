@@ -143,9 +143,9 @@ export async function POST(req: NextRequest) {
           // Check for existing series rating
           const existingTVRating = await prisma.tVShowRating.findFirst({
             where: { userId: user.id, tvShowId: tvShow.id, ratingScope: "series" },
-            select: { id: true, plot: true },
+            select: { id: true },
           });
-          if (existingTVRating?.plot != null) { skipped++; continue; }
+          if (existingTVRating) { skipped++; continue; }
 
           // Create/update series-level rating (as basic/quick review)
           if (existingTVRating) {
@@ -234,12 +234,12 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Check if user already has a COMPLETE rating — skip if so
+        // Check if user already has any rating — skip if so
         const existingRating = await prisma.movieRating.findUnique({
           where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-          select: { id: true, plot: true },
+          select: { id: true },
         });
-        if (existingRating?.plot != null) {
+        if (existingRating) {
           skipped++;
           continue;
         }

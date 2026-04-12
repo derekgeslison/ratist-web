@@ -352,8 +352,9 @@ export default function ImportPage() {
             <>
               <p className="font-medium text-white mb-2">How to export from Letterboxd</p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>Go to <strong className="text-white">letterboxd.com</strong> → Settings</li>
-                <li>Click <strong className="text-white">Data</strong> in the left sidebar</li>
+                <li>Go to <strong className="text-white">letterboxd.com</strong></li>
+                <li>Go to <strong className="text-white">Settings</strong></li>
+                <li>Click the <strong className="text-white">Data</strong> tab</li>
                 <li>Click <strong className="text-white">Export your data</strong></li>
                 <li>Upload the <code className="bg-[var(--surface-2)] px-1 rounded">reviews.csv</code> file below</li>
               </ol>
@@ -362,10 +363,11 @@ export default function ImportPage() {
             <>
               <p className="font-medium text-white mb-2">How to export from IMDb</p>
               <ol className="list-decimal list-inside space-y-1">
-                <li>Go to <strong className="text-white">imdb.com</strong> → Your Activity</li>
-                <li>Open <strong className="text-white">Your Ratings</strong></li>
-                <li>Click the <strong className="text-white">three dots menu (⋮)</strong> → <strong className="text-white">Export</strong></li>
-                <li>Upload the downloaded CSV file below</li>
+                <li>Go to <strong className="text-white">imdb.com</strong></li>
+                <li>Go to <strong className="text-white">Account Settings</strong></li>
+                <li>Click the <strong className="text-white">Request my data</strong> tab</li>
+                <li>Click <strong className="text-white">Submit request</strong></li>
+                <li>Upload the <code className="bg-[var(--surface-2)] px-1 rounded">IMDbRatings.UserRatings.csv</code> file below</li>
               </ol>
             </>
           )}
