@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ user });
+    return NextResponse.json({ user, needsOnboarding: !user.onboardedAt });
   } catch (err) {
     console.error("Auth sync error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

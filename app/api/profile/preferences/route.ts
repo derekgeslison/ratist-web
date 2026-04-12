@@ -40,6 +40,11 @@ export async function PUT(req: NextRequest) {
       update: body,
     });
 
+    // Mark onboarding as complete if not already
+    if (!user.onboardedAt) {
+      await prisma.user.update({ where: { id: user.id }, data: { onboardedAt: new Date() } });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Profile preferences error:", err);

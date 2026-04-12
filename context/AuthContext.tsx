@@ -71,6 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
       setAccountStatus(null);
+      // Redirect to onboarding if not completed
+      if (data.needsOnboarding && typeof window !== "undefined" && !window.location.pathname.startsWith("/onboarding")) {
+        window.location.href = "/onboarding";
+        return false;
+      }
       return true;
     }
     return true;
