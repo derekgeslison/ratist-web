@@ -18,121 +18,120 @@ export default function CelebrityAwardsSection({ awards }: Props) {
   if (awards.length === 0) return null;
 
   return (
-    <section className="mb-10">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-[var(--ratist-red)]" /> Awards & Nominations
-        </h2>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-amber-400 font-medium">{totalWins} {totalWins === 1 ? "win" : "wins"}</span>
-          <span className="text-[var(--foreground-muted)]">{totalNoms} total</span>
+    <div className="space-y-8">
+      {/* Summary — matches AwardsTab layout */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 text-amber-400">
+          <Trophy className="w-5 h-5" />
+          <span className="font-semibold">{totalWins} {totalWins === 1 ? "win" : "wins"}</span>
+        </div>
+        <span className="text-[var(--foreground-muted)]">&middot;</span>
+        <div className="text-[var(--foreground-muted)]">
+          {totalNoms} {totalNoms === 1 ? "nomination" : "nominations"} total
         </div>
       </div>
 
-      <div className="space-y-3">
-        {awards.map((group) => (
-          <AwardBodyCard key={group.slug} group={group} />
-        ))}
-      </div>
-    </section>
+      {/* Award body sections */}
+      {awards.map((group) => (
+        <AwardBodyCard key={group.slug} group={group} />
+      ))}
+    </div>
   );
 }
 
 function AwardBodyCard({ group }: { group: AwardBodyGroup }) {
-  const [expanded, setExpanded] = useState(false);
-  const preview = group.nominations.slice(0, 3);
-  const hasMore = group.nominations.length > 3;
+  const [expanded, setExpanded] = useState(true);
 
   return (
     <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-      {/* Header */}
+      {/* Header — matches AwardsTab styling */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--card-hover)] transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--card-hover)] transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">{group.name}</span>
-          <span className="text-xs text-[var(--foreground-muted)]">
+        <div className="flex items-center gap-3">
+          <span className="text-base font-semibold text-white">{group.name}</span>
+          <span className="text-sm text-[var(--foreground-muted)]">
             {group.winCount > 0 && (
               <span className="text-amber-400">{group.winCount} {group.winCount === 1 ? "win" : "wins"}</span>
             )}
-            {group.winCount > 0 && group.nomCount > 0 && " · "}
-            <span>{group.nomCount} nom{group.nomCount !== 1 ? "s" : ""}</span>
+            {group.winCount > 0 && group.nomCount > 0 && (
+              <span> &middot; </span>
+            )}
+            <span>{group.nomCount} {group.nomCount === 1 ? "nomination" : "nominations"}</span>
           </span>
         </div>
-        {hasMore && (
-          expanded ? (
-            <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />
-          )
+        {expanded ? (
+          <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />
         )}
       </button>
 
-      {/* Nominations */}
-      <div className="border-t border-[var(--border)]">
-        {(expanded ? group.nominations : preview).map((nom) => (
-          <div
-            key={nom.id}
-            className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--border)] last:border-b-0"
-          >
-            {/* Win/nom icon */}
-            {nom.isWinner ? (
-              <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            ) : (
-              <Award className="w-3.5 h-3.5 text-[var(--foreground-muted)] shrink-0 opacity-50" />
-            )}
+      {/* Nominations list */}
+      {expanded && (
+        <div className="border-t border-[var(--border)]">
+          {group.nominations.map((nom) => (
+            <div
+              key={nom.id}
+              className="flex items-start gap-3 px-5 py-3 border-b border-[var(--border)] last:border-b-0"
+            >
+              {/* Win/nom indicator */}
+              {nom.isWinner ? (
+                <Trophy className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              ) : (
+                <Award className="w-4 h-4 text-[var(--foreground-muted)] mt-0.5 shrink-0 opacity-50" />
+              )}
 
-            {/* Film poster thumbnail */}
-            {nom.forWork?.posterPath && (
-              <Link href={`/movies/${nom.forWork.tmdbId}`} className="shrink-0">
-                <Image
-                  src={posterUrl(nom.forWork.posterPath, "w92")}
-                  alt=""
-                  width={28}
-                  height={42}
-                  className="rounded"
-                />
-              </Link>
-            )}
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className={`text-xs font-medium ${nom.isWinner ? "text-amber-400" : "text-white"}`}>
-                  {nom.categoryName}
-                </span>
-                {nom.year && (
-                  <span className="text-[10px] text-[var(--foreground-muted)]">({nom.year})</span>
-                )}
-              </div>
-              {nom.forWork && (
-                <Link
-                  href={`/movies/${nom.forWork.tmdbId}`}
-                  className="text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-                >
-                  {nom.forWork.title}
+              {/* Film poster thumbnail */}
+              {nom.forWork?.posterPath && (
+                <Link href={`/movies/${nom.forWork.tmdbId}`} className="shrink-0 mt-0.5">
+                  <Image
+                    src={posterUrl(nom.forWork.posterPath, "w92")}
+                    alt=""
+                    width={28}
+                    height={42}
+                    className="rounded"
+                  />
                 </Link>
               )}
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className={`text-sm font-medium ${nom.isWinner ? "text-amber-400" : "text-white"}`}>
+                    {nom.categoryName}
+                  </span>
+                  {nom.year && (
+                    <span className="text-xs text-[var(--foreground-muted)]">
+                      ({nom.year})
+                    </span>
+                  )}
+                </div>
+                {nom.forWork && (
+                  <Link
+                    href={`/movies/${nom.forWork.tmdbId}`}
+                    className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors mt-0.5 block"
+                  >
+                    for <span className="italic">{nom.forWork.title}</span>
+                  </Link>
+                )}
+                {nom.ceremony && (
+                  <p className="text-xs text-[var(--foreground-muted)] opacity-60 mt-0.5">
+                    {nom.ceremony}
+                  </p>
+                )}
+              </div>
+
+              {/* Winner badge */}
+              {nom.isWinner && (
+                <span className="text-xs font-medium text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded shrink-0">
+                  Won
+                </span>
+              )}
             </div>
-
-            {nom.isWinner && (
-              <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded shrink-0">
-                Won
-              </span>
-            )}
-          </div>
-        ))}
-
-        {/* Show more / less toggle */}
-        {hasMore && !expanded && (
-          <button
-            onClick={() => setExpanded(true)}
-            className="w-full text-center py-2 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
-          >
-            Show all {group.nominations.length} &darr;
-          </button>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
