@@ -155,7 +155,7 @@ function StepIndicator({ step }: { step: number }) {
 }
 
 export default function OnboardingPage() {
-  const { user, needsOnboarding } = useAuth();
+  const { user, needsOnboarding, completeOnboarding } = useAuth();
   const router = useRouter();
 
   // Read step from URL hash on mount
@@ -404,8 +404,7 @@ export default function OnboardingPage() {
                 onClick={async () => {
                   if (!tosAccepted || !user) return;
                   // Mark onboarding complete immediately — remaining steps are optional
-                  const token = await user.getIdToken();
-                  await fetch("/api/auth/onboarded", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+                  await completeOnboarding();
                   setStep(2);
                 }}
                 disabled={!tosAccepted}

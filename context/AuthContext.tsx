@@ -40,6 +40,7 @@ interface AuthContextValue {
   restoreAccount: () => Promise<void>;
   startFresh: () => Promise<void>;
   clearAccountStatus: () => void;
+  completeOnboarding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -190,6 +191,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   }
 
+  async function completeOnboarding() {
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch("/api/auth/onboarded", { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    setNeedsOnboarding(false);
+  }
+
   async function restoreAccount() {
     if (!user) return;
     await syncUser(user, "restore");
@@ -205,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding }}>
       {children}
     </AuthContext.Provider>
   );
