@@ -8,6 +8,7 @@ interface ImportRow {
   year?: number;
   rating?: number; // already normalized to 1-10
   review?: string;
+  imdbId?: string;
   watchedDate?: string;
   isRewatch?: boolean;
 }
@@ -27,6 +28,21 @@ interface TMDBMovieDetail {
   id: number;
   runtime: number | null;
   vote_average: number | null;
+}
+
+async function findByIMDbId(imdbId: string): Promise<TMDBSearchResult | null> {
+  if (!API_KEY) return null;
+  try {
+    const res = await fetch(`${TMDB_BASE}/find/${imdbId}?api_key=${API_KEY}&external_source=imdb_id`, { next: { revalidate: 0 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const movie = data.movie_results?.[0];
+    if (movie) return { id: movie.id, title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date, genre_ids: movie.genre_ids ?? [] };
+    // Could also be a TV show — skip for now (import is movie-focused)
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 async function searchTMDB(title: string, year?: number): Promise<TMDBSearchResult | null> {
@@ -84,11 +100,13 @@ export async function POST(req: NextRequest) {
 
     for (const row of rows) {
       try {
-        // Search TMDB
-        const tmdbResult = await searchTMDB(row.title, row.year);
+        // Search TMDB — prefer IMDb ID lookup, fall back to title search
+        const tmdbResult = row.imdbId
+          ? await findByIMDbId(row.imdbId) ?? await searchTMDB(row.title, row.year)
+          : await searchTMDB(row.title, row.year);
         if (!tmdbResult) {
           failed++;
-          errors.push(`Not found: "${row.title}" (${row.year ?? "unknown year"})`);
+          errors.push(`Not found: "${row.imdbId ?? row.title}" (${row.year ?? "unknown year"})`);
           continue;
         }
 

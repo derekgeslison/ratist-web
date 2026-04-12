@@ -15,6 +15,7 @@ interface ParsedRow {
   review?: string;
   watchedDate?: string;
   isRewatch?: boolean;
+  imdbId?: string;
 }
 
 interface ImportResult {
@@ -127,6 +128,34 @@ function parseIMDb(csv: string): ParsedRow[] {
   const allRows = parseCsvFull(csv);
   if (allRows.length < 2) return [];
 
+  const firstHeader = allRows[0]?.map((h) => h.toLowerCase().trim()).join(",") ?? "";
+
+  // New IMDb format: "Title ID",Rating,"Last Modified Date"
+  if (firstHeader.includes("title id")) {
+    const headers = allRows[0].map((h) => h.toLowerCase().trim());
+    const rows: ParsedRow[] = [];
+    for (let i = 1; i < allRows.length; i++) {
+      const cols = allRows[i];
+      if (!cols || cols.length < 2) continue;
+      const get = (key: string) => {
+        const idx = headers.indexOf(key);
+        return idx >= 0 ? (cols[idx] ?? "").trim() : "";
+      };
+      const imdbId = get("title id");
+      if (!imdbId || !imdbId.startsWith("tt")) continue;
+      const ratingStr = get("rating");
+      const dateStr = get("last modified date");
+      rows.push({
+        title: imdbId, // placeholder — will be resolved via TMDB
+        imdbId,
+        rating: ratingStr ? parseFloat(ratingStr) : undefined,
+        watchedDate: dateStr ? dateStr.split("T")[0] : undefined,
+      });
+    }
+    return rows;
+  }
+
+  // Old IMDb format: Const,Your Rating,Date Rated,Title,Year,...
   const headerIdx = allRows.findIndex((r) => r.some((c) => /your rating/i.test(c)));
   if (headerIdx === -1) return [];
   const headers = allRows[headerIdx].map((h) => h.toLowerCase());
@@ -138,13 +167,15 @@ function parseIMDb(csv: string): ParsedRow[] {
       const idx = headers.indexOf(key);
       return idx >= 0 ? (cols[idx] ?? "").trim() : "";
     };
+    const imdbId = get("const");
     const title = get("title");
-    if (!title) continue;
+    if (!title && !imdbId) continue;
     const yearStr = get("year");
     const ratingStr = get("your rating");
     const dateRated = get("date rated");
     rows.push({
-      title,
+      title: title || imdbId,
+      imdbId: imdbId?.startsWith("tt") ? imdbId : undefined,
       year: yearStr ? parseInt(yearStr) : undefined,
       rating: ratingStr ? parseFloat(ratingStr) : undefined,
       watchedDate: dateRated ? dateRated.split(" ")[0] : undefined,
@@ -156,7 +187,7 @@ function parseIMDb(csv: string): ParsedRow[] {
 function detectPlatform(csv: string): Platform | null {
   const firstLine = csv.split("\n")[0].toLowerCase();
   if (firstLine.includes("letterboxd uri") || firstLine.includes("name,year")) return "letterboxd";
-  if (firstLine.includes("const,") || firstLine.includes("your rating,date rated")) return "imdb";
+  if (firstLine.includes("const,") || firstLine.includes("your rating,date rated") || firstLine.includes("title id")) return "imdb";
   // Try second line
   const secondLine = csv.split("\n").find((l, i) => i > 0 && l.trim()) ?? "";
   if (secondLine.startsWith("tt")) return "imdb";
