@@ -3,14 +3,15 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Film, Search, ImageIcon, MessageSquare } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import PageShare from "@/components/PageShare";
-import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
-import CelebrityCreditsSection from "./CelebrityCreditsSection";
 import CelebrityBio from "./CelebrityBio";
 import CelebrityUserPanel from "./CelebrityUserPanel";
+import CelebrityDetailTabs from "./CelebrityDetailTabs";
 import { upsertCelebrity } from "@/lib/tmdb-sync";
+import { getCelebrityAwards } from "@/lib/awards";
+import { syncCelebrityAwards } from "@/lib/awards-sync";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -25,6 +26,7 @@ interface TMDBPersonDetail {
   profile_path: string | null;
   known_for_department: string;
   popularity: number;
+  imdb_id?: string;
   movie_credits: {
     cast: CastCredit[];
     crew: CrewCredit[];
@@ -166,6 +168,13 @@ export default async function CelebrityPage({ params }: Props) {
     },
   }).catch(() => {});
 
+  // Awards sync — fire and forget
+  prisma.celebrity.findUnique({ where: { tmdbId: person.id }, select: { id: true, imdbId: true } })
+    .then((dbCeleb) => {
+      if (dbCeleb) syncCelebrityAwards(dbCeleb.id, person.id, dbCeleb.imdbId ?? person.imdb_id).catch(() => {});
+    })
+    .catch(() => {});
+
   // Build unified filmography: merge cast + crew per title, deduped by id+mediaType
   type FilmEntry = {
     id: number; title: string; poster_path: string | null; release_date: string;
@@ -248,6 +257,37 @@ export default async function CelebrityPage({ params }: Props) {
     : communityRatistCount > 0
       ? communityRatistSum / communityRatistCount
       : null;
+
+  // Fetch awards from DB
+  let awards: Awaited<ReturnType<typeof getCelebrityAwards>> = [];
+  try {
+    const dbCeleb = await prisma.celebrity.findUnique({
+      where: { tmdbId: person.id },
+      select: { id: true },
+    });
+    if (dbCeleb) {
+      awards = await getCelebrityAwards(dbCeleb.id);
+    }
+  } catch { /* DB not ready */ }
+
+  // Fetch forum discussions about this person
+  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number }[] = [];
+  try {
+    const threads = await prisma.forumThread.findMany({
+      where: { people: { some: { tmdbId: person.id } } },
+      select: {
+        id: true, title: true, slug: true, threadType: true,
+        author: { select: { name: true } },
+        _count: { select: { posts: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    });
+    discussions = threads.map((t) => ({
+      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
+      authorName: t.author.name, postCount: t._count.posts,
+    }));
+  } catch { /* DB not ready */ }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -341,97 +381,15 @@ export default async function CelebrityPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Filmography — combined movies + TV, sorted by year */}
-      {filmography.length > 0 && (
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Filmography
-              <span className="text-sm font-normal text-[var(--foreground-muted)]">({filmography.length})</span>
-            </h2>
-            <Link
-              href={`/movies?cast=${person.id}&castLabels=${encodeURIComponent(person.name)}`}
-              className="text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-            >
-              Show all &rarr;
-            </Link>
-          </div>
-          <CelebrityCreditsSection credits={filmography} personId={person.id} />
-        </section>
-      )}
-
-      {/* Photos */}
-      {photos.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-[var(--ratist-red)]" /> Photos
-            <span className="text-sm font-normal text-[var(--foreground-muted)]">({photos.length})</span>
-          </h2>
-          <p className="text-xs text-[var(--foreground-muted)] mb-4">Click any image to view full size</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {photos.slice(0, 20).map((img, i) => (
-              <a
-                key={i}
-                href={`https://image.tmdb.org/t/p/original${img.file_path}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="relative aspect-[2/3] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors block"
-              >
-                <Image
-                  src={`https://image.tmdb.org/t/p/w342${img.file_path}`}
-                  alt={`${person.name} photo ${i + 1}`}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
-                  className="object-cover object-top"
-                />
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Forum discussions about this person */}
-      <CelebrityDiscussions tmdbId={person.id} personName={person.name} />
+      {/* Tabbed content */}
+      <CelebrityDetailTabs
+        personId={person.id}
+        personName={person.name}
+        filmography={filmography}
+        awards={awards}
+        photos={photos}
+        discussions={discussions}
+      />
     </div>
-  );
-}
-
-async function CelebrityDiscussions({ tmdbId, personName }: { tmdbId: number; personName: string }) {
-  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number }[] = [];
-  try {
-    const threads = await prisma.forumThread.findMany({
-      where: { people: { some: { tmdbId } } },
-      select: {
-        id: true, title: true, slug: true, threadType: true,
-        author: { select: { name: true } },
-        _count: { select: { posts: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 10,
-    });
-    discussions = threads.map((t) => ({
-      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
-      authorName: t.author.name, postCount: t._count.posts,
-    }));
-  } catch { /* DB not ready */ }
-
-  if (discussions.length === 0) return null;
-
-  return (
-    <section className="mt-8">
-      <h2 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-        <MessageSquare className="w-5 h-5 text-cyan-400" /> Forum Discussions
-      </h2>
-      <div className="space-y-2">
-        {discussions.map((d) => (
-          <Link key={d.id} href={`/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{d.title}</p>
-              <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }

@@ -34,6 +34,7 @@ export interface TMDBMovie {
   credits?: { cast: TMDBCastMember[]; crew: TMDBCrewMember[] };
   release_dates?: { results: TMDBReleaseDateResult[] };
   images?: { backdrops: TMDBImage[]; posters: TMDBImage[] };
+  imdb_id?: string;
 }
 
 export interface TMDBCollection {
@@ -320,6 +321,7 @@ export interface TMDBShow {
   aggregate_credits?: { cast: TMDBShowCastMember[]; crew: TMDBShowCrewMember[] };
   content_ratings?: { results: TMDBContentRating[] };
   images?: { backdrops: TMDBImage[]; posters: TMDBImage[] };
+  external_ids?: { imdb_id?: string };
 }
 
 export interface TMDBSeason {
@@ -404,7 +406,7 @@ export async function getOnTheAirShows(page = 1) {
 
 export async function getShowDetails(tmdbId: number): Promise<TMDBShow> {
   return tmdbFetch<TMDBShow>(`/tv/${tmdbId}`, {
-    append_to_response: "videos,aggregate_credits,content_ratings,images",
+    append_to_response: "videos,aggregate_credits,content_ratings,images,external_ids",
   });
 }
 

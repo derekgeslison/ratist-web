@@ -20,6 +20,8 @@ import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
 import ParentsGuide from "./ParentsGuide";
 import Soundtrack from "./Soundtrack";
+import AwardsTab from "./AwardsTab";
+import type { AwardBodyGroup } from "@/lib/awards";
 
 interface Discussion {
   id: string;
@@ -43,10 +45,11 @@ interface Props {
   rent: TMDBWatchProvider[] | null;
   seasons: TMDBSeason[];
   discussions?: Discussion[];
+  awards?: AwardBodyGroup[];
   tmdbId?: number;
 }
 
-const TABS = ["Overview", "Seasons", "Cast & Crew", "Media", "Discussions", "Parents' Guide"] as const;
+const TABS = ["Overview", "Cast & Crew", "Seasons", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
@@ -403,6 +406,7 @@ export default function ShowDetailTabs({
   rent,
   seasons,
   discussions = [],
+  awards = [],
   tmdbId,
 }: Props) {
   const { user } = useAuth();
@@ -695,6 +699,11 @@ export default function ShowDetailTabs({
             </section>
           )}
         </div>
+      )}
+
+      {/* ── AWARDS TAB ── */}
+      {activeTab === "Awards" && (
+        <AwardsTab awards={awards} />
       )}
 
       {/* ── SEASONS TAB ── */}

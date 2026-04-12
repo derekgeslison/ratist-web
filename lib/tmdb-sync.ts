@@ -25,6 +25,7 @@ export interface TMDBMovieForSync {
   vote_average?: number | null;
   vote_count?: number | null;
   status?: string | null;
+  imdb_id?: string | null;
   genres?: { id: number; name: string }[];
   credits?: {
     cast?: TMDBCastForSync[];
@@ -68,6 +69,7 @@ export interface TMDBPersonForSync {
   place_of_birth?: string | null;
   biography?: string | null;
   popularity?: number | null;
+  imdb_id?: string | null;
   movie_credits?: {
     cast?: (TMDBCastForSync & { title?: string; vote_average?: number })[];
     crew?: (TMDBCrewForSync & { title?: string; vote_average?: number })[];
@@ -95,6 +97,7 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
     where: { tmdbId: tmdb.id },
     create: {
       tmdbId: tmdb.id,
+      imdbId: tmdb.imdb_id ?? null,
       title: tmdb.title,
       overview: tmdb.overview ?? null,
       posterPath: tmdb.poster_path ?? null,
@@ -113,6 +116,7 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       cachedAt: new Date(),
     },
     update: {
+      imdbId: tmdb.imdb_id ?? undefined,
       title: tmdb.title,
       overview: tmdb.overview ?? null,
       posterPath: tmdb.poster_path ?? null,
@@ -178,6 +182,7 @@ export interface TMDBShowForSync {
   popularity?: number | null;
   vote_average?: number | null;
   vote_count?: number | null;
+  external_ids?: { imdb_id?: string } | null;
   networks?: { id: number; name: string; logo_path: string | null }[];
   genres?: { id: number; name: string }[];
   seasons?: {
@@ -241,6 +246,7 @@ export async function upsertTVShow(tmdb: TMDBShowForSync): Promise<string> {
     where: { tmdbId: tmdb.id },
     create: {
       tmdbId: tmdb.id,
+      imdbId: tmdb.external_ids?.imdb_id ?? null,
       name: tmdb.name,
       overview: tmdb.overview ?? null,
       posterPath: tmdb.poster_path ?? null,
@@ -261,6 +267,7 @@ export async function upsertTVShow(tmdb: TMDBShowForSync): Promise<string> {
       cachedAt: new Date(),
     },
     update: {
+      imdbId: tmdb.external_ids?.imdb_id ?? undefined,
       name: tmdb.name,
       overview: tmdb.overview ?? null,
       posterPath: tmdb.poster_path ?? null,
@@ -449,6 +456,7 @@ export async function upsertCelebrity(tmdb: TMDBPersonForSync): Promise<string> 
     where: { tmdbId: tmdb.id },
     create: {
       tmdbId: tmdb.id,
+      imdbId: tmdb.imdb_id ?? null,
       name: tmdb.name,
       profilePath: tmdb.profile_path ?? null,
       knownForDepartment: tmdb.known_for_department ?? null,
@@ -460,6 +468,7 @@ export async function upsertCelebrity(tmdb: TMDBPersonForSync): Promise<string> 
       cachedAt: new Date(),
     },
     update: {
+      imdbId: tmdb.imdb_id ?? undefined,
       name: tmdb.name,
       profilePath: tmdb.profile_path ?? null,
       knownForDepartment: tmdb.known_for_department ?? null,

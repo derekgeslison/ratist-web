@@ -180,6 +180,7 @@ model UserProfile {
 model Movie {
   id           String   @id @default(cuid())
   tmdbId       Int      @unique @map("tmdb_id")
+  imdbId       String?  @unique @map("imdb_id")
   title        String
   overview     String?
   posterPath   String?  @map("poster_path")
@@ -211,6 +212,8 @@ model Movie {
   movieClubWeeks   MovieClubWeek[]
   screeningSessions ScreeningSession[]
   forumThreadMedia  ForumThreadMedia[]
+  awards            AwardNomination[] @relation("movieAwards")
+  awardForWork      AwardNomination[] @relation("forWorkMovie")
 
   @@map("movies")
 }
@@ -238,6 +241,7 @@ model MovieGenre {
 model Celebrity {
   id                 String    @id @default(cuid())
   tmdbId             Int       @unique @map("tmdb_id")
+  imdbId             String?   @unique @map("imdb_id")
   name               String
   profilePath        String?   @map("profile_path")
   knownForDepartment String?   @map("known_for_department")
@@ -252,6 +256,7 @@ model Celebrity {
   movieRoles MovieCast[]
   tvShowRoles TVShowCast[]
   forumThreadPeople ForumThreadPerson[]
+  awards            AwardNomination[] @relation("celebrityAwards")
 
   @@map("celebrities")
 }
@@ -278,6 +283,7 @@ model MovieCast {
 model TVShow {
   id             String   @id @default(cuid())
   tmdbId         Int      @unique @map("tmdb_id")
+  imdbId         String?  @unique @map("imdb_id")
   name           String
   overview       String?  @db.Text
   posterPath     String?  @map("poster_path")
@@ -309,6 +315,8 @@ model TVShow {
   watchlistEntries WatchlistShow[]
   rankings         UserMovieRanking[]
   forumThreadMedia ForumThreadMedia[]
+  awards           AwardNomination[] @relation("tvShowAwards")
+  awardForWork     AwardNomination[] @relation("forWorkTvShow")
 
   @@map("tv_shows")
 }
@@ -1614,4 +1622,76 @@ model UserBadge {
   @@unique([userId, slug])
   @@index([userId, earnedAt])
   @@map("user_badges")
+}
+
+// ─── Awards & Nominations ──────────────────────────────────────────────────
+
+model AwardBody {
+  id         String   @id @default(cuid())
+  slug       String   @unique                  // "oscar", "golden-globe", "bafta", "sag", "cannes"
+  name       String                             // "Academy Awards"
+  shortName  String   @map("short_name")        // "Oscar"
+  wikidataId String?  @unique @map("wikidata_id") // Q19020 for Oscars
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  categories AwardCategory[]
+
+  @@map("award_bodies")
+}
+
+model AwardCategory {
+  id          String @id @default(cuid())
+  awardBodyId String @map("award_body_id")
+  slug        String // "best-picture", "best-director"
+  name        String // "Best Picture"
+  wikidataId  String? @map("wikidata_id")
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  awardBody   AwardBody         @relation(fields: [awardBodyId], references: [id], onDelete: Cascade)
+  nominations AwardNomination[]
+
+  @@unique([awardBodyId, slug])
+  @@map("award_categories")
+}
+
+model AwardNomination {
+  id           String  @id @default(cuid())
+  categoryId   String  @map("category_id")
+  isWinner     Boolean @default(false) @map("is_winner")
+  year         Int?
+  ceremony     String?
+
+  // Polymorphic subject — the entity that was nominated/won
+  movieId      String? @map("movie_id")
+  tvShowId     String? @map("tv_show_id")
+  celebrityId  String? @map("celebrity_id")
+
+  // "For work" reference — person won award FOR this specific film/show
+  forMovieId   String? @map("for_movie_id")
+  forTvShowId  String? @map("for_tv_show_id")
+
+  wikidataId   String? @map("wikidata_id") // for dedup during import
+  dedupKey     String  @unique @map("dedup_key") // computed key for upsert dedup
+
+  category  AwardCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  movie     Movie?        @relation("movieAwards", fields: [movieId], references: [id], onDelete: Cascade)
+  tvShow    TVShow?       @relation("tvShowAwards", fields: [tvShowId], references: [id], onDelete: Cascade)
+  celebrity Celebrity?    @relation("celebrityAwards", fields: [celebrityId], references: [id], onDelete: Cascade)
+  forMovie  Movie?        @relation("forWorkMovie", fields: [forMovieId], references: [id], onDelete: SetNull)
+  forTvShow TVShow?       @relation("forWorkTvShow", fields: [forTvShowId], references: [id], onDelete: SetNull)
+  @@index([movieId])
+  @@index([tvShowId])
+  @@index([celebrityId])
+  @@index([year])
+  @@map("award_nominations")
+}
+
+model AwardsSyncLog {
+  id         String   @id @default(cuid())
+  entityType String   @map("entity_type") // "movie", "tvshow", "celebrity"
+  entityId   String   @map("entity_id")
+  syncedAt   DateTime @default(now()) @map("synced_at")
+
+  @@unique([entityType, entityId])
+  @@map("awards_sync_log")
 }

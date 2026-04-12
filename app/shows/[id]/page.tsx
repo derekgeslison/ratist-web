@@ -18,6 +18,8 @@ import UserShowPanel from "@/components/UserShowPanel";
 import ShowDetailTabs from "@/components/ShowDetailTabs";
 import { upsertTVShow } from "@/lib/tmdb-sync";
 import { prisma } from "@/lib/prisma";
+import { getTVShowAwards } from "@/lib/awards";
+import { syncTVShowAwards } from "@/lib/awards-sync";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 
@@ -80,6 +82,13 @@ export default async function ShowDetailPage({ params }: Props) {
     })
     .catch(() => {});
 
+  // Awards sync — fire and forget (requires IMDb ID)
+  prisma.tVShow.findUnique({ where: { tmdbId: show.id }, select: { id: true, imdbId: true } })
+    .then((dbShow) => {
+      if (dbShow?.imdbId) syncTVShowAwards(dbShow.id, dbShow.imdbId).catch(() => {});
+    })
+    .catch(() => {});
+
   // Fetch forum discussions linked to this show
   let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string }[] = [];
   try {
@@ -98,6 +107,18 @@ export default async function ShowDetailPage({ params }: Props) {
       authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
       createdAt: t.createdAt.toISOString(),
     }));
+  } catch { /* DB not ready */ }
+
+  // Fetch awards from DB
+  let awards: Awaited<ReturnType<typeof getTVShowAwards>> = [];
+  try {
+    const dbShow = await prisma.tVShow.findUnique({
+      where: { tmdbId: show.id },
+      select: { id: true },
+    });
+    if (dbShow) {
+      awards = await getTVShowAwards(dbShow.id);
+    }
   } catch { /* DB not ready */ }
 
   const trailerKey = getShowTrailerKey(show);
@@ -274,6 +295,7 @@ export default async function ShowDetailPage({ params }: Props) {
           rent={watchProviders?.rent ?? null}
           seasons={seasons}
           discussions={discussions}
+          awards={awards}
           tmdbId={show.id}
         />
       </div>

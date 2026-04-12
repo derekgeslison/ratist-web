@@ -12,6 +12,8 @@ import ReviewCard from "./ReviewCard";
 import Soundtrack from "./Soundtrack";
 import ParentsGuide from "./ParentsGuide";
 import PosterOverlay from "./PosterOverlay";
+import AwardsTab from "./AwardsTab";
+import type { AwardBodyGroup } from "@/lib/awards";
 
 interface Review {
   id: string;
@@ -49,10 +51,11 @@ interface Props {
   rent: TMDBWatchProvider[] | null;
   reviews: Review[];
   discussions?: Discussion[];
+  awards?: AwardBodyGroup[];
   tmdbId?: number;
 }
 
-const TABS = ["Overview", "Cast & Crew", "Media", "Discussions", "Parents' Guide"] as const;
+const TABS = ["Overview", "Cast & Crew", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
@@ -76,6 +79,7 @@ export default function MovieDetailTabs({
   rent,
   reviews,
   discussions = [],
+  awards = [],
   tmdbId,
 }: Props) {
   function tabToHash(tab: Tab): string {
@@ -254,6 +258,11 @@ export default function MovieDetailTabs({
             </section>
           )}
         </div>
+      )}
+
+      {/* ── AWARDS TAB ── */}
+      {activeTab === "Awards" && (
+        <AwardsTab awards={awards} />
       )}
 
       {/* ── CAST & CREW TAB ── */}

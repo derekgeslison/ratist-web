@@ -19,6 +19,8 @@ import {
 import UserMoviePanel from "@/components/UserMoviePanel";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
 import { upsertMovie } from "@/lib/tmdb-sync";
+import { getMovieAwards } from "@/lib/awards";
+import { syncMovieAwards } from "@/lib/awards-sync";
 import { prisma } from "@/lib/prisma";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
@@ -84,6 +86,13 @@ export default async function MovieDetailPage({ params }: Props) {
     .then((existing) => {
       const age = existing?.cachedAt ? Date.now() - new Date(existing.cachedAt as Date | string).getTime() : Infinity;
       if (age > 7 * 24 * 60 * 60 * 1000) upsertMovie(movie).catch(() => {});
+    })
+    .catch(() => {});
+
+  // Awards sync — fire and forget
+  prisma.movie.findUnique({ where: { tmdbId: movie.id }, select: { id: true, imdbId: true } })
+    .then((dbMovie) => {
+      if (dbMovie) syncMovieAwards(dbMovie.id, movie.id, dbMovie.imdbId ?? movie.imdb_id).catch(() => {});
     })
     .catch(() => {});
 
@@ -172,6 +181,18 @@ export default async function MovieDetailPage({ params }: Props) {
       authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
       createdAt: t.createdAt.toISOString(),
     }));
+  } catch { /* DB not ready */ }
+
+  // Fetch awards from DB
+  let awards: Awaited<ReturnType<typeof getMovieAwards>> = [];
+  try {
+    const dbMovie = await prisma.movie.findUnique({
+      where: { tmdbId: movie.id },
+      select: { id: true },
+    });
+    if (dbMovie) {
+      awards = await getMovieAwards(dbMovie.id);
+    }
   } catch { /* DB not ready */ }
 
   const trailerKey = getTrailerKey(movie);
@@ -376,6 +397,7 @@ export default async function MovieDetailPage({ params }: Props) {
             createdAt: r.createdAt.toISOString(),
           }))}
           discussions={discussions}
+          awards={awards}
           tmdbId={movie.id}
         />
       </div>
