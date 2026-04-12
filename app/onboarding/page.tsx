@@ -333,29 +333,27 @@ export default function OnboardingPage() {
     setSaving(false);
   }
 
-  async function savePrefsAndFinish() {
-    if (!user) { router.push("/"); return; }
-    setSaving(true);
-
+  // Save current preferences (genres + component weights) to the server
+  async function savePrefs() {
+    if (!user) return;
     const payload: Record<string, number> = {};
     for (const g of GENRES) payload[g.key] = selectedGenres.has(g.key) ? 8 : 2;
     if (componentsTouched) {
       for (const c of COMPONENTS) payload[c.key] = componentScores[c.key];
     }
+    const token = await user.getIdToken();
+    await fetch("/api/profile/preferences", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }
 
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/profile/preferences", {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to save preferences");
-      router.push("/movies");
-    } catch {
-      setErrorMsg("Failed to save preferences. Please try again.");
-      setSaving(false);
-    }
+  async function savePrefsAndFinish() {
+    if (!user) { router.push("/"); return; }
+    setSaving(true);
+    await savePrefs();
+    router.push("/movies");
   }
 
   const seenList = allMovies.filter((m) => seenMovieIds.has(m.id));
@@ -445,7 +443,7 @@ export default function OnboardingPage() {
                 })}
               </div>
               <button
-                onClick={() => setStep(3)}
+                onClick={() => { savePrefs(); setStep(3); }}
                 className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2"
               >
                 Continue <ChevronRight className="w-4 h-4" />
@@ -484,7 +482,7 @@ export default function OnboardingPage() {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 py-3 bg-[var(--surface-2)] hover:bg-[var(--border)] text-white font-semibold rounded-full border border-[var(--border)] transition-colors">Back</button>
-                <button onClick={() => setStep(4)} className="flex-grow py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => { savePrefs(); setStep(4); }} className="flex-grow py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2">
                   Continue <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
