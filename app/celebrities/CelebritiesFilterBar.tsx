@@ -58,11 +58,15 @@ export default function CelebritiesFilterBar({ totalResults }: Props) {
   const movieTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ageTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cratingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qPending = useRef(false);
+  const ageMinPending = useRef(false);
+  const ageMaxPending = useRef(false);
+  const cratingPending = useRef(false);
 
-  useEffect(() => { setQInput(currentQ); }, [currentQ]);
-  useEffect(() => { setAgeMin(currentAgeMin); }, [currentAgeMin]);
-  useEffect(() => { setAgeMax(currentAgeMax); }, [currentAgeMax]);
-  useEffect(() => { setCratingVal(currentCratingVal); }, [currentCratingVal]);
+  useEffect(() => { if (qPending.current) { qPending.current = false; } else { setQInput(currentQ); } }, [currentQ]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ageMinPending.current) { ageMinPending.current = false; } else { setAgeMin(currentAgeMin); } }, [currentAgeMin]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ageMaxPending.current) { ageMaxPending.current = false; } else { setAgeMax(currentAgeMax); } }, [currentAgeMax]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (cratingPending.current) { cratingPending.current = false; } else { setCratingVal(currentCratingVal); } }, [currentCratingVal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeFilterCount = [
     !!currentMovie,
@@ -94,19 +98,21 @@ export default function CelebritiesFilterBar({ totalResults }: Props) {
 
   function handleQChange(val: string) {
     setQInput(val);
+    qPending.current = true;
     if (qTimeout.current) clearTimeout(qTimeout.current);
     qTimeout.current = setTimeout(() => update({ q: val || null }), 400);
   }
 
   function handleAgeChange(field: "ageMin" | "ageMax", val: string) {
-    if (field === "ageMin") setAgeMin(val);
-    else setAgeMax(val);
+    if (field === "ageMin") { setAgeMin(val); ageMinPending.current = true; }
+    else { setAgeMax(val); ageMaxPending.current = true; }
     if (ageTimeout.current) clearTimeout(ageTimeout.current);
     ageTimeout.current = setTimeout(() => update({ [field]: val || null }), 600);
   }
 
   function handleCratingValChange(val: string) {
     setCratingVal(val);
+    cratingPending.current = true;
     if (cratingTimeout.current) clearTimeout(cratingTimeout.current);
     cratingTimeout.current = setTimeout(() => {
       update({
