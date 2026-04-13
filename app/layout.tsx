@@ -33,6 +33,9 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  other: [
+    { name: "Impact-Site-Verification", content: "6f9701b8-7b0f-4369-b308-232348ca0bcd" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
