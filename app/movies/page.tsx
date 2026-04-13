@@ -1,12 +1,38 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Movies & TV", description: "Browse and discover movies and TV shows. Filter by genre, streaming service, year, and more. Read community reviews and get personalized ratings." };
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import MovieListItem from "@/components/MovieListItem";
 import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import AdUnit from "@/components/AdUnit";
+
+// Genre ID mappings between movie and TV (TMDB uses different IDs for equivalent genres)
+const GENRE_MOVIE_TO_TV: Record<string, string[]> = {
+  "28": ["10759"],   // Action → Action & Adventure
+  "12": ["10759"],   // Adventure → Action & Adventure
+  "878": ["10765"],  // Science Fiction → Sci-Fi & Fantasy
+  "14": ["10765"],   // Fantasy → Sci-Fi & Fantasy
+  "10752": ["10768"], // War → War & Politics
+};
+const MOVIE_ONLY_GENRES = new Set(["36", "27", "10402", "10749", "53", "10770"]);
+
+function translateGenresForTV(genres: string[]): string[] {
+  const result = new Set<string>();
+  for (const gid of genres) {
+    if (GENRE_MOVIE_TO_TV[gid]) {
+      for (const mapped of GENRE_MOVIE_TO_TV[gid]) result.add(mapped);
+    } else if (!MOVIE_ONLY_GENRES.has(gid)) {
+      result.add(gid);
+    }
+  }
+  return [...result];
+}
+
+type MixedItem =
+  | { type: "movie"; data: TMDBMovie; popularity: number }
+  | { type: "show"; data: TMDBShow; popularity: number };
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -153,42 +179,53 @@ export default async function MoviesPage({ searchParams }: Props) {
     }
   }
 
-  // Fetch shows
-  if (showShows && contentType === "tv") {
-    if (params.search && !hasFilters) {
+  // Fetch shows — for "tv" mode OR for "all" mode when searching/filtering
+  const shouldFetchShows = contentType === "tv" || (contentType === "all");
+  if (showShows && shouldFetchShows) {
+    const isSearchOrFilter = !!(params.search || hasFilters);
+    const tvGenres = genres?.length ? translateGenresForTV(genres) : undefined;
+    const tvDiscoverOptions = {
+      genres: tvGenres,
+      genreMode: discoverOptions.genreMode,
+      sort,
+      yearFrom: discoverOptions.yearFrom,
+      yearTo: discoverOptions.yearTo,
+      ratingGte: discoverOptions.ratingGte,
+      ratingLte: discoverOptions.ratingLte,
+      providers: discoverOptions.providers,
+      language: discoverOptions.language,
+      keywords: discoverOptions.keywords,
+    };
+
+    if (params.search && !hasFilters && !theaterStatus) {
       showResult = await fetchShowPages((p) => searchShows(params.search!, p));
-      pageTitle = `Search: "${params.search}"`;
-    } else if (params.search || hasFilters) {
+    } else if (isSearchOrFilter && !theaterStatus) {
       showResult = await fetchShowPages((p) =>
-        discoverShows({
-          genres: discoverOptions.genres,
-          genreMode: discoverOptions.genreMode,
-          sort,
-          yearFrom: discoverOptions.yearFrom,
-          yearTo: discoverOptions.yearTo,
-          ratingGte: discoverOptions.ratingGte,
-          ratingLte: discoverOptions.ratingLte,
-          providers: discoverOptions.providers,
-          language: discoverOptions.language,
-          keywords: discoverOptions.keywords,
-          page: p,
-          query: params.search,
-        })
+        discoverShows({ ...tvDiscoverOptions, page: p, query: params.search })
       );
-      if (params.search) pageTitle = `Search: "${params.search}"`;
-    } else if (sort === "top_rated") {
-      showResult = await fetchShowPages((p) => getTopRatedShows(p));
-      pageTitle = "Top Rated TV Shows";
-    } else {
-      showResult = await fetchShowPages((p) => getPopularShows(p));
-      pageTitle = "Popular TV Shows";
+    } else if (!isSearchOrFilter && !theaterStatus) {
+      if (sort === "top_rated") {
+        showResult = await fetchShowPages((p) => getTopRatedShows(p));
+        if (contentType === "tv") pageTitle = "Top Rated TV Shows";
+      } else {
+        showResult = await fetchShowPages((p) => getPopularShows(p));
+        if (contentType === "tv") pageTitle = "Popular TV Shows";
+      }
     }
+    if (contentType === "tv" && params.search) pageTitle = `Search: "${params.search}"`;
   }
 
-  // For "all" mode with TV, also get popular shows to show after movies
-  if (contentType === "all" && !params.search && !hasFilters && !theaterStatus) {
-    showResult = await fetchShowPages((p) => getPopularShows(p));
+  if (!params.search && !hasFilters && !theaterStatus && contentType === "all") {
     pageTitle = "Movies & TV";
+  }
+
+  // When searching/filtering in "all" mode, merge movies + shows by relevance (popularity)
+  const isSearchMode = contentType === "all" && !!(params.search || hasFilters);
+  let mixedResults: MixedItem[] = [];
+  if (isSearchMode && (movieResult || showResult)) {
+    const movies: MixedItem[] = (movieResult?.results ?? []).map((m) => ({ type: "movie" as const, data: m, popularity: m.popularity }));
+    const shows: MixedItem[] = (showResult?.results ?? []).map((s) => ({ type: "show" as const, data: s, popularity: s.popularity }));
+    mixedResults = [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, perPage);
   }
 
   const genreList = await (contentType === "tv" ? getShowGenres() : getGenres());
@@ -242,7 +279,9 @@ export default async function MoviesPage({ searchParams }: Props) {
   const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);
   const totalPages = contentType === "tv"
     ? (showResult?.total_pages ?? 1)
-    : (movieResult?.total_pages ?? 1);
+    : contentType === "all"
+      ? Math.max(movieResult?.total_pages ?? 1, showResult?.total_pages ?? 1)
+      : (movieResult?.total_pages ?? 1);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -255,10 +294,35 @@ export default async function MoviesPage({ searchParams }: Props) {
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-4" />
 
-      {/* Movie results */}
-      {movieResult && movieResult.results.length > 0 && (
+      {/* Mixed results — when searching/filtering in "all" mode, interleave by relevance */}
+      {isSearchMode && mixedResults.length > 0 && (
+        view === "list" ? (
+          <div className="flex flex-col divide-y divide-[var(--border)]">
+            {mixedResults.map((item) =>
+              item.type === "movie" ? (
+                <MovieListItem key={`m-${item.data.id}`} movie={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+              ) : (
+                <ShowListItem key={`s-${item.data.id}`} show={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+              )
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {mixedResults.map((item) =>
+              item.type === "movie" ? (
+                <MovieCard key={`m-${item.data.id}`} movie={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+              ) : (
+                <ShowCard key={`s-${item.data.id}`} show={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+              )
+            )}
+          </div>
+        )
+      )}
+
+      {/* Separate sections — browsing mode (no search/filters in "all" mode) */}
+      {!isSearchMode && movieResult && movieResult.results.length > 0 && (
         <>
-          {contentType === "all" && <h2 className="text-lg font-semibold text-white mb-4">Movies</h2>}
+          {contentType === "all" && showResult && showResult.results.length > 0 && <h2 className="text-lg font-semibold text-white mb-4">Movies</h2>}
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {movieResult.results.map((movie) => (
@@ -275,10 +339,9 @@ export default async function MoviesPage({ searchParams }: Props) {
         </>
       )}
 
-      {/* Show results */}
-      {showResult && showResult.results.length > 0 && (
-        <div className={movieResult && movieResult.results.length > 0 ? "mt-10" : ""}>
-          {contentType === "all" && <h2 className="text-lg font-semibold text-white mb-4">TV Shows</h2>}
+      {!isSearchMode && showResult && showResult.results.length > 0 && (
+        <div className={!isSearchMode && movieResult && movieResult.results.length > 0 ? "mt-10" : ""}>
+          {contentType === "all" && movieResult && movieResult.results.length > 0 && <h2 className="text-lg font-semibold text-white mb-4">TV Shows</h2>}
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {showResult.results.map((show) => (
@@ -296,7 +359,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       )}
 
       {/* No results */}
-      {(!movieResult || movieResult.results.length === 0) && (!showResult || showResult.results.length === 0) && (
+      {(isSearchMode ? mixedResults.length === 0 : ((!movieResult || movieResult.results.length === 0) && (!showResult || showResult.results.length === 0))) && (
         <p className="text-[var(--foreground-muted)] text-center py-20">No results found.</p>
       )}
 
