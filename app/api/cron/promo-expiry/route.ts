@@ -8,12 +8,12 @@ export const dynamic = "force-dynamic";
  * GET /api/cron/promo-expiry
  *
  * Runs daily via Vercel Cron. Finds users with expiring promo subscriptions
- * and sends reminder emails at 30, 14, 7, 3, and 1 day(s) before expiry.
+ * and sends reminder emails at 30, 7, and 1 day(s) before expiry.
  *
- * Uses a `promoRemindersSent` JSON field on the user to track which
- * reminders have already been sent, preventing duplicates.
+ * Skips users who have opted out of emails (emailOptOut = true).
+ * Uses promoRemindersSent JSON field to prevent duplicate sends.
  */
-const REMINDER_DAYS = [30, 14, 7, 3, 1];
+const REMINDER_DAYS = [30, 7, 1];
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
-  // Find users with an expiring admin-granted subscription in the next 31 days
   const maxDate = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
 
   const users = await prisma.user.findMany({
@@ -30,6 +29,7 @@ export async function GET(req: NextRequest) {
       subscriptionStatus: "admin_granted",
       subscriptionTier: "backstage_pass",
       subscriptionExpiry: { not: null, gt: now, lte: maxDate },
+      emailOptOut: false,
     },
     select: {
       id: true,
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     const msLeft = user.subscriptionExpiry.getTime() - now.getTime();
     const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
 
-    // Find the closest reminder threshold
+    // Find the closest reminder threshold that applies
     const threshold = REMINDER_DAYS.find((d) => daysLeft <= d);
     if (!threshold) continue;
 
@@ -58,9 +58,8 @@ export async function GET(req: NextRequest) {
     if (alreadySent.includes(threshold)) continue;
 
     try {
-      await sendPromoExpiringSoon(user.email, user.name, daysLeft);
+      await sendPromoExpiringSoon(user.email, user.name, daysLeft, user.id);
 
-      // Record that we sent this reminder
       await prisma.user.update({
         where: { id: user.id },
         data: { promoRemindersSent: [...alreadySent, threshold] },

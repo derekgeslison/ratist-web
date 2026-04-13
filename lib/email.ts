@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { unsubscribeUrl } from "@/lib/unsubscribe";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -28,7 +29,8 @@ export async function sendEmail({ to, subject, html }: EmailOptions): Promise<bo
 
 // ─── Branded email wrapper ──────────────────────────────────────────────────
 
-function wrap(content: string, preheader?: string): string {
+function wrap(content: string, preheader?: string, userId?: string): string {
+  const unsubLink = userId ? unsubscribeUrl(userId) : null;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,7 +68,8 @@ function wrap(content: string, preheader?: string): string {
                 <a href="${SITE_URL}" style="color:#555;text-decoration:none;">The Ratist</a> &mdash; Rate it. Rank it. Debate it.
               </p>
               <p style="margin:0;font-size:11px;color:#444;">
-                <a href="${SITE_URL}/profile" style="color:#444;text-decoration:underline;">Manage notification preferences</a>
+                ${unsubLink ? `<a href="${unsubLink}" style="color:#444;text-decoration:underline;">Unsubscribe from emails</a> &middot; ` : ""}
+                <a href="${SITE_URL}/profile" style="color:#444;text-decoration:underline;">Manage preferences</a>
               </p>
             </td>
           </tr>
@@ -103,7 +106,7 @@ function featureList(): string {
 
 // ─── Email templates ────────────────────────────────────────────────────────
 
-export async function sendSubscriptionConfirmed(email: string, name: string): Promise<void> {
+export async function sendSubscriptionConfirmed(email: string, name: string, userId?: string): Promise<void> {
   await sendEmail({
     to: email,
     subject: "Welcome to the Backstage Pass!",
@@ -112,11 +115,11 @@ export async function sendSubscriptionConfirmed(email: string, name: string): Pr
       <p ${p}>Your premium subscription is now active. Here's what you've unlocked:</p>
       ${featureList()}
       ${btn("Explore Your Premium Features", `${SITE_URL}/backstage-pass`)}
-    `, "Your premium subscription is now active."),
+    `, "Your premium subscription is now active.", userId),
   });
 }
 
-export async function sendSubscriptionCanceled(email: string, name: string): Promise<void> {
+export async function sendSubscriptionCanceled(email: string, name: string, userId?: string): Promise<void> {
   await sendEmail({
     to: email,
     subject: "Your Backstage Pass has been canceled",
@@ -125,11 +128,11 @@ export async function sendSubscriptionCanceled(email: string, name: string): Pro
       <p ${p}>Your Backstage Pass subscription has been canceled. You'll retain access until the end of your current billing period.</p>
       <p ${p}>You can resubscribe anytime to regain access to all premium features.</p>
       ${btn("Resubscribe", `${SITE_URL}/backstage-pass`)}
-    `, "Your subscription has been canceled."),
+    `, "Your subscription has been canceled.", userId),
   });
 }
 
-export async function sendPromoGranted(email: string, name: string, months: number): Promise<void> {
+export async function sendPromoGranted(email: string, name: string, months: number, userId?: string): Promise<void> {
   await sendEmail({
     to: email,
     subject: `You've earned ${months} months of the Backstage Pass — free!`,
@@ -140,11 +143,11 @@ export async function sendPromoGranted(email: string, name: string, months: numb
       ${featureList()}
       <p ${p}>Thank you for being a valued member of The Ratist community.</p>
       ${btn("Explore Your Premium Features", `${SITE_URL}/backstage-pass`)}
-    `, `You've earned ${months} free months of premium!`),
+    `, `You've earned ${months} free months of premium!`, userId),
   });
 }
 
-export async function sendPromoExpiringSoon(email: string, name: string, daysLeft: number): Promise<void> {
+export async function sendPromoExpiringSoon(email: string, name: string, daysLeft: number, userId?: string): Promise<void> {
   const urgency = daysLeft <= 3
     ? `Your free Backstage Pass expires in just <strong style="color:${accent};">${daysLeft} day${daysLeft !== 1 ? "s" : ""}</strong>.`
     : `Your complimentary Backstage Pass expires in <strong style="color:#fff;">${daysLeft} day${daysLeft !== 1 ? "s" : ""}</strong>.`;
@@ -159,11 +162,11 @@ export async function sendPromoExpiringSoon(email: string, name: string, daysLef
       ${btn("Subscribe to Keep Your Backstage Pass", `${SITE_URL}/backstage-pass`)}
       ${divider}
       <p style="margin:0;font-size:13px;color:#666;">If you don't subscribe, your account will revert to our free tier. You won't lose any of your reviews, ratings, or data.</p>
-    `, `Your free Backstage Pass expires in ${daysLeft} days.`),
+    `, `Your free Backstage Pass expires in ${daysLeft} days.`, userId),
   });
 }
 
-export async function sendAdminGranted(email: string, name: string, expiryDate: Date | null): Promise<void> {
+export async function sendAdminGranted(email: string, name: string, expiryDate: Date | null, userId?: string): Promise<void> {
   const expiryText = expiryDate
     ? `Your access is active until <strong style="color:#fff;">${expiryDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong>.`
     : "Your access has no expiration date.";
@@ -177,11 +180,11 @@ export async function sendAdminGranted(email: string, name: string, expiryDate: 
       <p ${p}>You now have access to all premium features:</p>
       ${featureList()}
       ${btn("Explore Your Premium Features", `${SITE_URL}/backstage-pass`)}
-    `, "You've been granted the Backstage Pass!"),
+    `, "You've been granted the Backstage Pass!", userId),
   });
 }
 
-export async function sendAdminMessage(email: string, name: string, message: string): Promise<void> {
+export async function sendAdminMessage(email: string, name: string, message: string, userId?: string): Promise<void> {
   await sendEmail({
     to: email,
     subject: "Message from The Ratist team",
@@ -189,6 +192,6 @@ export async function sendAdminMessage(email: string, name: string, message: str
       <h2 ${h2}>Hi ${name},</h2>
       <p ${p}>${message}</p>
       <p style="margin:16px 0 0;font-size:14px;color:#888;">&mdash; The Ratist Team</p>
-    `, "You have a message from The Ratist team."),
+    `, "You have a message from The Ratist team.", userId),
   });
 }

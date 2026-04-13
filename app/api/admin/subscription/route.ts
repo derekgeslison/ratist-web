@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     // Send email notification
     const grantedUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
     if (grantedUser?.email) {
-      sendAdminGranted(grantedUser.email, grantedUser.name, expiry).catch(() => {});
+      sendAdminGranted(grantedUser.email, grantedUser.name, expiry, userId).catch(() => {});
     }
 
     return NextResponse.json({ granted: true });
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       granted++;
 
       // Send email + in-app notification
-      if (current?.email) sendPromoGranted(current.email, current.name, 6).catch(() => {});
+      if (current?.email) sendPromoGranted(current.email, current.name, 6, u.id).catch(() => {});
       await prisma.notification.create({
         data: {
           userId: u.id,
