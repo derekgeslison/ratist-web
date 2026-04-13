@@ -55,7 +55,12 @@ function AwardBodySection({ group }: { group: AwardBodyGroup }) {
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--card-hover)] transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="text-base font-semibold text-white">{group.name}</span>
+          <span className="text-base font-semibold text-white">
+            {group.name}
+            {group.shortName && !group.name.toLowerCase().includes(group.shortName.toLowerCase()) && (
+              <span className="text-sm font-normal text-[var(--foreground-muted)] ml-1.5">({group.shortName}s)</span>
+            )}
+          </span>
           <span className="text-sm text-[var(--foreground-muted)]">
             {group.winCount > 0 && (
               <span className="text-amber-400">{group.winCount} {group.winCount === 1 ? "win" : "wins"}</span>
