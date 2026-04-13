@@ -28,6 +28,43 @@ export interface AwardBodyGroup {
   nominations: AwardNominationDisplay[];
 }
 
+/**
+ * Strip the award body prefix from a category name to avoid redundancy.
+ * e.g. "Academy Award for Best Picture" → "Best Picture"
+ *      "Golden Globe Award for Best Motion Picture" → "Best Motion Picture"
+ *      "Primetime Emmy Award for Outstanding Drama Series" → "Outstanding Drama Series"
+ */
+function shortenCategoryName(categoryName: string, bodyName: string, shortName: string): string {
+  // Common patterns: "Academy Award for ...", "Golden Globe Award for ...", "Primetime Emmy Award for ..."
+  const prefixes = [
+    `${shortName} for `,       // "Oscar for ..."
+    `${bodyName} for `,        // "Academy Awards for ..." (unlikely but safe)
+  ];
+
+  // Also handle singular forms: "Academy Award for ...", "Golden Globe Award for ..."
+  const singularBody = bodyName.replace(/Awards?$/, "Award");
+  prefixes.push(`${singularBody} for `);
+
+  // Handle "Primetime Emmy Award" specifically
+  if (shortName === "Emmy") {
+    prefixes.push("Primetime Emmy Award for ");
+    prefixes.push("Emmy Award for ");
+  }
+
+  for (const prefix of prefixes) {
+    if (categoryName.startsWith(prefix)) {
+      return categoryName.slice(prefix.length);
+    }
+  }
+
+  // Fallback: if the category name starts with the short name, strip it
+  if (categoryName.startsWith(`${shortName} `)) {
+    return categoryName.slice(shortName.length + 1);
+  }
+
+  return categoryName;
+}
+
 async function groupAwards(
   nominations: {
     id: string;
@@ -55,7 +92,7 @@ async function groupAwards(
 
     group.nominations.push({
       id: nom.id,
-      categoryName: nom.category.name,
+      categoryName: shortenCategoryName(nom.category.name, body.name, body.shortName),
       categorySlug: nom.category.slug,
       year: nom.year,
       ceremony: nom.ceremony,
