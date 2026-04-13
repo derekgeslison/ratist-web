@@ -139,8 +139,7 @@ export async function syncMovieAwards(
     return 0;
   }
 
-  // Skip "other" awards to avoid noise from regional/niche awards
-  results = results.filter((r) => identifyAwardBody(r.categoryLabel, r.awardWikidataId).slug !== "other");
+  // Note: we store ALL awards (including "other") — filtering is done at the display layer
 
   // Batch-resolve celebrities referenced in results
   const personTmdbIds = results.map((r) => r.personTmdbId).filter((id): id is number => id != null);

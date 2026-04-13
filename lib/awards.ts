@@ -114,7 +114,7 @@ async function groupAwards(
   bodyMap.delete("other");
 
   // Sort: most prestigious first (Oscar > Golden Globe > BAFTA > ...)
-  const bodyOrder = ["oscar", "golden-globe", "bafta", "sag", "cannes", "emmy", "critics-choice", "venice", "berlin", "indie-spirit", "dga", "wga", "pga", "peabody", "saturn", "tca", "satellite", "annie", "gotham", "afi"];
+  const bodyOrder = ["oscar", "golden-globe", "bafta", "sag", "cannes", "emmy", "critics-choice", "venice", "berlin", "indie-spirit", "dga", "wga", "pga", "peabody", "saturn", "tca", "satellite", "annie", "gotham", "afi", "aacta", "nsfc"];
   const groups = [...bodyMap.values()].sort((a, b) => {
     const aIdx = bodyOrder.indexOf(a.slug);
     const bIdx = bodyOrder.indexOf(b.slug);

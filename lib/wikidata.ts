@@ -430,6 +430,18 @@ export function identifyAwardBody(
   if (label.includes("afi award") || label.includes("american film institute")) {
     return { slug: "afi", name: "AFI Awards", shortName: "AFI" };
   }
+  if (label.includes("aacta")) {
+    return { slug: "aacta", name: "AACTA Awards", shortName: "AACTA" };
+  }
+  if (label.includes("national society of film critics") || label.includes("nsfc")) {
+    return { slug: "nsfc", name: "National Society of Film Critics Awards", shortName: "NSFC" };
+  }
+  if (label.includes("silver bear") || label.includes("golden bear")) {
+    return { slug: "berlin", name: "Berlin International Film Festival", shortName: "Berlin" };
+  }
+  if (label.includes("broadcast film critics") || label.includes("critics' choice movie")) {
+    return { slug: "critics-choice", name: "Critics' Choice Awards", shortName: "Critics' Choice" };
+  }
 
   // Catch-all: group unrecognized awards under "Other Awards"
   return { slug: "other", name: "Other Awards", shortName: "Other" };
