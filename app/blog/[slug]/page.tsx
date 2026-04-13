@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
 import CommentSection from "@/components/CommentSection";
 import PostLikeButton from "@/components/PostLikeButton";
+import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
+import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
 
 export const dynamic = "force-dynamic";
 import { Calendar, ArrowLeft } from "lucide-react";
@@ -47,6 +49,8 @@ export default async function BlogPostPage({ params }: Props) {
     where: { slug, published: true },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true } },
+      media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+      people: { select: { tmdbId: true, name: true, profilePath: true } },
     },
   });
 
@@ -86,6 +90,9 @@ export default async function BlogPostPage({ params }: Props) {
           </p>
         </div>
       </div>
+
+      {post.media.length > 0 && <LinkedMediaRow media={post.media} />}
+      {post.people.length > 0 && <LinkedPeopleRow people={post.people} />}
 
       {/* Content */}
       <RichTextRenderer content={post.content} />

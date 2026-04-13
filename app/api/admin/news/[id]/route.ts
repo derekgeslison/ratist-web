@@ -44,7 +44,11 @@ export async function GET(req: NextRequest, { params }: Props) {
   const { id } = await params;
   const item = await prisma.newsItem.findUnique({
     where: { id },
-    include: { author: { select: { name: true } } },
+    include: {
+      author: { select: { name: true } },
+      media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+      people: { select: { tmdbId: true, name: true, profilePath: true } },
+    },
   });
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -63,6 +67,8 @@ export async function PUT(req: NextRequest, { params }: Props) {
       title, content, excerpt, coverImage,
       published, movieTmdbId, showTmdbId, posterPath,
       sourceUrl, sourceName, youtubeKey,
+      media: mediaItems,
+      people: peopleItems,
     } = body;
 
     const existing = await prisma.newsItem.findUnique({ where: { id } });
@@ -98,6 +104,52 @@ export async function PUT(req: NextRequest, { params }: Props) {
         ...(youtubeKey !== undefined && { youtubeKey }),
       },
     });
+
+    // Replace media links if provided
+    if (Array.isArray(mediaItems)) {
+      await prisma.newsItemMedia.deleteMany({ where: { newsItemId: id } });
+      for (const m of mediaItems) {
+        if (!m.tmdbId || !m.mediaType || !m.title) continue;
+        let movieId: string | null = null;
+        let tvShowId: string | null = null;
+        if (m.mediaType === "movie") {
+          const movie = await prisma.movie.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+          movieId = movie?.id ?? null;
+        } else if (m.mediaType === "tv") {
+          const show = await prisma.tVShow.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+          tvShowId = show?.id ?? null;
+        }
+        await prisma.newsItemMedia.create({
+          data: {
+            newsItemId: id,
+            tmdbId: m.tmdbId,
+            mediaType: m.mediaType,
+            title: m.title,
+            posterPath: m.posterPath ?? null,
+            movieId,
+            tvShowId,
+          },
+        });
+      }
+    }
+
+    // Replace people links if provided
+    if (Array.isArray(peopleItems)) {
+      await prisma.newsItemPerson.deleteMany({ where: { newsItemId: id } });
+      for (const p of peopleItems) {
+        if (!p.tmdbId || !p.name) continue;
+        const celeb = await prisma.celebrity.findUnique({ where: { tmdbId: p.tmdbId }, select: { id: true } });
+        await prisma.newsItemPerson.create({
+          data: {
+            newsItemId: id,
+            tmdbId: p.tmdbId,
+            name: p.name,
+            profilePath: p.profilePath ?? null,
+            celebrityId: celeb?.id ?? null,
+          },
+        });
+      }
+    }
 
     return NextResponse.json({ item });
   } catch (err) {

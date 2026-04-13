@@ -53,6 +53,8 @@ export async function GET(req: NextRequest) {
       movieTmdbId: true, showTmdbId: true, youtubeKey: true,
       sourceUrl: true, sourceName: true,
       author: { select: { name: true } },
+      media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+      people: { select: { tmdbId: true, name: true, profilePath: true } },
     },
   });
 
@@ -72,6 +74,8 @@ export async function POST(req: NextRequest) {
       movieTmdbId, showTmdbId, posterPath,
       sourceUrl, sourceName, youtubeKey,
       rssHeadlineId,
+      media: mediaItems = [],
+      people: peopleItems = [],
     } = body;
 
     if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
@@ -96,6 +100,46 @@ export async function POST(req: NextRequest) {
         youtubeKey: youtubeKey ?? null,
       },
     });
+
+    // Media links
+    for (const m of Array.isArray(mediaItems) ? mediaItems : []) {
+      if (!m.tmdbId || !m.mediaType || !m.title) continue;
+      let movieId: string | null = null;
+      let tvShowId: string | null = null;
+      if (m.mediaType === "movie") {
+        const movie = await prisma.movie.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+        movieId = movie?.id ?? null;
+      } else if (m.mediaType === "tv") {
+        const show = await prisma.tVShow.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+        tvShowId = show?.id ?? null;
+      }
+      await prisma.newsItemMedia.create({
+        data: {
+          newsItemId: item.id,
+          tmdbId: m.tmdbId,
+          mediaType: m.mediaType,
+          title: m.title,
+          posterPath: m.posterPath ?? null,
+          movieId,
+          tvShowId,
+        },
+      });
+    }
+
+    // People links
+    for (const p of Array.isArray(peopleItems) ? peopleItems : []) {
+      if (!p.tmdbId || !p.name) continue;
+      const celeb = await prisma.celebrity.findUnique({ where: { tmdbId: p.tmdbId }, select: { id: true } });
+      await prisma.newsItemPerson.create({
+        data: {
+          newsItemId: item.id,
+          tmdbId: p.tmdbId,
+          name: p.name,
+          profilePath: p.profilePath ?? null,
+          celebrityId: celeb?.id ?? null,
+        },
+      });
+    }
 
     // If created from an RSS headline, mark it as used
     if (rssHeadlineId) {

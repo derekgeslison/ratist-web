@@ -271,22 +271,45 @@ export default async function CelebrityPage({ params }: Props) {
   } catch { /* DB not ready */ }
 
   // Fetch forum discussions about this person
-  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number }[] = [];
+  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; linkHref?: string }[] = [];
   try {
-    const threads = await prisma.forumThread.findMany({
-      where: { people: { some: { tmdbId: person.id } } },
-      select: {
-        id: true, title: true, slug: true, threadType: true,
-        author: { select: { name: true } },
-        _count: { select: { posts: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 10,
-    });
-    discussions = threads.map((t) => ({
+    const [threads, newsItems, blogItems] = await Promise.all([
+      prisma.forumThread.findMany({
+        where: { people: { some: { tmdbId: person.id } } },
+        select: {
+          id: true, title: true, slug: true, threadType: true,
+          author: { select: { name: true } },
+          _count: { select: { posts: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      }),
+      prisma.newsItem.findMany({
+        where: { published: true, people: { some: { tmdbId: person.id } } },
+        select: { id: true, title: true, slug: true, publishedAt: true, author: { select: { name: true } } },
+        orderBy: { publishedAt: "desc" },
+        take: 5,
+      }),
+      prisma.blogPost.findMany({
+        where: { published: true, people: { some: { tmdbId: person.id } } },
+        select: { id: true, title: true, slug: true, createdAt: true, author: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+    ]);
+    const forumDiscussions = threads.map((t) => ({
       id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
-      authorName: t.author.name, postCount: t._count.posts,
+      authorName: t.author.name, postCount: t._count.posts, linkHref: `/forum/t/${t.slug}`,
     }));
+    const newsDiscussions = newsItems.map((n) => ({
+      id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
+      authorName: n.author?.name ?? "The Ratist", postCount: 0, linkHref: `/news/${n.slug}`,
+    }));
+    const blogDiscussions = blogItems.map((b) => ({
+      id: b.id, title: b.title, slug: b.slug, threadType: "blog",
+      authorName: b.author?.name ?? "The Ratist", postCount: 0, linkHref: `/blog/${b.slug}`,
+    }));
+    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
   } catch { /* DB not ready */ }
 
   return (

@@ -16,6 +16,7 @@ interface Discussion {
   threadType: string;
   authorName: string;
   postCount: number;
+  linkHref?: string;
 }
 
 interface Photo {
@@ -180,7 +181,7 @@ export default function CelebrityDetailTabs({
               {discussions.map((d) => (
                 <Link
                   key={d.id}
-                  href={`/forum/t/${d.slug}`}
+                  href={d.linkHref ?? `/forum/t/${d.slug}`}
                   className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors"
                 >
                   <div className="min-w-0">

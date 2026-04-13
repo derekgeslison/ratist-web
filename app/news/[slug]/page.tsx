@@ -4,9 +4,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
 import CommentSection from "@/components/CommentSection";
+import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
+import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
 
 export const dynamic = "force-dynamic";
-import { Calendar, ArrowLeft, ExternalLink, Film, Tv } from "lucide-react";
+import { Calendar, ArrowLeft, ExternalLink } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 
@@ -43,7 +45,11 @@ export default async function NewsArticlePage({ params }: Props) {
 
   const item = await prisma.newsItem.findUnique({
     where: { slug, published: true },
-    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+    include: {
+      author: { select: { id: true, name: true, avatarUrl: true } },
+      media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+      people: { select: { tmdbId: true, name: true, profilePath: true } },
+    },
   });
 
   if (!item) notFound();
@@ -82,17 +88,9 @@ export default async function NewsArticlePage({ params }: Props) {
         )}
       </div>
 
-      {/* Linked movie/show */}
-      {(item.movieTmdbId || item.showTmdbId) && item.posterPath && (
-        <Link
-          href={item.movieTmdbId ? `/movies/${item.movieTmdbId}` : `/shows/${item.showTmdbId}`}
-          className="inline-flex items-center gap-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 mb-6 hover:border-[var(--ratist-red)] transition-colors"
-        >
-          <Image src={`https://image.tmdb.org/t/p/w92${item.posterPath}`} alt="" width={28} height={42} className="rounded" />
-          <span className="text-sm text-white">View on The Ratist</span>
-          {item.movieTmdbId ? <Film className="w-3.5 h-3.5 text-[var(--foreground-muted)]" /> : <Tv className="w-3.5 h-3.5 text-blue-400" />}
-        </Link>
-      )}
+      {/* Linked movies/shows & celebrities */}
+      {item.media.length > 0 && <LinkedMediaRow media={item.media} />}
+      {item.people.length > 0 && <LinkedPeopleRow people={item.people} />}
 
       {/* YouTube embed */}
       {item.youtubeKey && (

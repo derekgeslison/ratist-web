@@ -47,6 +47,8 @@ export async function GET(req: NextRequest) {
       id: true, type: true, title: true, slug: true,
       published: true, createdAt: true, updatedAt: true, viewCount: true,
       author: { select: { name: true } },
+      media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+      people: { select: { tmdbId: true, name: true, profilePath: true } },
     },
   });
 
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
-    const { title, type = "BLOG", content, excerpt, coverImage, published = false, showAuthor = true } = body;
+    const { title, type = "BLOG", content, excerpt, coverImage, published = false, showAuthor = true, media: mediaItems = [], people: peopleItems = [] } = body;
     if (!title || !content) return NextResponse.json({ error: "title and content required" }, { status: 400 });
 
     const slug = await uniqueSlug(slugify(title));
@@ -76,6 +78,46 @@ export async function POST(req: NextRequest) {
         showAuthor,
       },
     });
+
+    // Media links
+    for (const m of Array.isArray(mediaItems) ? mediaItems : []) {
+      if (!m.tmdbId || !m.mediaType || !m.title) continue;
+      let movieId: string | null = null;
+      let tvShowId: string | null = null;
+      if (m.mediaType === "movie") {
+        const movie = await prisma.movie.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+        movieId = movie?.id ?? null;
+      } else if (m.mediaType === "tv") {
+        const show = await prisma.tVShow.findUnique({ where: { tmdbId: m.tmdbId }, select: { id: true } });
+        tvShowId = show?.id ?? null;
+      }
+      await prisma.blogPostMedia.create({
+        data: {
+          blogPostId: post.id,
+          tmdbId: m.tmdbId,
+          mediaType: m.mediaType,
+          title: m.title,
+          posterPath: m.posterPath ?? null,
+          movieId,
+          tvShowId,
+        },
+      });
+    }
+
+    // People links
+    for (const p of Array.isArray(peopleItems) ? peopleItems : []) {
+      if (!p.tmdbId || !p.name) continue;
+      const celeb = await prisma.celebrity.findUnique({ where: { tmdbId: p.tmdbId }, select: { id: true } });
+      await prisma.blogPostPerson.create({
+        data: {
+          blogPostId: post.id,
+          tmdbId: p.tmdbId,
+          name: p.name,
+          profilePath: p.profilePath ?? null,
+          celebrityId: celeb?.id ?? null,
+        },
+      });
+    }
 
     return NextResponse.json({ post }, { status: 201 });
   } catch (err) {

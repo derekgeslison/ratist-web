@@ -5,7 +5,7 @@ import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildPunchAndJu
 
 export const dynamic = "force-dynamic";
 
-const VALID_TARGETS = ["review", "blog", "lookslike", "recast", "hottake", "oscar_category", "pitch", "movieclub", "movieclub_prompt", "forumThread"];
+const VALID_TARGETS = ["review", "blog", "news", "lookslike", "recast", "hottake", "oscar_category", "pitch", "movieclub", "movieclub_prompt", "forumThread"];
 
 async function getAuthedUser(req: NextRequest) {
   const auth = req.headers.get("authorization");

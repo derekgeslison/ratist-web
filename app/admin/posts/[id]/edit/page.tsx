@@ -7,6 +7,8 @@ import RichTextEditor from "@/components/RichTextEditor";
 import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload } from "lucide-react";
 import Link from "next/link";
 import type { PostType } from "@prisma/client";
+import MediaLinker from "@/components/forum/MediaLinker";
+import PersonLinker from "@/components/forum/PersonLinker";
 
 const TYPE_LABELS: Record<PostType, string> = {
   BLOG: "Blog Post",
@@ -33,6 +35,8 @@ export default function EditPostPage() {
   const [published, setPublished] = useState(false);
   const [showAuthor, setShowAuthor] = useState(true);
   const [slug, setSlug] = useState("");
+  const [media, setMedia] = useState<{tmdbId: number; mediaType: "movie" | "tv"; title: string; posterPath: string | null}[]>([]);
+  const [people, setPeople] = useState<{tmdbId: number; name: string; profilePath: string | null}[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,6 +60,8 @@ export default function EditPostPage() {
       setPublished(post.published);
       setShowAuthor(post.showAuthor ?? true);
       setSlug(post.slug);
+      setMedia(post.media ?? []);
+      setPeople(post.people ?? []);
       setLoading(false);
     })();
   }, [user, id]);
@@ -68,7 +74,7 @@ export default function EditPostPage() {
     const res = await fetch(`/api/admin/posts/${id}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title, content, excerpt: excerpt || null, coverImage: coverImage || null, published, showAuthor }),
+      body: JSON.stringify({ title, content, excerpt: excerpt || null, coverImage: coverImage || null, published, showAuthor, media, people }),
     });
     if (!res.ok) {
       const d = await res.json();
@@ -161,6 +167,18 @@ export default function EditPostPage() {
               rows={3}
               className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg px-3 py-2 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)] resize-none"
             />
+          </div>
+
+          {/* Linked Movies & Shows */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+            <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Linked Movies & Shows</label>
+            <MediaLinker selected={media} onChange={setMedia} max={10} />
+          </div>
+
+          {/* Linked Celebrities */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+            <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Linked Celebrities</label>
+            <PersonLinker selected={people} onChange={setPeople} max={10} />
           </div>
 
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">

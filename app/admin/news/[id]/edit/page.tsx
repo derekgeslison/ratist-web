@@ -4,19 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload, Search, Film, Tv, Link2 } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload, Link2 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
-
-interface TmdbResult {
-  id: number;
-  title?: string;
-  name?: string;
-  poster_path: string | null;
-  media_type: "movie" | "tv";
-  release_date?: string;
-  first_air_date?: string;
-}
+import MediaLinker from "@/components/forum/MediaLinker";
+import PersonLinker from "@/components/forum/PersonLinker";
 
 export default function EditNewsPage() {
   const { user } = useAuth();
@@ -31,20 +22,13 @@ export default function EditNewsPage() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceName, setSourceName] = useState("");
   const [youtubeKey, setYoutubeKey] = useState("");
-  const [movieTmdbId, setMovieTmdbId] = useState<number | null>(null);
-  const [showTmdbId, setShowTmdbId] = useState<number | null>(null);
-  const [posterPath, setPosterPath] = useState<string | null>(null);
-  const [linkedTitle, setLinkedTitle] = useState("");
+  const [media, setMedia] = useState<{tmdbId: number; mediaType: "movie" | "tv"; title: string; posterPath: string | null}[]>([]);
+  const [people, setPeople] = useState<{tmdbId: number; name: string; profilePath: string | null}[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-
-  // TMDB search
-  const [tmdbQuery, setTmdbQuery] = useState("");
-  const [tmdbResults, setTmdbResults] = useState<TmdbResult[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -63,43 +47,11 @@ export default function EditNewsPage() {
       setSourceUrl(item.sourceUrl ?? "");
       setSourceName(item.sourceName ?? "");
       setYoutubeKey(item.youtubeKey ?? "");
-      setMovieTmdbId(item.movieTmdbId);
-      setShowTmdbId(item.showTmdbId);
-      setPosterPath(item.posterPath);
-      // Resolve linked title from TMDB if linked
-      if (item.movieTmdbId || item.showTmdbId) {
-        const tmdbId = item.movieTmdbId ?? item.showTmdbId;
-        const mediaType = item.movieTmdbId ? "movie" : "tv";
-        fetch(`https://api.themoviedb.org/3/${mediaType}/${tmdbId}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`)
-          .then((r) => r.json())
-          .then((d) => setLinkedTitle(d.title ?? d.name ?? ""))
-          .catch(() => {});
-      }
+      setMedia(item.media ?? []);
+      setPeople(item.people ?? []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [user, id]);
-
-  // TMDB search debounce
-  useEffect(() => {
-    if (tmdbQuery.length < 2) { setTmdbResults([]); return; }
-    const timer = setTimeout(async () => {
-      const res = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(tmdbQuery)}&include_adult=false`);
-      const data = await res.json();
-      setTmdbResults((data.results ?? []).filter((r: TmdbResult) => r.media_type === "movie" || r.media_type === "tv").slice(0, 8));
-      setSearchOpen(true);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [tmdbQuery]);
-
-  function linkMedia(result: TmdbResult) {
-    if (result.media_type === "movie") { setMovieTmdbId(result.id); setShowTmdbId(null); }
-    else { setShowTmdbId(result.id); setMovieTmdbId(null); }
-    setPosterPath(result.poster_path);
-    setLinkedTitle(result.title ?? result.name ?? "");
-    setTmdbQuery(""); setSearchOpen(false);
-  }
-
-  function unlinkMedia() { setMovieTmdbId(null); setShowTmdbId(null); setPosterPath(null); setLinkedTitle(""); }
 
   async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -127,7 +79,8 @@ export default function EditNewsPage() {
         body: JSON.stringify({
           title, content: content || null, excerpt: excerpt || null,
           coverImage: coverImage || null, published,
-          movieTmdbId, showTmdbId, posterPath,
+          movieTmdbId: null, showTmdbId: null, posterPath: null,
+          media, people,
           sourceUrl: sourceUrl || null, sourceName: sourceName || null,
           youtubeKey: youtubeKey || null,
         }),
@@ -224,37 +177,16 @@ export default function EditNewsPage() {
             )}
           </div>
 
-          {/* Linked movie/show */}
+          {/* Linked Movies & Shows */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
-            <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Linked Movie/Show</label>
-            {linkedTitle ? (
-              <div className="flex items-center gap-2">
-                {posterPath && <Image src={`https://image.tmdb.org/t/p/w92${posterPath}`} alt="" width={32} height={48} className="rounded" />}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{linkedTitle}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">{movieTmdbId ? "Movie" : "TV Show"}</p>
-                </div>
-                <button onClick={unlinkMedia} className="text-[var(--foreground-muted)] hover:text-red-400 text-xs">Remove</button>
-              </div>
-            ) : (
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-muted)]" />
-                <input value={tmdbQuery} onChange={(e) => setTmdbQuery(e.target.value)} placeholder="Search TMDB..."
-                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg pl-8 pr-3 py-2 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)]" />
-                {searchOpen && tmdbResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto">
-                    {tmdbResults.map((r) => (
-                      <button key={`${r.media_type}-${r.id}`} onClick={() => linkMedia(r)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--surface-2)] transition-colors">
-                        {r.media_type === "movie" ? <Film className="w-3.5 h-3.5 text-[var(--foreground-muted)]" /> : <Tv className="w-3.5 h-3.5 text-blue-400" />}
-                        <span className="text-sm text-white truncate">{r.title ?? r.name}</span>
-                        <span className="text-xs text-[var(--foreground-muted)] ml-auto">{(r.release_date ?? r.first_air_date ?? "").slice(0, 4)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Linked Movies & Shows</label>
+            <MediaLinker selected={media} onChange={setMedia} max={10} />
+          </div>
+
+          {/* Linked Celebrities */}
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+            <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Linked Celebrities</label>
+            <PersonLinker selected={people} onChange={setPeople} max={10} />
           </div>
 
           {/* Source attribution */}

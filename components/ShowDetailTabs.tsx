@@ -32,6 +32,8 @@ interface Discussion {
   postCount: number;
   viewCount: number;
   createdAt: string;
+  linkType?: "forum" | "news";
+  linkHref?: string;
 }
 
 interface Props {
@@ -901,7 +903,7 @@ export default function ShowDetailTabs({
                     <span className="text-[10px] text-yellow-400">May contain spoilers</span>
                   </div>
                   {discussions.filter((d) => d.threadType === "theory").map((d) => (
-                    <Link key={d.id} href={`/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
+                    <Link key={d.id} href={d.linkHref ?? `/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{d.title}</p>
                         <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>
@@ -912,7 +914,7 @@ export default function ShowDetailTabs({
                 </>
               )}
               {discussions.filter((d) => d.threadType !== "theory").map((d) => (
-                <Link key={d.id} href={`/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
+                <Link key={d.id} href={d.linkHref ?? `/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{d.title}</p>
                     <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>

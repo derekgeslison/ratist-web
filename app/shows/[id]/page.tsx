@@ -94,21 +94,46 @@ export default async function ShowDetailPage({ params }: Props) {
   // Fetch forum discussions linked to this show
   let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string }[] = [];
   try {
-    const linkedThreads = await prisma.forumThread.findMany({
-      where: { media: { some: { tmdbId: show.id, mediaType: "tv" } } },
-      select: {
-        id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
-        author: { select: { name: true } },
-        _count: { select: { posts: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 10,
-    });
-    discussions = linkedThreads.map((t) => ({
+    const [linkedThreads, linkedNews, linkedBlog] = await Promise.all([
+      prisma.forumThread.findMany({
+        where: { media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+        select: {
+          id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
+          author: { select: { name: true } },
+          _count: { select: { posts: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      }),
+      prisma.newsItem.findMany({
+        where: { published: true, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+        select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, author: { select: { name: true } } },
+        orderBy: { publishedAt: "desc" },
+        take: 5,
+      }),
+      prisma.blogPost.findMany({
+        where: { published: true, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+        select: { id: true, title: true, slug: true, viewCount: true, createdAt: true, author: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+    ]);
+    const forumDiscussions = linkedThreads.map((t) => ({
       id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
       authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
-      createdAt: t.createdAt.toISOString(),
+      createdAt: t.createdAt.toISOString(), linkType: "forum" as const, linkHref: `/forum/t/${t.slug}`,
     }));
+    const newsDiscussions = linkedNews.map((n) => ({
+      id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
+      authorName: n.author?.name ?? "The Ratist", postCount: 0, viewCount: n.viewCount,
+      createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
+    }));
+    const blogDiscussions = linkedBlog.map((b) => ({
+      id: b.id, title: b.title, slug: b.slug, threadType: "blog",
+      authorName: b.author?.name ?? "The Ratist", postCount: 0, viewCount: b.viewCount,
+      createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `/blog/${b.slug}`,
+    }));
+    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
   } catch { /* DB not ready */ }
 
   // Fetch awards from DB

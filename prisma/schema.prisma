@@ -215,6 +215,8 @@ model Movie {
   movieClubWeeks   MovieClubWeek[]
   screeningSessions ScreeningSession[]
   forumThreadMedia  ForumThreadMedia[]
+  newsItemMedia     NewsItemMedia[]
+  blogPostMedia     BlogPostMedia[]
   awards            AwardNomination[] @relation("movieAwards")
   awardForWork      AwardNomination[] @relation("forWorkMovie")
 
@@ -259,6 +261,8 @@ model Celebrity {
   movieRoles MovieCast[]
   tvShowRoles TVShowCast[]
   forumThreadPeople ForumThreadPerson[]
+  newsItemPeople    NewsItemPerson[]
+  blogPostPeople    BlogPostPerson[]
   awards            AwardNomination[] @relation("celebrityAwards")
 
   @@map("celebrities")
@@ -318,6 +322,8 @@ model TVShow {
   watchlistEntries WatchlistShow[]
   rankings         UserMovieRanking[]
   forumThreadMedia ForumThreadMedia[]
+  newsItemMedia    NewsItemMedia[]
+  blogPostMedia    BlogPostMedia[]
   awards           AwardNomination[] @relation("tvShowAwards")
   awardForWork     AwardNomination[] @relation("forWorkTvShow")
 
@@ -777,8 +783,41 @@ model BlogPost {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media    BlogPostMedia[]
+  people   BlogPostPerson[]
 
   @@map("blog_posts")
+}
+
+model BlogPostMedia {
+  id         String  @id @default(cuid())
+  postId     String  @map("post_id")
+  movieId    String? @map("movie_id")
+  tvShowId   String? @map("tv_show_id")
+  tmdbId     Int     @map("tmdb_id")
+  mediaType  String  @map("media_type") // "movie" | "tv"
+  title      String
+  posterPath String? @map("poster_path")
+
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  movie  Movie?   @relation(fields: [movieId], references: [id])
+  tvShow TVShow?  @relation(fields: [tvShowId], references: [id])
+
+  @@map("blog_post_media")
+}
+
+model BlogPostPerson {
+  id          String  @id @default(cuid())
+  postId      String  @map("post_id")
+  celebrityId String? @map("celebrity_id")
+  tmdbId      Int     @map("tmdb_id")
+  name        String
+  profilePath String? @map("profile_path")
+
+  post      BlogPost   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  celebrity Celebrity? @relation(fields: [celebrityId], references: [id])
+
+  @@map("blog_post_people")
 }
 
 // BlogComment removed — replaced by unified Comment model with targetType="blog"
@@ -1738,8 +1777,42 @@ model NewsItem {
   viewCount   Int          @default(0) @map("view_count")
 
   @@index([published, publishedAt])
+  media       NewsItemMedia[]
+  people      NewsItemPerson[]
+
   @@index([type, published])
   @@map("news_items")
+}
+
+model NewsItemMedia {
+  id         String  @id @default(cuid())
+  newsItemId String  @map("news_item_id")
+  movieId    String? @map("movie_id")
+  tvShowId   String? @map("tv_show_id")
+  tmdbId     Int     @map("tmdb_id")
+  mediaType  String  @map("media_type") // "movie" | "tv"
+  title      String
+  posterPath String? @map("poster_path")
+
+  newsItem NewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  movie    Movie?   @relation(fields: [movieId], references: [id])
+  tvShow   TVShow?  @relation(fields: [tvShowId], references: [id])
+
+  @@map("news_item_media")
+}
+
+model NewsItemPerson {
+  id          String  @id @default(cuid())
+  newsItemId  String  @map("news_item_id")
+  celebrityId String? @map("celebrity_id")
+  tmdbId      Int     @map("tmdb_id")
+  name        String
+  profilePath String? @map("profile_path")
+
+  newsItem  NewsItem   @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  celebrity Celebrity? @relation(fields: [celebrityId], references: [id])
+
+  @@map("news_item_people")
 }
 
 model RssHeadline {
