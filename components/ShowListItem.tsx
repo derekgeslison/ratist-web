@@ -76,9 +76,9 @@ export default function ShowListItem({ show, characterName, streaming, rent }: P
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{show.overview}</p>
         {streaming && streaming.length > 0 ? (
-          <div className="mt-1"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+          <div className="mt-1"><ProviderLogos providers={streaming} size={18} label="Stream" contentTitle={show.name} contentType="tv" /></div>
         ) : rent && rent.length > 0 ? (
-          <div className="mt-1"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+          <div className="mt-1"><ProviderLogos providers={rent} size={18} label="Rent" contentTitle={show.name} contentType="tv" /></div>
         ) : null}
       </div>
 

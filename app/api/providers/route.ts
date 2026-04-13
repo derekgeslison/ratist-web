@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
           : await getWatchProviders(tmdbId);
 
         const data: ProviderData = {
-          flatrate: (raw?.flatrate ?? []).map((p: { provider_name: string; logo_path: string }) => ({ name: p.provider_name, logo: p.logo_path })).slice(0, 5),
-          rent: (raw?.rent ?? []).map((p: { provider_name: string; logo_path: string }) => ({ name: p.provider_name, logo: p.logo_path })).slice(0, 3),
+          flatrate: (raw?.flatrate ?? []).map((p: { provider_id: number; provider_name: string; logo_path: string }) => ({ name: p.provider_name, logo: p.logo_path, providerId: p.provider_id })).slice(0, 5),
+          rent: (raw?.rent ?? []).map((p: { provider_id: number; provider_name: string; logo_path: string }) => ({ name: p.provider_name, logo: p.logo_path, providerId: p.provider_id })).slice(0, 3),
         };
 
         // Cache to DB (fire and forget)

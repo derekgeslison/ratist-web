@@ -1,34 +1,50 @@
 import Image from "next/image";
 import type { TMDBWatchProvider } from "@/lib/tmdb";
+import { getProviderUrl, getRentBuyUrl } from "@/lib/affiliates";
 
 interface Props {
   streaming?: TMDBWatchProvider[];
   rent?: TMDBWatchProvider[];
+  contentTitle?: string;
+  contentType?: "movie" | "tv";
 }
 
-function ProviderBadges({ providers }: { providers: TMDBWatchProvider[] }) {
+function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent }: { providers: TMDBWatchProvider[]; contentTitle?: string; contentType?: "movie" | "tv"; isRent?: boolean }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {providers.map((p) => (
-        <div
-          key={p.provider_id}
-          title={p.provider_name}
-          className="relative w-9 h-9 rounded-lg overflow-hidden border border-[var(--border)] shrink-0"
-        >
-          <Image
-            src={`https://image.tmdb.org/t/p/original${p.logo_path}`}
-            alt={p.provider_name}
-            fill
-            sizes="36px"
-            className="object-cover"
-          />
-        </div>
-      ))}
+      {providers.map((p) => {
+        const href = contentTitle
+          ? (isRent ? getRentBuyUrl(p.provider_id, contentTitle, contentType) : getProviderUrl(p.provider_id, contentTitle, contentType))
+          : undefined;
+
+        const badge = (
+          <div
+            title={p.provider_name}
+            className={`relative w-9 h-9 rounded-lg overflow-hidden border border-[var(--border)] shrink-0 ${href ? "hover:border-[var(--ratist-red)] transition-colors" : ""}`}
+          >
+            <Image
+              src={`https://image.tmdb.org/t/p/original${p.logo_path}`}
+              alt={p.provider_name}
+              fill
+              sizes="36px"
+              className="object-cover"
+            />
+          </div>
+        );
+
+        return href ? (
+          <a key={p.provider_id} href={href} target="_blank" rel="noopener noreferrer">
+            {badge}
+          </a>
+        ) : (
+          <div key={p.provider_id}>{badge}</div>
+        );
+      })}
     </div>
   );
 }
 
-export default function WatchProviders({ streaming, rent }: Props) {
+export default function WatchProviders({ streaming, rent, contentTitle, contentType = "movie" }: Props) {
   if (!streaming?.length && !rent?.length) return null;
 
   return (
@@ -37,13 +53,13 @@ export default function WatchProviders({ streaming, rent }: Props) {
       {streaming && streaming.length > 0 && (
         <div>
           <p className="text-xs text-[var(--foreground-muted)] mb-2">Stream</p>
-          <ProviderBadges providers={streaming} />
+          <ProviderBadges providers={streaming} contentTitle={contentTitle} contentType={contentType} />
         </div>
       )}
       {rent && rent.length > 0 && (
         <div>
           <p className="text-xs text-[var(--foreground-muted)] mb-2">Rent / Buy</p>
-          <ProviderBadges providers={rent} />
+          <ProviderBadges providers={rent} contentTitle={contentTitle} contentType={contentType} isRent />
         </div>
       )}
       <p className="text-[10px] text-[var(--foreground-muted)]/60">

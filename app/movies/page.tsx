@@ -252,7 +252,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   }
 
   // Fetch streaming provider data when showProviders is on
-  type ProviderInfo = { name: string; logo: string };
+  type ProviderInfo = { name: string; logo: string; providerId?: number };
   const streamingMap = new Map<number, ProviderInfo[]>();
   const rentMap = new Map<number, ProviderInfo[]>();
   if (showProviders) {
@@ -264,10 +264,10 @@ export default async function MoviesPage({ searchParams }: Props) {
       Promise.all(showIds.map((id) => getShowWatchProviders(id).catch(() => null))),
     ]);
 
-    function extractProviders(data: { flatrate?: { provider_name: string; logo_path: string }[]; rent?: { provider_name: string; logo_path: string }[] } | null, id: number) {
+    function extractProviders(data: { flatrate?: { provider_id: number; provider_name: string; logo_path: string }[]; rent?: { provider_id: number; provider_name: string; logo_path: string }[] } | null, id: number) {
       if (!data) return;
-      const stream = (data.flatrate ?? []).map((s) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 5);
-      const rent = (data.rent ?? []).map((s) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 3);
+      const stream = (data.flatrate ?? []).map((s) => ({ name: s.provider_name, logo: s.logo_path, providerId: s.provider_id })).slice(0, 5);
+      const rent = (data.rent ?? []).map((s) => ({ name: s.provider_name, logo: s.logo_path, providerId: s.provider_id })).slice(0, 3);
       if (stream.length > 0) streamingMap.set(id, stream);
       if (rent.length > 0) rentMap.set(id, rent);
     }

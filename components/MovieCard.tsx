@@ -118,9 +118,9 @@ export default function MovieCard({ movie, characterName, streaming, rent }: Pro
           />
         </div>
         {streaming && streaming.length > 0 ? (
-          <div className="mt-0.5"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+          <div className="mt-0.5"><ProviderLogos providers={streaming} size={18} label="Stream" contentTitle={movie.title} contentType="movie" /></div>
         ) : rent && rent.length > 0 ? (
-          <div className="mt-0.5"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+          <div className="mt-0.5"><ProviderLogos providers={rent} size={18} label="Rent" contentTitle={movie.title} contentType="movie" /></div>
         ) : null}
       </div>
     </Link>

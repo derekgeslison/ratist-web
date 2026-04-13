@@ -2,19 +2,23 @@
 
 import { useState } from "react";
 import { IMAGE_BASE_URL } from "@/lib/tmdb";
+import { getProviderUrl, getRentBuyUrl } from "@/lib/affiliates";
 
 export interface ProviderInfo {
   name: string;
   logo: string; // TMDB logo_path e.g. "/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg"
+  providerId?: number;
 }
 
 interface Props {
   providers: ProviderInfo[];
   size?: number;
   label?: "Stream" | "Rent";
+  contentTitle?: string;
+  contentType?: "movie" | "tv";
 }
 
-export default function ProviderLogos({ providers, size = 20, label }: Props) {
+export default function ProviderLogos({ providers, size = 20, label, contentTitle, contentType = "movie" }: Props) {
   const [tappedIdx, setTappedIdx] = useState<number | null>(null);
 
   const valid = providers.filter((p) => p.logo);
@@ -27,8 +31,14 @@ export default function ProviderLogos({ providers, size = 20, label }: Props) {
           {label}
         </span>
       )}
-      {valid.map((p, i) => (
-        <span key={`${p.name}-${i}`} className="relative">
+      {valid.map((p, i) => {
+        const href = contentTitle && p.providerId
+          ? (label === "Rent"
+              ? getRentBuyUrl(p.providerId, contentTitle, contentType)
+              : getProviderUrl(p.providerId, contentTitle, contentType))
+          : undefined;
+
+        const img = (
           <img
             src={`${IMAGE_BASE_URL}/w92${p.logo}`}
             alt={p.name}
@@ -37,18 +47,37 @@ export default function ProviderLogos({ providers, size = 20, label }: Props) {
             height={size}
             className="rounded-[4px] cursor-pointer"
             onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+              if (!href) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
               setTappedIdx(tappedIdx === i ? null : i);
             }}
           />
-          {tappedIdx === i && (
-            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-[var(--surface)] border border-[var(--border)] text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none">
-              {p.name}
-            </span>
-          )}
-        </span>
-      ))}
+        );
+
+        return (
+          <span key={`${p.name}-${i}`} className="relative">
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {img}
+              </a>
+            ) : (
+              img
+            )}
+            {tappedIdx === i && (
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-[var(--surface)] border border-[var(--border)] text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-30 pointer-events-none">
+                {p.name}
+              </span>
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }

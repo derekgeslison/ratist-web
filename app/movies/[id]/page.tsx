@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Calendar, Globe, Ticket } from "lucide-react";
+import { getFandangoUrl } from "@/lib/affiliates";
 import {
   getMovieDetails,
   getWatchProviders,
@@ -327,7 +328,7 @@ export default async function MovieDetailPage({ params }: Props) {
             {/* In Theaters — showtimes link */}
             {isInTheaters && (
               <a
-                href={`https://www.fandango.com/search?q=${encodeURIComponent(movie.title)}`}
+                href={getFandangoUrl(movie.title)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 mb-4 bg-[var(--surface)] border border-orange-400/50 rounded-full text-sm font-semibold text-orange-400 hover:bg-orange-400/10 transition-colors"

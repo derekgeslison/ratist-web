@@ -72,9 +72,9 @@ export default function MovieListItem({ movie, characterName, streaming, rent }:
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{movie.overview}</p>
         {streaming && streaming.length > 0 ? (
-          <div className="mt-1"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+          <div className="mt-1"><ProviderLogos providers={streaming} size={18} label="Stream" contentTitle={movie.title} contentType="movie" /></div>
         ) : rent && rent.length > 0 ? (
-          <div className="mt-1"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+          <div className="mt-1"><ProviderLogos providers={rent} size={18} label="Rent" contentTitle={movie.title} contentType="movie" /></div>
         ) : null}
       </div>
 

@@ -683,6 +683,8 @@ export default function ShowDetailTabs({
               <WatchProviders
                 streaming={streaming ?? undefined}
                 rent={rent ?? undefined}
+                contentTitle={show.name}
+                contentType="tv"
               />
             </div>
           </div>

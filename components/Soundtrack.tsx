@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Music, ExternalLink, ChevronDown, ChevronUp, Disc3 } from "lucide-react";
+import { getSpotifyTrackUrl } from "@/lib/affiliates";
 
 interface Track {
   position: number;
@@ -50,10 +51,9 @@ export default function Soundtrack({ tmdbId, title, mediaType = "movie" }: Props
   const displayTracks = expanded ? tracks : tracks.slice(0, 10);
   const hasMore = tracks.length > 10;
 
-  // Build Spotify search URL for a track
+  // Build Spotify search URL for a track (centralized in affiliates.ts)
   function spotifySearchUrl(track: Track) {
-    const q = `${track.title} ${track.artist}`;
-    return `https://open.spotify.com/search/${encodeURIComponent(q)}`;
+    return getSpotifyTrackUrl(track.title, track.artist);
   }
 
   return (

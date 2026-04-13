@@ -118,9 +118,9 @@ export default function ShowCard({ show, characterName, streaming, rent }: Props
           <RatingBadge type="ratist" score={ratistRating} size="sm" />
         </div>
         {streaming && streaming.length > 0 ? (
-          <div className="mt-0.5"><ProviderLogos providers={streaming} size={18} label="Stream" /></div>
+          <div className="mt-0.5"><ProviderLogos providers={streaming} size={18} label="Stream" contentTitle={show.name} contentType="tv" /></div>
         ) : rent && rent.length > 0 ? (
-          <div className="mt-0.5"><ProviderLogos providers={rent} size={18} label="Rent" /></div>
+          <div className="mt-0.5"><ProviderLogos providers={rent} size={18} label="Rent" contentTitle={show.name} contentType="tv" /></div>
         ) : null}
       </div>
     </Link>

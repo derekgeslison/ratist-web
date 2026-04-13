@@ -1281,9 +1281,9 @@ export default function WatchlistPage() {
                             const stream = pd.flatrate;
                             const rent = pd.rent;
                             return stream.length > 0 ? (
-                              <div className="mt-0.5"><ProviderLogos providers={stream} size={16} label="Stream" /></div>
+                              <div className="mt-0.5"><ProviderLogos providers={stream} size={16} label="Stream" contentTitle={movie.title} contentType={movie.mediaType === "tv" ? "tv" : "movie"} /></div>
                             ) : rent.length > 0 ? (
-                              <div className="mt-0.5"><ProviderLogos providers={rent} size={16} label="Rent" /></div>
+                              <div className="mt-0.5"><ProviderLogos providers={rent} size={16} label="Rent" contentTitle={movie.title} contentType={movie.mediaType === "tv" ? "tv" : "movie"} /></div>
                             ) : null;
                           })()}
                         </Link>

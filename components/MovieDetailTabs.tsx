@@ -242,6 +242,8 @@ export default function MovieDetailTabs({
               <WatchProviders
                 streaming={streaming ?? undefined}
                 rent={rent ?? undefined}
+                contentTitle={movie.title}
+                contentType="movie"
               />
             </div>
           </div>

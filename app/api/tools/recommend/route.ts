@@ -329,8 +329,8 @@ export async function POST(req: NextRequest) {
       if (!p?.results?.US) continue;
       const us = p.results.US;
       providersMap.set(resultIds[i], {
-        stream: (us.flatrate ?? []).map((s: { provider_name: string; logo_path: string }) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 5),
-        rent: (us.rent ?? []).map((s: { provider_name: string; logo_path: string }) => ({ name: s.provider_name, logo: s.logo_path })).slice(0, 3),
+        stream: (us.flatrate ?? []).map((s: { provider_id: number; provider_name: string; logo_path: string }) => ({ name: s.provider_name, logo: s.logo_path, providerId: s.provider_id })).slice(0, 5),
+        rent: (us.rent ?? []).map((s: { provider_id: number; provider_name: string; logo_path: string }) => ({ name: s.provider_name, logo: s.logo_path, providerId: s.provider_id })).slice(0, 3),
       });
     }
 

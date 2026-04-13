@@ -694,10 +694,10 @@ export default function RecommendPage() {
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             {movie.streaming.length > 0 && (
-                              <ProviderLogos providers={movie.streaming} size={18} label="Stream" />
+                              <ProviderLogos providers={movie.streaming} size={18} label="Stream" contentTitle={movie.title} contentType="movie" />
                             )}
                             {movie.rentBuy.length > 0 && (
-                              <ProviderLogos providers={movie.rentBuy} size={18} label="Rent" />
+                              <ProviderLogos providers={movie.rentBuy} size={18} label="Rent" contentTitle={movie.title} contentType="movie" />
                             )}
                             <span className="inline-block text-[10px] font-medium bg-[var(--ratist-red)]/10 text-[var(--ratist-red)] px-1.5 py-0.5 rounded-full">{movie.reason}</span>
                           </div>
