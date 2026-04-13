@@ -37,6 +37,7 @@ model User {
   watchlistsOwned  Watchlist[]
   watchlistCollab  WatchlistCollaborator[]
   blogPosts      BlogPost[]
+  newsItems      NewsItem[]
   comments         Comment[]
   commentLikes     CommentLike[]
   postLikes        PostLike[]
@@ -1696,4 +1697,62 @@ model AwardsSyncLog {
 
   @@unique([entityType, entityId])
   @@map("awards_sync_log")
+}
+
+// ─── News ───────────────────────────────────────────────────────────────────
+
+enum NewsItemType {
+  EDITORIAL
+  TRAILER
+  RELEASE_CHANGE
+  NEW_SEASON
+  ANNOUNCEMENT
+}
+
+model NewsItem {
+  id          String       @id @default(cuid())
+  type        NewsItemType
+  title       String
+  slug        String?      @unique
+  content     String?      @db.Text
+  excerpt     String?
+  coverImage  String?      @map("cover_image")
+  published   Boolean      @default(false)
+  publishedAt DateTime?    @map("published_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  authorId    String?      @map("author_id")
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  movieTmdbId Int?         @map("movie_tmdb_id")
+  showTmdbId  Int?         @map("show_tmdb_id")
+  posterPath  String?      @map("poster_path")
+
+  youtubeKey  String?      @map("youtube_key")
+  sourceUrl   String?      @map("source_url")
+  sourceName  String?      @map("source_name")
+  meta        Json?
+
+  externalKey String?      @unique @map("external_key")
+  viewCount   Int          @default(0) @map("view_count")
+
+  @@index([published, publishedAt])
+  @@index([type, published])
+  @@map("news_items")
+}
+
+model RssHeadline {
+  id          String   @id @default(cuid())
+  feedSource  String   @map("feed_source")
+  title       String
+  url         String   @unique
+  description String?
+  imageUrl    String?  @map("image_url")
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+  dismissed   Boolean  @default(false)
+  usedInPost  String?  @map("used_in_post")
+
+  @@index([dismissed, fetchedAt])
+  @@map("rss_headlines")
 }

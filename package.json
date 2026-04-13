@@ -36,6 +36,7 @@
     "@types/pg": "^8.20.0",
     "axios": "^1.13.6",
     "clsx": "^2.1.1",
+    "fast-xml-parser": "^5.5.12",
     "firebase": "^12.11.0",
     "firebase-admin": "^13.7.0",
     "lucide-react": "^1.7.0",
