@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useIsTyping } from "@/context/TypingGuardContext";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Clapperboard, Calendar, Lock, Trophy, MessageCircle, Users, HelpCircle, ThumbsUp, ThumbsDown, BarChart3, RefreshCw, Lightbulb } from "lucide-react";
@@ -36,6 +37,7 @@ export default function MovieClubWeekPage() {
   const { weekNumber } = useParams<{ weekNumber: string }>();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const isTyping = useIsTyping();
   const [week, setWeek] = useState<WeekDetail | null>(null);
   const [isMember, setIsMember] = useState(false);
   const [userRating, setUserRating] = useState<{ rating: number; reviewText: string | null; reviewType?: string; formData?: Record<string, unknown> } | null>(null);
@@ -70,12 +72,12 @@ export default function MovieClubWeekPage() {
 
   useEffect(() => { fetchWeek(); }, [fetchWeek]);
 
-  // Auto-refresh discussion data every 30 seconds when in discussion phase
+  // Auto-refresh discussion data every 15 seconds when in discussion phase (skip while typing)
   useEffect(() => {
     if (!canSeeDiscussion) return;
-    const interval = setInterval(() => { fetchWeek(); }, 15000);
+    const interval = setInterval(() => { if (!isTyping()) fetchWeek(); }, 15000);
     return () => clearInterval(interval);
-  }, [canSeeDiscussion, fetchWeek]);
+  }, [canSeeDiscussion, fetchWeek, isTyping]);
 
   async function handleSubmitRating(data: Record<string, unknown>) {
     if (!user || !week) return;

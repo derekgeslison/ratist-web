@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useIsTyping } from "@/context/TypingGuardContext";
 import Image from "next/image";
 import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2, ChevronDown, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -89,6 +90,7 @@ export default function ScreeningSessionPage() {
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const isTyping = useIsTyping();
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -232,12 +234,12 @@ export default function ScreeningSessionPage() {
     }
   }, [postWatchPhase]);
 
-  // Poll for session updates
+  // Poll for session updates (skip while user is typing to prevent input clobbering)
   useEffect(() => {
     if (!user || !session || session.status === "COMPLETE") return;
-    const interval = setInterval(fetchSession, 5000);
+    const interval = setInterval(() => { if (!isTyping()) fetchSession(); }, 5000);
     return () => clearInterval(interval);
-  }, [user, session?.status, fetchSession]);
+  }, [user, session?.status, fetchSession, isTyping]);
 
   // Running elapsed timer during watching (freezes when paused)
   useEffect(() => {

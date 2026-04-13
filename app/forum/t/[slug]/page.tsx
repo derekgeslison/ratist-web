@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { use } from "react";
+import { useIsTyping } from "@/context/TypingGuardContext";
 import { ArrowLeft, Lock, Pin, Send, Trash2, ChevronDown, Bell, BellOff, Pencil, LockOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -46,11 +47,11 @@ export default function ThreadPage({ params }: Props) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevPostCount = useRef(0);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const isTypingRef = useRef(false);
+  const isTyping = useIsTyping();
 
   async function loadThread(force = false) {
     // Skip auto-refresh if user is actively typing (prevents focus loss on mobile)
-    if (!force && isTypingRef.current) return;
+    if (!force && isTyping()) return;
     const headers: Record<string, string> = {};
     if (user) {
       const token = await user.getIdToken();
@@ -319,8 +320,6 @@ export default function ThreadPage({ params }: Props) {
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={6}
                   maxLength={10000}
-                  onFocus={() => { isTypingRef.current = true; }}
-                  onBlur={() => { isTypingRef.current = false; }}
                   className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-3 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y mb-2"
                 />
                 <div className="flex items-center gap-2 justify-end">
@@ -408,8 +407,6 @@ export default function ThreadPage({ params }: Props) {
                   placeholder="Write your argument..."
                   rows={3}
                   maxLength={5000}
-                  onFocus={() => { isTypingRef.current = true; }}
-                  onBlur={() => { isTypingRef.current = false; }}
                   className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none mb-2"
                 />
                 {error && <p className="text-sm text-red-400 mb-2">{error}</p>}

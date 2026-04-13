@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useIsTyping } from "@/context/TypingGuardContext";
 import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor } from "lucide-react";
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
@@ -80,6 +81,7 @@ interface Props {
 export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isTyping = useIsTyping();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Read current values from URL
@@ -104,16 +106,23 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentKeywordLabels = searchParams.get("keywordLabels")?.split(",").filter(Boolean) ?? [];
 
   // Local debounced state for text inputs
+  // We track a "pending" ref per field: set to true when the user edits locally
+  // and cleared when the URL catches up. This prevents stale URL values from
+  // overwriting characters the user has typed since the last debounce fired.
   const currentSearch = searchParams.get("search") ?? "";
   const [searchInput, setSearchInput] = useState(currentSearch);
   const [yearFrom, setYearFrom] = useState(currentYearFrom);
   const [yearTo, setYearTo] = useState(currentYearTo);
   const [ratingVal, setRatingVal] = useState(currentRatingVal);
-
-  useEffect(() => { setSearchInput(currentSearch); }, [currentSearch]);
-  useEffect(() => { setYearFrom(currentYearFrom); }, [currentYearFrom]);
-  useEffect(() => { setYearTo(currentYearTo); }, [currentYearTo]);
-  useEffect(() => { setRatingVal(currentRatingVal); }, [currentRatingVal]);
+  const searchPending = useRef(false);
+  const yearFromPending = useRef(false);
+  const yearToPending = useRef(false);
+  const ratingPending = useRef(false);
+  // Sync local state from URL only when the URL catches up to what we pushed
+  useEffect(() => { if (searchPending.current) { searchPending.current = false; } else { setSearchInput(currentSearch); } }, [currentSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (yearFromPending.current) { yearFromPending.current = false; } else { setYearFrom(currentYearFrom); } }, [currentYearFrom]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (yearToPending.current) { yearToPending.current = false; } else { setYearTo(currentYearTo); } }, [currentYearTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ratingPending.current) { ratingPending.current = false; } else { setRatingVal(currentRatingVal); } }, [currentRatingVal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Actor search
   const [actorQuery, setActorQuery] = useState("");
@@ -265,8 +274,8 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
 
   const yearTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleYearChange(field: "yearFrom" | "yearTo", val: string) {
-    if (field === "yearFrom") setYearFrom(val);
-    else setYearTo(val);
+    if (field === "yearFrom") { setYearFrom(val); yearFromPending.current = true; }
+    else { setYearTo(val); yearToPending.current = true; }
     if (yearTimeout.current) clearTimeout(yearTimeout.current);
     yearTimeout.current = setTimeout(() => update({ [field]: val || null }), 600);
   }
@@ -274,6 +283,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleSearchChange(val: string) {
     setSearchInput(val);
+    searchPending.current = true;
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => update({ search: val || null }), 400);
   }
@@ -281,6 +291,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const ratingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleRatingValChange(val: string) {
     setRatingVal(val);
+    ratingPending.current = true;
     if (ratingTimeout.current) clearTimeout(ratingTimeout.current);
     ratingTimeout.current = setTimeout(() => update({ ratingVal: val || null }), 600);
   }

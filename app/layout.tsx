@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { TypingGuardProvider } from "@/context/TypingGuardContext";
 import Navbar from "@/components/Navbar";
 import AccountStatusBanner from "@/components/AccountStatusBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             },
           }) }}
         />
+        <TypingGuardProvider>
         <AuthProvider>
           <AccountStatusBanner />
           <AnnouncementBanner />
@@ -106,6 +108,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </footer>
         </AuthProvider>
+        </TypingGuardProvider>
       </body>
     </html>
   );
