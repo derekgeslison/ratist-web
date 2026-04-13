@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Film, ArrowRight } from "lucide-react";
+import { Film, ArrowRight, Award, RefreshCw } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import CelebrityCreditsSection, { type Credit } from "./CelebrityCreditsSection";
 import CelebrityAwardsSection from "./CelebrityAwardsSection";
 import type { AwardBodyGroup } from "@/lib/awards";
@@ -134,10 +135,7 @@ export default function CelebrityDetailTabs({
         <div className="pb-16">
           <CelebrityAwardsSection awards={awards} tmdbId={personId} />
           {awards.length === 0 && (
-            <div className="text-center py-16 text-[var(--foreground-muted)]">
-              <p>No awards data available yet.</p>
-              <p className="text-sm mt-1">Awards data will appear after the next sync.</p>
-            </div>
+            <CelebrityAwardsEmpty tmdbId={personId} />
           )}
         </div>
       )}
@@ -198,5 +196,66 @@ export default function CelebrityDetailTabs({
         </div>
       )}
     </>
+  );
+}
+
+function CelebrityAwardsEmpty({ tmdbId }: { tmdbId: number }) {
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then((token) =>
+      fetch("/api/auth/admin-check", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => setIsAdmin(d.isAdmin === true))
+        .catch(() => {})
+    );
+  }, [user]);
+
+  async function handleRefresh() {
+    if (!user) return;
+    setRefreshing(true);
+    setRefreshResult(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/awards-refresh", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ entityType: "celebrity", tmdbId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRefreshResult(`Synced ${data.count} awards. Reload to see updates.`);
+      } else {
+        setRefreshResult(data.error || "Refresh failed");
+      }
+    } catch {
+      setRefreshResult("Refresh failed");
+    }
+    setRefreshing(false);
+  }
+
+  return (
+    <div className="text-center py-16 text-[var(--foreground-muted)]">
+      <Award className="w-12 h-12 mx-auto mb-4 opacity-40" />
+      <p>No awards data available yet.</p>
+      <p className="text-sm mt-1">Awards data will appear after the next sync.</p>
+      {isAdmin && (
+        <div className="mt-4">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Syncing..." : "Refresh Awards"}
+          </button>
+          {refreshResult && <p className="text-xs mt-2">{refreshResult}</p>}
+        </div>
+      )}
+    </div>
   );
 }
