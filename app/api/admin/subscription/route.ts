@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { grantBackstagePass, revokeBackstagePass, getPromoEligibleUsers } from "@/lib/subscription";
 import { prisma } from "@/lib/prisma";
-import { sendPromoGranted } from "@/lib/email";
+import { sendPromoGranted, sendAdminGranted } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
     const expiry = expiryDate ? new Date(expiryDate) : null;
     await grantBackstagePass(userId, admin.id, expiry);
+
+    // Send email notification
+    const grantedUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    if (grantedUser?.email) {
+      sendAdminGranted(grantedUser.email, grantedUser.name, expiry).catch(() => {});
+    }
+
     return NextResponse.json({ granted: true });
   }
 

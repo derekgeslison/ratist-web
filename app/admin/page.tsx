@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { FileText, Swords, Map, Plus, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Mail } from "lucide-react";
+import { FileText, Swords, Map, Plus, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen } from "lucide-react";
 
 interface Post {
   id: string;
@@ -35,7 +35,6 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<SiteStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [emailStatus, setEmailStatus] = useState<string | null>(null);
 
   async function fetchAll() {
     if (!user) return;
@@ -142,28 +141,6 @@ export default function AdminDashboard() {
           </div>
         </section>
       )}
-
-      {/* Quick actions */}
-      <section className="flex items-center gap-3">
-        <button
-          onClick={async () => {
-            if (!user) return;
-            setEmailStatus("Sending...");
-            const token = await user.getIdToken();
-            const res = await fetch("/api/admin/test-email", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await res.json();
-            setEmailStatus(res.ok ? `Test email sent to ${data.sentTo}` : `Failed: ${data.error}`);
-            setTimeout(() => setEmailStatus(null), 5000);
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] transition-colors"
-        >
-          <Mail className="w-4 h-4" /> Send Test Email
-        </button>
-        {emailStatus && <span className="text-sm text-[var(--foreground-muted)]">{emailStatus}</span>}
-      </section>
 
       {/* Post type shortcuts */}
       <div className="grid grid-cols-3 gap-4">

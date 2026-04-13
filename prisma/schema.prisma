@@ -93,6 +93,7 @@ model User {
   stripeSubscriptionId String?   @map("stripe_subscription_id")
   grantedBy            String?   @map("granted_by") // admin userId who granted manual sub
   grantedPromo         String?   @map("granted_promo") // e.g. "first_1000_reviews"
+  promoRemindersSent   Json?     @map("promo_reminders_sent") // array of day thresholds already emailed, e.g. [30, 14]
 
   // Profile theme customization (Backstage Pass feature)
   profileTheme         Json?     @map("profile_theme") // { preset?, accentColor?, surfaceColor?, textColor?, headerImage? }
