@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Plus, Trash2, Eye, EyeOff, ExternalLink, RefreshCw, Newspaper, Rss, PenSquare, X } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, ExternalLink, RefreshCw, Newspaper, Rss, PenSquare, X, Play } from "lucide-react";
 
 interface NewsItem {
   id: string;
@@ -38,6 +38,8 @@ export default function AdminNewsPage() {
   const [rssLoading, setRssLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [rssFilter, setRssFilter] = useState("");
+  const [fetchingTrailers, setFetchingTrailers] = useState(false);
+  const [trailerStatus, setTrailerStatus] = useState<string | null>(null);
 
   async function fetchItems() {
     if (!user) return;
@@ -107,13 +109,37 @@ export default function AdminNewsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">News</h2>
-        <Link
-          href="/admin/news/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors"
-        >
-          <Plus className="w-4 h-4" /> New Article
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (!user) return;
+              setFetchingTrailers(true);
+              setTrailerStatus(null);
+              const token = await user.getIdToken();
+              const res = await fetch("/api/admin/news/fetch-trailers", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const data = await res.json();
+              setTrailerStatus(`Checked ${data.checked} titles, found ${data.created} new trailer${data.created !== 1 ? "s" : ""}`);
+              setFetchingTrailers(false);
+              if (data.created > 0) fetchItems();
+              setTimeout(() => setTrailerStatus(null), 5000);
+            }}
+            disabled={fetchingTrailers}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-lg hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+          >
+            <Play className={`w-3.5 h-3.5 ${fetchingTrailers ? "animate-pulse" : ""}`} /> {fetchingTrailers ? "Fetching..." : "Fetch Trailers"}
+          </button>
+          <Link
+            href="/admin/news/new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors"
+          >
+            <Plus className="w-4 h-4" /> New Article
+          </Link>
+        </div>
       </div>
+      {trailerStatus && <p className="text-sm text-[var(--foreground-muted)]">{trailerStatus}</p>}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-[var(--border)]">
