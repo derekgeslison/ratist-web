@@ -703,7 +703,7 @@ export default function ShowDetailTabs({
 
       {/* ── AWARDS TAB ── */}
       {activeTab === "Awards" && (
-        <AwardsTab awards={awards} />
+        <AwardsTab awards={awards} entityType="tvshow" tmdbId={tmdbId} />
       )}
 
       {/* ── SEASONS TAB ── */}

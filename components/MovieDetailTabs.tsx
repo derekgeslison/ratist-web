@@ -262,7 +262,7 @@ export default function MovieDetailTabs({
 
       {/* ── AWARDS TAB ── */}
       {activeTab === "Awards" && (
-        <AwardsTab awards={awards} />
+        <AwardsTab awards={awards} entityType="movie" tmdbId={tmdbId} />
       )}
 
       {/* ── CAST & CREW TAB ── */}

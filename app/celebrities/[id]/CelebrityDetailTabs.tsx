@@ -132,7 +132,7 @@ export default function CelebrityDetailTabs({
       {/* ── AWARDS TAB ── */}
       {activeTab === "Awards" && (
         <div className="pb-16">
-          <CelebrityAwardsSection awards={awards} />
+          <CelebrityAwardsSection awards={awards} tmdbId={personId} />
           {awards.length === 0 && (
             <div className="text-center py-16 text-[var(--foreground-muted)]">
               <p>No awards data available yet.</p>

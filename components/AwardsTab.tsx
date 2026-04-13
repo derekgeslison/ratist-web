@@ -1,16 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import { Trophy, Award, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Trophy, Award, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import type { AwardBodyGroup } from "@/lib/awards";
 
 interface Props {
   awards: AwardBodyGroup[];
+  entityType?: "movie" | "tvshow" | "celebrity";
+  tmdbId?: number;
 }
 
-export default function AwardsTab({ awards }: Props) {
+export default function AwardsTab({ awards, entityType, tmdbId }: Props) {
   const totalWins = awards.reduce((s, g) => s + g.winCount, 0);
   const totalNoms = awards.reduce((s, g) => s + g.nomCount, 0);
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    user.getIdToken().then((token) =>
+      fetch("/api/auth/admin-check", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => setIsAdmin(d.isAdmin === true))
+        .catch(() => {})
+    );
+  }, [user]);
+
+  async function handleRefresh() {
+    if (!user || !entityType || !tmdbId) return;
+    setRefreshing(true);
+    setRefreshResult(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/awards-refresh", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ entityType, tmdbId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRefreshResult(`Synced ${data.count} awards. Reload to see updates.`);
+      } else {
+        setRefreshResult(data.error || "Refresh failed");
+      }
+    } catch {
+      setRefreshResult("Refresh failed");
+    }
+    setRefreshing(false);
+  }
 
   if (awards.length === 0) {
     return (
@@ -18,6 +58,19 @@ export default function AwardsTab({ awards }: Props) {
         <Award className="w-12 h-12 mx-auto mb-4 opacity-40" />
         <p>No awards data available yet.</p>
         <p className="text-sm mt-1">Awards data will appear after the next sync.</p>
+        {isAdmin && entityType && tmdbId && (
+          <div className="mt-4">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Syncing..." : "Refresh Awards"}
+            </button>
+            {refreshResult && <p className="text-xs mt-2">{refreshResult}</p>}
+          </div>
+        )}
       </div>
     );
   }
@@ -25,15 +78,31 @@ export default function AwardsTab({ awards }: Props) {
   return (
     <div className="space-y-8 pb-16">
       {/* Summary */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 text-amber-400">
-          <Trophy className="w-5 h-5" />
-          <span className="font-semibold">{totalWins} {totalWins === 1 ? "win" : "wins"}</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-amber-400">
+            <Trophy className="w-5 h-5" />
+            <span className="font-semibold">{totalWins} {totalWins === 1 ? "win" : "wins"}</span>
+          </div>
+          <span className="text-[var(--foreground-muted)]">&middot;</span>
+          <div className="text-[var(--foreground-muted)]">
+            {totalNoms} {totalNoms === 1 ? "nomination" : "nominations"} total
+          </div>
         </div>
-        <span className="text-[var(--foreground-muted)]">&middot;</span>
-        <div className="text-[var(--foreground-muted)]">
-          {totalNoms} {totalNoms === 1 ? "nomination" : "nominations"} total
-        </div>
+        {isAdmin && entityType && tmdbId && (
+          <div className="flex items-center gap-2">
+            {refreshResult && <span className="text-xs text-[var(--foreground-muted)]">{refreshResult}</span>}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+              title="Re-sync awards from Wikidata"
+            >
+              <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Syncing..." : "Refresh"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Award body sections */}
