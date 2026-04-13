@@ -111,6 +111,30 @@ const PROVIDER_CONFIGS: Record<number, ProviderAffiliateConfig> = {
     fallbackUrl: (title) =>
       `https://www.paramountplus.com/search/?q=${title}`,
   },
+
+  // Starz (43) — CJ Affiliate
+  43: {
+    name: "Starz",
+    envKey: "NEXT_PUBLIC_STARZ_CJ_AID",
+    buildUrl: (title, tag) =>
+      tag
+        ? `https://www.starz.com/search?q=${title}&cjevent=${tag}`
+        : `https://www.starz.com/search?q=${title}`,
+    fallbackUrl: (title) =>
+      `https://www.starz.com/search?q=${title}`,
+  },
+
+  // Plex (538) — CJ Affiliate
+  538: {
+    name: "Plex",
+    envKey: "NEXT_PUBLIC_PLEX_CJ_AID",
+    buildUrl: (title, tag) =>
+      tag
+        ? `https://www.plex.tv/search/?query=${title}&cjevent=${tag}`
+        : `https://www.plex.tv/search/?query=${title}`,
+    fallbackUrl: (title) =>
+      `https://www.plex.tv/search/?query=${title}`,
+  },
 };
 
 // ─── Rent / Buy providers ───────────────────────────────────────────────────
