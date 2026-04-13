@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       }
       await prisma.blogPostMedia.create({
         data: {
-          blogPostId: post.id,
+          postId: post.id,
           tmdbId: m.tmdbId,
           mediaType: m.mediaType,
           title: m.title,
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
       const celeb = await prisma.celebrity.findUnique({ where: { tmdbId: p.tmdbId }, select: { id: true } });
       await prisma.blogPostPerson.create({
         data: {
-          blogPostId: post.id,
+          postId: post.id,
           tmdbId: p.tmdbId,
           name: p.name,
           profilePath: p.profilePath ?? null,

@@ -51,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: Props) {
 
   // Replace media links if provided
   if (Array.isArray(mediaItems)) {
-    await prisma.blogPostMedia.deleteMany({ where: { blogPostId: id } });
+    await prisma.blogPostMedia.deleteMany({ where: { postId: id } });
     for (const m of mediaItems) {
       if (!m.tmdbId || !m.mediaType || !m.title) continue;
       let movieId: string | null = null;
@@ -65,7 +65,7 @@ export async function PUT(req: NextRequest, { params }: Props) {
       }
       await prisma.blogPostMedia.create({
         data: {
-          blogPostId: id,
+          postId: id,
           tmdbId: m.tmdbId,
           mediaType: m.mediaType,
           title: m.title,
@@ -79,13 +79,13 @@ export async function PUT(req: NextRequest, { params }: Props) {
 
   // Replace people links if provided
   if (Array.isArray(peopleItems)) {
-    await prisma.blogPostPerson.deleteMany({ where: { blogPostId: id } });
+    await prisma.blogPostPerson.deleteMany({ where: { postId: id } });
     for (const p of peopleItems) {
       if (!p.tmdbId || !p.name) continue;
       const celeb = await prisma.celebrity.findUnique({ where: { tmdbId: p.tmdbId }, select: { id: true } });
       await prisma.blogPostPerson.create({
         data: {
-          blogPostId: id,
+          postId: id,
           tmdbId: p.tmdbId,
           name: p.name,
           profilePath: p.profilePath ?? null,
