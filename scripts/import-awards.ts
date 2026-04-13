@@ -250,7 +250,7 @@ async function fetchAndSyncMovieAwards(movieId: string, tmdbId: number, imdbId?:
       await prisma.awardNomination.upsert({
         where: { dedupKey },
         create: { dedupKey, categoryId, isWinner, year, ceremony, movieId, wikidataId },
-        update: { isWinner, ceremony },
+        update: { ...(isWinner ? { isWinner: true } : {}), ...(ceremony ? { ceremony } : {}) },
       });
       count++;
     } catch {

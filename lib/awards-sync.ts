@@ -149,8 +149,9 @@ export async function syncMovieAwards(
           wikidataId: award.awardWikidataId,
         },
         update: {
-          isWinner: award.isWinner,
-          ceremony: award.ceremonyLabel,
+          // Only upgrade to winner, never downgrade (P1411 nom shouldn't overwrite P166 win)
+          ...(award.isWinner ? { isWinner: true } : {}),
+          ceremony: award.ceremonyLabel ?? undefined,
         },
       });
       count++;
@@ -216,8 +217,9 @@ export async function syncCelebrityAwards(
           wikidataId: award.awardWikidataId,
         },
         update: {
-          isWinner: award.isWinner,
-          ceremony: award.ceremonyLabel,
+          // Only upgrade to winner, never downgrade (P1411 nom shouldn't overwrite P166 win)
+          ...(award.isWinner ? { isWinner: true } : {}),
+          ceremony: award.ceremonyLabel ?? undefined,
         },
       });
       count++;
@@ -282,8 +284,9 @@ export async function syncTVShowAwards(
           wikidataId: award.awardWikidataId,
         },
         update: {
-          isWinner: award.isWinner,
-          ceremony: award.ceremonyLabel,
+          // Only upgrade to winner, never downgrade (P1411 nom shouldn't overwrite P166 win)
+          ...(award.isWinner ? { isWinner: true } : {}),
+          ceremony: award.ceremonyLabel ?? undefined,
         },
       });
       count++;

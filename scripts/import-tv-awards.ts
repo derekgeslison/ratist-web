@@ -219,7 +219,7 @@ async function fetchAndSyncShowAwards(showId: string, imdbId: string): Promise<n
       await prisma.awardNomination.upsert({
         where: { dedupKey },
         create: { dedupKey, categoryId, isWinner, year, ceremony, tvShowId: showId, wikidataId },
-        update: { isWinner, ceremony },
+        update: { ...(isWinner ? { isWinner: true } : {}), ...(ceremony ? { ceremony } : {}) },
       });
       count++;
     } catch {
