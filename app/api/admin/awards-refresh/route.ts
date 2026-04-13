@@ -30,13 +30,10 @@ export async function POST(req: NextRequest) {
       });
       if (!movie) return NextResponse.json({ error: "Movie not found in DB" }, { status: 404 });
 
-      // Clear sync log to force re-fetch
+      // Clear sync log only — sync will upsert on top of existing data
       await prisma.awardsSyncLog.deleteMany({
         where: { entityType: "movie", entityId: movie.id },
       });
-      // Clear existing awards for this movie so we get a clean re-import
-      await prisma.awardNomination.deleteMany({ where: { movieId: movie.id } });
-
       const count = await syncMovieAwards(movie.id, Number(tmdbId), movie.imdbId);
       return NextResponse.json({ success: true, count });
 
@@ -51,8 +48,6 @@ export async function POST(req: NextRequest) {
       await prisma.awardsSyncLog.deleteMany({
         where: { entityType: "tvshow", entityId: show.id },
       });
-      await prisma.awardNomination.deleteMany({ where: { tvShowId: show.id } });
-
       const count = await syncTVShowAwards(show.id, show.imdbId);
       return NextResponse.json({ success: true, count });
 
@@ -66,8 +61,6 @@ export async function POST(req: NextRequest) {
       await prisma.awardsSyncLog.deleteMany({
         where: { entityType: "celebrity", entityId: celeb.id },
       });
-      await prisma.awardNomination.deleteMany({ where: { celebrityId: celeb.id } });
-
       const count = await syncCelebrityAwards(celeb.id, Number(tmdbId), celeb.imdbId);
       return NextResponse.json({ success: true, count });
 
