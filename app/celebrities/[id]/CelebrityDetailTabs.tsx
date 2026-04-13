@@ -242,7 +242,7 @@ function CelebrityAwardsEmpty({ tmdbId }: { tmdbId: number }) {
     <div className="text-center py-16 text-[var(--foreground-muted)]">
       <Award className="w-12 h-12 mx-auto mb-4 opacity-40" />
       <p>No awards data available yet.</p>
-      <p className="text-sm mt-1">Awards data will appear after the next sync.</p>
+      <p className="text-sm mt-1">Awards data is being synced — try refreshing the page in a moment.</p>
       {isAdmin && (
         <div className="mt-4">
           <button

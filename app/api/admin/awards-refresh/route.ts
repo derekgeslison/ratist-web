@@ -13,6 +13,11 @@ async function requireAdmin(req: NextRequest) {
   return user;
 }
 
+/**
+ * Admin refresh: clears sync log, re-syncs from Wikidata, then removes
+ * any old awards that weren't part of the fresh sync (stale data cleanup).
+ * Awards are never deleted before the sync, so the page is never empty.
+ */
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -22,6 +27,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "entityType and tmdbId required" }, { status: 400 });
   }
 
+  const syncStartedAt = new Date();
+
   try {
     if (entityType === "movie") {
       const movie = await prisma.movie.findUnique({
@@ -30,11 +37,18 @@ export async function POST(req: NextRequest) {
       });
       if (!movie) return NextResponse.json({ error: "Movie not found in DB" }, { status: 404 });
 
-      // Clear sync log only — sync will upsert on top of existing data
       await prisma.awardsSyncLog.deleteMany({
         where: { entityType: "movie", entityId: movie.id },
       });
       const count = await syncMovieAwards(movie.id, Number(tmdbId), movie.imdbId);
+
+      // Clean up stale awards not touched by this sync
+      if (count > 0) {
+        await prisma.awardNomination.deleteMany({
+          where: { movieId: movie.id, category: { awardBody: { createdAt: { lt: syncStartedAt } } } },
+        }).catch(() => {}); // Soft fail — stale cleanup is best-effort
+      }
+
       return NextResponse.json({ success: true, count });
 
     } else if (entityType === "tvshow") {

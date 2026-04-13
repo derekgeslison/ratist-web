@@ -96,6 +96,32 @@ async function ensureCategory(
   return category.id;
 }
 
+/** Batch-resolve TMDB person IDs to celebrity DB IDs */
+async function batchResolveCelebrities(
+  tmdbIds: number[]
+): Promise<Map<number, string>> {
+  const unique = [...new Set(tmdbIds.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const celebs = await prisma.celebrity.findMany({
+    where: { tmdbId: { in: unique } },
+    select: { id: true, tmdbId: true },
+  });
+  return new Map(celebs.map((c) => [c.tmdbId, c.id]));
+}
+
+/** Batch-resolve TMDB movie IDs to movie DB IDs */
+async function batchResolveMovies(
+  tmdbIds: number[]
+): Promise<Map<number, string>> {
+  const unique = [...new Set(tmdbIds.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const movies = await prisma.movie.findMany({
+    where: { tmdbId: { in: unique } },
+    select: { id: true, tmdbId: true },
+  });
+  return new Map(movies.map((m) => [m.tmdbId, m.id]));
+}
+
 // ─── Movie awards sync ──────────────────────────────────────────────────────
 
 export async function syncMovieAwards(
@@ -113,6 +139,13 @@ export async function syncMovieAwards(
     return 0;
   }
 
+  // Skip "other" awards to avoid noise from regional/niche awards
+  results = results.filter((r) => identifyAwardBody(r.categoryLabel, r.awardWikidataId).slug !== "other");
+
+  // Batch-resolve celebrities referenced in results
+  const personTmdbIds = results.map((r) => r.personTmdbId).filter((id): id is number => id != null);
+  const celebMap = await batchResolveCelebrities(personTmdbIds);
+
   let count = 0;
   for (const award of results) {
     const body = identifyAwardBody(award.categoryLabel, award.awardWikidataId);
@@ -123,14 +156,7 @@ export async function syncMovieAwards(
         award.categoryLabel, award.awardWikidataId
       );
 
-      let celebrityId: string | null = null;
-      if (award.personTmdbId) {
-        const celeb = await prisma.celebrity.findUnique({
-          where: { tmdbId: award.personTmdbId },
-          select: { id: true },
-        });
-        celebrityId = celeb?.id ?? null;
-      }
+      const celebrityId = award.personTmdbId ? celebMap.get(award.personTmdbId) ?? null : null;
 
       const dedupKey = buildDedupKey({
         categoryId, year: award.year, movieId, celebrityId,
@@ -149,7 +175,6 @@ export async function syncMovieAwards(
           wikidataId: award.awardWikidataId,
         },
         update: {
-          // Only upgrade to winner, never downgrade (P1411 nom shouldn't overwrite P166 win)
           ...(award.isWinner ? { isWinner: true } : {}),
           ceremony: award.ceremonyLabel ?? undefined,
         },
@@ -181,6 +206,13 @@ export async function syncCelebrityAwards(
     return 0;
   }
 
+  // Skip "other" awards
+  results = results.filter((r) => identifyAwardBody(r.categoryLabel, r.awardWikidataId).slug !== "other");
+
+  // Batch-resolve "for work" movies referenced in results
+  const workTmdbIds = results.map((r) => r.forWorkTmdbId).filter((id): id is number => id != null);
+  const movieMap = await batchResolveMovies(workTmdbIds);
+
   let count = 0;
   for (const award of results) {
     const body = identifyAwardBody(award.categoryLabel, award.awardWikidataId);
@@ -191,14 +223,7 @@ export async function syncCelebrityAwards(
         award.categoryLabel, award.awardWikidataId
       );
 
-      let forMovieId: string | null = null;
-      if (award.forWorkTmdbId) {
-        const movie = await prisma.movie.findUnique({
-          where: { tmdbId: award.forWorkTmdbId },
-          select: { id: true },
-        });
-        forMovieId = movie?.id ?? null;
-      }
+      const forMovieId = award.forWorkTmdbId ? movieMap.get(award.forWorkTmdbId) ?? null : null;
 
       const dedupKey = buildDedupKey({
         categoryId, year: award.year, celebrityId, forMovieId,
@@ -217,7 +242,6 @@ export async function syncCelebrityAwards(
           wikidataId: award.awardWikidataId,
         },
         update: {
-          // Only upgrade to winner, never downgrade (P1411 nom shouldn't overwrite P166 win)
           ...(award.isWinner ? { isWinner: true } : {}),
           ceremony: award.ceremonyLabel ?? undefined,
         },
@@ -248,6 +272,13 @@ export async function syncTVShowAwards(
     return 0;
   }
 
+  // Skip "other" awards
+  results = results.filter((r) => identifyAwardBody(r.categoryLabel, r.awardWikidataId).slug !== "other");
+
+  // Batch-resolve celebrities referenced in results
+  const personTmdbIds = results.map((r) => r.personTmdbId).filter((id): id is number => id != null);
+  const celebMap = await batchResolveCelebrities(personTmdbIds);
+
   let count = 0;
   for (const award of results) {
     const body = identifyAwardBody(award.categoryLabel, award.awardWikidataId);
@@ -258,14 +289,7 @@ export async function syncTVShowAwards(
         award.categoryLabel, award.awardWikidataId
       );
 
-      let celebrityId: string | null = null;
-      if (award.personTmdbId) {
-        const celeb = await prisma.celebrity.findUnique({
-          where: { tmdbId: award.personTmdbId },
-          select: { id: true },
-        });
-        celebrityId = celeb?.id ?? null;
-      }
+      const celebrityId = award.personTmdbId ? celebMap.get(award.personTmdbId) ?? null : null;
 
       const dedupKey = buildDedupKey({
         categoryId, year: award.year, tvShowId, celebrityId,
@@ -284,7 +308,6 @@ export async function syncTVShowAwards(
           wikidataId: award.awardWikidataId,
         },
         update: {
-          // Only upgrade to winner, never downgrade (P1411 nom shouldn't overwrite P166 win)
           ...(award.isWinner ? { isWinner: true } : {}),
           ceremony: award.ceremonyLabel ?? undefined,
         },
