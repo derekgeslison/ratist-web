@@ -118,12 +118,9 @@ async function groupAwards(
     return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
   });
 
-  // Sort nominations within each group: wins first, then by year descending
+  // Sort nominations within each group by year descending
   for (const group of groups) {
-    group.nominations.sort((a, b) => {
-      if (a.isWinner !== b.isWinner) return a.isWinner ? -1 : 1;
-      return (b.year ?? 0) - (a.year ?? 0);
-    });
+    group.nominations.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
   }
 
   return groups;
