@@ -59,15 +59,23 @@ function slugify(str: string): string {
   return str.toLowerCase().replace(/['']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-function identifyAwardBody(label: string): { slug: string; name: string; shortName: string } | null {
+function identifyAwardBody(label: string): { slug: string; name: string; shortName: string } {
   const l = label.toLowerCase();
-  if (l.includes("emmy") || l.includes("primetime")) return { slug: "emmy", name: "Primetime Emmy Awards", shortName: "Emmy" };
+  if (l.includes("academy award") || l.includes("oscar")) return { slug: "oscar", name: "Academy Awards", shortName: "Oscar" };
   if (l.includes("golden globe")) return { slug: "golden-globe", name: "Golden Globe Awards", shortName: "Golden Globe" };
-  if (l.includes("screen actors guild") || l.includes("sag award")) return { slug: "sag", name: "Screen Actors Guild Awards", shortName: "SAG" };
-  if (l.includes("critics' choice") || l.includes("critics choice")) return { slug: "critics-choice", name: "Critics' Choice Awards", shortName: "Critics' Choice" };
   if (l.includes("bafta") || l.includes("british academy")) return { slug: "bafta", name: "BAFTA Awards", shortName: "BAFTA" };
+  if (l.includes("screen actors guild") || l.includes("sag award")) return { slug: "sag", name: "Screen Actors Guild Awards", shortName: "SAG" };
+  if (l.includes("emmy") || l.includes("primetime")) return { slug: "emmy", name: "Primetime Emmy Awards", shortName: "Emmy" };
+  if (l.includes("critics' choice") || l.includes("critics choice")) return { slug: "critics-choice", name: "Critics' Choice Awards", shortName: "Critics' Choice" };
+  if (l.includes("directors guild") || l.includes("dga award")) return { slug: "dga", name: "Directors Guild of America Awards", shortName: "DGA" };
+  if (l.includes("writers guild") || l.includes("wga award")) return { slug: "wga", name: "Writers Guild of America Awards", shortName: "WGA" };
+  if (l.includes("producers guild") || l.includes("pga award")) return { slug: "pga", name: "Producers Guild of America Awards", shortName: "PGA" };
   if (l.includes("peabody")) return { slug: "peabody", name: "Peabody Awards", shortName: "Peabody" };
-  return null;
+  if (l.includes("saturn award")) return { slug: "saturn", name: "Saturn Awards", shortName: "Saturn" };
+  if (l.includes("tca award") || l.includes("television critics association")) return { slug: "tca", name: "Television Critics Association Awards", shortName: "TCA" };
+  if (l.includes("satellite award")) return { slug: "satellite", name: "Satellite Awards", shortName: "Satellite" };
+  if (l.includes("gotham")) return { slug: "gotham", name: "Gotham Awards", shortName: "Gotham" };
+  return { slug: "other", name: "Other Awards", shortName: "Other" };
 }
 
 async function ensureCategory(bodySlug: string, bodyName: string, bodyShortName: string, categoryLabel: string, wikidataId: string | null): Promise<string> {
@@ -200,7 +208,6 @@ async function fetchAndSyncShowAwards(showId: string, imdbId: string): Promise<n
     const categoryLabel = b.awardLabel?.value ?? "Unknown";
     const wikidataId = b.awardUri?.value?.match(/Q\d+$/)?.[0] ?? null;
     const body = identifyAwardBody(categoryLabel);
-    if (!body) continue;
 
     const year = b.year?.value ? parseInt(b.year.value) : null;
     const ceremony = b.ceremonyLabel?.value ?? null;

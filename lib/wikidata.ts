@@ -330,6 +330,26 @@ const AWARD_BODY_MAP: Record<string, { slug: string; name: string; shortName: st
   Q631041: { slug: "indie-spirit", name: "Independent Spirit Awards", shortName: "Indie Spirit" },
   // Tony Awards
   Q191874: { slug: "tony", name: "Tony Awards", shortName: "Tony" },
+  // Directors Guild of America
+  Q1199645: { slug: "dga", name: "Directors Guild of America Awards", shortName: "DGA" },
+  // Writers Guild of America
+  Q1199901: { slug: "wga", name: "Writers Guild of America Awards", shortName: "WGA" },
+  // Producers Guild of America
+  Q1199835: { slug: "pga", name: "Producers Guild of America Awards", shortName: "PGA" },
+  // Peabody Awards
+  Q381227: { slug: "peabody", name: "Peabody Awards", shortName: "Peabody" },
+  // Saturn Awards
+  Q478322: { slug: "saturn", name: "Saturn Awards", shortName: "Saturn" },
+  // Television Critics Association
+  Q393974: { slug: "tca", name: "Television Critics Association Awards", shortName: "TCA" },
+  // Satellite Awards
+  Q597250: { slug: "satellite", name: "Satellite Awards", shortName: "Satellite" },
+  // Annie Awards
+  Q378381: { slug: "annie", name: "Annie Awards", shortName: "Annie" },
+  // Gotham Awards
+  Q1416157: { slug: "gotham", name: "Gotham Awards", shortName: "Gotham" },
+  // AFI Awards
+  Q1127516: { slug: "afi", name: "AFI Awards", shortName: "AFI" },
 };
 
 /**
@@ -339,7 +359,7 @@ const AWARD_BODY_MAP: Record<string, { slug: string; name: string; shortName: st
 export function identifyAwardBody(
   categoryLabel: string,
   wikidataId: string | null
-): { slug: string; name: string; shortName: string } | null {
+): { slug: string; name: string; shortName: string } {
   // Check direct Q-ID match first
   if (wikidataId && AWARD_BODY_MAP[wikidataId]) {
     return AWARD_BODY_MAP[wikidataId];
@@ -380,6 +400,37 @@ export function identifyAwardBody(
   if (label.includes("tony award")) {
     return { slug: "tony", name: "Tony Awards", shortName: "Tony" };
   }
+  if (label.includes("directors guild") || label.includes("dga award")) {
+    return { slug: "dga", name: "Directors Guild of America Awards", shortName: "DGA" };
+  }
+  if (label.includes("writers guild") || label.includes("wga award")) {
+    return { slug: "wga", name: "Writers Guild of America Awards", shortName: "WGA" };
+  }
+  if (label.includes("producers guild") || label.includes("pga award")) {
+    return { slug: "pga", name: "Producers Guild of America Awards", shortName: "PGA" };
+  }
+  if (label.includes("peabody")) {
+    return { slug: "peabody", name: "Peabody Awards", shortName: "Peabody" };
+  }
+  if (label.includes("saturn award")) {
+    return { slug: "saturn", name: "Saturn Awards", shortName: "Saturn" };
+  }
+  if (label.includes("tca award") || label.includes("television critics association")) {
+    return { slug: "tca", name: "Television Critics Association Awards", shortName: "TCA" };
+  }
+  if (label.includes("satellite award")) {
+    return { slug: "satellite", name: "Satellite Awards", shortName: "Satellite" };
+  }
+  if (label.includes("annie award")) {
+    return { slug: "annie", name: "Annie Awards", shortName: "Annie" };
+  }
+  if (label.includes("gotham")) {
+    return { slug: "gotham", name: "Gotham Awards", shortName: "Gotham" };
+  }
+  if (label.includes("afi award") || label.includes("american film institute")) {
+    return { slug: "afi", name: "AFI Awards", shortName: "AFI" };
+  }
 
-  return null; // Unknown award body — skip during import
+  // Catch-all: group unrecognized awards under "Other Awards"
+  return { slug: "other", name: "Other Awards", shortName: "Other" };
 }

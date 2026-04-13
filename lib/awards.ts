@@ -53,15 +53,23 @@ function shortenCategoryName(categoryName: string, bodyName: string, shortName: 
 
   for (const prefix of prefixes) {
     if (categoryName.startsWith(prefix)) {
-      return categoryName.slice(prefix.length);
+      const shortened = categoryName.slice(prefix.length);
+      // Don't return empty or generic results
+      if (shortened && shortened.toLowerCase() !== "awards" && shortened.toLowerCase() !== "award") {
+        return shortened;
+      }
     }
   }
 
   // Fallback: if the category name starts with the short name, strip it
   if (categoryName.startsWith(`${shortName} `)) {
-    return categoryName.slice(shortName.length + 1);
+    const shortened = categoryName.slice(shortName.length + 1);
+    if (shortened && shortened.toLowerCase() !== "awards" && shortened.toLowerCase() !== "award") {
+      return shortened;
+    }
   }
 
+  // For "Other Awards" bucket or generic awards, keep the full original name
   return categoryName;
 }
 
@@ -103,7 +111,7 @@ async function groupAwards(
   }
 
   // Sort: most prestigious first (Oscar > Golden Globe > BAFTA > ...)
-  const bodyOrder = ["oscar", "golden-globe", "bafta", "sag", "cannes", "emmy", "critics-choice", "venice", "berlin", "indie-spirit"];
+  const bodyOrder = ["oscar", "golden-globe", "bafta", "sag", "cannes", "emmy", "critics-choice", "venice", "berlin", "indie-spirit", "dga", "wga", "pga", "peabody", "saturn", "tca", "satellite", "annie", "gotham", "afi", "other"];
   const groups = [...bodyMap.values()].sort((a, b) => {
     const aIdx = bodyOrder.indexOf(a.slug);
     const bIdx = bodyOrder.indexOf(b.slug);

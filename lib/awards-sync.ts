@@ -116,7 +116,6 @@ export async function syncMovieAwards(
   let count = 0;
   for (const award of results) {
     const body = identifyAwardBody(award.categoryLabel, award.awardWikidataId);
-    if (!body) continue;
 
     try {
       const categoryId = await ensureCategory(
@@ -184,7 +183,6 @@ export async function syncCelebrityAwards(
   let count = 0;
   for (const award of results) {
     const body = identifyAwardBody(award.categoryLabel, award.awardWikidataId);
-    if (!body) continue;
 
     try {
       const categoryId = await ensureCategory(
@@ -251,7 +249,6 @@ export async function syncTVShowAwards(
   let count = 0;
   for (const award of results) {
     const body = identifyAwardBody(award.categoryLabel, award.awardWikidataId);
-    if (!body) continue;
 
     try {
       const categoryId = await ensureCategory(
