@@ -60,7 +60,27 @@ async function searchTMDB(title: string, year?: number): Promise<TMDBSearchResul
     const res = await fetch(`${TMDB_BASE}/search/movie?${params}`, { next: { revalidate: 0 } });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.results?.[0] ?? null;
+    const results: TMDBSearchResult[] = data.results ?? [];
+    if (results.length === 0) return null;
+
+    // TMDB's year param is a soft filter — it boosts but doesn't exclude.
+    // Pick the result whose release year matches the CSV year exactly.
+    if (year) {
+      const exactMatch = results.find((r) => {
+        const releaseYear = r.release_date ? new Date(r.release_date).getFullYear() : null;
+        return releaseYear === year && r.title.toLowerCase() === title.toLowerCase();
+      });
+      if (exactMatch) return exactMatch;
+
+      // Fall back to year match with any title (handles minor title differences)
+      const yearMatch = results.find((r) => {
+        const releaseYear = r.release_date ? new Date(r.release_date).getFullYear() : null;
+        return releaseYear === year;
+      });
+      if (yearMatch) return yearMatch;
+    }
+
+    return results[0];
   } catch {
     return null;
   }
