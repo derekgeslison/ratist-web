@@ -144,7 +144,7 @@ export default async function HomePage() {
         <MovieRow
           title="Now Playing in Theaters"
           movies={nowPlaying.results.slice(0, 12)}
-          viewAllHref="/movies?theaterStatus=now_playing"
+          viewAllHref="/movies?releaseStatus=now_playing"
         />
 
         {/* Ad — between Now Playing and Tools */}
@@ -256,7 +256,7 @@ export default async function HomePage() {
           <MovieRow
             title="Coming Soon"
             movies={upcoming.results.slice(0, 12)}
-            viewAllHref="/movies?theaterStatus=upcoming"
+            viewAllHref="/movies?releaseStatus=upcoming"
           />
         )}
 

@@ -60,9 +60,9 @@ const SORT_OPTIONS = [
   { value: "title_za", label: "Title Z–A" },
 ];
 
-const THEATER_OPTIONS = [
+const RELEASE_OPTIONS = [
   { value: "", label: "All" },
-  { value: "now_playing", label: "Now Playing" },
+  { value: "now_playing", label: "Now Playing / Currently Airing" },
   { value: "upcoming", label: "Coming Soon" },
 ];
 
@@ -97,7 +97,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentRatingOp = (searchParams.get("ratingOp") ?? "gte") as "gte" | "lte";
   const currentRatingVal = searchParams.get("ratingVal") ?? "";
   const currentPerPage = searchParams.get("perPage") ?? "20";
-  const currentTheaterStatus = searchParams.get("theaterStatus") ?? "";
+  const currentReleaseStatus = searchParams.get("releaseStatus") ?? "";
   const currentType = searchParams.get("type") ?? "all";
   const currentProviders = searchParams.get("providers")?.split(",").filter(Boolean) ?? [];
   const currentShowProviders = searchParams.get("showProviders") === "1";
@@ -153,7 +153,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentYearFrom || currentYearTo,
     currentMpaa.length > 0,
     currentRatingVal,
-    currentTheaterStatus,
+    currentReleaseStatus,
     currentProviders.length > 0,
     currentLanguage,
   ].filter(Boolean).length;
@@ -450,10 +450,10 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               <button onClick={() => update({ ratingVal: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
-          {currentTheaterStatus && (
+          {currentReleaseStatus && (
             <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
-              {THEATER_OPTIONS.find((o) => o.value === currentTheaterStatus)?.label}
-              <button onClick={() => update({ theaterStatus: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+              {RELEASE_OPTIONS.find((o) => o.value === currentReleaseStatus)?.label}
+              <button onClick={() => update({ releaseStatus: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
           {currentProviders.map((pid) => {
@@ -482,15 +482,15 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
       {filtersOpen && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 space-y-5">
 
-          {/* Theater Status */}
+          {/* Release Status */}
           <div>
-            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Theater Status</p>
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Release Status</p>
             <div className="flex flex-wrap gap-2">
-              {THEATER_OPTIONS.map((o) => (
+              {RELEASE_OPTIONS.map((o) => (
                 <button
                   key={o.value}
-                  onClick={() => update({ theaterStatus: o.value || null })}
-                  className={`${chipBase} ${currentTheaterStatus === o.value ? chipOn : chipOff}`}
+                  onClick={() => update({ releaseStatus: o.value || null })}
+                  className={`${chipBase} ${currentReleaseStatus === o.value ? chipOn : chipOff}`}
                 >
                   {o.label}
                 </button>

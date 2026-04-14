@@ -251,14 +251,14 @@ export async function discoverMovies(options: {
   providers?: string[];
   language?: string;
   keywords?: string;
-  theaterStatus?: string;
+  releaseStatus?: string;
   page?: number;
   // legacy
   genre?: string;
   minRating?: string;
 }) {
   const sortBy = SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";
-  const isUpcoming = options.theaterStatus === "upcoming";
+  const isUpcoming = options.releaseStatus === "upcoming";
   const params: Record<string, string> = {
     page: String(options.page ?? 1),
     sort_by: sortBy,
@@ -273,7 +273,7 @@ export async function discoverMovies(options: {
   if (options.castIds?.length) params.with_cast = options.castIds.join(",");
 
   // Theater status constrains date range and release type
-  if (options.theaterStatus === "now_playing") {
+  if (options.releaseStatus === "now_playing") {
     const today = new Date().toISOString().split("T")[0];
     const daysAgo = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     params["primary_release_date.gte"] = daysAgo;
@@ -468,6 +468,7 @@ export async function discoverShows(options: {
   providers?: string[];
   language?: string;
   keywords?: string;
+  releaseStatus?: string;
   page?: number;
 }) {
   const TV_SORT_MAP: Record<string, string> = {
@@ -479,18 +480,33 @@ export async function discoverShows(options: {
     title_za: "name.desc",
   };
   const sortBy = TV_SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";
+  const isUpcoming = options.releaseStatus === "upcoming";
   const params: Record<string, string> = {
     page: String(options.page ?? 1),
     sort_by: sortBy,
-    "vote_count.gte": options.sort === "top_rated" ? "200" : "10",
+    "vote_count.gte": isUpcoming ? "0" : options.sort === "top_rated" ? "200" : "10",
   };
   if (options.query) params.with_text_query = options.query;
   const genreIds = options.genres?.length ? options.genres : [];
   if (genreIds.length > 0) {
     params.with_genres = genreIds.join(options.genreMode === "all" ? "," : "|");
   }
-  if (options.yearFrom) params["first_air_date.gte"] = `${options.yearFrom}-01-01`;
-  if (options.yearTo) params["first_air_date.lte"] = `${options.yearTo}-12-31`;
+
+  // Release status constrains date range / show status
+  if (options.releaseStatus === "now_playing") {
+    // "Currently Airing" — returning series or in production
+    params.with_status = "0|2";
+  } else if (isUpcoming) {
+    // "Coming Soon" — premiering in the future
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const sixMonths = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    params["first_air_date.gte"] = tomorrow;
+    params["first_air_date.lte"] = sixMonths;
+  } else {
+    if (options.yearFrom) params["first_air_date.gte"] = `${options.yearFrom}-01-01`;
+    if (options.yearTo) params["first_air_date.lte"] = `${options.yearTo}-12-31`;
+  }
+
   if (options.ratingGte) params["vote_average.gte"] = options.ratingGte;
   if (options.ratingLte) params["vote_average.lte"] = options.ratingLte;
   if (options.providers?.length) {

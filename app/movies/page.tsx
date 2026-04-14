@@ -67,7 +67,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   const castIds = params.cast?.split(",").filter(Boolean);
   const mpaaRatings = params.mpaa?.split(",").filter(Boolean) ?? [];
 
-  const theaterStatus = params.theaterStatus; // "now_playing" | "upcoming" | undefined
+  const releaseStatus = params.releaseStatus; // "now_playing" | "upcoming" | undefined
   const providers = params.providers?.split(",").filter(Boolean);
   const showProviders = params.showProviders === "1";
   const language = params.language;
@@ -82,7 +82,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     providers?.length ||
     language ||
     keywords ||
-    theaterStatus ||
+    releaseStatus ||
     // legacy
     params.genre || params.decade || params.rating
   );
@@ -139,7 +139,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     providers,
     language,
     keywords,
-    theaterStatus,
+    releaseStatus,
     genre: params.genre,
     minRating: params.rating,
   };
@@ -161,8 +161,8 @@ export default async function MoviesPage({ searchParams }: Props) {
         discoverMovies({ ...discoverOptions, query: params.search, page: p })
       );
       if (params.search) pageTitle = `Search: "${params.search}"`;
-      else if (theaterStatus === "now_playing") pageTitle = "Now Playing in Theaters";
-      else if (theaterStatus === "upcoming") pageTitle = "Coming Soon";
+      else if (releaseStatus === "now_playing") pageTitle = "Now Playing in Theaters";
+      else if (releaseStatus === "upcoming") pageTitle = "Coming Soon";
     } else if (sort === "top_rated") {
       movieResult = await fetchMoviePages((p) => getTopRatedMovies(p));
       pageTitle = contentType === "movie" ? "Top Rated Movies" : "Top Rated";
@@ -188,11 +188,12 @@ export default async function MoviesPage({ searchParams }: Props) {
       providers: discoverOptions.providers,
       language: discoverOptions.language,
       keywords: discoverOptions.keywords,
+      releaseStatus,
     };
 
     if (params.search && !hasFilters) {
       showResult = await fetchShowPages((p) => searchShows(params.search!, p));
-    } else if (isSearchOrFilter && !theaterStatus) {
+    } else if (isSearchOrFilter) {
       showResult = await fetchShowPages((p) =>
         discoverShows({ ...tvDiscoverOptions, page: p, query: params.search })
       );
@@ -205,7 +206,11 @@ export default async function MoviesPage({ searchParams }: Props) {
         if (contentType === "tv") pageTitle = "Popular TV Shows";
       }
     }
-    if (contentType === "tv" && params.search) pageTitle = `Search: "${params.search}"`;
+    if (contentType === "tv") {
+      if (params.search) pageTitle = `Search: "${params.search}"`;
+      else if (releaseStatus === "now_playing") pageTitle = "Currently Airing";
+      else if (releaseStatus === "upcoming") pageTitle = "Coming Soon";
+    }
   }
 
   if (!params.search && !hasFilters && contentType === "all") {
