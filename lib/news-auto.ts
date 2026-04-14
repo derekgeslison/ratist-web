@@ -19,6 +19,8 @@ interface TMDBListResult {
   popularity: number;
   release_date?: string;
   first_air_date?: string;
+  adult?: boolean;
+  original_language?: string;
 }
 
 interface VideoResult {
@@ -80,8 +82,11 @@ async function getRelevantIds(): Promise<{ movies: TMDBListResult[]; shows: TMDB
   };
 }
 
-// Video names that indicate YouTube Shorts, clips, or re-uploads — not real trailers
-const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out now|in theaters|watch now)\b/i;
+// Video names that indicate YouTube Shorts, clips, re-uploads, or age-restricted content
+const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out now|in theaters|watch now|red band|restricted|uncensored|unrated|18\+|nsfw)\b/i;
+
+// Minimum popularity to filter out obscure titles
+const MIN_POPULARITY = 15;
 
 /**
  * For a title, find the best official YouTube trailer.
@@ -134,7 +139,9 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process movies
   for (const movie of movies) {
     try {
-      // Skip movies that released more than 2 weeks ago
+      // Skip adult content, low-popularity, and old releases
+      if (movie.adult) continue;
+      if (movie.popularity < MIN_POPULARITY) continue;
       if (movie.release_date) {
         const releaseDate = new Date(movie.release_date);
         if (releaseDate < recentReleaseLimit) continue;
@@ -172,7 +179,9 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process TV shows
   for (const show of shows) {
     try {
-      // Skip shows that started airing more than 2 weeks ago
+      // Skip adult content, low-popularity, and old shows
+      if (show.adult) continue;
+      if (show.popularity < MIN_POPULARITY) continue;
       if (show.first_air_date) {
         const airDate = new Date(show.first_air_date);
         if (airDate < recentReleaseLimit) continue;
