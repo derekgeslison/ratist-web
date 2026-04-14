@@ -80,59 +80,55 @@ async function getListIds(): Promise<{ movies: TMDBListResult[]; shows: TMDBList
 }
 
 /**
- * Fetch recently changed movie/TV IDs from TMDB changes API,
- * then resolve their details. This catches anticipated titles
- * that aren't on the curated lists yet.
+ * Discover upcoming/recent movies and TV shows via TMDB discover API.
+ * Sorted by popularity desc, scans 20 pages (~400 titles each).
+ * This catches anticipated titles that aren't on the curated lists.
  */
-async function getRecentChanges(): Promise<{ movies: TMDBListResult[]; shows: TMDBListResult[] }> {
-  const endDate = new Date().toISOString().slice(0, 10);
-  const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+async function getDiscoverTitles(): Promise<{ movies: TMDBListResult[]; shows: TMDBListResult[] }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const twoYearsOut = new Date(Date.now() + 730 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const [movieChanges, tvChanges] = await Promise.all([
-    Promise.all(
-      [1, 2, 3, 4, 5].map((page) =>
-        tmdbGet<PageResult<{ id: number; adult?: boolean }>>("/movie/changes", { start_date: startDate, end_date: endDate, page: String(page) })
-          .catch(() => ({ results: [], total_pages: 0 }))
-      )
-    ),
-    Promise.all(
-      [1, 2, 3].map((page) =>
-        tmdbGet<PageResult<{ id: number; adult?: boolean }>>("/tv/changes", { start_date: startDate, end_date: endDate, page: String(page) })
-          .catch(() => ({ results: [], total_pages: 0 }))
-      )
-    ),
-  ]);
+  // Discover upcoming + recently released movies (sorted by popularity)
+  const moviePages = await Promise.all(
+    Array.from({ length: 20 }, (_, i) =>
+      tmdbGet<PageResult<TMDBListResult>>("/discover/movie", {
+        "primary_release_date.gte": twoWeeksAgo,
+        "primary_release_date.lte": twoYearsOut,
+        sort_by: "popularity.desc",
+        include_adult: "false",
+        page: String(i + 1),
+      }).catch(() => ({ results: [] as TMDBListResult[], total_pages: 0 }))
+    )
+  );
 
-  const movieIds = [...new Set(movieChanges.flatMap((p) => p.results.filter((r) => !r.adult).map((r) => r.id)))];
-  const tvIds = [...new Set(tvChanges.flatMap((p) => p.results.filter((r) => !r.adult).map((r) => r.id)))];
+  // Discover upcoming + recent TV shows
+  const tvPages = await Promise.all(
+    Array.from({ length: 10 }, (_, i) =>
+      tmdbGet<PageResult<TMDBListResult>>("/discover/tv", {
+        "first_air_date.gte": twoWeeksAgo,
+        "first_air_date.lte": twoYearsOut,
+        sort_by: "popularity.desc",
+        include_adult: "false",
+        page: String(i + 1),
+      }).catch(() => ({ results: [] as TMDBListResult[], total_pages: 0 }))
+    )
+  );
 
-  // Fetch details for changed titles (batch, skip ones that fail)
-  const movies: TMDBListResult[] = [];
-  for (const id of movieIds) {
-    try {
-      const m = await tmdbGet<TMDBListResult>(`/movie/${id}`);
-      movies.push(m);
-    } catch { /* skip */ }
-  }
-
-  const shows: TMDBListResult[] = [];
-  for (const id of tvIds) {
-    try {
-      const s = await tmdbGet<TMDBListResult>(`/tv/${id}`);
-      shows.push(s);
-    } catch { /* skip */ }
-  }
-
-  return { movies, shows };
+  return {
+    movies: moviePages.flatMap((p) => p.results),
+    shows: tvPages.flatMap((p) => p.results),
+  };
 }
 
 // ─── Trailer detection ──────────────────────────────────────────────────────
 
 const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out now|in theaters|watch now|red band|restricted|uncensored|unrated|18\+|nsfw)\b/i;
 
-// English titles need modest popularity; foreign titles need high popularity
-const MIN_POP_EN = 5;
-const MIN_POP_FOREIGN = 100;
+// English titles: very low threshold (discover API provides relevance sorting)
+// Foreign titles: higher threshold to filter obscure content
+const MIN_POP_EN = 1;
+const MIN_POP_FOREIGN = 50;
 const ENGLISH_LANGS = new Set(["en"]);
 
 async function isYouTubeShort(key: string): Promise<boolean> {
@@ -235,17 +231,17 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentReleaseLimit = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-  // Gather candidates from both sources
-  const [listData, changesData] = await Promise.all([
+  // Gather candidates from curated lists + discover API
+  const [listData, discoverData] = await Promise.all([
     getListIds(),
-    getRecentChanges().catch(() => ({ movies: [], shows: [] })),
+    getDiscoverTitles().catch(() => ({ movies: [], shows: [] })),
   ]);
 
   // Merge and deduplicate
   const movieMap = new Map<number, TMDBListResult>();
-  for (const m of [...listData.movies, ...changesData.movies]) movieMap.set(m.id, m);
+  for (const m of [...listData.movies, ...discoverData.movies]) movieMap.set(m.id, m);
   const showMap = new Map<number, TMDBListResult>();
-  for (const s of [...listData.shows, ...changesData.shows]) showMap.set(s.id, s);
+  for (const s of [...listData.shows, ...discoverData.shows]) showMap.set(s.id, s);
 
   const movies = [...movieMap.values()].filter((m) => shouldInclude(m, recentReleaseLimit));
   const shows = [...showMap.values()].filter((s) => shouldInclude(s, recentReleaseLimit));
