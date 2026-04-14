@@ -40,7 +40,7 @@ const TOOLS = [
   },
 ];
 
-export const revalidate = 3600; // Revalidate home page every hour
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [popular, topRated, nowPlaying, upcoming, popularShows, spotlights, recentNews] = await Promise.all([
