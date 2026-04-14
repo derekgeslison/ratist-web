@@ -1,8 +1,9 @@
 /**
- * Auto-generated news: detects new trailers from TMDB.
+ * Auto-generated news: detects trailers from popular/upcoming titles on TMDB.
  *
- * Uses TMDB /movie/changes and /tv/changes endpoints to find titles
- * with recently added videos, then checks for official trailers.
+ * Scans popular movies, upcoming movies, and popular TV shows for official
+ * YouTube trailers. Uses externalKey dedup to only create new items —
+ * safe to run repeatedly.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -10,9 +11,12 @@ import { prisma } from "@/lib/prisma";
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
-interface ChangeResult {
+interface TMDBListResult {
   id: number;
-  adult?: boolean;
+  title?: string;
+  name?: string;
+  poster_path: string | null;
+  popularity: number;
 }
 
 interface VideoResult {
@@ -24,14 +28,6 @@ interface VideoResult {
   published_at: string;
 }
 
-interface TitleInfo {
-  id: number;
-  title?: string;
-  name?: string;
-  poster_path: string | null;
-  popularity: number;
-}
-
 async function tmdbGet<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   const url = new URL(`${BASE}${path}`);
   url.searchParams.set("api_key", API_KEY!);
@@ -41,146 +37,135 @@ async function tmdbGet<T>(path: string, params: Record<string, string> = {}): Pr
   return res.json();
 }
 
-/**
- * Fetch titles that had video changes in the last `hours` hours.
- * Returns TMDB IDs (may include non-trailer changes — we filter later).
- */
-async function getChangedIds(mediaType: "movie" | "tv", hours = 24): Promise<number[]> {
-  const endDate = new Date().toISOString().slice(0, 10);
-  const startDate = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString().slice(0, 10);
-
-  const ids: number[] = [];
-  // Fetch up to 3 pages of changes (60 items per page)
-  for (let page = 1; page <= 3; page++) {
-    const data = await tmdbGet<{ results: ChangeResult[]; total_pages: number }>(
-      `/${mediaType}/changes`,
-      { start_date: startDate, end_date: endDate, page: String(page) }
-    );
-    for (const item of data.results) {
-      if (!item.adult) ids.push(item.id);
-    }
-    if (page >= data.total_pages) break;
-  }
-  return ids;
+interface PageResult<T> {
+  results: T[];
+  total_pages: number;
 }
 
 /**
- * For a given title, fetch videos and find official YouTube trailers
- * that were published recently.
+ * Gather IDs from popular, upcoming, and now-playing lists.
+ * These are the titles users actually care about.
  */
-async function findNewTrailers(
+async function getRelevantIds(): Promise<{ movies: TMDBListResult[]; shows: TMDBListResult[] }> {
+  const [pop1, pop2, upcoming, nowPlaying, popTV1, popTV2] = await Promise.all([
+    tmdbGet<PageResult<TMDBListResult>>("/movie/popular", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/popular", { page: "2" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/upcoming"),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/now_playing"),
+    tmdbGet<PageResult<TMDBListResult>>("/tv/popular", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/tv/popular", { page: "2" }),
+  ]);
+
+  // Deduplicate by ID
+  const movieMap = new Map<number, TMDBListResult>();
+  for (const m of [...pop1.results, ...pop2.results, ...upcoming.results, ...nowPlaying.results]) {
+    movieMap.set(m.id, m);
+  }
+  const showMap = new Map<number, TMDBListResult>();
+  for (const s of [...popTV1.results, ...popTV2.results]) {
+    showMap.set(s.id, s);
+  }
+
+  return {
+    movies: [...movieMap.values()],
+    shows: [...showMap.values()],
+  };
+}
+
+/**
+ * For a title, find the best official YouTube trailer.
+ * No date filtering — we rely on externalKey dedup instead.
+ */
+async function getBestTrailer(
   mediaType: "movie" | "tv",
   tmdbId: number,
-  cutoffDate: Date,
-): Promise<{ video: VideoResult; info: TitleInfo } | null> {
+): Promise<VideoResult | null> {
   try {
-    const [videosData, info] = await Promise.all([
-      tmdbGet<{ results: VideoResult[] }>(`/${mediaType}/${tmdbId}/videos`),
-      tmdbGet<TitleInfo>(`/${mediaType}/${tmdbId}`),
-    ]);
-
-    // Filter for official YouTube trailers published after cutoff
-    const trailers = videosData.results.filter(
-      (v) =>
-        v.site === "YouTube" &&
-        v.type === "Trailer" &&
-        v.official &&
-        new Date(v.published_at) > cutoffDate
+    const data = await tmdbGet<{ results: VideoResult[] }>(`/${mediaType}/${tmdbId}/videos`);
+    const trailers = data.results.filter(
+      (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
     );
-
     if (trailers.length === 0) return null;
-
-    // Skip low-popularity titles to avoid noise
-    if (info.popularity < 5) return null;
-
     // Pick the most recently published trailer
     trailers.sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
-    return { video: trailers[0], info };
+    return trailers[0];
   } catch {
     return null;
   }
 }
 
 /**
- * Main function: detect new trailers and create NewsItem records.
- * Returns count of items created.
+ * Main function: scan popular/upcoming titles for trailers and create
+ * NewsItem records for any we haven't seen before.
  */
 export async function fetchNewTrailers(): Promise<{ created: number; checked: number; errors: string[] }> {
   if (!API_KEY) return { created: 0, checked: 0, errors: ["TMDB_API_KEY not configured"] };
 
-  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000); // Look back 48h for trailer publish dates
   const errors: string[] = [];
   let created = 0;
 
-  // Get movie and TV changes in parallel
-  const [movieIds, tvIds] = await Promise.all([
-    getChangedIds("movie").catch(() => [] as number[]),
-    getChangedIds("tv").catch(() => [] as number[]),
-  ]);
+  const { movies, shows } = await getRelevantIds();
+  const checked = movies.length + shows.length;
 
-  const checked = movieIds.length + tvIds.length;
-
-  // Process movies (batch to avoid rate limits)
-  for (const tmdbId of movieIds) {
+  // Process movies
+  for (const movie of movies) {
     try {
-      const result = await findNewTrailers("movie", tmdbId, cutoff);
-      if (!result) continue;
+      const trailer = await getBestTrailer("movie", movie.id);
+      if (!trailer) continue;
 
-      const key = `trailer:movie:${tmdbId}:${result.video.key}`;
+      const key = `trailer:movie:${movie.id}:${trailer.key}`;
       const existing = await prisma.newsItem.findUnique({ where: { externalKey: key } });
       if (existing) continue;
 
-      const title = `${result.info.title} — Official Trailer`;
       await prisma.newsItem.create({
         data: {
           type: "TRAILER",
-          title,
-          excerpt: `Watch the official trailer for ${result.info.title}.`,
+          title: `${movie.title} — Official Trailer`,
+          excerpt: `Watch the official trailer for ${movie.title}.`,
           published: true,
-          publishedAt: new Date(result.video.published_at),
-          movieTmdbId: tmdbId,
-          posterPath: result.info.poster_path,
-          youtubeKey: result.video.key,
+          publishedAt: new Date(trailer.published_at),
+          movieTmdbId: movie.id,
+          posterPath: movie.poster_path,
+          youtubeKey: trailer.key,
           sourceName: "YouTube",
-          sourceUrl: `https://www.youtube.com/watch?v=${result.video.key}`,
+          sourceUrl: `https://www.youtube.com/watch?v=${trailer.key}`,
           externalKey: key,
         },
       });
       created++;
     } catch (err) {
-      errors.push(`movie:${tmdbId}: ${err instanceof Error ? err.message : "unknown"}`);
+      errors.push(`movie:${movie.id}: ${err instanceof Error ? err.message : "unknown"}`);
     }
   }
 
   // Process TV shows
-  for (const tmdbId of tvIds) {
+  for (const show of shows) {
     try {
-      const result = await findNewTrailers("tv", tmdbId, cutoff);
-      if (!result) continue;
+      const trailer = await getBestTrailer("tv", show.id);
+      if (!trailer) continue;
 
-      const key = `trailer:tv:${tmdbId}:${result.video.key}`;
+      const key = `trailer:tv:${show.id}:${trailer.key}`;
       const existing = await prisma.newsItem.findUnique({ where: { externalKey: key } });
       if (existing) continue;
 
-      const title = `${result.info.name} — Official Trailer`;
       await prisma.newsItem.create({
         data: {
           type: "TRAILER",
-          title,
-          excerpt: `Watch the official trailer for ${result.info.name}.`,
+          title: `${show.name} — Official Trailer`,
+          excerpt: `Watch the official trailer for ${show.name}.`,
           published: true,
-          publishedAt: new Date(result.video.published_at),
-          showTmdbId: tmdbId,
-          posterPath: result.info.poster_path,
-          youtubeKey: result.video.key,
+          publishedAt: new Date(trailer.published_at),
+          showTmdbId: show.id,
+          posterPath: show.poster_path,
+          youtubeKey: trailer.key,
           sourceName: "YouTube",
-          sourceUrl: `https://www.youtube.com/watch?v=${result.video.key}`,
+          sourceUrl: `https://www.youtube.com/watch?v=${trailer.key}`,
           externalKey: key,
         },
       });
       created++;
     } catch (err) {
-      errors.push(`tv:${tmdbId}: ${err instanceof Error ? err.message : "unknown"}`);
+      errors.push(`tv:${show.id}: ${err instanceof Error ? err.message : "unknown"}`);
     }
   }
 
