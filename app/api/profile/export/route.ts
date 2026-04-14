@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
       prisma.watchlist.findMany({
         where: { userId: user.id },
         select: {
-          name: true, description: true, isPublic: true, createdAt: true,
+          name: true, description: true, isPrivate: true, createdAt: true,
           movies: { select: { movie: { select: { tmdbId: true, title: true } } } },
           shows: { select: { tvShow: { select: { tmdbId: true, name: true } } } },
         },
@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
         tmdbId: f.tvShow?.tmdbId ?? null, name: f.tvShow?.name ?? null,
       })),
       watchlists: watchlists.map((w) => ({
-        name: w.name, description: w.description, isPublic: w.isPublic,
+        name: w.name, description: w.description, isPrivate: w.isPrivate,
         createdAt: w.createdAt,
         movies: w.movies.map((m) => ({ tmdbId: m.movie?.tmdbId ?? null, title: m.movie?.title ?? null })),
         shows: w.shows.map((s) => ({ tmdbId: s.tvShow?.tmdbId ?? null, name: s.tvShow?.name ?? null })),
