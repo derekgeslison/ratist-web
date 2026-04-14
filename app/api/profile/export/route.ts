@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const [ratings, tvRatings, watchLogs, comments, favoriteMovies, favoriteShows, watchlists, badges] = await Promise.all([
+    const [ratings, tvRatings, comments, favoriteMovies, favoriteShows, watchlists, badges] = await Promise.all([
       prisma.movieRating.findMany({
         where: { userId: user.id },
         select: {
@@ -83,15 +83,6 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.userWatchLog.findMany({
-        where: { userId: user.id },
-        select: {
-          watchedDate: true, notes: true, isRewatch: true,
-          movie: { select: { tmdbId: true, title: true } },
-          movieId: true,
-        },
-        orderBy: { watchedDate: "desc" },
-      }),
       prisma.comment.findMany({
         where: { userId: user.id },
         select: { targetType: true, text: true, createdAt: true },
@@ -99,7 +90,8 @@ export async function GET(req: NextRequest) {
       }),
       prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
-        select: { movie: { select: { tmdbId: true, title: true } } },
+        select: { movieId: true, watchedDate: true, movie: { select: { tmdbId: true, title: true } } },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.userFavoriteShow.findMany({
         where: { userId: user.id },
@@ -156,22 +148,16 @@ export async function GET(req: NextRequest) {
       ]),
     ));
 
-    // diary.csv
+    // diary.csv — all seen movies with date and rating info
     zip.file("diary.csv", toCsv(
-      ["title", "tmdb_id", "watched_date", "is_rewatch", "diary_note", "ratist_rating", "overall_rating", "review_text"],
-      watchLogs.map((l) => {
-        const rating = movieRatingMap.get(l.movieId);
+      ["title", "tmdb_id", "watched_date", "ratist_rating", "overall_rating", "review_text"],
+      favoriteMovies.map((f) => {
+        const rating = movieRatingMap.get(f.movieId);
         return [
-          l.movie?.title, l.movie?.tmdbId, formatDate(l.watchedDate), l.isRewatch, l.notes,
+          f.movie?.title, f.movie?.tmdbId, formatDate(f.watchedDate),
           rating?.ratistRating, rating?.overallRating, rating?.reviewText,
         ];
       }),
-    ));
-
-    // seen-movies.csv
-    zip.file("seen-movies.csv", toCsv(
-      ["title", "tmdb_id"],
-      favoriteMovies.map((f) => [f.movie?.title, f.movie?.tmdbId]),
     ));
 
     // seen-shows.csv
