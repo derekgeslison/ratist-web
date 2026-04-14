@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
       badges.map((b) => [b.slug, formatDate(b.earnedAt)]),
     ));
 
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    const zipBuffer = await zip.generateAsync({ type: "uint8array" });
 
     // Record export timestamp
     prisma.user.update({ where: { id: user.id }, data: { lastExportAt: new Date() } }).catch(() => {});
