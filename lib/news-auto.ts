@@ -88,10 +88,20 @@ const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out
 // Minimum popularity to filter out obscure titles
 const MIN_POPULARITY = 15;
 
+/** Check if a YouTube video is a Short (vertical, < 60s). */
+async function isYouTubeShort(key: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://www.youtube.com/shorts/${key}`, { redirect: "manual" });
+    return res.status === 200; // Shorts return 200, regular videos redirect to /watch
+  } catch {
+    return false;
+  }
+}
+
 /**
  * For a title, find the best official YouTube trailer.
  * Only returns trailers published within the last 30 days.
- * Skips Shorts/Reels and promotional re-uploads.
+ * Skips Shorts, re-uploads, and restricted content.
  */
 async function getBestTrailer(
   mediaType: "movie" | "tv",
@@ -100,20 +110,24 @@ async function getBestTrailer(
 ): Promise<VideoResult | null> {
   try {
     const data = await tmdbGet<{ results: VideoResult[] }>(`/${mediaType}/${tmdbId}/videos`);
-    const trailers = data.results.filter(
+    const candidates = data.results.filter(
       (v) => v.site === "YouTube"
         && (v.type === "Trailer" || v.type === "Teaser")
         && v.official
         && new Date(v.published_at) > cutoff
         && !SKIP_PATTERNS.test(v.name)
     );
-    if (trailers.length === 0) return null;
-    // Pick the most recently published, preferring full trailers over teasers
-    trailers.sort((a, b) => {
+    if (candidates.length === 0) return null;
+    // Prefer full trailers over teasers, then most recent
+    candidates.sort((a, b) => {
       if (a.type !== b.type) return a.type === "Trailer" ? -1 : 1;
       return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
     });
-    return trailers[0];
+    // Check top candidates until we find one that isn't a Short
+    for (const candidate of candidates.slice(0, 3)) {
+      if (!(await isYouTubeShort(candidate.key))) return candidate;
+    }
+    return null;
   } catch {
     return null;
   }
