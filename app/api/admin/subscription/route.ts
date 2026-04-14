@@ -29,7 +29,17 @@ export async function GET(req: NextRequest) {
     orderBy: { name: "asc" },
   });
 
-  // Raffle stats: users with 100+ Ratist ratings who haven't won yet
+  // Raffle stats
+  // Condition 1: how many users have 10+ reviews
+  const tenPlusReviewers = await prisma.movieRating.groupBy({
+    by: ["userId"],
+    where: { ratistRating: { not: null }, plot: { not: null } },
+    _count: { id: true },
+    having: { id: { _count: { gte: 10 } } },
+  });
+  const usersWithTenPlus = tenPlusReviewers.length;
+
+  // Condition 2: users with 100+ Ratist ratings who haven't won yet
   const raffleCounts = await prisma.movieRating.groupBy({
     by: ["userId"],
     where: { ratistRating: { not: null }, plot: { not: null } },
@@ -47,7 +57,8 @@ export async function GET(req: NextRequest) {
   }));
   const raffleWinners = await prisma.user.count({ where: { grantedPromo: "100_reviews_raffle" } });
 
-  return NextResponse.json({ eligible, alreadyGranted, totalSubscribers, subscribers, raffleEligible: raffleEligibleWithCounts, raffleWinners });
+  const raffleConditionsMet = usersWithTenPlus >= 1000 && raffleCounts.length >= 10;
+  return NextResponse.json({ eligible, alreadyGranted, totalSubscribers, subscribers, raffleEligible: raffleEligibleWithCounts, raffleWinners, usersWithTenPlus, usersWithHundredPlus: raffleCounts.length, raffleConditionsMet });
 }
 
 /** POST — admin actions: grant, revoke, bulk promo */
@@ -112,14 +123,33 @@ export async function POST(req: NextRequest) {
     // Draw random winners from users with 100+ Ratist ratings who haven't won yet
     const drawCount = Math.min(limit ?? 10, 10);
 
+    // Condition 1: at least 1,000 users must have 10+ Ratist reviews
+    const tenPlusCounts = await prisma.movieRating.groupBy({
+      by: ["userId"],
+      where: { ratistRating: { not: null }, plot: { not: null } },
+      _count: { id: true },
+      having: { id: { _count: { gte: 10 } } },
+    });
+    if (tenPlusCounts.length < 1000) {
+      return NextResponse.json({
+        error: `Raffle requires 1,000 users with 10+ reviews. Currently ${tenPlusCounts.length}/1,000.`,
+      }, { status: 400 });
+    }
+
+    // Condition 2: at least 10 users must have 100+ Ratist reviews
     const counts = await prisma.movieRating.groupBy({
       by: ["userId"],
       where: { ratistRating: { not: null }, plot: { not: null } },
       _count: { id: true },
       having: { id: { _count: { gte: 100 } } },
     });
+    if (counts.length < 10) {
+      return NextResponse.json({
+        error: `Raffle requires 10+ users with 100+ reviews. Currently ${counts.length}/10.`,
+      }, { status: 400 });
+    }
+
     const qualifiedIds = counts.map((r) => r.userId);
-    if (qualifiedIds.length === 0) return NextResponse.json({ error: "No eligible users with 100+ ratings" }, { status: 400 });
 
     const eligible = await prisma.user.findMany({
       where: { id: { in: qualifiedIds }, grantedPromo: { not: "100_reviews_raffle" } },

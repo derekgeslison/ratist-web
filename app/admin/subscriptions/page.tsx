@@ -28,6 +28,9 @@ export default function AdminSubscriptionsPage() {
   // Raffle
   const [raffleEligible, setRaffleEligible] = useState<EligibleUser[]>([]);
   const [raffleWinners, setRaffleWinners] = useState(0);
+  const [usersWithTenPlus, setUsersWithTenPlus] = useState(0);
+  const [usersWithHundredPlus, setUsersWithHundredPlus] = useState(0);
+  const [raffleConditionsMet, setRaffleConditionsMet] = useState(false);
   const [raffleCount, setRaffleCount] = useState("10");
   const [drawing, setDrawing] = useState(false);
   const [drawResult, setDrawResult] = useState<string | null>(null);
@@ -48,6 +51,9 @@ export default function AdminSubscriptionsPage() {
       setSubscribers(data.subscribers ?? []);
       setRaffleEligible(data.raffleEligible ?? []);
       setRaffleWinners(data.raffleWinners ?? 0);
+      setUsersWithTenPlus(data.usersWithTenPlus ?? 0);
+      setUsersWithHundredPlus(data.usersWithHundredPlus ?? 0);
+      setRaffleConditionsMet(data.raffleConditionsMet ?? false);
     }
     setLoading(false);
   }
@@ -185,14 +191,33 @@ export default function AdminSubscriptionsPage() {
           <Trophy className="w-5 h-5 text-amber-400" />
           <h3 className="text-sm font-semibold text-white">100 Reviews Lifetime Raffle</h3>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)] mb-1">
-          Random users who complete 100+ Ratist ratings win a <strong className="text-white">lifetime Backstage Pass</strong>.
-        </p>
         <p className="text-sm text-[var(--foreground-muted)] mb-4">
-          {raffleEligible.length} eligible user{raffleEligible.length !== 1 ? "s" : ""} with 100+ ratings
-          {raffleWinners > 0 && ` · ${raffleWinners} already won`}
-          {raffleWinners >= 10 && " (max 10 reached)"}
+          10 random users who complete 100+ Ratist ratings win a <strong className="text-white">lifetime Backstage Pass</strong>.
         </p>
+
+        {/* Conditions */}
+        <div className="bg-[var(--surface-2)] rounded-lg p-4 mb-4 space-y-2">
+          <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Raffle Conditions</p>
+          <div className="flex items-center gap-2">
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${usersWithTenPlus >= 1000 ? "bg-emerald-500/20 text-emerald-400" : "bg-[var(--surface)] text-[var(--foreground-muted)]"}`}>
+              {usersWithTenPlus >= 1000 ? <Check className="w-3 h-3" /> : "1"}
+            </span>
+            <span className="text-sm text-[var(--foreground-muted)]">
+              1,000 users with 10+ reviews: <strong className={usersWithTenPlus >= 1000 ? "text-emerald-400" : "text-white"}>{usersWithTenPlus.toLocaleString()}/1,000</strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${usersWithHundredPlus >= 10 ? "bg-emerald-500/20 text-emerald-400" : "bg-[var(--surface)] text-[var(--foreground-muted)]"}`}>
+              {usersWithHundredPlus >= 10 ? <Check className="w-3 h-3" /> : "2"}
+            </span>
+            <span className="text-sm text-[var(--foreground-muted)]">
+              10 users with 100+ reviews: <strong className={usersWithHundredPlus >= 10 ? "text-emerald-400" : "text-white"}>{usersWithHundredPlus}/10</strong>
+            </span>
+          </div>
+          {raffleWinners > 0 && (
+            <p className="text-xs text-[var(--foreground-muted)] pt-1">{raffleWinners}/10 winners already drawn</p>
+          )}
+        </div>
 
         {raffleEligible.length > 0 && (
           <div className="mb-4">
@@ -207,7 +232,7 @@ export default function AdminSubscriptionsPage() {
           </div>
         )}
 
-        {raffleWinners < 10 && raffleEligible.length > 0 && (
+        {raffleWinners < 10 && raffleConditionsMet && raffleEligible.length > 0 && (
           <div className="flex items-center gap-3">
             <span className="text-xs text-[var(--foreground-muted)]">Draw</span>
             <input type="number" value={raffleCount} onChange={(e) => setRaffleCount(e.target.value)} min="1" max={Math.min(10 - raffleWinners, raffleEligible.length)}
