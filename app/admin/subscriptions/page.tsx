@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Ticket, Search, Gift, X, Trophy } from "lucide-react";
+import { Ticket, Search, Gift, X, Trophy, Check } from "lucide-react";
 
 interface EligibleUser {
   id: string; name: string; email: string; reviewCount: number;
