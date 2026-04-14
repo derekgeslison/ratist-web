@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { fetchNewTrailers } from "@/lib/news-auto";
 
 export const dynamic = "force-dynamic";
@@ -6,8 +7,8 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/cron/news/fetch-trailers
  *
- * Detects new official trailers via TMDB changes API and creates
- * NewsItem records. Runs daily via Vercel Cron.
+ * Scans popular/upcoming titles for new trailers. Runs daily via Vercel Cron.
+ * Also prunes auto-generated trailers older than 60 days to keep the feed fresh.
  */
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -16,5 +17,16 @@ export async function GET(req: NextRequest) {
   }
 
   const result = await fetchNewTrailers();
-  return NextResponse.json(result);
+
+  // Prune old auto-generated trailers (60+ days)
+  const pruneCutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const pruned = await prisma.newsItem.deleteMany({
+    where: {
+      type: "TRAILER",
+      externalKey: { not: null },
+      publishedAt: { lt: pruneCutoff },
+    },
+  });
+
+  return NextResponse.json({ ...result, pruned: pruned.count });
 }

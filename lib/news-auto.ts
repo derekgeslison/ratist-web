@@ -74,16 +74,18 @@ async function getRelevantIds(): Promise<{ movies: TMDBListResult[]; shows: TMDB
 
 /**
  * For a title, find the best official YouTube trailer.
- * No date filtering — we rely on externalKey dedup instead.
+ * Only returns trailers published within the last 30 days.
  */
 async function getBestTrailer(
   mediaType: "movie" | "tv",
   tmdbId: number,
+  cutoff: Date,
 ): Promise<VideoResult | null> {
   try {
     const data = await tmdbGet<{ results: VideoResult[] }>(`/${mediaType}/${tmdbId}/videos`);
     const trailers = data.results.filter(
       (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
+        && new Date(v.published_at) > cutoff
     );
     if (trailers.length === 0) return null;
     // Pick the most recently published trailer
@@ -103,6 +105,7 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
 
   const errors: string[] = [];
   let created = 0;
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days
 
   const { movies, shows } = await getRelevantIds();
   const checked = movies.length + shows.length;
@@ -110,7 +113,7 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process movies
   for (const movie of movies) {
     try {
-      const trailer = await getBestTrailer("movie", movie.id);
+      const trailer = await getBestTrailer("movie", movie.id, cutoff);
       if (!trailer) continue;
 
       const key = `trailer:movie:${movie.id}:${trailer.key}`;
@@ -141,7 +144,7 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process TV shows
   for (const show of shows) {
     try {
-      const trailer = await getBestTrailer("tv", show.id);
+      const trailer = await getBestTrailer("tv", show.id, cutoff);
       if (!trailer) continue;
 
       const key = `trailer:tv:${show.id}:${trailer.key}`;
