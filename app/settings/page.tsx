@@ -78,6 +78,7 @@ export default function SettingsPage() {
   const [ratistReviewCount, setRatistReviewCount] = useState(0);
   const [emailOptOut, setEmailOptOut] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -694,6 +695,7 @@ export default function SettingsPage() {
             onClick={async () => {
               if (!user || exporting) return;
               setExporting(true);
+              setExportError(null);
               try {
                 const token = await user.getIdToken();
                 const res = await fetch("/api/profile/export", {
@@ -707,13 +709,12 @@ export default function SettingsPage() {
                   a.download = `ratist-export-${new Date().toISOString().slice(0, 10)}.zip`;
                   a.click();
                   URL.revokeObjectURL(url);
-                  showSuccess("Data exported successfully");
                 } else {
                   const data = await res.json().catch(() => ({}));
-                  showError(data.error ?? "Failed to export data. Please try again.");
+                  setExportError(data.error ?? "Failed to export data. Please try again.");
                 }
               } catch {
-                showError("Failed to export data. Please try again.");
+                setExportError("Failed to export data. Please try again.");
               }
               setExporting(false);
             }}
@@ -724,6 +725,9 @@ export default function SettingsPage() {
             {exporting ? "Exporting..." : "Download"}
           </button>
         </div>
+        {exportError && (
+          <p className="text-sm text-red-400 mb-4">{exportError}</p>
+        )}
 
         <p className="text-xs text-[var(--foreground-muted)]">
           For more details, see our <Link href="/privacy" className="text-[var(--ratist-red)] hover:underline">Privacy Policy</Link>.
