@@ -127,8 +127,7 @@ export default function PrivacyPolicyPage() {
             <li><strong className="text-white">Opt-out of personalized ads:</strong> Manage ad personalization via <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Google Ads Settings</a>.</li>
           </ul>
           <p className="mt-2">
-            To exercise any of these rights, contact us at{" "}
-            <a href="mailto:privacy@theratist.com" className="text-[var(--ratist-red)] hover:underline">privacy@theratist.com</a>.
+            To exercise any of these rights, visit your <Link href="/settings" className="text-[var(--ratist-red)] hover:underline">Settings page</Link> or contact us via our <Link href="/feedback" className="text-[var(--ratist-red)] hover:underline">feedback form</Link>.
           </p>
         </section>
 
@@ -156,9 +155,9 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-lg font-semibold text-white mb-2">13. Contact Us</h2>
           <p>
-            If you have questions about this Privacy Policy or our data practices, please contact us at{" "}
-            <a href="mailto:privacy@theratist.com" className="text-[var(--ratist-red)] hover:underline">privacy@theratist.com</a>{" "}
-            or use our <Link href="/feedback" className="text-[var(--ratist-red)] hover:underline">feedback form</Link>.
+            If you have questions about this Privacy Policy or our data practices, please use our{" "}
+            <Link href="/feedback" className="text-[var(--ratist-red)] hover:underline">feedback form</Link>{" "}
+            or manage your data from your <Link href="/settings" className="text-[var(--ratist-red)] hover:underline">Settings page</Link>.
           </p>
         </section>
       </div>
