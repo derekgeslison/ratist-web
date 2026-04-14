@@ -47,22 +47,28 @@ interface PageResult<T> {
  * These are the titles users actually care about.
  */
 async function getRelevantIds(): Promise<{ movies: TMDBListResult[]; shows: TMDBListResult[] }> {
-  const [pop1, pop2, upcoming, nowPlaying, popTV1, popTV2] = await Promise.all([
+  const [pop1, pop2, pop3, up1, up2, np1, np2, topRated, popTV1, popTV2, popTV3, topTV] = await Promise.all([
     tmdbGet<PageResult<TMDBListResult>>("/movie/popular", { page: "1" }),
     tmdbGet<PageResult<TMDBListResult>>("/movie/popular", { page: "2" }),
-    tmdbGet<PageResult<TMDBListResult>>("/movie/upcoming"),
-    tmdbGet<PageResult<TMDBListResult>>("/movie/now_playing"),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/popular", { page: "3" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/upcoming", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/upcoming", { page: "2" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/now_playing", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/now_playing", { page: "2" }),
+    tmdbGet<PageResult<TMDBListResult>>("/movie/top_rated", { page: "1" }),
     tmdbGet<PageResult<TMDBListResult>>("/tv/popular", { page: "1" }),
     tmdbGet<PageResult<TMDBListResult>>("/tv/popular", { page: "2" }),
+    tmdbGet<PageResult<TMDBListResult>>("/tv/popular", { page: "3" }),
+    tmdbGet<PageResult<TMDBListResult>>("/tv/top_rated", { page: "1" }),
   ]);
 
   // Deduplicate by ID
   const movieMap = new Map<number, TMDBListResult>();
-  for (const m of [...pop1.results, ...pop2.results, ...upcoming.results, ...nowPlaying.results]) {
+  for (const m of [...pop1.results, ...pop2.results, ...pop3.results, ...up1.results, ...up2.results, ...np1.results, ...np2.results, ...topRated.results]) {
     movieMap.set(m.id, m);
   }
   const showMap = new Map<number, TMDBListResult>();
-  for (const s of [...popTV1.results, ...popTV2.results]) {
+  for (const s of [...popTV1.results, ...popTV2.results, ...popTV3.results, ...topTV.results]) {
     showMap.set(s.id, s);
   }
 
@@ -84,12 +90,15 @@ async function getBestTrailer(
   try {
     const data = await tmdbGet<{ results: VideoResult[] }>(`/${mediaType}/${tmdbId}/videos`);
     const trailers = data.results.filter(
-      (v) => v.site === "YouTube" && v.type === "Trailer" && v.official
+      (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser") && v.official
         && new Date(v.published_at) > cutoff
     );
     if (trailers.length === 0) return null;
-    // Pick the most recently published trailer
-    trailers.sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+    // Pick the most recently published, preferring full trailers over teasers
+    trailers.sort((a, b) => {
+      if (a.type !== b.type) return a.type === "Trailer" ? -1 : 1;
+      return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+    });
     return trailers[0];
   } catch {
     return null;
@@ -120,11 +129,12 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
       const existing = await prisma.newsItem.findUnique({ where: { externalKey: key } });
       if (existing) continue;
 
+      const label = trailer.type === "Teaser" ? "Official Teaser" : "Official Trailer";
       await prisma.newsItem.create({
         data: {
           type: "TRAILER",
-          title: `${movie.title} — Official Trailer`,
-          excerpt: `Watch the official trailer for ${movie.title}.`,
+          title: `${movie.title} — ${label}`,
+          excerpt: `Watch the ${label.toLowerCase()} for ${movie.title}.`,
           published: true,
           publishedAt: new Date(trailer.published_at),
           movieTmdbId: movie.id,
@@ -151,11 +161,12 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
       const existing = await prisma.newsItem.findUnique({ where: { externalKey: key } });
       if (existing) continue;
 
+      const tvLabel = trailer.type === "Teaser" ? "Official Teaser" : "Official Trailer";
       await prisma.newsItem.create({
         data: {
           type: "TRAILER",
-          title: `${show.name} — Official Trailer`,
-          excerpt: `Watch the official trailer for ${show.name}.`,
+          title: `${show.name} — ${tvLabel}`,
+          excerpt: `Watch the ${tvLabel.toLowerCase()} for ${show.name}.`,
           published: true,
           publishedAt: new Date(trailer.published_at),
           showTmdbId: show.id,
