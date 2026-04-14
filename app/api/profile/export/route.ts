@@ -28,32 +28,31 @@ export async function GET(req: NextRequest) {
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    // Fetch all user data in parallel
     const [ratings, tvRatings, watchLogs, comments, favoriteMovies, favoriteShows, watchlists, badges] = await Promise.all([
       prisma.movieRating.findMany({
         where: { userId: user.id },
         select: {
-          movieTmdbId: true, ratistRating: true, overallRating: true, reviewType: true,
+          ratistRating: true, overallRating: true, reviewType: true,
           plot: true, storytelling: true, pacingClimax: true, cinematography: true,
           artisticEffect: true, overallEmotion: true, relatability: true,
           casting: true, actingQuality: true, appeal: true,
           reviewText: true, createdAt: true, updatedAt: true,
-          movie: { select: { title: true } },
+          movie: { select: { tmdbId: true, title: true } },
         },
       }),
       prisma.tVShowRating.findMany({
         where: { userId: user.id },
         select: {
-          showTmdbId: true, ratingScope: true, seasonNumber: true,
+          ratingScope: true, seasonNumber: true,
           ratistRating: true, overallRating: true, reviewType: true,
           reviewText: true, createdAt: true, updatedAt: true,
-          tvShow: { select: { name: true } },
+          tvShow: { select: { tmdbId: true, name: true } },
         },
       }),
       prisma.userWatchLog.findMany({
         where: { userId: user.id },
-        select: { movieTmdbId: true, watchedAt: true, note: true, movie: { select: { title: true } } },
-        orderBy: { watchedAt: "desc" },
+        select: { watchedDate: true, notes: true, isRewatch: true, movie: { select: { tmdbId: true, title: true } } },
+        orderBy: { watchedDate: "desc" },
       }),
       prisma.comment.findMany({
         where: { userId: user.id },
@@ -62,18 +61,18 @@ export async function GET(req: NextRequest) {
       }),
       prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
-        select: { movieTmdbId: true, movie: { select: { title: true } } },
+        select: { movie: { select: { tmdbId: true, title: true } } },
       }),
       prisma.userFavoriteShow.findMany({
         where: { userId: user.id },
-        select: { tvShowId: true, tvShow: { select: { name: true } } },
+        select: { tvShow: { select: { tmdbId: true, name: true } } },
       }),
       prisma.watchlist.findMany({
         where: { userId: user.id },
         select: {
           name: true, description: true, isPublic: true, createdAt: true,
-          movies: { select: { movieTmdbId: true, movie: { select: { title: true } } } },
-          shows: { select: { tvShowId: true, tvShow: { select: { name: true } } } },
+          movies: { select: { movie: { select: { tmdbId: true, title: true } } } },
+          shows: { select: { tvShow: { select: { tmdbId: true, name: true } } } },
         },
       }),
       prisma.userBadge.findMany({
@@ -93,7 +92,7 @@ export async function GET(req: NextRequest) {
         emailOptOut: user.emailOptOut,
       },
       movieRatings: ratings.map((r) => ({
-        tmdbId: r.movieTmdbId,
+        tmdbId: r.movie?.tmdbId ?? null,
         title: r.movie?.title ?? null,
         ratistRating: r.ratistRating,
         overallRating: r.overallRating,
@@ -108,7 +107,7 @@ export async function GET(req: NextRequest) {
         createdAt: r.createdAt, updatedAt: r.updatedAt,
       })),
       tvShowRatings: tvRatings.map((r) => ({
-        tmdbId: r.showTmdbId,
+        tmdbId: r.tvShow?.tmdbId ?? null,
         name: r.tvShow?.name ?? null,
         scope: r.ratingScope, season: r.seasonNumber,
         ratistRating: r.ratistRating, overallRating: r.overallRating,
@@ -116,20 +115,20 @@ export async function GET(req: NextRequest) {
         createdAt: r.createdAt, updatedAt: r.updatedAt,
       })),
       diary: watchLogs.map((l) => ({
-        tmdbId: l.movieTmdbId, title: l.movie?.title ?? null,
-        watchedAt: l.watchedAt, note: l.note,
+        tmdbId: l.movie?.tmdbId ?? null, title: l.movie?.title ?? null,
+        watchedAt: l.watchedDate, note: l.notes, isRewatch: l.isRewatch,
       })),
       seenMovies: favoriteMovies.map((f) => ({
-        tmdbId: f.movieTmdbId, title: f.movie?.title ?? null,
+        tmdbId: f.movie?.tmdbId ?? null, title: f.movie?.title ?? null,
       })),
       seenShows: favoriteShows.map((f) => ({
-        name: f.tvShow?.name ?? null,
+        tmdbId: f.tvShow?.tmdbId ?? null, name: f.tvShow?.name ?? null,
       })),
       watchlists: watchlists.map((w) => ({
         name: w.name, description: w.description, isPublic: w.isPublic,
         createdAt: w.createdAt,
-        movies: w.movies.map((m) => ({ tmdbId: m.movieTmdbId, title: m.movie?.title ?? null })),
-        shows: w.shows.map((s) => ({ name: s.tvShow?.name ?? null })),
+        movies: w.movies.map((m) => ({ tmdbId: m.movie?.tmdbId ?? null, title: m.movie?.title ?? null })),
+        shows: w.shows.map((s) => ({ tmdbId: s.tvShow?.tmdbId ?? null, name: s.tvShow?.name ?? null })),
       })),
       comments: comments.map((c) => ({
         targetType: c.targetType, targetId: c.targetId,
