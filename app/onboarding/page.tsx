@@ -379,12 +379,12 @@ export default function OnboardingPage() {
           )}
 
           {/* ── STEP 1: Genre preferences ── */}
-          {/* ── STEP 1: Terms of Service ── */}
+          {/* ── STEP 1: Terms of Service & Privacy Policy ── */}
           {step === 1 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-2">Welcome to The Ratist</h2>
               <p className="text-sm text-[var(--foreground-muted)] mb-6">
-                Before we get started, please review and accept our Terms of Service.
+                Before we get started, please review and accept our Terms of Service and Privacy Policy.
               </p>
               <label className="flex items-start gap-2.5 mb-6 cursor-pointer group">
                 <input
@@ -397,6 +397,10 @@ export default function OnboardingPage() {
                   I agree to The Ratist&apos;s{" "}
                   <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">
                     Terms of Service
+                  </a>
+                  {" "}and{" "}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">
+                    Privacy Policy
                   </a>
                 </span>
               </label>
