@@ -245,23 +245,24 @@ export async function discoverMovies(options: {
   sort?: string;
   yearFrom?: string;
   yearTo?: string;
-  certMin?: string;
-  certMax?: string;
+  certifications?: string[];
   ratingGte?: string;
   ratingLte?: string;
   providers?: string[];
   language?: string;
   keywords?: string;
+  theaterStatus?: string;
   page?: number;
   // legacy
   genre?: string;
   minRating?: string;
 }) {
   const sortBy = SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";
+  const isUpcoming = options.theaterStatus === "upcoming";
   const params: Record<string, string> = {
     page: String(options.page ?? 1),
     sort_by: sortBy,
-    "vote_count.gte": options.sort === "top_rated" ? "200" : "10",
+    "vote_count.gte": isUpcoming ? "0" : options.sort === "top_rated" ? "200" : "10",
   };
   if (options.query) params.with_text_query = options.query;
 
@@ -270,15 +271,33 @@ export async function discoverMovies(options: {
     params.with_genres = genreIds.join(options.genreMode === "all" ? "," : "|");
   }
   if (options.castIds?.length) params.with_cast = options.castIds.join(",");
-  if (options.yearFrom) params["primary_release_date.gte"] = `${options.yearFrom}-01-01`;
-  if (options.yearTo) params["primary_release_date.lte"] = `${options.yearTo}-12-31`;
+
+  // Theater status constrains date range and release type
+  if (options.theaterStatus === "now_playing") {
+    const today = new Date().toISOString().split("T")[0];
+    const daysAgo = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    params["primary_release_date.gte"] = daysAgo;
+    params["primary_release_date.lte"] = today;
+    params.with_release_type = "2|3";
+    params.region = "US";
+  } else if (isUpcoming) {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const sixMonths = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    params["primary_release_date.gte"] = tomorrow;
+    params["primary_release_date.lte"] = sixMonths;
+    params.with_release_type = "2|3";
+    params.region = "US";
+  } else {
+    if (options.yearFrom) params["primary_release_date.gte"] = `${options.yearFrom}-01-01`;
+    if (options.yearTo) params["primary_release_date.lte"] = `${options.yearTo}-12-31`;
+  }
+
   if (options.ratingGte) params["vote_average.gte"] = options.ratingGte;
   else if (options.minRating) params["vote_average.gte"] = options.minRating;
   if (options.ratingLte) params["vote_average.lte"] = options.ratingLte;
-  if (options.certMin || options.certMax) {
+  if (options.certifications?.length) {
     params.certification_country = "US";
-    if (options.certMin) params["certification.gte"] = options.certMin;
-    if (options.certMax) params["certification.lte"] = options.certMax;
+    params.certification = options.certifications.join("|");
   }
   if (options.providers?.length) {
     params.with_watch_providers = options.providers.join("|");

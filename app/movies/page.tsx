@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Movies & TV", description: "Browse and discover movies and TV shows. Filter by genre, streaming service, year, and more. Read community reviews and get personalized ratings." };
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, searchMovies, discoverMovies, getGenres, MPAA_ORDER, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import MovieListItem from "@/components/MovieListItem";
@@ -66,8 +66,6 @@ export default async function MoviesPage({ searchParams }: Props) {
   const genres = params.genres?.split(",").filter(Boolean);
   const castIds = params.cast?.split(",").filter(Boolean);
   const mpaaRatings = params.mpaa?.split(",").filter(Boolean) ?? [];
-  const certMin = mpaaRatings.length > 0 ? MPAA_ORDER.find((r) => mpaaRatings.includes(r)) : undefined;
-  const certMax = mpaaRatings.length > 0 ? [...MPAA_ORDER].reverse().find((r) => mpaaRatings.includes(r)) : undefined;
 
   const theaterStatus = params.theaterStatus; // "now_playing" | "upcoming" | undefined
   const providers = params.providers?.split(",").filter(Boolean);
@@ -84,6 +82,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     providers?.length ||
     language ||
     keywords ||
+    theaterStatus ||
     // legacy
     params.genre || params.decade || params.rating
   );
@@ -134,13 +133,13 @@ export default async function MoviesPage({ searchParams }: Props) {
     sort,
     yearFrom: params.yearFrom ?? legacyDecade?.from,
     yearTo: params.yearTo ?? legacyDecade?.to,
-    certMin,
-    certMax,
+    certifications: mpaaRatings.length > 0 ? mpaaRatings : undefined,
     ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
     ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
     providers,
     language,
     keywords,
+    theaterStatus,
     genre: params.genre,
     minRating: params.rating,
   };
@@ -154,16 +153,10 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   // Fetch movies
   if (showMovies) {
-    if (theaterStatus === "now_playing" && !hasFilters && !params.search) {
-      movieResult = await fetchMoviePages((p) => getNowPlayingMovies(p));
-      pageTitle = "Now Playing in Theaters";
-    } else if (theaterStatus === "upcoming" && !hasFilters && !params.search) {
-      movieResult = await fetchMoviePages((p) => getUpcomingMovies(p));
-      pageTitle = "Coming Soon";
-    } else if (params.search && !hasFilters && !theaterStatus) {
+    if (params.search && !hasFilters) {
       movieResult = await fetchMoviePages((p) => searchMovies(params.search!, p));
       pageTitle = `Search: "${params.search}"`;
-    } else if (params.search || hasFilters || theaterStatus) {
+    } else if (params.search || hasFilters) {
       movieResult = await fetchMoviePages((p) =>
         discoverMovies({ ...discoverOptions, query: params.search, page: p })
       );
@@ -197,13 +190,13 @@ export default async function MoviesPage({ searchParams }: Props) {
       keywords: discoverOptions.keywords,
     };
 
-    if (params.search && !hasFilters && !theaterStatus) {
+    if (params.search && !hasFilters) {
       showResult = await fetchShowPages((p) => searchShows(params.search!, p));
     } else if (isSearchOrFilter && !theaterStatus) {
       showResult = await fetchShowPages((p) =>
         discoverShows({ ...tvDiscoverOptions, page: p, query: params.search })
       );
-    } else if (!isSearchOrFilter && !theaterStatus) {
+    } else if (!isSearchOrFilter) {
       if (sort === "top_rated") {
         showResult = await fetchShowPages((p) => getTopRatedShows(p));
         if (contentType === "tv") pageTitle = "Top Rated TV Shows";
@@ -215,7 +208,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     if (contentType === "tv" && params.search) pageTitle = `Search: "${params.search}"`;
   }
 
-  if (!params.search && !hasFilters && !theaterStatus && contentType === "all") {
+  if (!params.search && !hasFilters && contentType === "all") {
     pageTitle = "Movies & TV";
   }
 
