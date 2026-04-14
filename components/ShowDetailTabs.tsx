@@ -18,6 +18,7 @@ import {
 } from "@/lib/tmdb";
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
+import RatingDistribution from "./RatingDistribution";
 import ParentsGuide from "./ParentsGuide";
 import Soundtrack from "./Soundtrack";
 import AwardsTab from "./AwardsTab";
@@ -690,6 +691,9 @@ export default function ShowDetailTabs({
               />
             </div>
           </div>
+
+          {/* Rating distribution */}
+          <RatingDistribution tmdbId={show.id} mediaType="tv" />
 
           {/* Recommendations */}
           {recommendations.length > 0 && (

@@ -8,6 +8,7 @@ import { Play, ArrowRight } from "lucide-react";
 import { posterUrl, type TMDBMovie, type TMDBCastMember, type TMDBCrewMember, type TMDBImage, type TMDBWatchProvider } from "@/lib/tmdb";
 import TrailerModal from "./TrailerModal";
 import WatchProviders from "./WatchProviders";
+import RatingDistribution from "./RatingDistribution";
 import ReviewCard from "./ReviewCard";
 import Soundtrack from "./Soundtrack";
 import ParentsGuide from "./ParentsGuide";
@@ -169,6 +170,9 @@ export default function MovieDetailTabs({
                   Rate &amp; Review
                 </Link>
               </div>
+
+              {/* Rating distribution */}
+              <RatingDistribution tmdbId={movie.id} mediaType="movie" />
 
               {/* Text reviews */}
               {reviews.length > 0 && (
