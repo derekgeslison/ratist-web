@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   // 2. Send email to all users (legal notification — ignores emailOptOut)
   const users = await prisma.user.findMany({
-    where: { email: { not: null }, deletedAt: null },
+    where: { email: { not: "" }, deletedAt: null },
     select: { id: true, name: true, email: true },
   });
 
