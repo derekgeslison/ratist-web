@@ -207,12 +207,12 @@ export async function GET(req: NextRequest) {
       badges.map((b) => [b.slug, formatDate(b.earnedAt)]),
     ));
 
-    const zipBuffer = await zip.generateAsync({ type: "uint8array" });
+    const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
 
     // Record export timestamp
     prisma.user.update({ where: { id: user.id }, data: { lastExportAt: new Date() } }).catch(() => {});
 
-    return new NextResponse(zipBuffer, {
+    return new Response(zipBuffer, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="ratist-export-${formatDate(new Date())}.zip"`,
