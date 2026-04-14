@@ -687,7 +687,7 @@ export default function SettingsPage() {
           <div>
             <p className="text-sm font-medium text-white flex items-center gap-1.5"><Download className="w-4 h-4" /> Export your data</p>
             <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-              Download a copy of all your personal data — ratings, reviews, watchlists, diary entries, comments, and badges — as a JSON file.
+              Download a zip of CSV files with all your personal data — ratings, reviews, watchlists, diary, comments, and badges. Available once per day.
             </p>
           </div>
           <button
@@ -704,12 +704,13 @@ export default function SettingsPage() {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `ratist-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+                  a.download = `ratist-export-${new Date().toISOString().slice(0, 10)}.zip`;
                   a.click();
                   URL.revokeObjectURL(url);
                   showSuccess("Data exported successfully");
                 } else {
-                  showError("Failed to export data. Please try again.");
+                  const data = await res.json().catch(() => ({}));
+                  showError(data.error ?? "Failed to export data. Please try again.");
                 }
               } catch {
                 showError("Failed to export data. Please try again.");

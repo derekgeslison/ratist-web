@@ -1,14 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import JSZip from "jszip";
 
 export const dynamic = "force-dynamic";
+
+function toCsvRow(values: (string | number | boolean | null | undefined)[]): string {
+  return values.map((v) => {
+    if (v == null) return "";
+    const s = String(v);
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  }).join(",");
+}
+
+function toCsv(headers: string[], rows: (string | number | boolean | null | undefined)[][]): string {
+  return [toCsvRow(headers), ...rows.map(toCsvRow)].join("\n");
+}
+
+function formatDate(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toISOString().slice(0, 10);
+}
 
 /**
  * GET /api/profile/export
  *
- * Exports all personal data for the authenticated user as a JSON download.
- * Covers GDPR Article 20 (right to data portability).
+ * Exports all personal data as CSV files in a zip download.
+ * Rate limited to once per day.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -21,42 +43,58 @@ export async function GET(req: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
       select: {
-        id: true, name: true, email: true, bio: true, avatarUrl: true,
-        createdAt: true, isPrivate: true,
-        notificationPrefs: true, emailOptOut: true,
+        id: true, name: true, email: true, bio: true,
+        createdAt: true, isPrivate: true, emailOptOut: true,
+        lastExportAt: true,
       },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    // Rate limit: once per day
+    if (user.lastExportAt) {
+      const hoursSince = (Date.now() - user.lastExportAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSince < 24) {
+        const hoursLeft = Math.ceil(24 - hoursSince);
+        return NextResponse.json(
+          { error: `You can export your data once per day. Try again in ${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.` },
+          { status: 429 }
+        );
+      }
+    }
 
     const [ratings, tvRatings, watchLogs, comments, favoriteMovies, favoriteShows, watchlists, badges] = await Promise.all([
       prisma.movieRating.findMany({
         where: { userId: user.id },
         select: {
           ratistRating: true, overallRating: true, reviewType: true,
-          plot: true, storytelling: true, pacingClimax: true, cinematography: true,
-          artisticEffect: true, overallEmotion: true, relatability: true,
-          casting: true, actingQuality: true, appeal: true,
-          reviewText: true, createdAt: true, updatedAt: true,
+          storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
+          reviewText: true, createdAt: true,
           movie: { select: { tmdbId: true, title: true } },
         },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.tVShowRating.findMany({
         where: { userId: user.id },
         select: {
           ratingScope: true, seasonNumber: true,
           ratistRating: true, overallRating: true, reviewType: true,
-          reviewText: true, createdAt: true, updatedAt: true,
+          reviewText: true, createdAt: true,
           tvShow: { select: { tmdbId: true, name: true } },
         },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.userWatchLog.findMany({
         where: { userId: user.id },
-        select: { watchedDate: true, notes: true, isRewatch: true, movie: { select: { tmdbId: true, title: true } } },
+        select: {
+          watchedDate: true, notes: true, isRewatch: true,
+          movie: { select: { tmdbId: true, title: true } },
+          movieId: true,
+        },
         orderBy: { watchedDate: "desc" },
       }),
       prisma.comment.findMany({
         where: { userId: user.id },
-        select: { targetType: true, targetId: true, text: true, createdAt: true },
+        select: { targetType: true, text: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
       prisma.userFavoriteMovie.findMany({
@@ -70,7 +108,7 @@ export async function GET(req: NextRequest) {
       prisma.watchlist.findMany({
         where: { userId: user.id },
         select: {
-          name: true, description: true, isPrivate: true, createdAt: true,
+          name: true,
           movies: { select: { movie: { select: { tmdbId: true, title: true } } } },
           shows: { select: { tvShow: { select: { tmdbId: true, name: true } } } },
         },
@@ -81,66 +119,103 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      account: {
-        name: user.name,
-        email: user.email,
-        bio: user.bio,
-        createdAt: user.createdAt,
-        isPrivate: user.isPrivate,
-        emailOptOut: user.emailOptOut,
-      },
-      movieRatings: ratings.map((r) => ({
-        tmdbId: r.movie?.tmdbId ?? null,
-        title: r.movie?.title ?? null,
-        ratistRating: r.ratistRating,
-        overallRating: r.overallRating,
-        reviewType: r.reviewType,
-        review: r.reviewText,
-        criteria: {
-          plot: r.plot, storytelling: r.storytelling, pacingClimax: r.pacingClimax,
-          cinematography: r.cinematography, artisticEffect: r.artisticEffect,
-          overallEmotion: r.overallEmotion, relatability: r.relatability,
-          casting: r.casting, actingQuality: r.actingQuality, appeal: r.appeal,
-        },
-        createdAt: r.createdAt, updatedAt: r.updatedAt,
-      })),
-      tvShowRatings: tvRatings.map((r) => ({
-        tmdbId: r.tvShow?.tmdbId ?? null,
-        name: r.tvShow?.name ?? null,
-        scope: r.ratingScope, season: r.seasonNumber,
-        ratistRating: r.ratistRating, overallRating: r.overallRating,
-        reviewType: r.reviewType, review: r.reviewText,
-        createdAt: r.createdAt, updatedAt: r.updatedAt,
-      })),
-      diary: watchLogs.map((l) => ({
-        tmdbId: l.movie?.tmdbId ?? null, title: l.movie?.title ?? null,
-        watchedAt: l.watchedDate, note: l.notes, isRewatch: l.isRewatch,
-      })),
-      seenMovies: favoriteMovies.map((f) => ({
-        tmdbId: f.movie?.tmdbId ?? null, title: f.movie?.title ?? null,
-      })),
-      seenShows: favoriteShows.map((f) => ({
-        tmdbId: f.tvShow?.tmdbId ?? null, name: f.tvShow?.name ?? null,
-      })),
-      watchlists: watchlists.map((w) => ({
-        name: w.name, description: w.description, isPrivate: w.isPrivate,
-        createdAt: w.createdAt,
-        movies: w.movies.map((m) => ({ tmdbId: m.movie?.tmdbId ?? null, title: m.movie?.title ?? null })),
-        shows: w.shows.map((s) => ({ tmdbId: s.tvShow?.tmdbId ?? null, name: s.tvShow?.name ?? null })),
-      })),
-      comments: comments.map((c) => ({
-        targetType: c.targetType, targetId: c.targetId,
-        text: c.text, createdAt: c.createdAt,
-      })),
-      badges: badges.map((b) => ({ badge: b.slug, earnedAt: b.earnedAt })),
-    };
+    // Build a movieId→rating lookup for diary enrichment
+    const movieRatingMap = new Map<string, { ratistRating: number | null; overallRating: number | null; reviewText: string | null }>();
+    const allMovieRatings = await prisma.movieRating.findMany({
+      where: { userId: user.id },
+      select: { movieId: true, ratistRating: true, overallRating: true, reviewText: true },
+    });
+    for (const r of allMovieRatings) {
+      movieRatingMap.set(r.movieId, { ratistRating: r.ratistRating, overallRating: r.overallRating, reviewText: r.reviewText });
+    }
 
-    return new NextResponse(JSON.stringify(exportData, null, 2), {
+    const zip = new JSZip();
+
+    // account.csv
+    zip.file("account.csv", toCsv(
+      ["name", "email", "bio", "joined_date", "private"],
+      [[user.name, user.email, user.bio, formatDate(user.createdAt), user.isPrivate]],
+    ));
+
+    // movie-ratings.csv
+    zip.file("movie-ratings.csv", toCsv(
+      ["title", "tmdb_id", "ratist_rating", "overall_rating", "review_type", "story", "style", "emotive", "acting", "entertainment", "review_text", "rated_date"],
+      ratings.map((r) => [
+        r.movie?.title, r.movie?.tmdbId, r.ratistRating, r.overallRating, r.reviewType,
+        r.storyScore, r.styleScore, r.emotiveScore, r.actingScore, r.entertainScore,
+        r.reviewText, formatDate(r.createdAt),
+      ]),
+    ));
+
+    // tv-ratings.csv
+    zip.file("tv-ratings.csv", toCsv(
+      ["show_name", "tmdb_id", "scope", "season_number", "ratist_rating", "overall_rating", "review_type", "review_text", "rated_date"],
+      tvRatings.map((r) => [
+        r.tvShow?.name, r.tvShow?.tmdbId, r.ratingScope, r.seasonNumber,
+        r.ratistRating, r.overallRating, r.reviewType, r.reviewText, formatDate(r.createdAt),
+      ]),
+    ));
+
+    // diary.csv
+    zip.file("diary.csv", toCsv(
+      ["title", "tmdb_id", "watched_date", "is_rewatch", "diary_note", "ratist_rating", "overall_rating", "review_text"],
+      watchLogs.map((l) => {
+        const rating = movieRatingMap.get(l.movieId);
+        return [
+          l.movie?.title, l.movie?.tmdbId, formatDate(l.watchedDate), l.isRewatch, l.notes,
+          rating?.ratistRating, rating?.overallRating, rating?.reviewText,
+        ];
+      }),
+    ));
+
+    // seen-movies.csv
+    zip.file("seen-movies.csv", toCsv(
+      ["title", "tmdb_id"],
+      favoriteMovies.map((f) => [f.movie?.title, f.movie?.tmdbId]),
+    ));
+
+    // seen-shows.csv
+    zip.file("seen-shows.csv", toCsv(
+      ["show_name", "tmdb_id"],
+      favoriteShows.map((f) => [f.tvShow?.name, f.tvShow?.tmdbId]),
+    ));
+
+    // watchlists.csv
+    const watchlistRows: (string | number | null | undefined)[][] = [];
+    for (const w of watchlists) {
+      for (const m of w.movies) {
+        watchlistRows.push([w.name, "movie", m.movie?.title, m.movie?.tmdbId]);
+      }
+      for (const s of w.shows) {
+        watchlistRows.push([w.name, "tv", s.tvShow?.name, s.tvShow?.tmdbId]);
+      }
+    }
+    zip.file("watchlists.csv", toCsv(
+      ["watchlist_name", "item_type", "title", "tmdb_id"],
+      watchlistRows,
+    ));
+
+    // comments.csv
+    zip.file("comments.csv", toCsv(
+      ["target_type", "text", "date"],
+      comments.map((c) => [c.targetType, c.text, formatDate(c.createdAt)]),
+    ));
+
+    // badges.csv
+    zip.file("badges.csv", toCsv(
+      ["badge", "earned_date"],
+      badges.map((b) => [b.slug, formatDate(b.earnedAt)]),
+    ));
+
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+    // Record export timestamp
+    prisma.user.update({ where: { id: user.id }, data: { lastExportAt: new Date() } }).catch(() => {});
+
+    return new NextResponse(zipBuffer, {
       headers: {
-        "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="ratist-data-export-${new Date().toISOString().slice(0, 10)}.json"`,
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="ratist-export-${formatDate(new Date())}.zip"`,
       },
     });
   } catch (err) {
