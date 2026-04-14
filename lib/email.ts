@@ -195,3 +195,33 @@ export async function sendAdminMessage(email: string, name: string, message: str
     `, "You have a message from The Ratist team.", userId),
   });
 }
+
+export async function sendPolicyUpdate(
+  email: string,
+  name: string,
+  userId: string,
+  policyType: "privacy" | "terms" | "both",
+  summary: string,
+): Promise<void> {
+  const policyName = policyType === "both" ? "Privacy Policy and Terms of Service"
+    : policyType === "privacy" ? "Privacy Policy" : "Terms of Service";
+  const links = policyType === "both"
+    ? `${btn("View Privacy Policy", `${SITE_URL}/privacy`)}${btn("View Terms of Service", `${SITE_URL}/terms`)}`
+    : btn(`View ${policyName}`, `${SITE_URL}/${policyType === "privacy" ? "privacy" : "terms"}`);
+
+  await sendEmail({
+    to: email,
+    subject: `We've updated our ${policyName}`,
+    html: wrap(`
+      <h2 ${h2}>Hi ${name},</h2>
+      <p ${p}>We've made changes to our <strong style="color:#fff;">${policyName}</strong>. Here's a summary of what changed:</p>
+      <div style="background:#1a1a1a;border-left:3px solid ${accent};padding:12px 16px;margin:0 0 16px;border-radius:0 6px 6px 0;">
+        <p style="margin:0;font-size:14px;line-height:1.6;color:#ccc;">${summary}</p>
+      </div>
+      <p ${p}>These changes take effect immediately. By continuing to use The Ratist, you agree to the updated terms.</p>
+      ${links}
+      ${divider}
+      <p style="margin:0;font-size:13px;color:#666;">This is a required legal notification and is sent to all users regardless of email preferences.</p>
+    `, `We've updated our ${policyName}.`, userId),
+  });
+}
