@@ -79,7 +79,7 @@ interface Props {
   seasonAggregates?: SeasonAggregate[];
 }
 
-const TABS = ["Overview", "Reviews", "Cast & Crew", "Seasons", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
+const TABS = ["Overview", "Cast & Crew", "Reviews", "Seasons", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {

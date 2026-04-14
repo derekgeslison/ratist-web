@@ -22,8 +22,8 @@ export async function GET(req: NextRequest, { params }: Props) {
     for (const r of ratings) {
       const score = r.ratistRating!;
       sum += score;
-      // 8.6 → bucket 7 (labeled "8"), 10.0 → bucket 9 (labeled "10"), 4.0 → bucket 3 (labeled "4")
-      const bucket = Math.max(0, Math.min(Math.ceil(score) - 1, 9));
+      // 8.6 → floor=8, -1=7 (labeled "8"). 10.0 → floor=10, -1=9 (labeled "10"). 4.0 → floor=4, -1=3 (labeled "4")
+      const bucket = Math.max(0, Math.min(Math.floor(score) - 1, 9));
       buckets[bucket]++;
     }
 

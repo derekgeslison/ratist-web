@@ -58,7 +58,7 @@ interface Props {
   tmdbId?: number;
 }
 
-const TABS = ["Overview", "Reviews", "Cast & Crew", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
+const TABS = ["Overview", "Cast & Crew", "Reviews", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
