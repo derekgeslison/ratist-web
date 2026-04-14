@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.userBadge.findMany({
         where: { userId: user.id },
-        select: { badgeKey: true, awardedAt: true },
+        select: { slug: true, earnedAt: true },
       }),
     ]);
 
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
         targetType: c.targetType, targetId: c.targetId,
         text: c.text, createdAt: c.createdAt,
       })),
-      badges: badges.map((b) => ({ badge: b.badgeKey, awardedAt: b.awardedAt })),
+      badges: badges.map((b) => ({ badge: b.slug, earnedAt: b.earnedAt })),
     };
 
     return new NextResponse(JSON.stringify(exportData, null, 2), {
