@@ -51,17 +51,32 @@ export default async function HomePage() {
     getUpcomingMovies(),
     getPopularShows(),
     prisma.siteSpotlight.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
-    prisma.newsItem.findMany({
-      where: { published: true },
-      orderBy: { publishedAt: "desc" },
-      take: 6,
-      select: {
+    (async () => {
+      const newsSelect = {
         id: true, type: true, title: true, slug: true,
         coverImage: true, posterPath: true, youtubeKey: true,
         publishedAt: true, excerpt: true,
         author: { select: { name: true } },
-      },
-    }),
+      } as const;
+      // Ensure at least one editorial article is always in the mix
+      const [latestArticle, recent] = await Promise.all([
+        prisma.newsItem.findFirst({
+          where: { published: true, type: "EDITORIAL" },
+          orderBy: { publishedAt: "desc" },
+          select: newsSelect,
+        }),
+        prisma.newsItem.findMany({
+          where: { published: true },
+          orderBy: { publishedAt: "desc" },
+          take: 6,
+          select: newsSelect,
+        }),
+      ]);
+      // If the latest article is already in the top 6, just return as-is
+      if (!latestArticle || recent.some((r) => r.id === latestArticle.id)) return recent;
+      // Otherwise swap it in for the last item
+      return [...recent.slice(0, 5), latestArticle];
+    })(),
   ]);
 
   // Hero carousel: popular movies filtered to rating >= 7.0 with a backdrop, up to 6
