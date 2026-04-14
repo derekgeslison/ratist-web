@@ -125,21 +125,63 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-8">
-          {page > 1 && (
-            <Link href={`/news?${type ? `type=${type}&` : ""}page=${page - 1}`}
-              className="px-3 py-1.5 text-sm rounded border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white transition-colors">
-              &larr; Prev
-            </Link>
-          )}
-          <span className="text-sm text-[var(--foreground-muted)]">Page {page} of {totalPages}</span>
-          {page < totalPages && (
-            <Link href={`/news?${type ? `type=${type}&` : ""}page=${page + 1}`}
-              className="px-3 py-1.5 text-sm rounded border border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white transition-colors">
-              Next &rarr;
-            </Link>
-          )}
-        </div>
+        <NewsPagination current={page} total={totalPages} typeParam={type} />
+      )}
+    </div>
+  );
+}
+
+function NewsPagination({ current, total, typeParam }: { current: number; total: number; typeParam?: string }) {
+  function buildUrl(p: number) {
+    const params = new URLSearchParams();
+    if (typeParam) params.set("type", typeParam);
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return `/news${qs ? `?${qs}` : ""}`;
+  }
+
+  const VISIBLE = 5;
+  const pages: (number | "...")[] = [];
+
+  if (total <= VISIBLE + 2) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    let start = Math.max(2, current - Math.floor(VISIBLE / 2));
+    let end = start + VISIBLE - 1;
+    if (end >= total) {
+      end = total - 1;
+      start = Math.max(2, end - VISIBLE + 1);
+    }
+    if (start > 2) pages.push("...");
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push("...");
+    pages.push(total);
+  }
+
+  const linkClass = "px-3 py-1.5 text-sm rounded border transition-colors";
+  const inactiveClass = `${linkClass} border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)] hover:text-white`;
+  const activeClass = `${linkClass} border-[var(--ratist-red)] text-white bg-[var(--ratist-red)]/10`;
+
+  return (
+    <div className="flex flex-col items-center gap-3 mt-10">
+      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        {current > 1 && (
+          <Link href={buildUrl(current - 1)} className={inactiveClass}>&larr; Prev</Link>
+        )}
+        {pages.map((p, i) =>
+          p === "..." ? (
+            <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-sm text-[var(--foreground-muted)]">...</span>
+          ) : (
+            <Link key={p} href={buildUrl(p)} className={p === current ? activeClass : inactiveClass}>{p}</Link>
+          )
+        )}
+        {current < total && (
+          <Link href={buildUrl(current + 1)} className={inactiveClass}>Next &rarr;</Link>
+        )}
+      </div>
+      {total > VISIBLE && (
+        <p className="text-xs text-[var(--foreground-muted)]">Page {current} of {total}</p>
       )}
     </div>
   );
