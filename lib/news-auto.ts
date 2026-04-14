@@ -17,6 +17,8 @@ interface TMDBListResult {
   name?: string;
   poster_path: string | null;
   popularity: number;
+  release_date?: string;
+  first_air_date?: string;
 }
 
 interface VideoResult {
@@ -78,9 +80,13 @@ async function getRelevantIds(): Promise<{ movies: TMDBListResult[]; shows: TMDB
   };
 }
 
+// Video names that indicate YouTube Shorts, clips, or re-uploads — not real trailers
+const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out now|in theaters|watch now)\b/i;
+
 /**
  * For a title, find the best official YouTube trailer.
  * Only returns trailers published within the last 30 days.
+ * Skips Shorts/Reels and promotional re-uploads.
  */
 async function getBestTrailer(
   mediaType: "movie" | "tv",
@@ -90,8 +96,11 @@ async function getBestTrailer(
   try {
     const data = await tmdbGet<{ results: VideoResult[] }>(`/${mediaType}/${tmdbId}/videos`);
     const trailers = data.results.filter(
-      (v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser") && v.official
+      (v) => v.site === "YouTube"
+        && (v.type === "Trailer" || v.type === "Teaser")
+        && v.official
         && new Date(v.published_at) > cutoff
+        && !SKIP_PATTERNS.test(v.name)
     );
     if (trailers.length === 0) return null;
     // Pick the most recently published, preferring full trailers over teasers
@@ -115,6 +124,9 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   const errors: string[] = [];
   let created = 0;
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days
+  const now = new Date();
+  // Only include titles that haven't released yet or released within the last 2 weeks
+  const recentReleaseLimit = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
   const { movies, shows } = await getRelevantIds();
   const checked = movies.length + shows.length;
@@ -122,6 +134,12 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process movies
   for (const movie of movies) {
     try {
+      // Skip movies that released more than 2 weeks ago
+      if (movie.release_date) {
+        const releaseDate = new Date(movie.release_date);
+        if (releaseDate < recentReleaseLimit) continue;
+      }
+
       const trailer = await getBestTrailer("movie", movie.id, cutoff);
       if (!trailer) continue;
 
@@ -154,6 +172,12 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process TV shows
   for (const show of shows) {
     try {
+      // Skip shows that started airing more than 2 weeks ago
+      if (show.first_air_date) {
+        const airDate = new Date(show.first_air_date);
+        if (airDate < recentReleaseLimit) continue;
+      }
+
       const trailer = await getBestTrailer("tv", show.id, cutoff);
       if (!trailer) continue;
 
