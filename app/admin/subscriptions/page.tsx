@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Ticket, Search, Gift, X } from "lucide-react";
+import { Ticket, Search, Gift, X, Trophy } from "lucide-react";
 
 interface EligibleUser {
   id: string; name: string; email: string; reviewCount: number;
@@ -25,6 +25,13 @@ export default function AdminSubscriptionsPage() {
   const [grantExpiry, setGrantExpiry] = useState("");
   const [granting, setGranting] = useState(false);
 
+  // Raffle
+  const [raffleEligible, setRaffleEligible] = useState<EligibleUser[]>([]);
+  const [raffleWinners, setRaffleWinners] = useState(0);
+  const [raffleCount, setRaffleCount] = useState("10");
+  const [drawing, setDrawing] = useState(false);
+  const [drawResult, setDrawResult] = useState<string | null>(null);
+
   // User search for manual grant
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ id: string; name: string; email: string }[]>([]);
@@ -39,6 +46,8 @@ export default function AdminSubscriptionsPage() {
       setAlreadyGranted(data.alreadyGranted ?? 0);
       setTotalSubscribers(data.totalSubscribers ?? 0);
       setSubscribers(data.subscribers ?? []);
+      setRaffleEligible(data.raffleEligible ?? []);
+      setRaffleWinners(data.raffleWinners ?? 0);
     }
     setLoading(false);
   }
@@ -169,6 +178,73 @@ export default function AdminSubscriptionsPage() {
           </div>
         </div>
       )}
+
+      {/* 100 Reviews Raffle */}
+      <div className="bg-[var(--surface)] border border-amber-500/30 rounded-xl p-5 mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <Trophy className="w-5 h-5 text-amber-400" />
+          <h3 className="text-sm font-semibold text-white">100 Reviews Lifetime Raffle</h3>
+        </div>
+        <p className="text-sm text-[var(--foreground-muted)] mb-1">
+          Random users who complete 100+ Ratist ratings win a <strong className="text-white">lifetime Backstage Pass</strong>.
+        </p>
+        <p className="text-sm text-[var(--foreground-muted)] mb-4">
+          {raffleEligible.length} eligible user{raffleEligible.length !== 1 ? "s" : ""} with 100+ ratings
+          {raffleWinners > 0 && ` · ${raffleWinners} already won`}
+          {raffleWinners >= 10 && " (max 10 reached)"}
+        </p>
+
+        {raffleEligible.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs text-[var(--foreground-muted)] mb-2">Eligible users:</p>
+            <div className="flex flex-wrap gap-2">
+              {raffleEligible.map((u) => (
+                <span key={u.id} className="text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-full px-2.5 py-1 text-white">
+                  {u.name} <span className="text-[var(--foreground-muted)]">({u.reviewCount} reviews)</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {raffleWinners < 10 && raffleEligible.length > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[var(--foreground-muted)]">Draw</span>
+            <input type="number" value={raffleCount} onChange={(e) => setRaffleCount(e.target.value)} min="1" max={Math.min(10 - raffleWinners, raffleEligible.length)}
+              className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white text-center" />
+            <span className="text-xs text-[var(--foreground-muted)]">winner{raffleCount !== "1" ? "s" : ""}</span>
+            <button
+              onClick={async () => {
+                if (!user || drawing) return;
+                const count = parseInt(raffleCount, 10) || 1;
+                if (!window.confirm(`Randomly draw ${count} lifetime Backstage Pass winner${count !== 1 ? "s" : ""} from ${raffleEligible.length} eligible users? This cannot be undone.`)) return;
+                setDrawing(true);
+                setDrawResult(null);
+                const token = await user.getIdToken();
+                const res = await fetch("/api/admin/subscription", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "raffle_draw", limit: count }),
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  setDrawResult(`${data.granted} winner${data.granted !== 1 ? "s" : ""}: ${data.winners.join(", ")}`);
+                  fetchData();
+                } else {
+                  const data = await res.json().catch(() => ({}));
+                  setDrawResult(`Error: ${data.error ?? "Failed"}`);
+                }
+                setDrawing(false);
+              }}
+              disabled={drawing || raffleEligible.length === 0}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+            >
+              {drawing ? "Drawing..." : "Draw Winners"}
+            </button>
+          </div>
+        )}
+        {drawResult && <p className="mt-3 text-sm text-amber-400">{drawResult}</p>}
+      </div>
 
       {/* Active subscribers list */}
       {subscribers.length > 0 && (
