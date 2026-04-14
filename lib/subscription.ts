@@ -91,14 +91,11 @@ export async function getPromoEligibleUsers(): Promise<{
 
   const qualifiedUserIds = reviewCounts.map((r) => r.userId);
 
-  // Get user details, exclude those already subscribed or promo'd
+  // Get user details, exclude anyone with an admin-granted backstage pass
   const users = await prisma.user.findMany({
     where: {
       id: { in: qualifiedUserIds },
-      OR: [
-        { subscriptionTier: null },
-        { grantedPromo: null },
-      ],
+      NOT: { subscriptionStatus: "admin_granted" },
     },
     select: { id: true, name: true, email: true },
   });

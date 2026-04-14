@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   });
   const raffleUserIds = raffleCounts.map((r) => r.userId);
   const raffleEligible = raffleUserIds.length > 0 ? await prisma.user.findMany({
-    where: { id: { in: raffleUserIds }, grantedPromo: { not: "100_reviews_raffle" } },
+    where: { id: { in: raffleUserIds }, grantedPromo: { not: "100_reviews_raffle" }, NOT: { subscriptionStatus: "admin_granted" } },
     select: { id: true, name: true, email: true },
   }) : [];
   const raffleEligibleWithCounts = raffleEligible.map((u) => ({
@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     const qualifiedIds = counts.map((r) => r.userId);
 
     const eligible = await prisma.user.findMany({
-      where: { id: { in: qualifiedIds }, grantedPromo: { not: "100_reviews_raffle" } },
+      where: { id: { in: qualifiedIds }, grantedPromo: { not: "100_reviews_raffle" }, NOT: { subscriptionStatus: "admin_granted" } },
       select: { id: true, name: true, email: true },
     });
     if (eligible.length === 0) return NextResponse.json({ error: "All eligible users have already won" }, { status: 400 });
