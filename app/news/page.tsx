@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Newspaper, Calendar, Eye, Film, Tv, Play } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
+import NewsTrailerCard from "@/components/NewsTrailerCard";
 
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ type?: string; page?: string }> }) {
   const { type, page: pageParam } = await searchParams;
@@ -105,22 +106,11 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                   </div>
                 </Link>
               ) : item.type === "TRAILER" && item.youtubeKey ? (
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 uppercase flex items-center gap-0.5"><Play className="w-2.5 h-2.5" /> Trailer</span>
-                    {item.movieTmdbId && <Film className="w-3 h-3 text-[var(--foreground-muted)]" />}
-                    {item.showTmdbId && <Tv className="w-3 h-3 text-blue-400" />}
-                  </div>
-                  <h2 className="text-base font-semibold text-white mb-3">{item.title}</h2>
-                  <div className="aspect-video rounded-lg overflow-hidden">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${item.youtubeKey}`}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                </div>
+                <NewsTrailerCard
+                  youtubeKey={item.youtubeKey}
+                  title={item.title}
+                  publishedAt={item.publishedAt?.toISOString() ?? null}
+                />
               ) : (
                 // Generic fallback for other types
                 <div className="p-4">

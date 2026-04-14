@@ -12,6 +12,7 @@ import BirthdaySection from "@/components/BirthdaySection";
 import BrandCTAButtons from "@/components/BrandCTAButtons";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassPromo from "@/components/BackstagePassPromo";
+import NewsTrailerCard from "@/components/NewsTrailerCard";
 
 const TOOLS = [
   {
@@ -188,58 +189,49 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentNews.map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.type === "EDITORIAL" && item.slug ? `/news/${item.slug}` : `/news${item.type === "TRAILER" ? "?type=trailers" : ""}`}
-                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors group flex flex-col"
-                >
-                  {/* Thumbnail */}
-                  <div className="relative aspect-video bg-[var(--surface-2)] overflow-hidden">
-                    {item.youtubeKey ? (
-                      <img
-                        src={`https://img.youtube.com/vi/${item.youtubeKey}/mqdefault.jpg`}
-                        alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : item.coverImage ? (
-                      <img
-                        src={item.coverImage}
-                        alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : item.posterPath ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Image src={`https://image.tmdb.org/t/p/w300${item.posterPath}`} alt="" width={120} height={180} className="rounded" />
-                      </div>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
-                        <Film className="w-8 h-8" />
-                      </div>
-                    )}
-                    {item.type === "TRAILER" && (
-                      <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
-                        Trailer
-                      </div>
-                    )}
-                    {item.type === "EDITORIAL" && (
+              {recentNews.map((item) =>
+                item.type === "TRAILER" && item.youtubeKey ? (
+                  <NewsTrailerCard
+                    key={item.id}
+                    youtubeKey={item.youtubeKey}
+                    title={item.title}
+                    publishedAt={item.publishedAt?.toISOString() ?? null}
+                    compact
+                  />
+                ) : (
+                  <Link
+                    key={item.id}
+                    href={item.slug ? `/news/${item.slug}` : "/news"}
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors group flex flex-col"
+                  >
+                    <div className="relative aspect-video bg-[var(--surface-2)] overflow-hidden">
+                      {item.coverImage ? (
+                        <img src={item.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : item.posterPath ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Image src={`https://image.tmdb.org/t/p/w300${item.posterPath}`} alt="" width={120} height={180} className="rounded" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
+                          <Film className="w-8 h-8" />
+                        </div>
+                      )}
                       <div className="absolute top-2 left-2 bg-blue-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
                         Article
                       </div>
-                    )}
-                  </div>
-                  {/* Text */}
-                  <div className="p-3 flex-1">
-                    <p className="text-sm font-semibold text-white line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">{item.title}</p>
-                    {item.publishedAt && (
-                      <p className="text-[11px] text-[var(--foreground-muted)] mt-1">
-                        {new Date(item.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                        {item.author && ` · ${item.author.name}`}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                    </div>
+                    <div className="p-3 flex-1">
+                      <p className="text-sm font-semibold text-white line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">{item.title}</p>
+                      {item.publishedAt && (
+                        <p className="text-[11px] text-[var(--foreground-muted)] mt-1">
+                          {new Date(item.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          {item.author && ` · ${item.author.name}`}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                )
+              )}
             </div>
           </section>
         )}
