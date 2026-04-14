@@ -16,7 +16,10 @@ export default async function UnsubscribePage({ searchParams }: Props) {
     if (verifyUnsubToken(uid, token)) {
       await prisma.user.update({
         where: { id: uid },
-        data: { emailOptOut: true },
+        data: {
+          emailOptOut: true,
+          emailPrefs: { promotional: false, subscription: false, activity: false },
+        },
       }).catch(() => { error = "Account not found."; });
       if (!error) success = true;
     } else {

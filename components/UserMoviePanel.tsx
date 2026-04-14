@@ -88,6 +88,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [showRewatchModal, setShowRewatchModal] = useState(false);
   const [rewatchNotes, setRewatchNotes] = useState("");
+  const [rewatchDate, setRewatchDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [rewatchSaved, setRewatchSaved] = useState(false);
   const [loggingRewatch, setLoggingRewatch] = useState(false);
   const [showListPicker, setShowListPicker] = useState(false);
@@ -430,13 +431,23 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                   <Link href={`/movies/${tmdbId}/rate`} className="text-sm text-[var(--ratist-red)] hover:underline">
                     Update your rating →
                   </Link>
-                  <button onClick={() => { setShowRewatchModal(false); setRewatchSaved(false); setRewatchNotes(""); }} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+                  <button onClick={() => { setShowRewatchModal(false); setRewatchSaved(false); setRewatchNotes(""); setRewatchDate(new Date().toISOString().slice(0, 10)); }} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
                     Close
                   </button>
                 </div>
               </div>
             ) : (
               <>
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">Date watched</label>
+                  <input
+                    type="date"
+                    value={rewatchDate}
+                    onChange={(e) => setRewatchDate(e.target.value)}
+                    max={new Date().toISOString().slice(0, 10)}
+                    className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                  />
+                </div>
                 <textarea
                   value={rewatchNotes}
                   onChange={(e) => setRewatchNotes(e.target.value)}
@@ -453,7 +464,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                       await fetch(`/api/movies/${tmdbId}/rewatch`, {
                         method: "POST",
                         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                        body: JSON.stringify({ notes: rewatchNotes }),
+                        body: JSON.stringify({ notes: rewatchNotes, watchedDate: rewatchDate }),
                       });
                       setLoggingRewatch(false);
                       setRewatchSaved(true);

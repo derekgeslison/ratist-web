@@ -85,7 +85,8 @@ model User {
   autoDateOnSeen          Boolean  @default(false) @map("auto_date_on_seen")
   autoSeenOnWatchlistCheck Boolean  @default(false) @map("auto_seen_on_watchlist_check")
   notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
-  emailOptOut       Boolean  @default(false) @map("email_opt_out") // true = no marketing/reminder emails
+  emailOptOut       Boolean  @default(false) @map("email_opt_out") // legacy — use emailPrefs instead
+  emailPrefs        Json     @default("{\"promotional\":true,\"subscription\":true,\"activity\":true}") @map("email_prefs")
   lastExportAt      DateTime? @map("last_export_at")
 
   // Backstage Pass subscription

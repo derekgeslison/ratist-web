@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/admin-log";
+import { sendBanNotification } from "@/lib/email";
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -123,14 +124,16 @@ export async function PATCH(req: NextRequest) {
     // Find content author and ban them
     const authorId = await getContentAuthorId(report.targetType, report.targetId);
     if (authorId) {
-      await prisma.user.update({
+      const banUntil = banDays ? new Date(Date.now() + Number(banDays) * 86400000) : null;
+      const reason = banReason || "Violation of community guidelines";
+      const bannedUser = await prisma.user.update({
         where: { id: authorId },
-        data: {
-          bannedAt: new Date(),
-          bannedUntil: banDays ? new Date(Date.now() + Number(banDays) * 86400000) : null,
-          banReason: banReason || "Violation of community guidelines",
-        },
+        data: { bannedAt: new Date(), bannedUntil: banUntil, banReason: reason },
+        select: { id: true, email: true, name: true },
       });
+      if (bannedUser.email) {
+        sendBanNotification(bannedUser.email, bannedUser.name, bannedUser.id, reason, banUntil).catch(() => {});
+      }
       if (removeContent) {
         // Bulk remove all content from this user
         await Promise.all([

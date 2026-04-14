@@ -7,6 +7,34 @@ const FROM_EMAIL = process.env.EMAIL_FROM ?? "The Ratist <noreply@theratist.com>
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.theratist.com";
 const LOGO_URL = `${SITE_URL}/logo-full.png`;
 
+// ─── Email preference categories ────────────────────────────────────────────
+// promotional: marketing offers, new feature announcements
+// subscription: expiry reminders, payment issues, promo grants
+// activity: admin messages
+// Policy/legal and ban emails are ALWAYS sent regardless of preferences.
+
+export type EmailCategory = "promotional" | "subscription" | "activity";
+
+export interface EmailPrefs {
+  promotional: boolean;
+  subscription: boolean;
+  activity: boolean;
+}
+
+const DEFAULT_EMAIL_PREFS: EmailPrefs = { promotional: true, subscription: true, activity: true };
+
+export function parseEmailPrefs(raw: unknown): EmailPrefs {
+  if (raw && typeof raw === "object") return { ...DEFAULT_EMAIL_PREFS, ...(raw as Partial<EmailPrefs>) };
+  return DEFAULT_EMAIL_PREFS;
+}
+
+/** Check if a user wants emails for a given category. Respects legacy emailOptOut. */
+export function shouldSendEmail(emailPrefs: unknown, emailOptOut: boolean, category: EmailCategory): boolean {
+  if (emailOptOut) return false; // legacy blanket opt-out
+  const prefs = parseEmailPrefs(emailPrefs);
+  return prefs[category];
+}
+
 interface EmailOptions {
   to: string;
   subject: string;
@@ -193,6 +221,50 @@ export async function sendAdminMessage(email: string, name: string, message: str
       <p ${p}>${message}</p>
       <p style="margin:16px 0 0;font-size:14px;color:#888;">&mdash; The Ratist Team</p>
     `, "You have a message from The Ratist team.", userId),
+  });
+}
+
+export async function sendBanNotification(
+  email: string,
+  name: string,
+  userId: string,
+  reason: string | null,
+  bannedUntil: Date | null,
+): Promise<void> {
+  const durationText = bannedUntil
+    ? `Your account is suspended until <strong style="color:#fff;">${bannedUntil.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong>.`
+    : "Your account has been <strong style=\"color:#fff;\">permanently suspended</strong>.";
+
+  const reasonText = reason
+    ? `<div style="background:#1a1a1a;border-left:3px solid ${accent};padding:12px 16px;margin:0 0 16px;border-radius:0 6px 6px 0;">
+        <p style="margin:0;font-size:13px;color:#888;">Reason:</p>
+        <p style="margin:4px 0 0;font-size:14px;line-height:1.6;color:#ccc;">${reason}</p>
+      </div>`
+    : "";
+
+  await sendEmail({
+    to: email,
+    subject: "Your Ratist account has been suspended",
+    html: wrap(`
+      <h2 ${h2}>Account Suspended</h2>
+      <p ${p}>Hi ${name}, your account on The Ratist has been suspended for violating our <a href="${SITE_URL}/terms" style="color:${accent};">Terms of Service</a>.</p>
+      ${reasonText}
+      <p ${p}>${durationText}</p>
+      ${bannedUntil ? `<p ${p}>After your suspension ends, you'll be able to log in and use the site normally. Your data will be preserved.</p>` : `<p ${p}>If you believe this was a mistake, you can reach out via our <a href="${SITE_URL}/feedback" style="color:${accent};">feedback form</a>.</p>`}
+    `, "Your Ratist account has been suspended.", userId),
+  });
+}
+
+export async function sendUnbanNotification(email: string, name: string, userId: string): Promise<void> {
+  await sendEmail({
+    to: email,
+    subject: "Your Ratist account has been restored",
+    html: wrap(`
+      <h2 ${h2}>Welcome back, ${name}!</h2>
+      <p ${p}>Your account suspension has been lifted. You can now log in and use The Ratist normally.</p>
+      <p ${p}>Please review our <a href="${SITE_URL}/terms" style="color:${accent};">Terms of Service</a> to ensure future compliance.</p>
+      ${btn("Go to The Ratist", SITE_URL)}
+    `, "Your Ratist account has been restored.", userId),
   });
 }
 

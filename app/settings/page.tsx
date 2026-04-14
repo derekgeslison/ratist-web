@@ -76,7 +76,7 @@ export default function SettingsPage() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [savedPrefs, setSavedPrefs] = useState(false);
   const [ratistReviewCount, setRatistReviewCount] = useState(0);
-  const [emailOptOut, setEmailOptOut] = useState(false);
+  const [emailPrefs, setEmailPrefs] = useState({ promotional: true, subscription: true, activity: true });
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -135,7 +135,9 @@ export default function SettingsPage() {
         if (meData.user.notificationPrefs) {
           setNotifPrefs((prev) => ({ ...prev, ...meData.user.notificationPrefs }));
         }
-        setEmailOptOut(meData.user.emailOptOut ?? false);
+        if (meData.user.emailPrefs) {
+          setEmailPrefs((prev) => ({ ...prev, ...meData.user.emailPrefs }));
+        }
       }
       const p = prefData.profile;
       if (p) {
@@ -656,31 +658,60 @@ export default function SettingsPage() {
         <h2 className="text-lg font-bold text-white mb-1">Privacy & Data</h2>
         <p className="text-sm text-[var(--foreground-muted)] mb-6">Manage your email preferences and personal data.</p>
 
-        {/* Email opt-out */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <p className="text-sm font-medium text-white flex items-center gap-1.5"><Mail className="w-4 h-4" /> Marketing & reminder emails</p>
-            <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-              Promotional offers, subscription reminders, and similar emails. Essential emails (password resets, security alerts) are not affected.
-            </p>
+        {/* Email preferences */}
+        <div className="mb-6">
+          <p className="text-sm font-medium text-white flex items-center gap-1.5 mb-1"><Mail className="w-4 h-4" /> Email preferences</p>
+          <p className="text-xs text-[var(--foreground-muted)] mb-4">
+            Choose which types of emails you&apos;d like to receive. Essential emails (password resets, security alerts, policy updates) are always sent.
+          </p>
+          <div className="space-y-3">
+            {([
+              { key: "promotional" as const, label: "Promotional", desc: "New features, special offers, and announcements" },
+              { key: "subscription" as const, label: "Subscription & billing", desc: "Subscription expiry reminders, payment issues, promo rewards" },
+              { key: "activity" as const, label: "Account activity", desc: "Messages from the Ratist team about your account" },
+            ]).map((pref) => (
+              <label key={pref.key} className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={emailPrefs[pref.key]}
+                  onChange={async (e) => {
+                    if (!user) return;
+                    const updated = { ...emailPrefs, [pref.key]: e.target.checked };
+                    setEmailPrefs(updated);
+                    const token = await user.getIdToken();
+                    await fetch("/api/profile/me", {
+                      method: "PATCH",
+                      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                      body: JSON.stringify({ emailPrefs: updated }),
+                    });
+                  }}
+                  className="mt-1 accent-[var(--ratist-red)]"
+                />
+                <div>
+                  <p className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors">{pref.label}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">{pref.desc}</p>
+                </div>
+              </label>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              if (!user) return;
-              const newVal = !emailOptOut;
-              setEmailOptOut(newVal);
-              const token = await user.getIdToken();
-              await fetch("/api/profile/me", {
-                method: "PATCH",
-                headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ emailOptOut: newVal }),
-              });
-            }}
-            className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${!emailOptOut ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${!emailOptOut ? "translate-x-5" : "translate-x-0"}`} />
-          </button>
+          {emailPrefs.promotional && emailPrefs.subscription && emailPrefs.activity ? null : (
+            <button
+              onClick={async () => {
+                if (!user) return;
+                const all = { promotional: true, subscription: true, activity: true };
+                setEmailPrefs(all);
+                const token = await user.getIdToken();
+                await fetch("/api/profile/me", {
+                  method: "PATCH",
+                  headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ emailPrefs: all }),
+                });
+              }}
+              className="mt-3 text-xs text-[var(--ratist-red)] hover:underline"
+            >
+              Re-enable all emails
+            </button>
+          )}
         </div>
 
         {/* Data export */}

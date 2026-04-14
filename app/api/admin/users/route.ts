@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/admin-log";
+import { sendBanNotification, sendUnbanNotification } from "@/lib/email";
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -123,24 +124,29 @@ export async function PATCH(req: NextRequest) {
 
     case "ban": {
       const { reason, expiresAt, removeContent } = body;
-      await prisma.user.update({
+      const banUntil = expiresAt ? new Date(expiresAt) : null;
+      const bannedUser = await prisma.user.update({
         where: { id: userId },
-        data: {
-          bannedAt: new Date(),
-          bannedUntil: expiresAt ? new Date(expiresAt) : null,
-          banReason: reason || null,
-        },
+        data: { bannedAt: new Date(), bannedUntil: banUntil, banReason: reason || null },
+        select: { id: true, email: true, name: true },
       });
+      if (bannedUser.email) {
+        sendBanNotification(bannedUser.email, bannedUser.name, bannedUser.id, reason || null, banUntil).catch(() => {});
+      }
       if (removeContent) await bulkRemoveContent(userId);
       await logAdminAction(admin.id, "ban", userId, `Banned user${reason ? `: ${reason}` : ""}${removeContent ? " + removed content" : ""}`);
       return NextResponse.json({ ok: true });
     }
 
     case "unban": {
-      await prisma.user.update({
+      const unbannedUser = await prisma.user.update({
         where: { id: userId },
         data: { bannedAt: null, bannedUntil: null, banReason: null },
+        select: { id: true, email: true, name: true },
       });
+      if (unbannedUser.email) {
+        sendUnbanNotification(unbannedUser.email, unbannedUser.name, unbannedUser.id).catch(() => {});
+      }
       await logAdminAction(admin.id, "unban", userId, "Unbanned user");
       return NextResponse.json({ ok: true });
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendPromoExpiringSoon } from "@/lib/email";
+import { sendPromoExpiringSoon, shouldSendEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,6 @@ export async function GET(req: NextRequest) {
       subscriptionStatus: "admin_granted",
       subscriptionTier: "backstage_pass",
       subscriptionExpiry: { not: null, gt: now, lte: maxDate },
-      emailOptOut: false,
     },
     select: {
       id: true,
@@ -37,6 +36,8 @@ export async function GET(req: NextRequest) {
       email: true,
       subscriptionExpiry: true,
       promoRemindersSent: true,
+      emailOptOut: true,
+      emailPrefs: true,
     },
   });
 
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
 
   for (const user of users) {
     if (!user.email || !user.subscriptionExpiry) continue;
+    if (!shouldSendEmail(user.emailPrefs, user.emailOptOut, "subscription")) continue;
 
     const msLeft = user.subscriptionExpiry.getTime() - now.getTime();
     const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
