@@ -29,26 +29,32 @@ export async function GET(req: NextRequest) {
     orderBy: { name: "asc" },
   });
 
-  // Raffle stats
-  // Condition 1: how many users have 10+ reviews
+  // Raffle stats — exclude admin-granted users from all counts
+  const adminGrantedIds = (await prisma.user.findMany({
+    where: { subscriptionStatus: "admin_granted" },
+    select: { id: true },
+  })).map((u) => u.id);
+  const excludeAdmin = adminGrantedIds.length > 0 ? { userId: { notIn: adminGrantedIds } } : {};
+
+  // Condition 1: how many users have 10+ reviews (excluding admin-granted)
   const tenPlusReviewers = await prisma.movieRating.groupBy({
     by: ["userId"],
-    where: { ratistRating: { not: null }, plot: { not: null } },
+    where: { ratistRating: { not: null }, plot: { not: null }, ...excludeAdmin },
     _count: { id: true },
     having: { id: { _count: { gte: 10 } } },
   });
   const usersWithTenPlus = tenPlusReviewers.length;
 
-  // Condition 2: users with 100+ Ratist ratings who haven't won yet
+  // Condition 2: users with 100+ Ratist ratings (excluding admin-granted)
   const raffleCounts = await prisma.movieRating.groupBy({
     by: ["userId"],
-    where: { ratistRating: { not: null }, plot: { not: null } },
+    where: { ratistRating: { not: null }, plot: { not: null }, ...excludeAdmin },
     _count: { id: true },
     having: { id: { _count: { gte: 100 } } },
   });
   const raffleUserIds = raffleCounts.map((r) => r.userId);
   const raffleEligible = raffleUserIds.length > 0 ? await prisma.user.findMany({
-    where: { id: { in: raffleUserIds }, grantedPromo: { not: "100_reviews_raffle" }, NOT: { subscriptionStatus: "admin_granted" } },
+    where: { id: { in: raffleUserIds }, grantedPromo: { not: "100_reviews_raffle" } },
     select: { id: true, name: true, email: true },
   }) : [];
   const raffleEligibleWithCounts = raffleEligible.map((u) => ({
