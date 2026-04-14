@@ -45,13 +45,13 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, name: true, email: true, bio: true,
         createdAt: true, isPrivate: true, emailOptOut: true,
-        lastExportAt: true,
+        lastExportAt: true, isAdmin: true,
       },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    // Rate limit: once per day
-    if (user.lastExportAt) {
+    // Rate limit: once per day (admins bypass)
+    if (!user.isAdmin && user.lastExportAt) {
       const hoursSince = (Date.now() - user.lastExportAt.getTime()) / (1000 * 60 * 60);
       if (hoursSince < 24) {
         const hoursLeft = Math.ceil(24 - hoursSince);
