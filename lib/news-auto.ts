@@ -86,7 +86,11 @@ async function getRelevantIds(): Promise<{ movies: TMDBListResult[]; shows: TMDB
 const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out now|in theaters|watch now|red band|restricted|uncensored|unrated|18\+|nsfw)\b/i;
 
 // Minimum popularity to filter out obscure titles
-const MIN_POPULARITY = 15;
+const MIN_POPULARITY = 20;
+// Non-English titles need much higher popularity to be included (e.g. Parasite, Squid Game)
+const MIN_POPULARITY_FOREIGN = 150;
+// Languages considered "English market" (won't require the higher threshold)
+const ENGLISH_MARKET_LANGS = new Set(["en"]);
 
 /** Check if a YouTube video is a Short (vertical, < 60s). */
 async function isYouTubeShort(key: string): Promise<boolean> {
@@ -153,9 +157,10 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process movies
   for (const movie of movies) {
     try {
-      // Skip adult content, low-popularity, and old releases
+      // Skip adult content, low-popularity, non-English obscure, and old releases
       if (movie.adult) continue;
-      if (movie.popularity < MIN_POPULARITY) continue;
+      const popThreshold = ENGLISH_MARKET_LANGS.has(movie.original_language ?? "") ? MIN_POPULARITY : MIN_POPULARITY_FOREIGN;
+      if (movie.popularity < popThreshold) continue;
       if (movie.release_date) {
         const releaseDate = new Date(movie.release_date);
         if (releaseDate < recentReleaseLimit) continue;
@@ -193,9 +198,10 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   // Process TV shows
   for (const show of shows) {
     try {
-      // Skip adult content, low-popularity, and old shows
+      // Skip adult content, low-popularity, non-English obscure, and old shows
       if (show.adult) continue;
-      if (show.popularity < MIN_POPULARITY) continue;
+      const showPopThreshold = ENGLISH_MARKET_LANGS.has(show.original_language ?? "") ? MIN_POPULARITY : MIN_POPULARITY_FOREIGN;
+      if (show.popularity < showPopThreshold) continue;
       if (show.first_air_date) {
         const airDate = new Date(show.first_air_date);
         if (airDate < recentReleaseLimit) continue;
