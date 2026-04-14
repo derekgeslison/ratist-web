@@ -229,22 +229,25 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
         <>
           {user ? (<>
             <div className="flex flex-wrap gap-2">
-              <Link
-                href={`/shows/${tmdbId}/rate`}
-                className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
-                  ratingStatus === "incomplete"
-                    ? "border border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
-                    : "border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white"
-                }`}
-              >
-                {ratingStatus === "complete" ? (
-                  <><Check className="w-4 h-4" /> Edit Rating</>
-                ) : ratingStatus === "incomplete" ? (
-                  <><AlertCircle className="w-4 h-4" /> Complete Rating</>
-                ) : (
-                  <><Star className="w-4 h-4" /> Rate Show</>
-                )}
-              </Link>
+              <div>
+                <Link
+                  href={`/shows/${tmdbId}/rate`}
+                  className={`flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
+                    ratingStatus === "incomplete"
+                      ? "border border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white"
+                      : "border border-[var(--ratist-red)] text-[var(--ratist-red)] hover:bg-[var(--ratist-red)] hover:text-white"
+                  }`}
+                >
+                  {ratingStatus === "complete" ? (
+                    <><Check className="w-4 h-4" /> Edit Rating</>
+                  ) : ratingStatus === "incomplete" ? (
+                    <><AlertCircle className="w-4 h-4" /> Complete Rating</>
+                  ) : (
+                    <><Star className="w-4 h-4" /> Rate Show</>
+                  )}
+                </Link>
+                <p className="text-[10px] text-[var(--foreground-muted)] mt-1 text-center">Series, seasons, or both</p>
+              </div>
               <div className="relative">
                 <button
                   onClick={() => {
@@ -311,9 +314,6 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
                 )}
               </div>
             </div>
-            <p className="text-[10px] text-[var(--foreground-muted)] mt-1 text-center">
-              Rate the series, individual seasons, or both
-            </p>
           </>) : (
             <p className="text-sm text-[var(--foreground-muted)]">
               <a href="/auth/sign-in" className="text-[var(--ratist-red)] hover:underline">Sign in</a>{" "}to track shows you&apos;ve watched.

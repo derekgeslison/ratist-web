@@ -782,78 +782,56 @@ export default function ShowDetailTabs({
       )}
 
       {/* ── REVIEWS TAB ── */}
-      {activeTab === "Reviews" && (
-        <div className="space-y-8 pb-16">
-          <RatingDistribution tmdbId={show.id} mediaType="tv" />
+      {activeTab === "Reviews" && (() => {
+        const showId = tmdbId ?? show.id;
+        const seasonNumbers = [...new Set(reviews.filter((r) => r.ratingScope === "season").map((r) => r.seasonNumber))].sort((a, b) => a - b);
+        const hasSeries = reviews.some((r) => r.ratingScope === "series");
+        const filtered = reviews.filter((r) => {
+          if (reviewFilter === "all") return true;
+          if (reviewFilter === "series") return r.ratingScope === "series";
+          return r.ratingScope === "season" && r.seasonNumber === reviewFilter;
+        });
+        const displayed = filtered.slice(0, 10);
 
-          {/* Season filter */}
-          {(() => {
-            const seasonNumbers = [...new Set(reviews.filter((r) => r.ratingScope === "season").map((r) => r.seasonNumber))].sort((a, b) => a - b);
-            const hasSeries = reviews.some((r) => r.ratingScope === "series");
-            return (
-              <div className="flex flex-wrap gap-2">
+        return (
+          <div className="space-y-6 pb-16">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-white">
+                Community Reviews
+                {reviews.length > 0 && <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>}
+              </h2>
+              <div className="flex items-center gap-2">
+                <Link href={`/shows/${showId}/rate`} className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors">
+                  Rate &amp; Review
+                </Link>
+                <Link href={`/shows/${showId}/reviews`} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+                  All reviews &rarr;
+                </Link>
+              </div>
+            </div>
+
+            <RatingDistribution tmdbId={show.id} mediaType="tv" />
+
+            {/* Scope filter */}
+            <div className="flex flex-wrap gap-2">
+              {(["all", ...(hasSeries ? ["series"] : []), ...seasonNumbers] as ("all" | "series" | number)[]).map((f) => (
                 <button
-                  onClick={() => setReviewFilter("all")}
+                  key={String(f)}
+                  onClick={() => setReviewFilter(f)}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    reviewFilter === "all"
+                    reviewFilter === f
                       ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
                       : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
                   }`}
                 >
-                  All
+                  {f === "all" ? "All" : f === "series" ? "Series" : `Season ${f}`}
                 </button>
-                {hasSeries && (
-                  <button
-                    onClick={() => setReviewFilter("series")}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                      reviewFilter === "series"
-                        ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
-                        : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
-                    }`}
-                  >
-                    Series
-                  </button>
-                )}
-                {seasonNumbers.map((sn) => (
-                  <button
-                    key={sn}
-                    onClick={() => setReviewFilter(sn)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                      reviewFilter === sn
-                        ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
-                        : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
-                    }`}
-                  >
-                    Season {sn}
-                  </button>
-                ))}
-              </div>
-            );
-          })()}
+              ))}
+            </div>
 
-          {/* Filtered reviews */}
-          {(() => {
-            const filtered = reviews.filter((r) => {
-              if (reviewFilter === "all") return true;
-              if (reviewFilter === "series") return r.ratingScope === "series";
-              return r.ratingScope === "season" && r.seasonNumber === reviewFilter;
-            });
-            if (filtered.length === 0) {
-              return (
-                <div className="text-center py-10">
-                  <p className="text-[var(--foreground-muted)] mb-4">No reviews yet. Be the first to review!</p>
-                  <Link
-                    href={`/shows/${tmdbId ?? show.id}/rate`}
-                    className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2.5 rounded-full transition-colors"
-                  >
-                    Rate &amp; Review
-                  </Link>
-                </div>
-              );
-            }
-            return (
+            {displayed.length > 0 ? (
               <div className="space-y-4">
-                {filtered.map((review) => (
+                {displayed.map((review) => (
                   <div key={review.id}>
                     <div className="mb-1">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
@@ -867,36 +845,33 @@ export default function ShowDetailTabs({
                     <ReviewCard
                       review={{
                         ...review,
-                        storyScore: null,
-                        styleScore: null,
-                        emotiveScore: null,
-                        actingScore: null,
-                        entertainScore: null,
-                        fieldComments: null,
-                        categoryComments: null,
-                        likedByMe: false,
+                        storyScore: null, styleScore: null, emotiveScore: null,
+                        actingScore: null, entertainScore: null,
+                        fieldComments: null, categoryComments: null, likedByMe: false,
                       }}
-                      showTmdbId={tmdbId ?? show.id}
+                      showTmdbId={showId}
                     />
                   </div>
                 ))}
+                {filtered.length > 10 && (
+                  <div className="text-center pt-2">
+                    <Link href={`/shows/${showId}/reviews`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                      See all {filtered.length} reviews &rarr;
+                    </Link>
+                  </div>
+                )}
               </div>
-            );
-          })()}
-
-          {/* Rate & Review CTA */}
-          {reviews.length > 0 && (
-            <div className="text-center">
-              <Link
-                href={`/shows/${tmdbId ?? show.id}/rate`}
-                className="text-sm text-[var(--ratist-red)] hover:underline"
-              >
-                + Write your own review
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-[var(--foreground-muted)] mb-4">No reviews yet. Be the first!</p>
+                <Link href={`/shows/${showId}/rate`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                  Write a review &rarr;
+                </Link>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── AWARDS TAB ── */}
       {activeTab === "Awards" && (

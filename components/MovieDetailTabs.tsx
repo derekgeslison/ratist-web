@@ -252,20 +252,23 @@ export default function MovieDetailTabs({
       {activeTab === "Reviews" && (
         <div className="space-y-6 pb-16">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">Community Reviews</h2>
+            <h2 className="text-lg font-semibold text-white">
+              Community Reviews
+              {reviews.length > 0 && <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>}
+            </h2>
             <div className="flex items-center gap-2">
               <Link href={`/movies/${movie.id}/rate`} className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors">
-                Rate & Review
+                Rate &amp; Review
               </Link>
               <Link href={`/movies/${movie.id}/reviews`} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
-                Full page &rarr;
+                All reviews &rarr;
               </Link>
             </div>
           </div>
           <RatingDistribution tmdbId={movie.id} mediaType="movie" />
           {reviews.length > 0 ? (
             <div className="space-y-4">
-              {reviews.map((r) => (
+              {reviews.slice(0, 10).map((r) => (
                 <ReviewCard
                   key={r.id}
                   review={{
@@ -280,9 +283,21 @@ export default function MovieDetailTabs({
                   movieTmdbId={movie.id}
                 />
               ))}
+              {reviews.length > 10 && (
+                <div className="text-center pt-2">
+                  <Link href={`/movies/${movie.id}/reviews`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                    See all {reviews.length} reviews &rarr;
+                  </Link>
+                </div>
+              )}
             </div>
           ) : (
-            <p className="text-center text-[var(--foreground-muted)] py-10">No reviews yet. Be the first!</p>
+            <div className="text-center py-10">
+              <p className="text-[var(--foreground-muted)] mb-4">No reviews yet. Be the first!</p>
+              <Link href={`/movies/${movie.id}/rate`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                Write a review &rarr;
+              </Link>
+            </div>
           )}
         </div>
       )}
