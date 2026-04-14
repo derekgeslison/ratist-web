@@ -58,7 +58,7 @@ interface Props {
   tmdbId?: number;
 }
 
-const TABS = ["Overview", "Cast & Crew", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
+const TABS = ["Overview", "Reviews", "Cast & Crew", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
@@ -171,54 +171,34 @@ export default function MovieDetailTabs({
                 </Link>
               </div>
 
-              {/* Rating distribution */}
-              <RatingDistribution tmdbId={movie.id} mediaType="movie" />
-
-              {/* Text reviews */}
+              {/* Review preview */}
               {reviews.length > 0 && (
-                <div className="space-y-4 pt-2">
+                <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-base font-semibold text-white">
                       Community Reviews
                       <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>
                     </h3>
-                    <Link
-                      href={`/movies/${movie.id}/reviews`}
-                      className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1"
-                    >
-                      {reviews.length > 5 ? `See all ${reviews.length}` : "View all"} <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    <button onClick={() => setActiveTab("Reviews")} className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1">
+                      See all reviews <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <div className="space-y-4">
-                    {reviews.slice(0, 5).map((r) => (
-                      <ReviewCard
-                        key={r.id}
-                        review={{
-                          id: r.id,
-                          reviewText: r.reviewText,
-                          ratistRating: r.ratistRating,
-                          overallRating: r.overallRating,
-                          storyScore: null,
-                          styleScore: null,
-                          emotiveScore: null,
-                          actingScore: null,
-                          entertainScore: null,
-                          reviewType: r.reviewType,
-                          fieldComments: null,
-                          categoryComments: null,
-                          hasSpoilers: r.hasSpoilers,
-                          commentsDisabled: r.commentsDisabled,
-                          createdAt: r.createdAt,
-                          commentCount: r.commentCount,
-                          likeCount: r.likeCount,
-                          likedByMe: false,
-                          user: r.user,
-                        }}
-                        movieTmdbId={movie.id}
-                        compact
-                      />
-                    ))}
-                  </div>
+                  {reviews.slice(0, 3).map((r) => (
+                    <ReviewCard
+                      key={r.id}
+                      review={{
+                        id: r.id, reviewText: r.reviewText, ratistRating: r.ratistRating,
+                        overallRating: r.overallRating, storyScore: null, styleScore: null,
+                        emotiveScore: null, actingScore: null, entertainScore: null,
+                        reviewType: r.reviewType, fieldComments: null, categoryComments: null,
+                        hasSpoilers: r.hasSpoilers, commentsDisabled: r.commentsDisabled,
+                        createdAt: r.createdAt, commentCount: r.commentCount, likeCount: r.likeCount,
+                        likedByMe: false, user: r.user,
+                      }}
+                      movieTmdbId={movie.id}
+                      compact
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -264,6 +244,45 @@ export default function MovieDetailTabs({
                 ))}
               </div>
             </section>
+          )}
+        </div>
+      )}
+
+      {/* ── REVIEWS TAB ── */}
+      {activeTab === "Reviews" && (
+        <div className="space-y-6 pb-16">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-white">Community Reviews</h2>
+            <div className="flex items-center gap-2">
+              <Link href={`/movies/${movie.id}/rate`} className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors">
+                Rate & Review
+              </Link>
+              <Link href={`/movies/${movie.id}/reviews`} className="text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+                Full page &rarr;
+              </Link>
+            </div>
+          </div>
+          <RatingDistribution tmdbId={movie.id} mediaType="movie" />
+          {reviews.length > 0 ? (
+            <div className="space-y-4">
+              {reviews.map((r) => (
+                <ReviewCard
+                  key={r.id}
+                  review={{
+                    id: r.id, reviewText: r.reviewText, ratistRating: r.ratistRating,
+                    overallRating: r.overallRating, storyScore: null, styleScore: null,
+                    emotiveScore: null, actingScore: null, entertainScore: null,
+                    reviewType: r.reviewType, fieldComments: null, categoryComments: null,
+                    hasSpoilers: r.hasSpoilers, commentsDisabled: r.commentsDisabled,
+                    createdAt: r.createdAt, commentCount: r.commentCount, likeCount: r.likeCount,
+                    likedByMe: false, user: r.user,
+                  }}
+                  movieTmdbId={movie.id}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-[var(--foreground-muted)] py-10">No reviews yet. Be the first!</p>
           )}
         </div>
       )}

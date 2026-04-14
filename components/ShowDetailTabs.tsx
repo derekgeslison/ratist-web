@@ -732,6 +732,41 @@ export default function ShowDetailTabs({
             </div>
           </div>
 
+          {/* Review preview */}
+          {reviews && reviews.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-white">
+                  Community Reviews
+                  <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>
+                </h3>
+                <button onClick={() => setActiveTab("Reviews")} className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1">
+                  See all reviews <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {reviews.slice(0, 3).map((r) => (
+                <div key={r.id}>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 mb-1 inline-block">
+                    {r.ratingScope === "series" ? "Series" : `Season ${r.seasonNumber}`}
+                  </span>
+                  <ReviewCard
+                    review={{
+                      id: r.id, reviewText: r.reviewText, ratistRating: r.ratistRating,
+                      overallRating: r.overallRating, storyScore: null, styleScore: null,
+                      emotiveScore: null, actingScore: null, entertainScore: null,
+                      reviewType: r.reviewType, fieldComments: null, categoryComments: null,
+                      hasSpoilers: r.hasSpoilers, commentsDisabled: r.commentsDisabled,
+                      createdAt: r.createdAt, commentCount: r.commentCount, likeCount: r.likeCount,
+                      likedByMe: false, user: r.user,
+                    }}
+                    showTmdbId={tmdbId ?? show.id}
+                    compact
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <section>

@@ -227,7 +227,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
       {/* Action buttons */}
       {loaded && (
         <>
-          {user ? (
+          {user ? (<>
             <div className="flex flex-wrap gap-2">
               <Link
                 href={`/shows/${tmdbId}/rate`}
@@ -311,7 +311,10 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
                 )}
               </div>
             </div>
-          ) : (
+            <p className="text-[10px] text-[var(--foreground-muted)] mt-1 text-center">
+              Rate the series, individual seasons, or both
+            </p>
+          </>) : (
             <p className="text-sm text-[var(--foreground-muted)]">
               <a href="/auth/sign-in" className="text-[var(--ratist-red)] hover:underline">Sign in</a>{" "}to track shows you&apos;ve watched.
             </p>
