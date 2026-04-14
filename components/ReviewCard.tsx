@@ -34,6 +34,7 @@ interface ReviewData {
 interface Props {
   review: ReviewData;
   movieTmdbId?: number;
+  showTmdbId?: number;
   /** Compact mode for movie page overview (fewer details) */
   compact?: boolean;
   /** When viewing the dedicated review page — hides redundant links */
@@ -45,7 +46,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   acting: "Acting & Casting", entertainment: "Pure Entertainment",
 };
 
-export default function ReviewCard({ review, movieTmdbId, compact = false, isFullPage = false }: Props) {
+export default function ReviewCard({ review, movieTmdbId, showTmdbId, compact = false, isFullPage = false }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [spoilerRevealed, setSpoilerRevealed] = useState(false);
 
@@ -188,6 +189,14 @@ export default function ReviewCard({ review, movieTmdbId, compact = false, isFul
           {!isFullPage && movieTmdbId && (
             <Link
               href={`/movies/${movieTmdbId}/reviews/${review.id}`}
+              className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+            >
+              Full review →
+            </Link>
+          )}
+          {!isFullPage && showTmdbId && !movieTmdbId && (
+            <Link
+              href={`/shows/${showTmdbId}/reviews/${review.id}`}
               className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
             >
               Full review →

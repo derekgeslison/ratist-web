@@ -22,6 +22,8 @@ import RatingDistribution from "./RatingDistribution";
 import ParentsGuide from "./ParentsGuide";
 import Soundtrack from "./Soundtrack";
 import AwardsTab from "./AwardsTab";
+import ReviewCard from "./ReviewCard";
+import RatingBadge from "./RatingBadge";
 import type { AwardBodyGroup } from "@/lib/awards";
 
 interface Discussion {
@@ -37,6 +39,29 @@ interface Discussion {
   linkHref?: string;
 }
 
+interface ShowReview {
+  id: string;
+  reviewText: string | null;
+  ratistRating: number | null;
+  overallRating: number | null;
+  reviewType: string;
+  ratingScope: string;
+  seasonNumber: number;
+  hasSpoilers: boolean;
+  commentsDisabled: boolean;
+  user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
+  createdAt: string;
+  likeCount: number;
+  commentCount: number;
+}
+
+interface SeasonAggregate {
+  ratingScope: string;
+  seasonNumber: number;
+  avg: { ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null };
+  count: number;
+}
+
 interface Props {
   show: TMDBShow;
   trailerKey: string | null;
@@ -50,9 +75,11 @@ interface Props {
   discussions?: Discussion[];
   awards?: AwardBodyGroup[];
   tmdbId?: number;
+  reviews?: ShowReview[];
+  seasonAggregates?: SeasonAggregate[];
 }
 
-const TABS = ["Overview", "Cast & Crew", "Seasons", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
+const TABS = ["Overview", "Reviews", "Cast & Crew", "Seasons", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
 function FactRow({ label, value }: { label: string; value?: string | null }) {
@@ -74,6 +101,7 @@ function SeasonCard({
   onUpdateEpisodeDate,
   onUpdateSeasonDate,
   isLoggedIn,
+  aggregate,
 }: {
   season: TMDBSeason;
   showTmdbId: number;
@@ -83,6 +111,7 @@ function SeasonCard({
   onUpdateEpisodeDate: (seasonNumber: number, episodeNumber: number, date: string | null) => void;
   onUpdateSeasonDate: (seasonNumber: number, episodes: TMDBEpisode[], date: string | null) => void;
   isLoggedIn: boolean;
+  aggregate?: SeasonAggregate;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
@@ -143,6 +172,14 @@ function SeasonCard({
               {season.episode_count} episode{season.episode_count !== 1 ? "s" : ""}
               {season.air_date ? ` · ${season.air_date.slice(0, 4)}` : ""}
             </p>
+            {aggregate && aggregate.avg.ratistRating != null && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <RatingBadge type="community" score={aggregate.avg.ratistRating} size="sm" />
+                <span className="text-[10px] text-[var(--foreground-muted)]">
+                  ({aggregate.count} rating{aggregate.count !== 1 ? "s" : ""})
+                </span>
+              </div>
+            )}
           </div>
           {expanded ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
         </button>
@@ -411,6 +448,8 @@ export default function ShowDetailTabs({
   discussions = [],
   awards = [],
   tmdbId,
+  reviews = [],
+  seasonAggregates = [],
 }: Props) {
   const { user } = useAuth();
   const isLoggedIn = !!user;
@@ -429,6 +468,7 @@ export default function ShowDetailTabs({
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<"all" | "series" | number>("all");
 
   useEffect(() => {
     function sync() { setActiveTabState(hashToTab()); }
@@ -692,9 +732,6 @@ export default function ShowDetailTabs({
             </div>
           </div>
 
-          {/* Rating distribution */}
-          <RatingDistribution tmdbId={show.id} mediaType="tv" />
-
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <section>
@@ -705,6 +742,123 @@ export default function ShowDetailTabs({
                 ))}
               </div>
             </section>
+          )}
+        </div>
+      )}
+
+      {/* ── REVIEWS TAB ── */}
+      {activeTab === "Reviews" && (
+        <div className="space-y-8 pb-16">
+          <RatingDistribution tmdbId={show.id} mediaType="tv" />
+
+          {/* Season filter */}
+          {(() => {
+            const seasonNumbers = [...new Set(reviews.filter((r) => r.ratingScope === "season").map((r) => r.seasonNumber))].sort((a, b) => a - b);
+            const hasSeries = reviews.some((r) => r.ratingScope === "series");
+            return (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setReviewFilter("all")}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    reviewFilter === "all"
+                      ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
+                      : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
+                  }`}
+                >
+                  All
+                </button>
+                {hasSeries && (
+                  <button
+                    onClick={() => setReviewFilter("series")}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                      reviewFilter === "series"
+                        ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
+                        : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
+                    }`}
+                  >
+                    Series
+                  </button>
+                )}
+                {seasonNumbers.map((sn) => (
+                  <button
+                    key={sn}
+                    onClick={() => setReviewFilter(sn)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                      reviewFilter === sn
+                        ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
+                        : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
+                    }`}
+                  >
+                    Season {sn}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Filtered reviews */}
+          {(() => {
+            const filtered = reviews.filter((r) => {
+              if (reviewFilter === "all") return true;
+              if (reviewFilter === "series") return r.ratingScope === "series";
+              return r.ratingScope === "season" && r.seasonNumber === reviewFilter;
+            });
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-10">
+                  <p className="text-[var(--foreground-muted)] mb-4">No reviews yet. Be the first to review!</p>
+                  <Link
+                    href={`/shows/${tmdbId ?? show.id}/rate`}
+                    className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2.5 rounded-full transition-colors"
+                  >
+                    Rate &amp; Review
+                  </Link>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-4">
+                {filtered.map((review) => (
+                  <div key={review.id}>
+                    <div className="mb-1">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        review.ratingScope === "series"
+                          ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                          : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                      }`}>
+                        {review.ratingScope === "series" ? "Series" : `Season ${review.seasonNumber}`}
+                      </span>
+                    </div>
+                    <ReviewCard
+                      review={{
+                        ...review,
+                        storyScore: null,
+                        styleScore: null,
+                        emotiveScore: null,
+                        actingScore: null,
+                        entertainScore: null,
+                        fieldComments: null,
+                        categoryComments: null,
+                        likedByMe: false,
+                      }}
+                      showTmdbId={tmdbId ?? show.id}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Rate & Review CTA */}
+          {reviews.length > 0 && (
+            <div className="text-center">
+              <Link
+                href={`/shows/${tmdbId ?? show.id}/rate`}
+                className="text-sm text-[var(--ratist-red)] hover:underline"
+              >
+                + Write your own review
+              </Link>
+            </div>
           )}
         </div>
       )}
@@ -728,6 +882,7 @@ export default function ShowDetailTabs({
               onUpdateEpisodeDate={updateEpisodeDate}
               onUpdateSeasonDate={updateSeasonDate}
               isLoggedIn={isLoggedIn}
+              aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === s.season_number)}
             />
           ))}
           {specials && specials.episode_count > 0 && (
@@ -742,6 +897,7 @@ export default function ShowDetailTabs({
                 onUpdateEpisodeDate={updateEpisodeDate}
                 onUpdateSeasonDate={updateSeasonDate}
                 isLoggedIn={isLoggedIn}
+                aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === 0)}
               />
             </>
           )}

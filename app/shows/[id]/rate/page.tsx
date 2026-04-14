@@ -90,6 +90,9 @@ export default function RateShowPage() {
   const [deleting, setDeleting] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [allSeasonRatings, setAllSeasonRatings] = useState<{ seasonNumber: number; ratistRating: number | null; overallRating: number | null }[]>([]);
+  const [seriesRatingScore, setSeriesRatingScore] = useState<number | null>(null);
+  const [loadingScope, setLoadingScope] = useState(false);
 
   // Scope: series or season
   const [ratingScope, setRatingScope] = useState<"series" | "season">(
@@ -103,11 +106,30 @@ export default function RateShowPage() {
     if (authLoading) return;
     if (!user) { router.push(`/auth/signin?redirect=${encodeURIComponent(pathname)}`); return; }
 
+    // Reset form state when scope changes
+    setValues({});
+    setOverallRating(null);
+    setReviewText("");
+    setMode("standard");
+    setHasSpoilers(false);
+    setCommentsDisabled(false);
+    setFieldComments({});
+    setCategoryComments({});
+    setHasExisting(false);
+    setDraftLoaded(false);
+    setLoadingScope(true);
+
     user.getIdToken().then((token) => {
       const scopeParam = ratingScope === "season" ? `?scope=season&season=${seasonNumber}` : "";
       fetch(`/api/shows/${id}/rate${scopeParam}`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => r.json())
-        .then(({ rating }) => {
+        .then(({ rating, seasonRatings }) => {
+          // Track all season/series ratings for status display
+          if (seasonRatings) setAllSeasonRatings(seasonRatings);
+          if (rating?.ratingScope === "series" || ratingScope === "series") {
+            setSeriesRatingScore(rating?.ratistRating ?? rating?.overallRating ?? null);
+          }
+
           if (rating) {
             const loaded: Record<string, number | null> = {};
             for (const cat of Object.values(CRITERIA)) {
@@ -142,6 +164,7 @@ export default function RateShowPage() {
             } catch { /* ignore */ }
           }
           setDraftLoaded(true);
+          setLoadingScope(false);
         });
     });
   }, [authLoading, user, id, router, ratingScope, seasonNumber]);
@@ -296,6 +319,9 @@ export default function RateShowPage() {
             }`}
           >
             Entire Series
+            {seriesRatingScore != null && ratingScope !== "series" && (
+              <span className="ml-1.5 text-xs opacity-70">({seriesRatingScore.toFixed(1)})</span>
+            )}
           </button>
           <button
             type="button"
@@ -317,11 +343,26 @@ export default function RateShowPage() {
               onChange={(e) => setSeasonNumber(Number(e.target.value))}
               className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
             >
-              {Array.from({ length: totalSeasons }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>Season {n}</option>
-              ))}
+              {Array.from({ length: totalSeasons }, (_, i) => i + 1).map((n) => {
+                const existing = allSeasonRatings.find((r) => r.seasonNumber === n);
+                const score = existing?.ratistRating ?? existing?.overallRating;
+                return <option key={n} value={n}>Season {n}{score != null ? ` (rated ${score.toFixed(1)})` : ""}</option>;
+              })}
             </select>
           </div>
+        )}
+
+        {/* Status indicator */}
+        {loadingScope ? (
+          <p className="text-xs text-[var(--foreground-muted)] mt-3">Loading...</p>
+        ) : hasExisting ? (
+          <p className="text-xs text-emerald-400 mt-3">
+            You&apos;ve already rated {ratingScope === "series" ? "this series" : `Season ${seasonNumber}`}. Your saved rating is loaded below — edit and save to update.
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--foreground-muted)] mt-3">
+            {ratingScope === "series" ? "No series rating yet" : `No rating for Season ${seasonNumber} yet`} — fill out the form below to submit.
+          </p>
         )}
       </div>
 

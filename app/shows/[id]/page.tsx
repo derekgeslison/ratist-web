@@ -148,6 +148,110 @@ export default async function ShowDetailPage({ params }: Props) {
     }
   } catch { /* DB not ready */ }
 
+  // Fetch text reviews from DB
+  let reviews: {
+    id: string;
+    reviewText: string | null;
+    ratistRating: number | null;
+    overallRating: number | null;
+    reviewType: string;
+    ratingScope: string;
+    seasonNumber: number;
+    hasSpoilers: boolean;
+    commentsDisabled: boolean;
+    user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
+    createdAt: Date;
+    likeCount: number;
+    commentCount: number;
+  }[] = [];
+  let seasonAggregates: {
+    ratingScope: string;
+    seasonNumber: number;
+    avg: { ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null };
+    count: number;
+  }[] = [];
+  try {
+    const dbShow = await prisma.tVShow.findUnique({
+      where: { tmdbId: show.id },
+      select: { id: true },
+    });
+    if (dbShow) {
+      const [rawReviews, rawAggregates] = await Promise.all([
+        prisma.tVShowRating.findMany({
+          where: {
+            tvShowId: dbShow.id,
+            reviewText: { not: null },
+          },
+          select: {
+            id: true,
+            reviewText: true,
+            ratistRating: true,
+            overallRating: true,
+            reviewType: true,
+            ratingScope: true,
+            seasonNumber: true,
+            hasSpoilers: true,
+            commentsDisabled: true,
+            createdAt: true,
+            user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        }),
+        prisma.tVShowRating.groupBy({
+          by: ["ratingScope", "seasonNumber"],
+          where: { tvShowId: dbShow.id, ratistRating: { not: null } },
+          _avg: {
+            ratistRating: true,
+            storyScore: true,
+            styleScore: true,
+            emotiveScore: true,
+            actingScore: true,
+            entertainScore: true,
+          },
+          _count: { ratistRating: true },
+        }),
+      ]);
+
+      // Fetch comment + like counts from unified models
+      const reviewIds = rawReviews.map((r) => r.id);
+      const [commentCounts, likeCounts] = await Promise.all([
+        prisma.comment.groupBy({
+          by: ["targetId"],
+          where: { targetType: "review", targetId: { in: reviewIds } },
+          _count: { id: true },
+        }),
+        prisma.postLike.groupBy({
+          by: ["targetId"],
+          where: { targetType: "review", targetId: { in: reviewIds } },
+          _count: { targetId: true },
+        }),
+      ]);
+      const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
+      const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
+
+      reviews = rawReviews.map((r) => ({
+        ...r,
+        commentCount: commentMap.get(r.id) ?? 0,
+        likeCount: likeMap.get(r.id) ?? 0,
+      }));
+
+      seasonAggregates = rawAggregates.map((a) => ({
+        ratingScope: a.ratingScope,
+        seasonNumber: a.seasonNumber,
+        avg: {
+          ratistRating: a._avg.ratistRating,
+          storyScore: a._avg.storyScore,
+          styleScore: a._avg.styleScore,
+          emotiveScore: a._avg.emotiveScore,
+          actingScore: a._avg.actingScore,
+          entertainScore: a._avg.entertainScore,
+        },
+        count: a._count.ratistRating,
+      }));
+    }
+  } catch { /* DB not ready */ }
+
   const trailerKey = getShowTrailerKey(show);
   const contentRating = getShowContentRating(show);
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
@@ -324,6 +428,22 @@ export default async function ShowDetailPage({ params }: Props) {
           discussions={discussions}
           awards={awards}
           tmdbId={show.id}
+          reviews={reviews.map((r) => ({
+            id: r.id,
+            reviewText: r.reviewText ?? "",
+            ratistRating: r.ratistRating,
+            overallRating: r.overallRating,
+            reviewType: r.reviewType,
+            ratingScope: r.ratingScope,
+            seasonNumber: r.seasonNumber,
+            hasSpoilers: r.hasSpoilers,
+            commentsDisabled: r.commentsDisabled,
+            user: r.user,
+            createdAt: r.createdAt.toISOString(),
+            likeCount: r.likeCount,
+            commentCount: r.commentCount,
+          }))}
+          seasonAggregates={seasonAggregates}
         />
       </div>
     </div>
