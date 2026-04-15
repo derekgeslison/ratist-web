@@ -165,12 +165,6 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
             <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
               Trailer
             </div>
-            {/* Poster overlay in bottom-left corner */}
-            {posterPath && mediaLink && (
-              <div className="absolute bottom-2 left-2 w-12 aspect-[2/3] rounded overflow-hidden border border-white/20 shadow-lg">
-                <Image src={`https://image.tmdb.org/t/p/w92${posterPath}`} alt="" fill sizes="48px" className="object-cover" />
-              </div>
-            )}
           </button>
           <div className="p-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
