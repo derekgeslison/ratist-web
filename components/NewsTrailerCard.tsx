@@ -106,6 +106,8 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
     : null;
 
   const mediaLink = movieTmdbId ? `/movies/${movieTmdbId}` : showTmdbId ? `/shows/${showTmdbId}` : null;
+  // Extract movie name from auto-generated titles like "Movie Name — Official Trailer"
+  const movieName = title.includes(" — ") ? title.split(" — ")[0] : null;
 
   if (compact) {
     // Home page tile — unchanged
@@ -149,30 +151,40 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
   return (
     <>
       <article className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors">
-        {/* Mobile layout */}
+        {/* Mobile layout: thumbnail left, poster+name right, video title + watchlist below */}
         <div className="sm:hidden">
-          <button onClick={() => setOpen(true)} className="relative w-full aspect-video bg-[var(--surface-2)] group/play">
-            <img
-              src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center group-hover/play:bg-[var(--ratist-red)]/80 transition-colors">
-                <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <div className="flex">
+            {/* Trailer thumbnail */}
+            <button onClick={() => setOpen(true)} className="relative flex-1 aspect-video bg-[var(--surface-2)] group/play">
+              <img
+                src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center group-hover/play:bg-[var(--ratist-red)]/80 transition-colors">
+                  <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </div>
               </div>
-            </div>
-            <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
-              Trailer
-            </div>
-          </button>
+              <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
+                Trailer
+              </div>
+            </button>
+            {/* Poster + movie name */}
+            {posterPath && mediaLink ? (
+              <Link href={mediaLink} className="w-[30%] shrink-0 bg-[var(--surface-2)] flex flex-col items-center justify-center gap-2 p-2">
+                <div className="relative w-full max-w-[80px] aspect-[2/3] rounded-lg overflow-hidden">
+                  <Image src={`https://image.tmdb.org/t/p/w154${posterPath}`} alt="" fill sizes="80px" className="object-cover" />
+                </div>
+                {movieName && (
+                  <p className="text-xs font-semibold text-white text-center line-clamp-2 leading-tight">{movieName}</p>
+                )}
+              </Link>
+            ) : null}
+          </div>
           <div className="p-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              {mediaLink ? (
-                <Link href={mediaLink} className="text-sm font-semibold text-white line-clamp-2 hover:text-[var(--ratist-red)] transition-colors">{title}</Link>
-              ) : (
-                <p className="text-sm font-semibold text-white line-clamp-2">{title}</p>
-              )}
+              <button onClick={() => setOpen(true)} className="text-sm font-semibold text-white line-clamp-2 text-left hover:text-[var(--ratist-red)] transition-colors">{title}</button>
               {dateStr && <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">{dateStr}</p>}
             </div>
             {movieTmdbId && (
@@ -222,11 +234,10 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
               </span>
               {dateStr && <span className="text-[10px] text-[var(--foreground-muted)]">{dateStr}</span>}
             </div>
-            {mediaLink ? (
-              <Link href={mediaLink} className="text-base font-semibold text-white line-clamp-2 hover:text-[var(--ratist-red)] transition-colors">{title}</Link>
-            ) : (
-              <p className="text-base font-semibold text-white line-clamp-2">{title}</p>
+            {mediaLink && movieName && (
+              <Link href={mediaLink} className="text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors mb-0.5">{movieName}</Link>
             )}
+            <button onClick={() => setOpen(true)} className="text-base font-semibold text-white line-clamp-2 text-left hover:text-[var(--ratist-red)] transition-colors">{title}</button>
             <div className="mt-auto pt-2">
               {movieTmdbId && (
                 <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} />
