@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { Star, BarChart3, Users, Swords, Film, Brain, Shield, Zap, Tv, Sparkles, RefreshCw, Map } from "lucide-react";
+import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 export const metadata: Metadata = {
   title: "About",
@@ -151,7 +152,7 @@ export default function AboutPage() {
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           {[
-            { icon: Swords, title: "Two Thumbs", desc: "Head-to-head debates and contrarian takes.", href: "/two-thumbs" },
+            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Head-to-head debates and contrarian takes.", href: "/two-thumbs" },
             { icon: Map, title: "Movie Maps", desc: "Curated viewing guides and themed lists.", href: "/movie-maps" },
             { icon: RefreshCw, title: "Recasts", desc: "Suggest who should have played that role.", href: "/community/recast" },
             { icon: Sparkles, title: "Looks Like", desc: "Celebrity lookalike pairs — vote on who could be twins.", href: "/community/looks-like" },
