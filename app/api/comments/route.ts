@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildPunchAndJudyLink, buildMovieMapLink } from "@/lib/notifications";
+import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       if (post) {
         contentOwnerId = post.authorId;
         skipOwnerNotify = true; // admins don't need comment notifications on their posts
-        if (post.type === "PUNCH_AND_JUDY") link = buildPunchAndJudyLink(post.slug);
+        if (post.type === "PUNCH_AND_JUDY") link = buildTwoThumbsLink(post.slug);
         else if (post.type === "MOVIE_MAP") link = buildMovieMapLink(post.slug);
         else link = buildBlogLink(post.slug);
         replyMessage = `${user.name} replied to your comment on "${post.title}"`;

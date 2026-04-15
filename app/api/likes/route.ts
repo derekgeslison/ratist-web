@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildPunchAndJudyLink, buildMovieMapLink } from "@/lib/notifications";
+import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 

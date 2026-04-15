@@ -136,9 +136,11 @@ export function buildBlogLink(slug: string): string {
   return `/blog/${slug}`;
 }
 
-export function buildPunchAndJudyLink(slug: string): string {
-  return `/punch-and-judy/${slug}`;
+export function buildTwoThumbsLink(slug: string): string {
+  return `/two-thumbs/${slug}`;
 }
+/** @deprecated Use buildTwoThumbsLink */
+export const buildPunchAndJudyLink = buildTwoThumbsLink;
 
 export function buildMovieMapLink(slug: string): string {
   return `/movie-maps/${slug}`;

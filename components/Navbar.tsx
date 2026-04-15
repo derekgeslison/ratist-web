@@ -4,7 +4,8 @@ import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Swords, Star, Bell, Ticket, Newspaper } from "lucide-react";
+import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Star, Bell, Ticket, Newspaper } from "lucide-react";
+import TwoThumbsIcon from "./TwoThumbsIcon";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -13,7 +14,7 @@ import QuickSearch from "./QuickSearch";
 const READ_LINKS = [
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/blog", label: "Blog", icon: BookOpen },
-  { href: "/punch-and-judy", label: "Punch & Judy", icon: Swords },
+  { href: "/two-thumbs", label: "Two Thumbs", icon: TwoThumbsIcon },
 ];
 
 export default function Navbar() {

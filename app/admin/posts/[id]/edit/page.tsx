@@ -12,13 +12,13 @@ import PersonLinker from "@/components/forum/PersonLinker";
 
 const TYPE_LABELS: Record<PostType, string> = {
   BLOG: "Blog Post",
-  PUNCH_AND_JUDY: "Punch & Judy",
+  PUNCH_AND_JUDY: "Two Thumbs",
   MOVIE_MAP: "Movie Map",
 };
 
 const TYPE_SLUGS: Record<PostType, string> = {
   BLOG: "blog",
-  PUNCH_AND_JUDY: "punch-and-judy",
+  PUNCH_AND_JUDY: "two-thumbs",
   MOVIE_MAP: "movie-maps",
 };
 

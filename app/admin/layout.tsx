@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { FileText, Swords, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, KeyRound, ScrollText, Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert } from "lucide-react";
+import { FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, KeyRound, ScrollText, Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert } from "lucide-react";
+import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -53,7 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {[
             { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
             { href: "/admin/posts?type=BLOG", label: "Blog", icon: FileText },
-            { href: "/admin/posts?type=PUNCH_AND_JUDY", label: "Punch & Judy", icon: Swords },
+            { href: "/admin/posts?type=PUNCH_AND_JUDY", label: "Two Thumbs", icon: TwoThumbsIcon },
             { href: "/admin/posts?type=MOVIE_MAP", label: "Movie Maps", icon: Map },
             { href: "/admin/users", label: "Users", icon: Users },
             { href: "/admin/moderation", label: "Moderation", icon: Flag },

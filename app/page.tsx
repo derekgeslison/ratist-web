@@ -127,7 +127,7 @@ export default async function HomePage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-[var(--ratist-red)] font-semibold uppercase tracking-wider mb-1">
-                    {s.type === "blog" ? "New Post" : s.type === "punch_and_judy" ? "Punch & Judy" : s.type === "feature" ? "New Feature" : "Spotlight"}
+                    {s.type === "blog" ? "New Post" : s.type === "punch_and_judy" ? "Two Thumbs" : s.type === "feature" ? "New Feature" : "Spotlight"}
                   </p>
                   <p className="text-base font-bold text-white group-hover:text-[var(--ratist-red)] transition-colors">{s.title}</p>
                   {s.description && <p className="text-sm text-[var(--foreground-muted)] mt-1 line-clamp-2">{s.description}</p>}

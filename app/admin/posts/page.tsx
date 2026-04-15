@@ -20,7 +20,7 @@ interface Post {
 
 const TYPE_LABELS: Record<string, string> = {
   BLOG: "Blog Post",
-  PUNCH_AND_JUDY: "Punch & Judy",
+  PUNCH_AND_JUDY: "Two Thumbs",
   MOVIE_MAP: "Movie Map",
 };
 

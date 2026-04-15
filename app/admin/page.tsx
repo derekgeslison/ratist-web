@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { FileText, Swords, Map, Plus, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Shield } from "lucide-react";
+import { FileText, Map, Plus, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Shield } from "lucide-react";
+import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 interface Post {
   id: string;
@@ -25,7 +26,7 @@ interface SiteStats {
 
 const TYPE_META = {
   BLOG: { label: "Blog", icon: FileText, color: "text-blue-400" },
-  PUNCH_AND_JUDY: { label: "Punch & Judy", icon: Swords, color: "text-orange-400" },
+  PUNCH_AND_JUDY: { label: "Two Thumbs", icon: TwoThumbsIcon, color: "text-orange-400" },
   MOVIE_MAP: { label: "Movie Map", icon: Map, color: "text-green-400" },
 };
 

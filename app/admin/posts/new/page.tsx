@@ -11,7 +11,7 @@ import PersonLinker from "@/components/forum/PersonLinker";
 
 const TYPE_LABELS = {
   BLOG: "Blog Post",
-  PUNCH_AND_JUDY: "Punch & Judy",
+  PUNCH_AND_JUDY: "Two Thumbs",
   MOVIE_MAP: "Movie Map",
 };
 

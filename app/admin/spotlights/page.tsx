@@ -18,7 +18,7 @@ interface Spotlight {
 
 const TYPE_OPTIONS = [
   { value: "blog", label: "Blog Post" },
-  { value: "punch_and_judy", label: "Punch & Judy" },
+  { value: "punch_and_judy", label: "Two Thumbs" },
   { value: "feature", label: "New Feature" },
   { value: "announcement", label: "Announcement (top banner)" },
   { value: "general", label: "General" },
