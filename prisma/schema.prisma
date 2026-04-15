@@ -176,6 +176,10 @@ model UserProfile {
   genreWestern       Float @default(0) @map("genre_western")
   genreMystery       Float @default(0) @map("genre_mystery")
 
+  // Preserved copy of user's explicit onboarding/settings preferences
+  // Used for blending with rating-derived scores until 10 full Ratist ratings
+  statedPrefs  Json?    @map("stated_prefs")
+
   updatedAt DateTime @updatedAt @map("updated_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

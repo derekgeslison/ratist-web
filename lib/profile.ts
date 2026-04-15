@@ -57,6 +57,16 @@ function avgArr(arr: number[]): number {
  * Rebuilds a user's persona profile from all their ratings.
  * Called after every new/edited rating.
  *
+ * For users with < 10 full Ratist ratings, blends the user's explicit
+ * onboarding/settings preferences with rating-derived scores:
+ *   - Onboarding weight starts at 10% and linearly decreases to 0% at 10 ratings
+ *   - Rating-derived weight starts at 90% and increases to 100% at 10 ratings
+ * After 10+ full Ratist ratings, the profile is 100% rating-derived.
+ *
+ * Only full Ratist ratings (reviewType "standard"/"critic") count toward the
+ * blending threshold — quick, basic, and imported ratings don't provide
+ * enough component data to reliably determine preferences.
+ *
  * Algorithm:
  *   For each focused category (e.g. narrativeFocused with fields [plot, storytelling, ...]):
  *     For each movie rating where overallRating is set:
@@ -80,6 +90,7 @@ export async function rebuildUserProfile(userId: string) {
   const validRatings = ratings.filter((r) => r.overallRating != null);
 
   if (validRatings.length === 0) {
+    // No ratings at all — keep onboarding preferences as-is
     await prisma.userProfile.upsert({
       where: { userId },
       create: { userId },
@@ -87,6 +98,18 @@ export async function rebuildUserProfile(userId: string) {
     });
     return;
   }
+
+  // Count full Ratist ratings for blending threshold
+  const fullRatistCount = ratings.filter(
+    (r) => r.reviewType === "standard" || r.reviewType === "critic"
+  ).length;
+
+  // Load preserved onboarding/settings preferences for blending
+  const currentProfile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { statedPrefs: true },
+  });
+  const statedPrefs = currentProfile?.statedPrefs as Record<string, number> | null;
 
   const movieIds = validRatings.map((r) => r.movieId);
 
@@ -162,10 +185,35 @@ export async function rebuildUserProfile(userId: string) {
   const scaledComponents = upscaleProfile(rawComponents);
   const scaledGenres = upscaleProfile(rawGenres);
 
+  // Blend with onboarding/settings preferences for users with < 10 full Ratist ratings.
+  // Onboarding weight linearly decreases: 10% at 0 ratings → 0% at 10 ratings.
+  let finalComponents = scaledComponents;
+  let finalGenres = scaledGenres;
+
+  if (fullRatistCount < 10 && statedPrefs) {
+    const onboardingWeight = 0.10 * (1 - fullRatistCount / 10); // 10% → 0%
+    const ratingWeight = 1 - onboardingWeight;
+
+    const componentKeys = Object.keys(FOCUSED_CATEGORIES) as FocusedKey[];
+    finalComponents = Object.fromEntries(
+      componentKeys.map((k) => [
+        k,
+        (statedPrefs[k] ?? 0) * onboardingWeight + (scaledComponents[k] ?? 0) * ratingWeight,
+      ])
+    );
+
+    finalGenres = Object.fromEntries(
+      GENRE_KEYS.map((k) => [
+        k,
+        (statedPrefs[k] ?? 0) * onboardingWeight + (scaledGenres[k] ?? 0) * ratingWeight,
+      ])
+    );
+  }
+
   await prisma.userProfile.upsert({
     where: { userId },
-    create: { userId, ...scaledComponents, ...scaledGenres },
-    update: { ...scaledComponents, ...scaledGenres },
+    create: { userId, ...finalComponents, ...finalGenres },
+    update: { ...finalComponents, ...finalGenres },
   });
 }
 

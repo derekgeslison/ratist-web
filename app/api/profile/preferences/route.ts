@@ -34,10 +34,12 @@ export async function PUT(req: NextRequest) {
 
     const body = await req.json();
 
+    // Save the explicit preferences and also preserve them in statedPrefs
+    // so rebuildUserProfile can blend them with rating-derived scores
     await prisma.userProfile.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, ...body },
-      update: body,
+      create: { userId: user.id, ...body, statedPrefs: body },
+      update: { ...body, statedPrefs: body },
     });
 
     return NextResponse.json({ ok: true });

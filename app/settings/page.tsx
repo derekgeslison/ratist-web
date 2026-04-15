@@ -496,7 +496,7 @@ export default function SettingsPage() {
 
       {/* ── GENRE PREFERENCES ── */}
       <section>
-        <h2 className="text-base font-semibold text-white mb-1">Favourite Genres</h2>
+        <h2 className="text-base font-semibold text-white mb-1">Favorite Genres</h2>
         <p className="text-xs text-[var(--foreground-muted)] mb-4">
           Select the genres you love — they carry extra weight in your recommendations.
         </p>
