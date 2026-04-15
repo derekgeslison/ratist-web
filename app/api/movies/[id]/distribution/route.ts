@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     if (!movie) return NextResponse.json({ buckets: Array(10).fill(0), total: 0, avg: null });
 
     const ratings = await prisma.movieRating.findMany({
-      where: { movieId: movie.id, ratistRating: { not: null } },
+      where: { movieId: movie.id, ratistRating: { not: null }, excluded: false },
       select: { ratistRating: true },
     });
 

@@ -502,6 +502,9 @@ model TVShowRating {
   categoryComments Json?    @map("category_comments")
   hasSpoilers      Boolean  @default(false) @map("has_spoilers")
   commentsDisabled Boolean  @default(false) @map("comments_disabled")
+  excluded         Boolean  @default(false)
+  excludedAt       DateTime? @map("excluded_at")
+  excludedReason   String?  @map("excluded_reason")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -587,6 +590,9 @@ model MovieRating {
   categoryComments Json?    @map("category_comments") // critic mode: { "story": "comment", ... }
   hasSpoilers      Boolean  @default(false) @map("has_spoilers")
   commentsDisabled Boolean  @default(false) @map("comments_disabled")
+  excluded         Boolean  @default(false)
+  excludedAt       DateTime? @map("excluded_at")
+  excludedReason   String?  @map("excluded_reason")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -1830,4 +1836,32 @@ model RssHeadline {
 
   @@index([dismissed, fetchedAt])
   @@map("rss_headlines")
+}
+
+// ─── Fraud Detection ──────────────────────────────────────────────────────────
+
+model FraudFlag {
+  id          String   @id @default(cuid())
+  type        String   // "duplicate_cluster" | "review_bomb" | "thin_account"
+  status      String   @default("open") // "open" | "excluded" | "dismissed"
+  severity    String   @default("medium") // "low" | "medium" | "high"
+
+  // For duplicate_cluster: JSON array of user IDs in the cluster
+  // For review_bomb: the target movie/show tmdb ID
+  // For thin_account: the user ID
+  userIds     Json     @map("user_ids") // string[]
+  targetType  String?  @map("target_type") // "movie" | "show" | null
+  targetId    String?  @map("target_id") // movie or tvShow DB id
+
+  // Evidence snapshot
+  evidence    Json     // { matchRate, sharedCount, ratings, ... }
+
+  resolvedAt  DateTime? @map("resolved_at")
+  resolvedBy  String?   @map("resolved_by") // admin user ID
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([status, type])
+  @@map("fraud_flags")
 }

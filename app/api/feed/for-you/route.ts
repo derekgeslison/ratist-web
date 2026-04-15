@@ -272,7 +272,7 @@ export async function GET(req: NextRequest) {
       // Get all movies with at least 1 Ratist rating that user hasn't seen/rated
       const ratedMovieIds = await prisma.movieRating.groupBy({
         by: ["movieId"],
-        where: { ratistRating: { not: null }, movieId: { notIn: [...excludeIds] } },
+        where: { ratistRating: { not: null }, excluded: false, movieId: { notIn: [...excludeIds] } },
         _count: { ratistRating: true },
       });
 
@@ -289,7 +289,7 @@ export async function GET(req: NextRequest) {
         // Get community Ratist averages for display
         const communityAvgs = await prisma.movieRating.groupBy({
           by: ["movieId"],
-          where: { movieId: { in: candidateIds }, ratistRating: { not: null } },
+          where: { movieId: { in: candidateIds }, ratistRating: { not: null }, excluded: false },
           _avg: { ratistRating: true },
         });
         const avgMap = new Map(communityAvgs.map((c) => [c.movieId, c._avg.ratistRating]));

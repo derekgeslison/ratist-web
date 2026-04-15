@@ -158,7 +158,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     // Get community averages for this movie
     const aggregates = await prisma.movieRating.aggregate({
-      where: { movieId: movie.id, ratistRating: { not: null } },
+      where: { movieId: movie.id, ratistRating: { not: null }, excluded: false },
       _avg: {
         ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
         // Individual fields for expandable breakdown

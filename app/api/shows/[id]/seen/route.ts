@@ -118,7 +118,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     // Community averages for this show
     const aggregates = await prisma.tVShowRating.aggregate({
-      where: { tvShowId: tvShow.id, ratingScope: "series", ratistRating: { not: null } },
+      where: { tvShowId: tvShow.id, ratingScope: "series", ratistRating: { not: null }, excluded: false },
       _avg: { ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true },
       _sum: { ratistRating: true },
       _count: { ratistRating: true },

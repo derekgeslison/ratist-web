@@ -34,7 +34,7 @@ export async function GET(
 
   // Aggregate series-level ratings (ratingScope = "series")
   const agg = await prisma.tVShowRating.aggregate({
-    where: { tvShowId: show.id, ratistRating: { not: null }, ratingScope: "series" },
+    where: { tvShowId: show.id, ratistRating: { not: null }, ratingScope: "series", excluded: false },
     _avg: {
       ratistRating: true,
       storyScore: true,

@@ -93,7 +93,7 @@ export async function rebuildUserProfile(userId: string) {
   // Community sub-field averages for each movie
   const communityAvgs = await prisma.movieRating.groupBy({
     by: ["movieId"],
-    where: { movieId: { in: movieIds } },
+    where: { movieId: { in: movieIds }, excluded: false },
     _avg: {
       plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
       relatability: true, characterDev: true, dialogueScripting: true,
@@ -240,7 +240,7 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
   const [profile, communityAvg, movie] = await Promise.all([
     prisma.userProfile.findUnique({ where: { userId } }),
     prisma.movieRating.aggregate({
-      where: { movieId },
+      where: { movieId, excluded: false },
       _avg: {
         plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
         relatability: true, characterDev: true, dialogueScripting: true,
@@ -320,7 +320,7 @@ export async function getBatchScoreEstimates(
     prisma.userProfile.findUnique({ where: { userId } }),
     prisma.movieRating.groupBy({
       by: ["movieId"],
-      where: { movieId: { in: movieIds } },
+      where: { movieId: { in: movieIds }, excluded: false },
       _avg: {
         plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
         relatability: true, characterDev: true, dialogueScripting: true,

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     if (!show) return NextResponse.json({ buckets: Array(10).fill(0), total: 0, avg: null });
 
     const ratings = await prisma.tVShowRating.findMany({
-      where: { tvShowId: show.id, ratingScope: "series", ratistRating: { not: null } },
+      where: { tvShowId: show.id, ratingScope: "series", ratistRating: { not: null }, excluded: false },
       select: { ratistRating: true },
     });
 

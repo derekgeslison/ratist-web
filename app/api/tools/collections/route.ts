@@ -120,6 +120,7 @@ export async function GET(req: NextRequest) {
         // Find movies rated 8+ by community with low vote count (hidden gems)
         const gems = await prisma.movieRating.groupBy({
           by: ["movieId"],
+          where: { excluded: false },
           _avg: { ratistRating: true },
           _count: { id: true },
           having: { ratistRating: { _avg: { gte: 8 } } },
@@ -248,6 +249,7 @@ export async function GET(req: NextRequest) {
         const scoreField = topDim.dim as any;
         const topInDim = await prisma.movieRating.groupBy({
           by: ["movieId"],
+          where: { excluded: false },
           _avg: { [scoreField]: true } as any,
           _count: { id: true },
           having: { [scoreField]: { _avg: { gte: 8.5 } } } as any,

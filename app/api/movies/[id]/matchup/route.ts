@@ -34,7 +34,7 @@ export async function GET(
 
   // Get community averages — same aggregate as the movie page uses
   const agg = await prisma.movieRating.aggregate({
-    where: { movieId: movie.id, ratistRating: { not: null } },
+    where: { movieId: movie.id, ratistRating: { not: null }, excluded: false },
     _avg: {
       ratistRating: true,
       storyScore: true,
