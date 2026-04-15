@@ -79,6 +79,17 @@ type SeenFilter = "all" | "checked" | "unchecked";
 function WatchlistSortableItem({ item, index, total, onMove }: { item: { id: string; title: string; posterPath: string | null; mediaType?: string }; index: number; total: number; onMove: (from: number, to: number) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const [inputVal, setInputVal] = useState("");
+
+  function handleMoveSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const num = parseInt(inputVal, 10);
+    if (!isNaN(num) && num >= 1 && num <= total) {
+      onMove(index, num - 1);
+      setInputVal("");
+    }
+  }
+
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2 hover:border-[var(--ratist-red)]/50 transition-colors">
       <span className="text-xs font-bold text-[var(--foreground-muted)] w-6 text-center">{index + 1}</span>
@@ -100,6 +111,10 @@ function WatchlistSortableItem({ item, index, total, onMove }: { item: { id: str
           {item.mediaType === "tv" && <span className="text-[8px] font-bold text-blue-400 bg-blue-600/20 px-1 py-0.5 rounded leading-none">TV</span>}
         </div>
       </div>
+      <form onSubmit={handleMoveSubmit} className="flex items-center gap-1 shrink-0">
+        <input value={inputVal} onChange={(e) => setInputVal(e.target.value)} placeholder="#"
+          className="w-10 bg-[var(--surface-2)] border border-[var(--border)] rounded px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[var(--ratist-red)]" />
+      </form>
     </div>
   );
 }

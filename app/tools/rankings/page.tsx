@@ -100,7 +100,7 @@ function SortableItem({
         <span className="text-sm font-bold text-[var(--ratist-red)] shrink-0">{movie.ratistRating.toFixed(1)}</span>
       )}
 
-      <form onSubmit={handleMoveSubmit} className="hidden sm:flex items-center gap-1 shrink-0">
+      <form onSubmit={handleMoveSubmit} className="flex items-center gap-1 shrink-0">
         <input value={inputVal} onChange={(e) => setInputVal(e.target.value)} placeholder="#"
           className="w-10 bg-[var(--surface-2)] border border-[var(--border)] rounded px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[var(--ratist-red)]" />
       </form>
