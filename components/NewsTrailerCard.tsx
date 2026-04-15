@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck } from "lucide-react";
+import { Bookmark, BookmarkCheck, Check, Plus } from "lucide-react";
 import TrailerModal from "./TrailerModal";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
@@ -22,41 +22,137 @@ interface Props {
   posterPath?: string | null;
 }
 
-function MovieWatchlistButton({ tmdbId, posterPath }: { tmdbId: number; posterPath?: string | null }) {
+interface WatchlistInfo {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  isOwned?: boolean;
+  ownerName?: string;
+  hasMovie: boolean;
+}
+
+function ListPickerPopup({ lists, onToggle, togglingId, onClose }: {
+  lists: WatchlistInfo[];
+  onToggle: (id: string) => void;
+  togglingId: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="absolute bottom-full right-0 mb-2 w-56 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl z-30 p-2">
+      <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Manage watchlists</p>
+      {lists.map((list) => (
+        <button
+          key={list.id}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(list.id); }}
+          disabled={togglingId === list.id}
+          className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
+        >
+          <span className="text-white truncate">
+            {list.name}
+            {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
+            {list.ownerName && <span className="text-[var(--foreground-muted)] text-xs ml-1">· {list.ownerName}</span>}
+          </span>
+          {list.hasMovie ? (
+            <Check className="w-4 h-4 text-green-400 shrink-0" />
+          ) : (
+            <Plus className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
+          )}
+        </button>
+      ))}
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+        className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-1 py-1 transition-colors"
+      >
+        Done
+      </button>
+    </div>
+  );
+}
+
+function MovieWatchlistButton({ tmdbId, posterPath, movieTitle }: { tmdbId: number; posterPath?: string | null; movieTitle?: string }) {
   const { user } = useAuth();
   const { watchlisted, setWatchlistState } = useMovieUserState(tmdbId);
   const [marking, setMarking] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [allLists, setAllLists] = useState<WatchlistInfo[]>([]);
+  const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   if (!user) return null;
 
-  async function add(e: React.MouseEvent) {
+  async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (marking || watchlisted) return;
-    setMarking(true);
-    const token = await user!.getIdToken();
-    const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ poster_path: posterPath }),
-    }).catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setWatchlistState(data.watchlisted ?? true);
+    if (marking) return;
+    if (watchlisted) {
+      await openPicker();
+    } else {
+      setMarking(true);
+      const token = await user!.getIdToken();
+      const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ poster_path: posterPath, title: movieTitle }),
+      }).catch(() => null);
+      if (res?.ok) {
+        const data = await res.json();
+        setWatchlistState(data.watchlisted ?? true);
+        if (data.lists) { setAllLists(data.lists); setShowPicker(true); }
+      }
+      setMarking(false);
     }
-    setMarking(false);
+  }
+
+  async function openPicker() {
+    const token = await user!.getIdToken();
+    const res = await fetch(`/api/movies/${tmdbId}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.lists) { setAllLists(data.lists); setShowPicker(true); }
+  }
+
+  async function toggleList(listId: string) {
+    setTogglingListId(listId);
+    const token = await user!.getIdToken();
+    const list = allLists.find((l) => l.id === listId);
+    if (!list) { setTogglingListId(null); return; }
+
+    if (list.hasMovie) {
+      const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const entry = data.movies?.find((m: { tmdbId: number }) => m.tmdbId === tmdbId);
+      if (entry) {
+        await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      }
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: false } : l);
+      setAllLists(updated);
+      setWatchlistState(updated.some((l) => l.hasMovie));
+    } else {
+      await fetch(`/api/watchlist/${listId}/movies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId, title: movieTitle, posterPath }),
+      });
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: true } : l);
+      setAllLists(updated);
+      setWatchlistState(true);
+    }
+    setTogglingListId(null);
   }
 
   return (
-    <button
-      onClick={add}
-      disabled={marking || watchlisted}
-      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-        watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
-      }`}
-    >
-      {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {marking ? "..." : "Watchlist"}</>}
-    </button>
+    <div className="relative">
+      <button
+        onClick={handleClick}
+        disabled={marking}
+        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+          watchlisted ? "bg-blue-600/80 text-white" : "bg-white/90 text-black hover:bg-white"
+        }`}
+      >
+        {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {marking ? "..." : "Watchlist"}</>}
+      </button>
+      {showPicker && allLists.length > 0 && (
+        <ListPickerPopup lists={allLists} onToggle={toggleList} togglingId={togglingListId} onClose={() => setShowPicker(false)} />
+      )}
+    </div>
   );
 }
 
@@ -64,37 +160,86 @@ function ShowWatchlistButton({ tmdbId }: { tmdbId: number }) {
   const { user } = useAuth();
   const { watchlisted, setWatchlistState } = useShowUserState(tmdbId);
   const [marking, setMarking] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [allLists, setAllLists] = useState<WatchlistInfo[]>([]);
+  const [togglingListId, setTogglingListId] = useState<string | null>(null);
 
   if (!user) return null;
 
-  async function add(e: React.MouseEvent) {
+  async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (marking || watchlisted) return;
-    setMarking(true);
-    const token = await user!.getIdToken();
-    const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    }).catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setWatchlistState(data.watchlisted ?? true);
+    if (marking) return;
+    if (watchlisted) {
+      await openPicker();
+    } else {
+      setMarking(true);
+      const token = await user!.getIdToken();
+      const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }).catch(() => null);
+      if (res?.ok) {
+        const data = await res.json();
+        setWatchlistState(data.watchlisted ?? true);
+        if (data.lists) { setAllLists(data.lists); setShowPicker(true); }
+      }
+      setMarking(false);
     }
-    setMarking(false);
+  }
+
+  async function openPicker() {
+    const token = await user!.getIdToken();
+    const res = await fetch(`/api/shows/${tmdbId}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.lists) { setAllLists(data.lists); setShowPicker(true); }
+  }
+
+  async function toggleList(listId: string) {
+    setTogglingListId(listId);
+    const token = await user!.getIdToken();
+    const list = allLists.find((l) => l.id === listId);
+    if (!list) { setTogglingListId(null); return; }
+
+    if (list.hasMovie) {
+      const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const entry = data.shows?.find((s: { tmdbId: number }) => s.tmdbId === tmdbId);
+      if (entry) {
+        await fetch(`/api/watchlist/${listId}/shows/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      }
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: false } : l);
+      setAllLists(updated);
+      setWatchlistState(updated.some((l) => l.hasMovie));
+    } else {
+      await fetch(`/api/watchlist/${listId}/shows`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId }),
+      });
+      const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: true } : l);
+      setAllLists(updated);
+      setWatchlistState(true);
+    }
+    setTogglingListId(null);
   }
 
   return (
-    <button
-      onClick={add}
-      disabled={marking || watchlisted}
-      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-        watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
-      }`}
-    >
-      {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {marking ? "..." : "Watchlist"}</>}
-    </button>
+    <div className="relative">
+      <button
+        onClick={handleClick}
+        disabled={marking}
+        className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+          watchlisted ? "bg-blue-600/80 text-white" : "bg-white/90 text-black hover:bg-white"
+        }`}
+      >
+        {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {marking ? "..." : "Watchlist"}</>}
+      </button>
+      {showPicker && allLists.length > 0 && (
+        <ListPickerPopup lists={allLists} onToggle={toggleList} togglingId={togglingListId} onClose={() => setShowPicker(false)} />
+      )}
+    </div>
   );
 }
 
@@ -188,7 +333,7 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
               {dateStr && <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">{dateStr}</p>}
             </div>
             {movieTmdbId && (
-              <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} />
+              <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} movieTitle={movieName ?? undefined} />
             )}
             {showTmdbId && !movieTmdbId && (
               <ShowWatchlistButton tmdbId={showTmdbId} />
@@ -240,7 +385,7 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
             <button onClick={() => setOpen(true)} className="text-base font-semibold text-white line-clamp-2 text-left hover:text-[var(--ratist-red)] transition-colors">{title}</button>
             <div className="mt-auto pt-2">
               {movieTmdbId && (
-                <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} />
+                <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} movieTitle={movieName ?? undefined} />
               )}
               {showTmdbId && !movieTmdbId && (
                 <ShowWatchlistButton tmdbId={showTmdbId} />
