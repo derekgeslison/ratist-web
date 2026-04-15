@@ -163,12 +163,19 @@ export default async function MoviesPage({ searchParams }: Props) {
       if (params.search) pageTitle = `Search: "${params.search}"`;
       else if (releaseStatus === "now_playing") pageTitle = "Now Playing in Theaters";
       else if (releaseStatus === "upcoming") pageTitle = "Coming Soon";
+    } else if (sort === "popular") {
+      movieResult = await fetchMoviePages((p) => getPopularMovies(p));
+      pageTitle = contentType === "movie" ? "Popular Movies" : "Popular";
     } else if (sort === "top_rated") {
       movieResult = await fetchMoviePages((p) => getTopRatedMovies(p));
       pageTitle = contentType === "movie" ? "Top Rated Movies" : "Top Rated";
     } else {
-      movieResult = await fetchMoviePages((p) => getPopularMovies(p));
-      pageTitle = contentType === "movie" ? "Popular Movies" : "Popular";
+      // newest, oldest, title_az, title_za — use discover endpoint which handles all sort values
+      movieResult = await fetchMoviePages((p) =>
+        discoverMovies({ ...discoverOptions, page: p })
+      );
+      const SORT_TITLES: Record<string, string> = { newest: "Newest", oldest: "Oldest", title_az: "Title A–Z", title_za: "Title Z–A" };
+      pageTitle = contentType === "movie" ? `${SORT_TITLES[sort] ?? "Movies"} Movies` : SORT_TITLES[sort] ?? "Movies & TV";
     }
   }
 
@@ -198,12 +205,20 @@ export default async function MoviesPage({ searchParams }: Props) {
         discoverShows({ ...tvDiscoverOptions, page: p, query: params.search })
       );
     } else if (!isSearchOrFilter) {
-      if (sort === "top_rated") {
+      if (sort === "popular") {
+        showResult = await fetchShowPages((p) => getPopularShows(p));
+        if (contentType === "tv") pageTitle = "Popular TV Shows";
+      } else if (sort === "top_rated") {
         showResult = await fetchShowPages((p) => getTopRatedShows(p));
         if (contentType === "tv") pageTitle = "Top Rated TV Shows";
       } else {
-        showResult = await fetchShowPages((p) => getPopularShows(p));
-        if (contentType === "tv") pageTitle = "Popular TV Shows";
+        showResult = await fetchShowPages((p) =>
+          discoverShows({ ...tvDiscoverOptions, page: p })
+        );
+        if (contentType === "tv") {
+          const SORT_TITLES: Record<string, string> = { newest: "Newest", oldest: "Oldest", title_az: "Title A–Z", title_za: "Title Z–A" };
+          pageTitle = `${SORT_TITLES[sort] ?? ""} TV Shows`;
+        }
       }
     }
     if (contentType === "tv") {
