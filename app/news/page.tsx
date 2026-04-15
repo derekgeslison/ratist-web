@@ -72,7 +72,18 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
         <p className="text-[var(--foreground-muted)] text-center py-20">No news yet. Check back soon!</p>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => (
+          {items.map((item) =>
+            item.type === "TRAILER" && item.youtubeKey ? (
+              <NewsTrailerCard
+                key={item.id}
+                youtubeKey={item.youtubeKey}
+                title={item.title}
+                publishedAt={item.publishedAt?.toISOString() ?? null}
+                movieTmdbId={item.movieTmdbId}
+                showTmdbId={item.showTmdbId}
+                posterPath={item.posterPath}
+              />
+            ) : (
             <article key={item.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors">
               {item.type === "EDITORIAL" && item.slug ? (
                 <Link href={`/news/${item.slug}`} className="flex gap-4 p-4">
@@ -105,12 +116,6 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                     </div>
                   </div>
                 </Link>
-              ) : item.type === "TRAILER" && item.youtubeKey ? (
-                <NewsTrailerCard
-                  youtubeKey={item.youtubeKey}
-                  title={item.title}
-                  publishedAt={item.publishedAt?.toISOString() ?? null}
-                />
               ) : (
                 // Generic fallback for other types
                 <div className="p-4">
@@ -119,7 +124,8 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                 </div>
               )}
             </article>
-          ))}
+            )
+          )}
         </div>
       )}
 

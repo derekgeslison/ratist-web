@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Bookmark, BookmarkCheck } from "lucide-react";
 import TrailerModal from "./TrailerModal";
+import { useAuth } from "@/context/AuthContext";
+import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useShowUserState } from "@/hooks/useShowUserState";
 
 interface Props {
   youtubeKey: string;
@@ -10,17 +16,99 @@ interface Props {
   authorName?: string;
   /** Render as compact home-page tile (true) or full news-page card (false) */
   compact?: boolean;
+  /** TMDB data for poster + watchlist (news page only) */
+  movieTmdbId?: number | null;
+  showTmdbId?: number | null;
+  posterPath?: string | null;
 }
 
-export default function NewsTrailerCard({ youtubeKey, title, publishedAt, authorName, compact }: Props) {
+function MovieWatchlistButton({ tmdbId, posterPath }: { tmdbId: number; posterPath?: string | null }) {
+  const { user } = useAuth();
+  const { watchlisted, setWatchlistState } = useMovieUserState(tmdbId);
+  const [marking, setMarking] = useState(false);
+
+  if (!user) return null;
+
+  async function add(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (marking || watchlisted) return;
+    setMarking(true);
+    const token = await user!.getIdToken();
+    const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ poster_path: posterPath }),
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setWatchlistState(data.watchlisted ?? true);
+    }
+    setMarking(false);
+  }
+
+  return (
+    <button
+      onClick={add}
+      disabled={marking || watchlisted}
+      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+        watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+      }`}
+    >
+      {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {marking ? "..." : "Watchlist"}</>}
+    </button>
+  );
+}
+
+function ShowWatchlistButton({ tmdbId }: { tmdbId: number }) {
+  const { user } = useAuth();
+  const { watchlisted, setWatchlistState } = useShowUserState(tmdbId);
+  const [marking, setMarking] = useState(false);
+
+  if (!user) return null;
+
+  async function add(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (marking || watchlisted) return;
+    setMarking(true);
+    const token = await user!.getIdToken();
+    const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setWatchlistState(data.watchlisted ?? true);
+    }
+    setMarking(false);
+  }
+
+  return (
+    <button
+      onClick={add}
+      disabled={marking || watchlisted}
+      className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+        watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+      }`}
+    >
+      {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {marking ? "..." : "Watchlist"}</>}
+    </button>
+  );
+}
+
+export default function NewsTrailerCard({ youtubeKey, title, publishedAt, authorName, compact, movieTmdbId, showTmdbId, posterPath }: Props) {
   const [open, setOpen] = useState(false);
 
   const dateStr = publishedAt
     ? new Date(publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
 
+  const mediaLink = movieTmdbId ? `/movies/${movieTmdbId}` : showTmdbId ? `/shows/${showTmdbId}` : null;
+
   if (compact) {
-    // Home page tile
+    // Home page tile — unchanged
     return (
       <>
         <button
@@ -55,24 +143,40 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
     );
   }
 
-  // News page card — compact horizontal layout
+  // News page card — poster + trailer thumbnail + watchlist
   return (
     <>
       <article className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors">
-        <button onClick={() => setOpen(true)} className="w-full text-left flex gap-4 p-4 group">
-          <div className="relative w-40 sm:w-48 aspect-video rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0">
+        <div className="flex gap-4 p-4">
+          {/* Movie/show poster */}
+          {posterPath && mediaLink && (
+            <Link href={mediaLink} className="relative w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/poster">
+              <Image
+                src={`https://image.tmdb.org/t/p/w154${posterPath}`}
+                alt=""
+                fill
+                sizes="80px"
+                className="object-cover group-hover/poster:scale-105 transition-transform duration-300"
+              />
+            </Link>
+          )}
+
+          {/* Trailer thumbnail + play button */}
+          <button onClick={() => setOpen(true)} className="relative w-40 sm:w-48 aspect-video rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/play">
             <img
               src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
               alt=""
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center group-hover:bg-[var(--ratist-red)]/80 transition-colors">
+              <div className="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center group-hover/play:bg-[var(--ratist-red)]/80 transition-colors">
                 <svg className="w-4 h-4 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               </div>
             </div>
-          </div>
-          <div className="flex-1 min-w-0">
+          </button>
+
+          {/* Info + actions */}
+          <div className="flex-1 min-w-0 flex flex-col">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 uppercase flex items-center gap-0.5">
                 <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -80,9 +184,21 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
               </span>
               {dateStr && <span className="text-[10px] text-[var(--foreground-muted)]">{dateStr}</span>}
             </div>
-            <h2 className="text-base font-semibold text-white line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">{title}</h2>
+            {mediaLink ? (
+              <Link href={mediaLink} className="text-base font-semibold text-white line-clamp-2 hover:text-[var(--ratist-red)] transition-colors">{title}</Link>
+            ) : (
+              <p className="text-base font-semibold text-white line-clamp-2">{title}</p>
+            )}
+            <div className="mt-auto pt-2">
+              {movieTmdbId && (
+                <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} />
+              )}
+              {showTmdbId && !movieTmdbId && (
+                <ShowWatchlistButton tmdbId={showTmdbId} />
+              )}
+            </div>
           </div>
-        </button>
+        </div>
       </article>
       {open && <TrailerModal trailerKey={youtubeKey} onClose={() => setOpen(false)} />}
     </>
