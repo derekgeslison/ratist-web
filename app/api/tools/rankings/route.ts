@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       const movies = savedRankings.map((r, idx) => {
         if (r.tvShow) {
           return {
-            id: r.id,
+            id: r.tvShowId!,
             tmdbId: r.tvShow.tmdbId,
             title: r.tvShow.name,
             posterPath: r.tvShow.posterPath,
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
           };
         }
         return {
-          id: r.id,
+          id: r.movieId!,
           tmdbId: r.movie!.tmdbId,
           title: r.movie!.title,
           posterPath: r.movie!.posterPath,
