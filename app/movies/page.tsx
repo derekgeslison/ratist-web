@@ -180,7 +180,9 @@ export default async function MoviesPage({ searchParams }: Props) {
   }
 
   // Fetch shows — for "tv" mode OR for "all" mode when searching/filtering
-  const shouldFetchShows = contentType === "tv" || (contentType === "all");
+  // Skip shows in "all" mode when cast filter is active (TMDB TV discover doesn't support with_cast,
+  // so results would be unfiltered shows interleaved with correctly filtered movies)
+  const shouldFetchShows = contentType === "tv" || (contentType === "all" && !castIds?.length);
   if (showShows && shouldFetchShows) {
     const isSearchOrFilter = !!(params.search || hasFilters);
     const tvGenres = genres?.length ? translateGenresForTV(genres) : undefined;
