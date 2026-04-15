@@ -144,13 +144,57 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
   }
 
   // News page card — poster + trailer thumbnail + watchlist
+  // Mobile: stacked layout (thumbnail on top, info below)
+  // Desktop: horizontal layout (poster | thumbnail | info)
   return (
     <>
       <article className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors">
-        <div className="flex gap-4 p-4">
+        {/* Mobile layout */}
+        <div className="sm:hidden">
+          <button onClick={() => setOpen(true)} className="relative w-full aspect-video bg-[var(--surface-2)] group/play">
+            <img
+              src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center group-hover/play:bg-[var(--ratist-red)]/80 transition-colors">
+                <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+            <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
+              Trailer
+            </div>
+            {/* Poster overlay in bottom-left corner */}
+            {posterPath && mediaLink && (
+              <div className="absolute bottom-2 left-2 w-12 aspect-[2/3] rounded overflow-hidden border border-white/20 shadow-lg">
+                <Image src={`https://image.tmdb.org/t/p/w92${posterPath}`} alt="" fill sizes="48px" className="object-cover" />
+              </div>
+            )}
+          </button>
+          <div className="p-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              {mediaLink ? (
+                <Link href={mediaLink} className="text-sm font-semibold text-white line-clamp-2 hover:text-[var(--ratist-red)] transition-colors">{title}</Link>
+              ) : (
+                <p className="text-sm font-semibold text-white line-clamp-2">{title}</p>
+              )}
+              {dateStr && <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">{dateStr}</p>}
+            </div>
+            {movieTmdbId && (
+              <MovieWatchlistButton tmdbId={movieTmdbId} posterPath={posterPath} />
+            )}
+            {showTmdbId && !movieTmdbId && (
+              <ShowWatchlistButton tmdbId={showTmdbId} />
+            )}
+          </div>
+        </div>
+
+        {/* Desktop layout */}
+        <div className="hidden sm:flex gap-4 p-4">
           {/* Movie/show poster */}
           {posterPath && mediaLink && (
-            <Link href={mediaLink} className="relative w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/poster">
+            <Link href={mediaLink} className="relative w-20 aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/poster">
               <Image
                 src={`https://image.tmdb.org/t/p/w154${posterPath}`}
                 alt=""
@@ -162,7 +206,7 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
           )}
 
           {/* Trailer thumbnail + play button */}
-          <button onClick={() => setOpen(true)} className="relative w-40 sm:w-48 aspect-video rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/play">
+          <button onClick={() => setOpen(true)} className="relative w-48 aspect-video rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/play">
             <img
               src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
               alt=""
