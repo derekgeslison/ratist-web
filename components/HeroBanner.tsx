@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Star, ChevronLeft, ChevronRight, Tv } from "lucide-react";
 import { backdropUrl } from "@/lib/tmdb";
 import RatingBadge from "./RatingBadge";
+import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 import { useShowUserState } from "@/hooks/useShowUserState";
 
@@ -24,8 +25,11 @@ interface Props {
 }
 
 function HeroRatistRating({ id, mediaType }: { id: number; mediaType: "movie" | "tv" }) {
+  const { user } = useAuth();
   const movieState = useMovieUserState(mediaType === "movie" ? id : 0);
   const showState = useShowUserState(mediaType === "tv" ? id : 0);
+
+  if (!user) return null;
 
   if (mediaType === "movie") {
     const score = movieState.ratistRating ?? movieState.estimatedRating;
