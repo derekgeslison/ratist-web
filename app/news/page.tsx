@@ -29,7 +29,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
         excerpt: true, coverImage: true, posterPath: true,
         publishedAt: true, viewCount: true,
         movieTmdbId: true, showTmdbId: true,
-        youtubeKey: true, sourceUrl: true, sourceName: true,
+        youtubeKey: true, sourceUrl: true, sourceName: true, showAuthor: true,
         author: { select: { name: true, avatarUrl: true } },
       },
     }),
@@ -105,7 +105,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                     <h2 className="text-base sm:text-lg font-semibold text-white line-clamp-2 mb-1">{item.title}</h2>
                     {item.excerpt && <p className="text-sm text-[var(--foreground-muted)] line-clamp-2">{item.excerpt}</p>}
                     <div className="flex items-center gap-3 mt-2 text-xs text-[var(--foreground-muted)]">
-                      {item.author && <span>by {item.author.name}</span>}
+                      {item.showAuthor !== false && item.author && <span>by {item.author.name}</span>}
                       {item.publishedAt && (
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />

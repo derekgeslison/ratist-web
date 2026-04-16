@@ -64,7 +64,7 @@ export default async function HomePage() {
       const newsSelect = {
         id: true, type: true, title: true, slug: true,
         coverImage: true, posterPath: true, youtubeKey: true,
-        publishedAt: true, excerpt: true,
+        publishedAt: true, excerpt: true, showAuthor: true,
         author: { select: { name: true } },
       } as const;
       // Ensure at least one editorial article is always in the mix
@@ -269,7 +269,7 @@ export default async function HomePage() {
                       {item.publishedAt && (
                         <p className="text-[11px] text-[var(--foreground-muted)] mt-1">
                           {new Date(item.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          {item.author && ` · ${item.author.name}`}
+                          {item.showAuthor !== false && item.author && ` · ${item.author.name}`}
                         </p>
                       )}
                     </div>
