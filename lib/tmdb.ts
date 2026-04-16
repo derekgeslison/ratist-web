@@ -148,6 +148,14 @@ export async function getPopularMovies(page = 1) {
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/popular", { page: String(page) });
 }
 
+export async function getTrendingMovies(timeWindow: "day" | "week" = "week") {
+  return tmdbFetch<TMDBPageResult<TMDBMovie>>(`/trending/movie/${timeWindow}`);
+}
+
+export async function getTrendingShows(timeWindow: "day" | "week" = "week") {
+  return tmdbFetch<TMDBPageResult<TMDBShow>>(`/trending/tv/${timeWindow}`);
+}
+
 export async function getTopRatedMovies(page = 1) {
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/top_rated", { page: String(page) });
 }

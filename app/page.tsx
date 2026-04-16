@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Swords, Film } from "lucide-react";
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
@@ -44,12 +44,14 @@ const TOOLS = [
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [popular, topRated, nowPlaying, upcoming, popularShows, spotlights, recentNews] = await Promise.all([
+  const [popular, topRated, nowPlaying, upcoming, popularShows, trendingMovies, trendingShows, spotlights, recentNews] = await Promise.all([
     getPopularMovies(),
     getTopRatedMovies(Math.floor(Math.random() * 10) + 1),
     getNowPlayingMovies(),
     getUpcomingMovies(),
     getPopularShows(),
+    getTrendingMovies("week"),
+    getTrendingShows("week"),
     prisma.siteSpotlight.findMany({
       where: {
         isActive: true,
@@ -88,10 +90,14 @@ export default async function HomePage() {
     })(),
   ]);
 
-  // Hero carousel: popular movies filtered to rating >= 7.0 with a backdrop, up to 6
-  const heroMovies = popular.results
-    .filter((m) => m.backdrop_path && m.vote_average >= 7.0)
-    .slice(0, 6);
+  // Hero carousel: trending movies + shows, filtered to rating >= 7.0 with a backdrop
+  const heroItems: { id: number; title: string; overview: string; backdrop_path: string | null; vote_average: number; releaseDate: string; mediaType: "movie" | "tv" }[] = [
+    ...trendingMovies.results.map((m) => ({ id: m.id, title: m.title, overview: m.overview, backdrop_path: m.backdrop_path, vote_average: m.vote_average, releaseDate: m.release_date ?? "", mediaType: "movie" as const })),
+    ...trendingShows.results.map((s) => ({ id: s.id, title: s.name, overview: s.overview, backdrop_path: s.backdrop_path, vote_average: s.vote_average, releaseDate: s.first_air_date ?? "", mediaType: "tv" as const })),
+  ]
+    .filter((item) => item.backdrop_path && item.vote_average >= 7.0)
+    .sort((a, b) => b.vote_average - a.vote_average)
+    .slice(0, 8);
 
   return (
     <div>
@@ -113,7 +119,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <HeroBanner movies={heroMovies} />
+      <HeroBanner items={heroItems} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
         {/* Personalized section */}

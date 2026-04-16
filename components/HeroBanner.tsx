@@ -3,28 +3,55 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Star, ChevronLeft, ChevronRight } from "lucide-react";
-import { backdropUrl, type TMDBMovie } from "@/lib/tmdb";
+import { Star, ChevronLeft, ChevronRight, Tv } from "lucide-react";
+import { backdropUrl } from "@/lib/tmdb";
+import RatingBadge from "./RatingBadge";
+import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useShowUserState } from "@/hooks/useShowUserState";
 
-interface Props {
-  movies: TMDBMovie[];
+interface HeroItem {
+  id: number;
+  title: string;
+  overview: string;
+  backdrop_path: string | null;
+  vote_average: number;
+  releaseDate: string;
+  mediaType: "movie" | "tv";
 }
 
-export default function HeroBanner({ movies }: Props) {
+interface Props {
+  items: HeroItem[];
+}
+
+function HeroRatistRating({ id, mediaType }: { id: number; mediaType: "movie" | "tv" }) {
+  const movieState = useMovieUserState(mediaType === "movie" ? id : 0);
+  const showState = useShowUserState(mediaType === "tv" ? id : 0);
+
+  if (mediaType === "movie") {
+    const score = movieState.ratistRating ?? movieState.estimatedRating;
+    const isEstimate = movieState.ratistRating == null && movieState.estimatedRating != null;
+    return <RatingBadge type="ratist" score={score} isEstimate={isEstimate} size="md" />;
+  }
+  return <RatingBadge type="ratist" score={showState.ratistRating} size="md" />;
+}
+
+export default function HeroBanner({ items }: Props) {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
 
-  const next = useCallback(() => setCurrent((i) => (i + 1) % movies.length), [movies.length]);
-  const prev = useCallback(() => setCurrent((i) => (i - 1 + movies.length) % movies.length), [movies.length]);
+  const next = useCallback(() => setCurrent((i) => (i + 1) % items.length), [items.length]);
+  const prev = useCallback(() => setCurrent((i) => (i - 1 + items.length) % items.length), [items.length]);
 
   useEffect(() => {
-    if (paused || movies.length <= 1) return;
+    if (paused || items.length <= 1) return;
     const t = setInterval(next, 7000);
     return () => clearInterval(t);
-  }, [paused, next, movies.length]);
+  }, [paused, next, items.length]);
 
-  const movie = movies[current];
-  if (!movie) return null;
+  const item = items[current];
+  if (!item) return null;
+
+  const href = item.mediaType === "movie" ? `/movies/${item.id}` : `/shows/${item.id}`;
 
   return (
     <div
@@ -33,9 +60,9 @@ export default function HeroBanner({ movies }: Props) {
       onMouseLeave={() => setPaused(false)}
     >
       {/* Backdrop images — stack all, crossfade current */}
-      {movies.map((m, i) => (
+      {items.map((m, i) => (
         <div
-          key={m.id}
+          key={`${m.mediaType}-${m.id}`}
           className={`absolute inset-0 transition-opacity duration-700 ${i === current ? "opacity-100" : "opacity-0"}`}
         >
           <Image
@@ -53,36 +80,38 @@ export default function HeroBanner({ movies }: Props) {
       <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/80 z-10" />
       <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-transparent z-10" />
 
-      {/* Movie info */}
+      {/* Item info */}
       <div className="absolute inset-0 flex items-end pb-14 sm:items-center sm:pb-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
           <div className="max-w-xl">
-            <p className="text-xs uppercase tracking-widest text-[var(--ratist-red)] font-semibold mb-2">
+            <p className="text-xs uppercase tracking-widest text-[var(--ratist-red)] font-semibold mb-2 flex items-center gap-1.5">
+              {item.mediaType === "tv" && <Tv className="w-3 h-3" />}
               Featured
             </p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight mb-3">
-              {movie.title}
+              {item.title}
             </h2>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-3 mb-3">
               <span className="inline-flex items-center gap-1.5 bg-yellow-400/20 border border-yellow-400/30 text-yellow-400 font-semibold text-sm px-3 py-1 rounded-full">
                 <Star className="w-3.5 h-3.5 fill-yellow-400" />
-                {movie.vote_average.toFixed(1)}
+                {item.vote_average.toFixed(1)}
               </span>
-              {movie.release_date && (
+              <HeroRatistRating id={item.id} mediaType={item.mediaType} />
+              {item.releaseDate && (
                 <span className="text-sm text-[var(--foreground-muted)]">
-                  {movie.release_date.slice(0, 4)}
+                  {item.releaseDate.slice(0, 4)}
                 </span>
               )}
             </div>
             <p className="text-sm sm:text-base text-[var(--foreground-muted)] line-clamp-2 max-w-lg mb-6">
-              {movie.overview}
+              {item.overview}
             </p>
             <div className="flex items-center gap-3">
               <Link
-                href={`/movies/${movie.id}`}
+                href={href}
                 className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold text-sm px-5 py-2.5 rounded-full transition-colors"
               >
-                Explore Movie
+                {item.mediaType === "tv" ? "Explore Show" : "Explore Movie"}
               </Link>
             </div>
           </div>
@@ -90,7 +119,7 @@ export default function HeroBanner({ movies }: Props) {
       </div>
 
       {/* Prev / Next arrows */}
-      {movies.length > 1 && (
+      {items.length > 1 && (
         <>
           <button
             onClick={prev}
@@ -109,9 +138,9 @@ export default function HeroBanner({ movies }: Props) {
 
           {/* Dot indicators */}
           <div className="absolute bottom-4 right-6 z-30 flex items-center gap-2">
-            {movies.map((_, i) => (
+            {items.map((m, i) => (
               <button
-                key={i}
+                key={`${m.mediaType}-${m.id}`}
                 onClick={() => setCurrent(i)}
                 className={`rounded-full transition-all duration-300 ${
                   i === current ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40 hover:bg-white/70"
