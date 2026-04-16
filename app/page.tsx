@@ -90,14 +90,23 @@ export default async function HomePage() {
     })(),
   ]);
 
-  // Hero carousel: trending movies + shows, filtered to rating >= 7.0 with a backdrop
-  const heroItems: { id: number; title: string; overview: string; backdrop_path: string | null; vote_average: number; releaseDate: string; mediaType: "movie" | "tv" }[] = [
-    ...trendingMovies.results.map((m) => ({ id: m.id, title: m.title, overview: m.overview, backdrop_path: m.backdrop_path, vote_average: m.vote_average, releaseDate: m.release_date ?? "", mediaType: "movie" as const })),
-    ...trendingShows.results.map((s) => ({ id: s.id, title: s.name, overview: s.overview, backdrop_path: s.backdrop_path, vote_average: s.vote_average, releaseDate: s.first_air_date ?? "", mediaType: "tv" as const })),
-  ]
-    .filter((item) => item.backdrop_path && item.vote_average >= 7.0)
-    .sort((a, b) => b.vote_average - a.vote_average)
-    .slice(0, 8);
+  // Hero carousel: trending movies + shows, interleaved for a balanced mix
+  type HeroItem = { id: number; title: string; overview: string; backdrop_path: string | null; vote_average: number; releaseDate: string; mediaType: "movie" | "tv" };
+  const heroMoviePool = trendingMovies.results
+    .filter((m) => m.backdrop_path && m.vote_average >= 7.0)
+    .slice(0, 4)
+    .map((m): HeroItem => ({ id: m.id, title: m.title, overview: m.overview, backdrop_path: m.backdrop_path, vote_average: m.vote_average, releaseDate: m.release_date ?? "", mediaType: "movie" }));
+  const heroShowPool = trendingShows.results
+    .filter((s) => s.backdrop_path && s.vote_average >= 7.0)
+    .slice(0, 4)
+    .map((s): HeroItem => ({ id: s.id, title: s.name, overview: s.overview, backdrop_path: s.backdrop_path, vote_average: s.vote_average, releaseDate: s.first_air_date ?? "", mediaType: "tv" }));
+  // Interleave: movie, show, movie, show...
+  const heroItems: HeroItem[] = [];
+  const maxLen = Math.max(heroMoviePool.length, heroShowPool.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < heroMoviePool.length) heroItems.push(heroMoviePool[i]);
+    if (i < heroShowPool.length) heroItems.push(heroShowPool[i]);
+  }
 
   return (
     <div>
