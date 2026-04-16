@@ -24,6 +24,7 @@ export default function EditNewsPage() {
   const [youtubeKey, setYoutubeKey] = useState("");
   const [media, setMedia] = useState<{tmdbId: number; mediaType: "movie" | "tv"; title: string; posterPath: string | null}[]>([]);
   const [people, setPeople] = useState<{tmdbId: number; name: string; profilePath: string | null}[]>([]);
+  const [showAuthor, setShowAuthor] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -47,6 +48,7 @@ export default function EditNewsPage() {
       setSourceUrl(item.sourceUrl ?? "");
       setSourceName(item.sourceName ?? "");
       setYoutubeKey(item.youtubeKey ?? "");
+      setShowAuthor(item.showAuthor !== false);
       setMedia(item.media ?? []);
       setPeople(item.people ?? []);
       setLoading(false);
@@ -78,7 +80,7 @@ export default function EditNewsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           title, content: content || null, excerpt: excerpt || null,
-          coverImage: coverImage || null, published,
+          coverImage: coverImage || null, published, showAuthor,
           movieTmdbId: null, showTmdbId: null, posterPath: null,
           media, people,
           sourceUrl: sourceUrl || null, sourceName: sourceName || null,
@@ -129,6 +131,10 @@ export default function EditNewsPage() {
               {published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               {published ? "Published" : "Draft"}
             </button>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={showAuthor} onChange={(e) => setShowAuthor(e.target.checked)} className="accent-[var(--ratist-red)] w-3.5 h-3.5" />
+              <span className="text-sm text-[var(--foreground-muted)]">Show author name</span>
+            </label>
             <button onClick={save} disabled={saving || !title.trim()}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors disabled:opacity-50">
               <Save className="w-4 h-4" /> {saving ? "Saving..." : saved ? "Saved!" : "Save"}

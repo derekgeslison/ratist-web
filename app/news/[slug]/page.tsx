@@ -72,7 +72,7 @@ export default async function NewsArticlePage({ params }: Props) {
       <h1 className="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">{item.title}</h1>
 
       <div className="flex items-center gap-3 text-sm text-[var(--foreground-muted)] mb-6 flex-wrap">
-        {item.author && (
+        {item.showAuthor !== false && item.author && (
           <div className="flex items-center gap-2">
             {item.author.avatarUrl && (
               <Image src={item.author.avatarUrl} alt="" width={24} height={24} className="rounded-full" />

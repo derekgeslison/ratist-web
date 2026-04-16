@@ -20,6 +20,7 @@ function NewNewsInner() {
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  const [showAuthor, setShowAuthor] = useState(true);
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceName, setSourceName] = useState("");
   const [youtubeKey, setYoutubeKey] = useState("");
@@ -75,7 +76,7 @@ function NewNewsInner() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           title, content: content || null, excerpt: excerpt || null,
-          coverImage: coverImage || null, published,
+          coverImage: coverImage || null, published, showAuthor,
           movieTmdbId: null, showTmdbId: null, posterPath: null,
           media, people,
           sourceUrl: sourceUrl || null, sourceName: sourceName || null,
@@ -133,6 +134,10 @@ function NewNewsInner() {
               {published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               {published ? "Published" : "Draft"}
             </button>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={showAuthor} onChange={(e) => setShowAuthor(e.target.checked)} className="accent-[var(--ratist-red)] w-3.5 h-3.5" />
+              <span className="text-sm text-[var(--foreground-muted)]">Show author name</span>
+            </label>
             <button
               onClick={save}
               disabled={saving || !title.trim()}

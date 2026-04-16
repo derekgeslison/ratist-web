@@ -1785,6 +1785,7 @@ model NewsItem {
   sourceName  String?      @map("source_name")
   meta        Json?
 
+  showAuthor  Boolean      @default(true) @map("show_author")
   externalKey String?      @unique @map("external_key")
   viewCount   Int          @default(0) @map("view_count")
 

@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     const {
       type = "EDITORIAL",
       title, content, excerpt, coverImage,
-      published = false,
+      published = false, showAuthor,
       movieTmdbId, showTmdbId, posterPath,
       sourceUrl, sourceName, youtubeKey,
       rssHeadlineId,
@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
         coverImage: coverImage ?? null,
         published,
         publishedAt: published ? new Date() : null,
+        ...(showAuthor !== undefined && { showAuthor }),
         movieTmdbId: movieTmdbId ? Number(movieTmdbId) : null,
         showTmdbId: showTmdbId ? Number(showTmdbId) : null,
         posterPath: posterPath ?? null,

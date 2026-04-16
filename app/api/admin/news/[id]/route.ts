@@ -65,7 +65,7 @@ export async function PUT(req: NextRequest, { params }: Props) {
     const body = await req.json();
     const {
       title, content, excerpt, coverImage,
-      published, movieTmdbId, showTmdbId, posterPath,
+      published, showAuthor, movieTmdbId, showTmdbId, posterPath,
       sourceUrl, sourceName, youtubeKey,
       media: mediaItems,
       people: peopleItems,
@@ -96,6 +96,7 @@ export async function PUT(req: NextRequest, { params }: Props) {
         ...(excerpt !== undefined && { excerpt }),
         ...(coverImage !== undefined && { coverImage }),
         ...(published !== undefined && { published, publishedAt }),
+        ...(showAuthor !== undefined && { showAuthor }),
         ...(movieTmdbId !== undefined && { movieTmdbId: movieTmdbId ? Number(movieTmdbId) : null }),
         ...(showTmdbId !== undefined && { showTmdbId: showTmdbId ? Number(showTmdbId) : null }),
         ...(posterPath !== undefined && { posterPath }),
