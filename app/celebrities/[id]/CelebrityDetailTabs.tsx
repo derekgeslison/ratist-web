@@ -186,7 +186,7 @@ export default function CelebrityDetailTabs({
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{d.title}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">by {d.authorName} · {d.postCount} posts</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">{d.authorName !== "The Ratist" && `by ${d.authorName}`}{d.authorName !== "The Ratist" && d.postCount > 0 && " · "}{d.postCount > 0 && `${d.postCount} posts`}</p>
                   </div>
                 </Link>
               ))}
