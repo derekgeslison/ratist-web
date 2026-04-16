@@ -50,7 +50,16 @@ export default async function HomePage() {
     getNowPlayingMovies(),
     getUpcomingMovies(),
     getPopularShows(),
-    prisma.siteSpotlight.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+    prisma.siteSpotlight.findMany({
+      where: {
+        isActive: true,
+        type: { not: "announcement" },
+        placement: { in: ["homepage", "all"] },
+        OR: [{ startDate: null }, { startDate: { lte: new Date() } }],
+        AND: [{ OR: [{ endDate: null }, { endDate: { gte: new Date() } }] }],
+      },
+      orderBy: { sortOrder: "asc" },
+    }),
     (async () => {
       const newsSelect = {
         id: true, type: true, title: true, slug: true,
@@ -116,27 +125,47 @@ export default async function HomePage() {
         {/* Admin Spotlights */}
         {spotlights.length > 0 && (
           <section className="space-y-3">
-            {spotlights.map((s) => (
-              <Link
-                key={s.id}
-                href={s.linkUrl}
-                className="flex items-center gap-4 bg-gradient-to-r from-[var(--ratist-red)]/10 to-transparent border border-[var(--ratist-red)]/30 rounded-xl p-5 hover:border-[var(--ratist-red)] transition-colors group"
-              >
-                {s.imageUrl && (
-                  <Image src={s.imageUrl} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-[var(--ratist-red)] font-semibold uppercase tracking-wider mb-1">
-                    {s.type === "blog" ? "New Post" : s.type === "punch_and_judy" ? "Two Thumbs" : s.type === "feature" ? "New Feature" : "Spotlight"}
-                  </p>
-                  <p className="text-base font-bold text-white group-hover:text-[var(--ratist-red)] transition-colors">{s.title}</p>
-                  {s.description && <p className="text-sm text-[var(--foreground-muted)] mt-1 line-clamp-2">{s.description}</p>}
-                </div>
-                <span className="text-sm text-[var(--ratist-red)] font-semibold shrink-0 hidden sm:block">
-                  {s.linkLabel} &rarr;
-                </span>
-              </Link>
-            ))}
+            {spotlights.map((s) => {
+              const accent = s.bgColor || "var(--ratist-red)";
+              const styleClass =
+                s.style === "bold"
+                  ? "border-2"
+                  : s.style === "gradient"
+                    ? "bg-gradient-to-r"
+                    : "";
+              return (
+                <Link
+                  key={s.id}
+                  href={s.linkUrl}
+                  className={`flex items-center gap-4 rounded-xl p-5 transition-colors group border ${styleClass}`}
+                  style={{
+                    borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`,
+                    background:
+                      s.style === "gradient"
+                        ? `linear-gradient(to right, color-mix(in srgb, ${accent} 15%, transparent), transparent)`
+                        : s.style === "bold"
+                          ? `color-mix(in srgb, ${accent} 8%, transparent)`
+                          : `linear-gradient(to right, color-mix(in srgb, ${accent} 10%, transparent), transparent)`,
+                  }}
+                >
+                  {s.imageUrl && (
+                    <Image src={s.imageUrl} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: accent }}>
+                      {s.type === "blog" ? "New Post" : s.type === "punch_and_judy" ? "Two Thumbs" : s.type === "feature" ? "New Feature" : "Spotlight"}
+                    </p>
+                    <p className="text-base font-bold text-white transition-colors" style={{ ["--hover-color" as string]: accent }}>
+                      {s.title}
+                    </p>
+                    {s.description && <p className="text-sm text-[var(--foreground-muted)] mt-1 line-clamp-2">{s.description}</p>}
+                  </div>
+                  <span className="text-sm font-semibold shrink-0 hidden sm:block" style={{ color: accent }}>
+                    {s.linkLabel} &rarr;
+                  </span>
+                </Link>
+              );
+            })}
           </section>
         )}
 

@@ -1634,17 +1634,23 @@ model Feedback {
 }
 
 model SiteSpotlight {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
-  linkUrl     String   @map("link_url")
-  linkLabel   String   @default("Read more") @map("link_label")
-  imageUrl    String?  @map("image_url")
-  type        String   @default("general") // "blog" | "punch_and_judy" | "feature" | "general"
-  isActive    Boolean  @default(true) @map("is_active")
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  linkUrl     String    @map("link_url")
+  linkLabel   String    @default("Read more") @map("link_label")
+  imageUrl    String?   @map("image_url")
+  type        String    @default("general") // "blog" | "punch_and_judy" | "feature" | "announcement" | "general"
+  placement   String    @default("homepage") // "homepage" | "for_you" | "movies" | "community" | "all"
+  style       String    @default("subtle") // "subtle" | "bold" | "gradient"
+  bgColor     String?   @map("bg_color") // custom hex accent color, null = default red
+  audience    String    @default("everyone") // "everyone" | "signed_in" | "signed_out" | "non_subscriber" | "new_user"
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@map("site_spotlights")
 }

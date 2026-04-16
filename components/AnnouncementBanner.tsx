@@ -10,6 +10,7 @@ interface Announcement {
   description: string | null;
   linkUrl: string;
   linkLabel: string;
+  bgColor: string | null;
 }
 
 export default function AnnouncementBanner() {
@@ -42,7 +43,7 @@ export default function AnnouncementBanner() {
   if (!announcement || dismissed) return null;
 
   return (
-    <div className="bg-[var(--ratist-red)] text-white">
+    <div className="text-white" style={{ backgroundColor: announcement.bgColor || "var(--ratist-red)" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Megaphone className="w-4 h-4 shrink-0" />
