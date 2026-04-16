@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, Film, User, Tv, Tag } from "lucide-react";
 import { type TMDBMovie as LibTMDBMovie, searchKeywords, discoverMovies, discoverShows, getGenres } from "@/lib/tmdb";
+import { generateFuzzyVariants } from "@/lib/fuzzy-search";
 import SearchFilters from "./SearchFilters";
 import MovieListItem from "@/components/MovieListItem";
 import MovieCard from "@/components/MovieCard";
@@ -116,15 +117,40 @@ export default async function SearchPage({ searchParams }: Props) {
       : Promise.resolve([]),
   ]);
 
+  // Fuzzy retry: if results are sparse, try spelling variants
+  let correctedQuery = "";
+  let fuzzyMovies: TMDBMovie[] = [];
+  let fuzzyShows: TMDBShow[] = [];
+  let fuzzyPeople: TMDBPerson[] = [];
+  if (q.trim() && rawMovies.length + rawShows.length + rawPeople.length < 3) {
+    const variants = generateFuzzyVariants(q);
+    for (const variant of variants) {
+      const retryResult = await searchAll(variant, perPage);
+      const retryTotal = retryResult.movies.length + retryResult.shows.length + retryResult.people.length;
+      if (retryTotal > rawMovies.length + rawShows.length + rawPeople.length) {
+        correctedQuery = variant;
+        fuzzyMovies = retryResult.movies;
+        fuzzyShows = retryResult.shows;
+        fuzzyPeople = retryResult.people;
+        break;
+      }
+    }
+  }
+
+  // Use fuzzy results if they found more
+  const useMovies = fuzzyMovies.length > rawMovies.length ? fuzzyMovies : rawMovies;
+  const useShows = fuzzyShows.length > rawShows.length ? fuzzyShows : rawShows;
+  const usePeople = fuzzyPeople.length > rawPeople.length ? fuzzyPeople : rawPeople;
+
   // Filter movies
-  let movies = [...rawMovies];
+  let movies = [...useMovies];
   if (languageFilter) movies = movies.filter((m) => m.original_language === languageFilter);
   if (genreFilter) movies = movies.filter((m) => (m as unknown as { genre_ids?: number[] }).genre_ids?.includes(Number(genreFilter)));
   if (yearFrom) movies = movies.filter((m) => { const y = parseInt((m.release_date ?? "").slice(0, 4)); return !isNaN(y) && y >= parseInt(yearFrom); });
   if (yearTo) movies = movies.filter((m) => { const y = parseInt((m.release_date ?? "").slice(0, 4)); return !isNaN(y) && y <= parseInt(yearTo); });
 
   // Filter shows
-  let shows = [...rawShows];
+  let shows = [...useShows];
   if (languageFilter) shows = shows.filter((s) => s.original_language === languageFilter);
   if (genreFilter) shows = shows.filter((s) => (s as unknown as { genre_ids?: number[] }).genre_ids?.includes(Number(genreFilter)));
   if (yearFrom) shows = shows.filter((s) => { const y = parseInt((s.first_air_date ?? "").slice(0, 4)); return !isNaN(y) && y >= parseInt(yearFrom); });
@@ -147,9 +173,10 @@ export default async function SearchPage({ searchParams }: Props) {
   else if (sortMode === "za") shows.sort((a, b) => b.name.localeCompare(a.name));
 
   // Sort people
-  if (sortMode === "az") rawPeople.sort((a, b) => a.name.localeCompare(b.name));
-  else if (sortMode === "za") rawPeople.sort((a, b) => b.name.localeCompare(a.name));
-  const people = rawPeople;
+  const sortedPeople = [...usePeople];
+  if (sortMode === "az") sortedPeople.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sortMode === "za") sortedPeople.sort((a, b) => b.name.localeCompare(a.name));
+  const people = sortedPeople;
 
   // Deduplicate keyword results against title-search results
   const titleMovieIds = new Set(movies.map((m) => m.id));
@@ -188,6 +215,12 @@ export default async function SearchPage({ searchParams }: Props) {
       <Suspense>
         <SearchFilters currentType={typeFilter} currentSort={sortMode} currentPerPage={String(perPage)} currentQuery={q} genres={genreList.genres} />
       </Suspense>
+
+      {correctedQuery && (
+        <p className="text-sm text-[var(--foreground-muted)] mb-4">
+          Showing results for <span className="text-white font-medium">&ldquo;{correctedQuery}&rdquo;</span>
+        </p>
+      )}
 
       {!q && (
         <p className="text-[var(--foreground-muted)]">Use the search bar above to find movies, shows, and people.</p>

@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import CelebritiesFilterBar from "./CelebritiesFilterBar";
 import { prisma } from "@/lib/prisma";
 import { upsertCelebrityList } from "@/lib/tmdb-sync";
+import { generateFuzzyVariants } from "@/lib/fuzzy-search";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -141,6 +142,7 @@ export default async function CelebritiesPage({ searchParams }: Props) {
   let people: TMDBPerson[];
   let total_results: number;
   let total_pages: number;
+  let correctedQuery = "";
 
   const movieMediaType = params.movieMediaType ?? "movie";
   if (movie) {
@@ -176,6 +178,25 @@ export default async function CelebritiesPage({ searchParams }: Props) {
       Math.ceil(total_results / perPage),
       Math.floor(500 / tmdbPagesNeeded)
     );
+
+    // Fuzzy retry: if few results, try spelling variants
+    if (total_results < 3) {
+      const variants = generateFuzzyVariants(q);
+      for (const variant of variants) {
+        const retryPages = await Promise.all(
+          Array.from({ length: tmdbPagesNeeded }, (_, i) => fetchPeople(variant, tmdbStartPage + i))
+        );
+        const retryResults = retryPages.flatMap((r) => r.results);
+        const retryTotal = retryPages[0]?.total_results ?? 0;
+        if (retryTotal > total_results) {
+          correctedQuery = variant;
+          people = retryResults.slice(0, perPage);
+          total_results = retryTotal;
+          total_pages = Math.min(Math.ceil(retryTotal / perPage), Math.floor(500 / tmdbPagesNeeded));
+          break;
+        }
+      }
+    }
   }
 
   // Cache basic celebrity data — fire and forget
@@ -293,6 +314,12 @@ export default async function CelebritiesPage({ searchParams }: Props) {
       <Suspense>
         <CelebritiesFilterBar totalResults={displayTotal} />
       </Suspense>
+
+      {correctedQuery && (
+        <p className="text-sm text-[var(--foreground-muted)] mb-4">
+          Showing results for <span className="text-white font-medium">&ldquo;{correctedQuery}&rdquo;</span>
+        </p>
+      )}
 
       {people.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No results found.</p>
