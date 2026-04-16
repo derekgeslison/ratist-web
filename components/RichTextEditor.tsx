@@ -2,7 +2,7 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import TiptapImage from "@tiptap/extension-image";
+import ResizableImage from "./ResizableImage";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
@@ -65,7 +65,7 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
       StarterKit,
       Underline,
       TiptapLink.configure({ openOnClick: false, HTMLAttributes: { class: "text-[var(--ratist-red)] underline" } }),
-      TiptapImage.configure({ HTMLAttributes: { class: "max-w-full rounded-lg my-4" } }),
+      ResizableImage,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -143,9 +143,9 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
     `p-1.5 rounded transition-colors ${disabled ? "opacity-30 cursor-not-allowed" : ""} ${active ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)]"}`;
 
   return (
-    <div className="border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--surface)]">
+    <div className="border border-[var(--border)] rounded-xl bg-[var(--surface)]">
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 flex-wrap px-2 py-2 border-b border-[var(--border)] bg-[var(--surface-2)]">
+      <div className="flex items-center gap-0.5 flex-wrap px-2 py-2 border-b border-[var(--border)] bg-[var(--surface-2)] sticky top-0 z-20 rounded-t-xl">
         {/* History */}
         <button onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} className={btn(false, !editor.can().undo())} title="Undo">
           <Undo className="w-4 h-4" />
