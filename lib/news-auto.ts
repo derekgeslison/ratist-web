@@ -1,9 +1,10 @@
 /**
  * Auto-generated news: detects trailers from TMDB.
  *
- * Two sources:
+ * Three sources:
  * 1. Curated lists (popular, upcoming, now playing, top rated)
- * 2. Recently changed titles (catches anticipated movies not yet on lists)
+ * 2. Discover API (catches anticipated movies not yet on lists)
+ * 3. Trending titles (catches movies/shows with fresh buzz from trailer drops)
  *
  * Filters: official trailers/teasers only, published within 30 days,
  * not Shorts, not adult, not red band, English or high-popularity foreign.
@@ -121,6 +122,27 @@ async function getDiscoverTitles(): Promise<{ movies: TMDBListResult[]; shows: T
   };
 }
 
+/**
+ * Trending titles (day + week) for both movies and TV shows.
+ * Catches titles with fresh buzz (e.g. just dropped a trailer) that may
+ * not yet rank high enough in discover or curated lists.
+ */
+async function getTrendingTitles(): Promise<{ movies: TMDBListResult[]; shows: TMDBListResult[] }> {
+  const [movieDay, movieWeek, tvDay, tvWeek] = await Promise.all([
+    tmdbGet<PageResult<TMDBListResult>>("/trending/movie/day", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/trending/movie/week", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/trending/tv/day", { page: "1" }),
+    tmdbGet<PageResult<TMDBListResult>>("/trending/tv/week", { page: "1" }),
+  ]);
+
+  const movieMap = new Map<number, TMDBListResult>();
+  for (const m of [...movieDay.results, ...movieWeek.results]) movieMap.set(m.id, m);
+  const showMap = new Map<number, TMDBListResult>();
+  for (const s of [...tvDay.results, ...tvWeek.results]) showMap.set(s.id, s);
+
+  return { movies: [...movieMap.values()], shows: [...showMap.values()] };
+}
+
 // ─── Trailer detection ──────────────────────────────────────────────────────
 
 const SKIP_PATTERNS = /\b(short|reel|clip|now streaming|now on|available now|out now|in theaters|watch now|red band|restricted|uncensored|unrated|18\+|nsfw)\b/i;
@@ -231,17 +253,18 @@ export async function fetchNewTrailers(): Promise<{ created: number; checked: nu
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentReleaseLimit = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-  // Gather candidates from curated lists + discover API
-  const [listData, discoverData] = await Promise.all([
+  // Gather candidates from curated lists + discover API + trending
+  const [listData, discoverData, trendingData] = await Promise.all([
     getListIds(),
     getDiscoverTitles().catch(() => ({ movies: [], shows: [] })),
+    getTrendingTitles().catch(() => ({ movies: [], shows: [] })),
   ]);
 
   // Merge and deduplicate
   const movieMap = new Map<number, TMDBListResult>();
-  for (const m of [...listData.movies, ...discoverData.movies]) movieMap.set(m.id, m);
+  for (const m of [...listData.movies, ...discoverData.movies, ...trendingData.movies]) movieMap.set(m.id, m);
   const showMap = new Map<number, TMDBListResult>();
-  for (const s of [...listData.shows, ...discoverData.shows]) showMap.set(s.id, s);
+  for (const s of [...listData.shows, ...discoverData.shows, ...trendingData.shows]) showMap.set(s.id, s);
 
   const movies = [...movieMap.values()].filter((m) => shouldInclude(m, recentReleaseLimit));
   const shows = [...showMap.values()].filter((s) => shouldInclude(s, recentReleaseLimit));

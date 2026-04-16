@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ items });
 }
 
-/** POST — create editorial news item */
+/** POST — create news item (EDITORIAL or TRAILER) */
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAdmin(req);
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const {
+      type = "EDITORIAL",
       title, content, excerpt, coverImage,
       published = false,
       movieTmdbId, showTmdbId, posterPath,
@@ -79,11 +80,12 @@ export async function POST(req: NextRequest) {
     } = body;
 
     if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
+    if (type !== "EDITORIAL" && type !== "TRAILER") return NextResponse.json({ error: "invalid type" }, { status: 400 });
 
     const slug = await uniqueSlug(slugify(title));
     const item = await prisma.newsItem.create({
       data: {
-        type: "EDITORIAL",
+        type,
         authorId: user.id,
         title,
         slug,

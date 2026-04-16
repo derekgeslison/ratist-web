@@ -132,6 +132,12 @@ export default function AdminNewsPage() {
             <Play className={`w-3.5 h-3.5 ${fetchingTrailers ? "animate-pulse" : ""}`} /> {fetchingTrailers ? "Fetching..." : "Fetch Trailers"}
           </button>
           <Link
+            href="/admin/news/new-trailer"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-lg hover:border-[var(--ratist-red)] transition-colors"
+          >
+            <Play className="w-3.5 h-3.5" /> Add Trailer
+          </Link>
+          <Link
             href="/admin/news/new"
             className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors"
           >
