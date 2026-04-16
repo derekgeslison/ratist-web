@@ -62,7 +62,7 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       Underline,
       TiptapLink.configure({ openOnClick: false, HTMLAttributes: { class: "text-[var(--ratist-red)] underline" } }),
       ResizableImage,

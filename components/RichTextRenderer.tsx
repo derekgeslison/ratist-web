@@ -22,10 +22,31 @@ export default function RichTextRenderer({ content }: Props) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       Underline,
       TiptapLink.configure({ HTMLAttributes: { class: "text-[var(--ratist-red)] underline hover:opacity-80" } }),
-      TiptapImage.configure({ HTMLAttributes: { class: "max-w-full rounded-lg my-4" } }),
+      TiptapImage.configure({
+        HTMLAttributes: { class: "max-w-full rounded-lg" },
+      }).extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            width: {
+              default: null,
+              parseHTML: (el: HTMLElement) => {
+                const w = el.style?.width;
+                return w && w.endsWith("px") ? parseInt(w, 10) : el.getAttribute("width") ? parseInt(el.getAttribute("width")!, 10) : null;
+              },
+              renderHTML: (attrs: Record<string, unknown>) => (attrs.width ? { style: `width: ${attrs.width}px` } : {}),
+            },
+            display: {
+              default: "block",
+              parseHTML: (el: HTMLElement) => (el.style?.display === "inline-block" ? "inline" : "block"),
+              renderHTML: (attrs: Record<string, unknown>) => (attrs.display === "inline" ? { style: "display: inline-block" } : {}),
+            },
+          };
+        },
+      }),
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
