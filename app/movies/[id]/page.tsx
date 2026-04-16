@@ -182,13 +182,13 @@ export default async function MovieDetailPage({ params }: Props) {
       }),
       prisma.newsItem.findMany({
         where: { published: true, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-        select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, author: { select: { name: true } } },
+        select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { publishedAt: "desc" },
         take: 5,
       }),
       prisma.blogPost.findMany({
         where: { published: true, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-        select: { id: true, title: true, slug: true, viewCount: true, createdAt: true, author: { select: { name: true } } },
+        select: { id: true, title: true, slug: true, viewCount: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
@@ -200,12 +200,12 @@ export default async function MovieDetailPage({ params }: Props) {
     }));
     const newsDiscussions = linkedNews.map((n) => ({
       id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
-      authorName: n.author?.name ?? "The Ratist", postCount: 0, viewCount: n.viewCount,
+      authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
       createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
     }));
     const blogDiscussions = linkedBlog.map((b) => ({
       id: b.id, title: b.title, slug: b.slug, threadType: "blog",
-      authorName: b.author?.name ?? "The Ratist", postCount: 0, viewCount: b.viewCount,
+      authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
       createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `/blog/${b.slug}`,
     }));
     discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];

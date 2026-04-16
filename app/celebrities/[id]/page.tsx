@@ -286,13 +286,13 @@ export default async function CelebrityPage({ params }: Props) {
       }),
       prisma.newsItem.findMany({
         where: { published: true, people: { some: { tmdbId: person.id } } },
-        select: { id: true, title: true, slug: true, publishedAt: true, author: { select: { name: true } } },
+        select: { id: true, title: true, slug: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { publishedAt: "desc" },
         take: 5,
       }),
       prisma.blogPost.findMany({
         where: { published: true, people: { some: { tmdbId: person.id } } },
-        select: { id: true, title: true, slug: true, createdAt: true, author: { select: { name: true } } },
+        select: { id: true, title: true, slug: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
@@ -303,11 +303,11 @@ export default async function CelebrityPage({ params }: Props) {
     }));
     const newsDiscussions = newsItems.map((n) => ({
       id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
-      authorName: n.author?.name ?? "The Ratist", postCount: 0, linkHref: `/news/${n.slug}`,
+      authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `/news/${n.slug}`,
     }));
     const blogDiscussions = blogItems.map((b) => ({
       id: b.id, title: b.title, slug: b.slug, threadType: "blog",
-      authorName: b.author?.name ?? "The Ratist", postCount: 0, linkHref: `/blog/${b.slug}`,
+      authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `/blog/${b.slug}`,
     }));
     discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
   } catch { /* DB not ready */ }
