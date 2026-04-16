@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
+import SpotlightCards from "@/components/SpotlightCards";
 
 export const dynamic = "force-dynamic";
 
@@ -178,6 +179,10 @@ export default async function CommunityPage() {
         <h1 className="text-2xl font-bold text-white">Community Hub</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-10">Where Ratist members argue, vote, and get weird about movies.</p>
+
+      <div className="mb-10">
+        <SpotlightCards placement="community" />
+      </div>
 
       {/* Feature Cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">

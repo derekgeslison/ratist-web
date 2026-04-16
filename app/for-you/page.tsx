@@ -12,6 +12,7 @@ import { scoreColor } from "@/lib/ratings";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
+import SpotlightCards from "@/components/SpotlightCards";
 
 interface MediaItem {
   type: "movie" | "tv";
@@ -273,6 +274,8 @@ export default function ForYouPage() {
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </div>
+
+      <SpotlightCards placement="for_you" />
 
       {isEmpty && (
         <div className="text-center py-16 text-[var(--foreground-muted)]">

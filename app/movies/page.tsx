@@ -7,6 +7,7 @@ import MovieListItem from "@/components/MovieListItem";
 import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import AdUnit from "@/components/AdUnit";
+import SpotlightCards from "@/components/SpotlightCards";
 
 // Genre ID mappings between movie and TV (TMDB uses different IDs for equivalent genres)
 const GENRE_MOVIE_TO_TV: Record<string, string[]> = {
@@ -301,6 +302,8 @@ export default async function MoviesPage({ searchParams }: Props) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-2xl font-bold text-white mb-6">{pageTitle}</h1>
+
+      <SpotlightCards placement="movies" />
 
       <MoviesFilterBar
         genres={genreList.genres}
