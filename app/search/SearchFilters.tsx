@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, LayoutGrid, List } from "lucide-react";
 import { LANGUAGES } from "@/lib/tmdb";
+import Link from "next/link";
 
 type TypeFilter = "all" | "movies" | "shows" | "people";
-type SortMode = "relevance" | "rating" | "az";
+type SortMode = "relevance" | "popular" | "rating" | "newest" | "oldest" | "az" | "za";
 
 interface Props {
   currentType: TypeFilter;
   currentSort: SortMode;
   currentPerPage: string;
   currentQuery: string;
+  genres: { id: number; name: string }[];
 }
 
 const PER_PAGE_OPTIONS = [
@@ -21,14 +23,15 @@ const PER_PAGE_OPTIONS = [
   { value: "100", label: "100 / page" },
 ];
 
-export default function SearchFilters({ currentType, currentSort, currentPerPage, currentQuery }: Props) {
+export default function SearchFilters({ currentType, currentSort, currentPerPage, currentQuery, genres }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchInput, setSearchInput] = useState(currentQuery);
 
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if ((value === "20" && key === "perPage") || (value === "all" && key === "type") || (value === "relevance" && key === "sort") || (value === "" && key === "language")) {
+    const defaults: Record<string, string> = { perPage: "20", type: "all", sort: "relevance", language: "", genre: "", yearFrom: "", yearTo: "", view: "" };
+    if (value === (defaults[key] ?? "")) {
       params.delete(key);
     } else {
       params.set(key, value);
@@ -52,13 +55,29 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
   ];
 
   const sortOptions: { label: string; value: SortMode }[] = [
-    { label: "By Relevance", value: "relevance" },
-    { label: "By Rating", value: "rating" },
-    { label: "A–Z", value: "az" },
+    { label: "Relevance", value: "relevance" },
+    { label: "Most Popular", value: "popular" },
+    { label: "Top Rated", value: "rating" },
+    { label: "Newest First", value: "newest" },
+    { label: "Oldest First", value: "oldest" },
+    { label: "Title A–Z", value: "az" },
+    { label: "Title Z–A", value: "za" },
   ];
+
+  const showContentFilters = currentType !== "people";
+  const view = searchParams.get("view") ?? "list";
 
   return (
     <div className="space-y-4 mb-6">
+      {/* Advanced filtering hint */}
+      <p className="text-xs text-[var(--foreground-muted)]">
+        Need more filters? Browse{" "}
+        <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Movies & TV</Link>
+        {" "}or{" "}
+        <Link href="/celebrities" className="text-[var(--ratist-red)] hover:underline">Celebrities</Link>
+        {" "}for advanced filtering options.
+      </p>
+
       {/* Inline search bar */}
       <form onSubmit={handleSearch} className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -112,8 +131,51 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
           </select>
         </div>
 
+        {/* Genre filter */}
+        {showContentFilters && genres.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--foreground-muted)] shrink-0">Genre:</span>
+            <select
+              value={searchParams.get("genre") ?? ""}
+              onChange={(e) => updateParam("genre", e.target.value)}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-full px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] transition-colors appearance-none cursor-pointer"
+            >
+              <option value="">Any</option>
+              {genres.map((g) => (
+                <option key={g.id} value={String(g.id)}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Year range */}
+        {showContentFilters && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--foreground-muted)] shrink-0">Year:</span>
+            <input
+              type="number"
+              min="1900"
+              max="2030"
+              placeholder="From"
+              value={searchParams.get("yearFrom") ?? ""}
+              onChange={(e) => updateParam("yearFrom", e.target.value)}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-full px-3 py-1.5 text-sm text-white w-20 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)]"
+            />
+            <span className="text-xs text-[var(--foreground-muted)]">–</span>
+            <input
+              type="number"
+              min="1900"
+              max="2030"
+              placeholder="To"
+              value={searchParams.get("yearTo") ?? ""}
+              onChange={(e) => updateParam("yearTo", e.target.value)}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-full px-3 py-1.5 text-sm text-white w-20 focus:outline-none focus:border-[var(--ratist-red)] placeholder:text-[var(--foreground-muted)]"
+            />
+          </div>
+        )}
+
         {/* Language filter */}
-        {(currentType === "all" || currentType === "movies" || currentType === "shows") && (
+        {showContentFilters && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--foreground-muted)] shrink-0">Language:</span>
             <select
@@ -144,6 +206,26 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
             ))}
           </select>
         </div>
+
+        {/* Grid / List toggle */}
+        {showContentFilters && (
+          <div className="flex items-center gap-1 ml-auto">
+            <button
+              onClick={() => updateParam("view", "list")}
+              className={`p-1.5 rounded transition-colors ${view === "list" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => updateParam("view", "grid")}
+              className={`p-1.5 rounded transition-colors ${view === "grid" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+              title="Grid view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

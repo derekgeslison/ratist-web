@@ -3,10 +3,12 @@ export const metadata: Metadata = { title: "Search" };
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Film, User, Tv, Tag } from "lucide-react";
-import { type TMDBMovie as LibTMDBMovie, searchKeywords, discoverMovies, discoverShows } from "@/lib/tmdb";
+import { type TMDBMovie as LibTMDBMovie, searchKeywords, discoverMovies, discoverShows, getGenres } from "@/lib/tmdb";
 import SearchFilters from "./SearchFilters";
 import MovieListItem from "@/components/MovieListItem";
+import MovieCard from "@/components/MovieCard";
 import ShowListItem from "@/components/ShowListItem";
+import ShowCard from "@/components/ShowCard";
 import { Suspense } from "react";
 
 const API_KEY = process.env.TMDB_API_KEY;
@@ -68,24 +70,32 @@ async function searchAll(
 }
 
 type TypeFilter = "all" | "movies" | "shows" | "people";
-type SortMode = "relevance" | "rating" | "az";
+type SortMode = "relevance" | "popular" | "rating" | "newest" | "oldest" | "az" | "za";
 
 interface Props {
-  searchParams: Promise<{ q?: string; type?: string; sort?: string; perPage?: string; language?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; perPage?: string; language?: string; genre?: string; yearFrom?: string; yearTo?: string; view?: string }>;
 }
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q = "", type: typeParam = "all", sort: sortParam = "relevance", perPage: perPageParam, language: langParam } = await searchParams;
+  const params = await searchParams;
+  const { q = "", type: typeParam = "all", sort: sortParam = "relevance", perPage: perPageParam, language: langParam, genre: genreParam, yearFrom: yearFromParam, yearTo: yearToParam, view: viewParam } = params;
   const languageFilter = langParam ?? "";
+  const genreFilter = genreParam ?? "";
+  const yearFrom = yearFromParam ?? "";
+  const yearTo = yearToParam ?? "";
+  const view = viewParam === "grid" ? "grid" : "list";
 
   const typeFilter = (["all", "movies", "shows", "people"].includes(typeParam) ? typeParam : "all") as TypeFilter;
-  const sortMode = (["relevance", "rating", "az"].includes(sortParam) ? sortParam : "relevance") as SortMode;
+  const sortMode = (["relevance", "popular", "rating", "newest", "oldest", "az", "za"].includes(sortParam) ? sortParam : "relevance") as SortMode;
   const perPage = [20, 50, 100].includes(Number(perPageParam)) ? Number(perPageParam) : 20;
 
   const showMovies = typeFilter === "all" || typeFilter === "movies";
   const showShows = typeFilter === "all" || typeFilter === "shows";
   const showPeople = typeFilter === "all" || typeFilter === "people";
   const showContent = showMovies || showShows;
+
+  // Fetch genres for the filter dropdown
+  const genreList = await getGenres().catch(() => ({ genres: [] }));
 
   const [{ movies: rawMovies, shows: rawShows, people: rawPeople }, keywordResults] = await Promise.all([
     searchAll(q, perPage),
@@ -106,18 +116,40 @@ export default async function SearchPage({ searchParams }: Props) {
       : Promise.resolve([]),
   ]);
 
+  // Filter movies
   let movies = [...rawMovies];
   if (languageFilter) movies = movies.filter((m) => m.original_language === languageFilter);
-  if (sortMode === "rating") movies = movies.sort((a, b) => b.vote_average - a.vote_average);
-  else if (sortMode === "az") movies = movies.sort((a, b) => a.title.localeCompare(b.title));
+  if (genreFilter) movies = movies.filter((m) => (m as unknown as { genre_ids?: number[] }).genre_ids?.includes(Number(genreFilter)));
+  if (yearFrom) movies = movies.filter((m) => { const y = parseInt((m.release_date ?? "").slice(0, 4)); return !isNaN(y) && y >= parseInt(yearFrom); });
+  if (yearTo) movies = movies.filter((m) => { const y = parseInt((m.release_date ?? "").slice(0, 4)); return !isNaN(y) && y <= parseInt(yearTo); });
 
+  // Filter shows
   let shows = [...rawShows];
   if (languageFilter) shows = shows.filter((s) => s.original_language === languageFilter);
-  if (sortMode === "rating") shows = shows.sort((a, b) => b.vote_average - a.vote_average);
-  else if (sortMode === "az") shows = shows.sort((a, b) => a.name.localeCompare(b.name));
+  if (genreFilter) shows = shows.filter((s) => (s as unknown as { genre_ids?: number[] }).genre_ids?.includes(Number(genreFilter)));
+  if (yearFrom) shows = shows.filter((s) => { const y = parseInt((s.first_air_date ?? "").slice(0, 4)); return !isNaN(y) && y >= parseInt(yearFrom); });
+  if (yearTo) shows = shows.filter((s) => { const y = parseInt((s.first_air_date ?? "").slice(0, 4)); return !isNaN(y) && y <= parseInt(yearTo); });
 
-  let people = [...rawPeople];
-  if (sortMode === "az") people = people.sort((a, b) => a.name.localeCompare(b.name));
+  // Sort movies
+  if (sortMode === "rating") movies.sort((a, b) => b.vote_average - a.vote_average);
+  else if (sortMode === "popular") movies.sort((a, b) => b.popularity - a.popularity);
+  else if (sortMode === "newest") movies.sort((a, b) => (b.release_date ?? "").localeCompare(a.release_date ?? ""));
+  else if (sortMode === "oldest") movies.sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""));
+  else if (sortMode === "az") movies.sort((a, b) => a.title.localeCompare(b.title));
+  else if (sortMode === "za") movies.sort((a, b) => b.title.localeCompare(a.title));
+
+  // Sort shows
+  if (sortMode === "rating") shows.sort((a, b) => b.vote_average - a.vote_average);
+  else if (sortMode === "popular") shows.sort((a, b) => b.popularity - a.popularity);
+  else if (sortMode === "newest") shows.sort((a, b) => (b.first_air_date ?? "").localeCompare(a.first_air_date ?? ""));
+  else if (sortMode === "oldest") shows.sort((a, b) => (a.first_air_date ?? "").localeCompare(b.first_air_date ?? ""));
+  else if (sortMode === "az") shows.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sortMode === "za") shows.sort((a, b) => b.name.localeCompare(a.name));
+
+  // Sort people
+  if (sortMode === "az") rawPeople.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sortMode === "za") rawPeople.sort((a, b) => b.name.localeCompare(a.name));
+  const people = rawPeople;
 
   // Deduplicate keyword results against title-search results
   const titleMovieIds = new Set(movies.map((m) => m.id));
@@ -126,13 +158,17 @@ export default async function SearchPage({ searchParams }: Props) {
     item.type === "movie" ? !titleMovieIds.has(item.id) : !titleShowIds.has(item.id)
   );
 
-  // Merge movies and shows into one list sorted by popularity for the "All" and combined views
-  const contentItems: { type: "movie" | "tv"; id: number; title: string; popularity: number; data: TMDBMovie | TMDBShow }[] = [
-    ...(showMovies ? movies.map((m) => ({ type: "movie" as const, id: m.id, title: m.title, popularity: m.popularity, data: m })) : []),
-    ...(showShows ? shows.map((s) => ({ type: "tv" as const, id: s.id, title: s.name, popularity: s.popularity, data: s })) : []),
+  // Merge movies and shows into one list
+  const contentItems: { type: "movie" | "tv"; id: number; title: string; popularity: number; releaseDate: string; data: TMDBMovie | TMDBShow }[] = [
+    ...(showMovies ? movies.map((m) => ({ type: "movie" as const, id: m.id, title: m.title, popularity: m.popularity, releaseDate: m.release_date ?? "", data: m })) : []),
+    ...(showShows ? shows.map((s) => ({ type: "tv" as const, id: s.id, title: s.name, popularity: s.popularity, releaseDate: s.first_air_date ?? "", data: s })) : []),
   ];
   if (sortMode === "rating") contentItems.sort((a, b) => (b.data.vote_average ?? 0) - (a.data.vote_average ?? 0));
+  else if (sortMode === "popular") contentItems.sort((a, b) => b.popularity - a.popularity);
+  else if (sortMode === "newest") contentItems.sort((a, b) => b.releaseDate.localeCompare(a.releaseDate));
+  else if (sortMode === "oldest") contentItems.sort((a, b) => a.releaseDate.localeCompare(b.releaseDate));
   else if (sortMode === "az") contentItems.sort((a, b) => a.title.localeCompare(b.title));
+  else if (sortMode === "za") contentItems.sort((a, b) => b.title.localeCompare(a.title));
   else contentItems.sort((a, b) => b.popularity - a.popularity); // relevance = popularity
 
   const total = contentItems.length + (showPeople ? people.length : 0) + uniqueKeywordResults.length;
@@ -150,7 +186,7 @@ export default async function SearchPage({ searchParams }: Props) {
       </div>
 
       <Suspense>
-        <SearchFilters currentType={typeFilter} currentSort={sortMode} currentPerPage={String(perPage)} currentQuery={q} />
+        <SearchFilters currentType={typeFilter} currentSort={sortMode} currentPerPage={String(perPage)} currentQuery={q} genres={genreList.genres} />
       </Suspense>
 
       {!q && (
@@ -191,21 +227,33 @@ export default async function SearchPage({ searchParams }: Props) {
         </section>
       )}
 
-      {/* Movies & Shows — merged and sorted by relevance */}
+      {/* Movies & Shows */}
       {showContent && contentItems.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Movies & Shows
           </h2>
-          <div className="flex flex-col divide-y divide-[var(--border)]">
-            {contentItems.map((item) =>
-              item.type === "movie" ? (
-                <MovieListItem key={`m-${item.id}`} movie={item.data as TMDBMovie} />
-              ) : (
-                <ShowListItem key={`s-${item.id}`} show={item.data as TMDBShow} />
-              )
-            )}
-          </div>
+          {view === "grid" ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {contentItems.map((item) =>
+                item.type === "movie" ? (
+                  <MovieCard key={`m-${item.id}`} movie={item.data as TMDBMovie} />
+                ) : (
+                  <ShowCard key={`s-${item.id}`} show={item.data as TMDBShow} />
+                )
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-[var(--border)]">
+              {contentItems.map((item) =>
+                item.type === "movie" ? (
+                  <MovieListItem key={`m-${item.id}`} movie={item.data as TMDBMovie} />
+                ) : (
+                  <ShowListItem key={`s-${item.id}`} show={item.data as TMDBShow} />
+                )
+              )}
+            </div>
+          )}
         </section>
       )}
 
