@@ -24,7 +24,7 @@ function ImageComponent({ node, updateAttributes, selected }: ReactNodeViewProps
 
       function onMouseMove(ev: MouseEvent) {
         const diff = ev.clientX - startX;
-        const newWidth = Math.max(50, Math.round(startWidth + diff));
+        const newWidth = Math.max(12, Math.round(startWidth + diff));
         updateAttributes({ width: newWidth });
       }
       function onMouseUp() {

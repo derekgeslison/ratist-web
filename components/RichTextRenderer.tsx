@@ -13,6 +13,9 @@ import TextAlign from "@tiptap/extension-text-align";
 import Highlight from "@tiptap/extension-highlight";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
+import FontFamily from "@tiptap/extension-font-family";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 
 interface Props {
   content: string;
@@ -57,6 +60,9 @@ export default function RichTextRenderer({ content }: Props) {
       Highlight.configure({ multicolor: true }),
       TextStyle,
       Color,
+      FontFamily,
+      Subscript,
+      Superscript,
     ],
     content: content ? JSON.parse(content) : "",
     editable: false,
