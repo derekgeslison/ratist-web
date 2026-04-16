@@ -8,11 +8,9 @@ import Link from "next/link";
 
 interface TmdbResult {
   id: number;
-  title?: string;
-  name?: string;
-  poster_path: string | null;
-  release_date?: string;
-  first_air_date?: string;
+  title: string;
+  posterPath: string | null;
+  releaseDate?: string;
   media_type?: string;
 }
 
@@ -55,18 +53,17 @@ export default function NewTrailerPage() {
   }
 
   function selectMedia(item: TmdbResult) {
-    const isMovie = item.media_type === "movie" || !!item.title;
-    const mediaTitle = item.title ?? item.name ?? "Unknown";
-    const year = (item.release_date ?? item.first_air_date ?? "").slice(0, 4);
+    const isMovie = item.media_type === "movie";
+    const year = (item.releaseDate ?? "").slice(0, 4);
     setSelectedMedia({
       tmdbId: item.id,
       mediaType: isMovie ? "movie" : "tv",
-      title: mediaTitle,
-      posterPath: item.poster_path,
+      title: item.title,
+      posterPath: item.posterPath,
       year,
     });
-    setTitle(`${mediaTitle} — Official Trailer`);
-    setExcerpt(`Watch the official trailer for ${mediaTitle}.`);
+    setTitle(`${item.title} — Official Trailer`);
+    setExcerpt(`Watch the official trailer for ${item.title}.`);
     setSearchResults([]);
     setSearchQuery("");
   }
@@ -141,6 +138,7 @@ export default function NewTrailerPage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={`https://image.tmdb.org/t/p/w92${selectedMedia.posterPath}`}
+
                   alt=""
                   className="w-10 h-14 rounded object-cover bg-[var(--surface-2)]"
                 />
@@ -179,18 +177,17 @@ export default function NewTrailerPage() {
                 <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl max-h-80 overflow-y-auto shadow-lg">
                   {searchResults.map((item) => {
                     const isMovie = item.media_type === "movie";
-                    const mediaTitle = item.title ?? item.name ?? "Unknown";
-                    const year = (item.release_date ?? item.first_air_date ?? "").slice(0, 4);
+                    const year = (item.releaseDate ?? "").slice(0, 4);
                     return (
                       <button
                         key={`${item.media_type}-${item.id}`}
                         onClick={() => selectMedia(item)}
                         className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left"
                       >
-                        {item.poster_path ? (
+                        {item.posterPath ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
+                            src={`https://image.tmdb.org/t/p/w92${item.posterPath}`}
                             alt=""
                             className="w-8 h-12 rounded object-cover bg-[var(--surface-2)]"
                           />
@@ -200,7 +197,7 @@ export default function NewTrailerPage() {
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="text-sm text-white truncate">{mediaTitle}</p>
+                          <p className="text-sm text-white truncate">{item.title}</p>
                           <p className="text-xs text-[var(--foreground-muted)]">
                             {isMovie ? "Movie" : "TV Show"}{year && ` (${year})`}
                           </p>
