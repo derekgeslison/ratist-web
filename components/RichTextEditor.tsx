@@ -145,7 +145,7 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
   return (
     <div className="border border-[var(--border)] rounded-xl bg-[var(--surface)]">
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 flex-wrap px-2 py-2 border-b border-[var(--border)] bg-[var(--surface-2)] sticky top-0 z-20 rounded-t-xl">
+      <div className="flex items-center gap-0.5 flex-wrap px-2 py-2 border-b border-[var(--border)] bg-[var(--surface-2)] sticky top-[73px] z-20 rounded-t-xl">
         {/* History */}
         <button onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} className={btn(false, !editor.can().undo())} title="Undo">
           <Undo className="w-4 h-4" />

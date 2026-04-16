@@ -42,8 +42,8 @@ function ImageComponent({ node, updateAttributes, selected }: ReactNodeViewProps
 
   return (
     <NodeViewWrapper
-      as={isInline ? "span" : "div"}
-      className={`relative group ${isInline ? "inline-block align-middle" : ""}`}
+      as="span"
+      className={`relative group ${isInline ? "inline-block align-middle" : "block"}`}
       style={{ width: width ? `${width}px` : undefined, maxWidth: "100%" }}
       ref={containerRef}
       data-drag-handle=""
@@ -118,7 +118,8 @@ function ImageComponent({ node, updateAttributes, selected }: ReactNodeViewProps
 
 const ResizableImage = Node.create({
   name: "image",
-  group: "block",
+  group: "inline",
+  inline: true,
   atom: true,
   draggable: true,
 

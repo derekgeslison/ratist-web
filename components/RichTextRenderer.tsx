@@ -26,8 +26,10 @@ export default function RichTextRenderer({ content }: Props) {
       Underline,
       TiptapLink.configure({ HTMLAttributes: { class: "text-[var(--ratist-red)] underline hover:opacity-80" } }),
       TiptapImage.configure({
+        inline: true,
         HTMLAttributes: { class: "max-w-full rounded-lg" },
       }).extend({
+        group: "inline",
         addAttributes() {
           return {
             ...this.parent?.(),
