@@ -13,6 +13,7 @@ import { useMovieUserState } from "@/hooks/useMovieUserState";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import SpotlightCards from "@/components/SpotlightCards";
+import AdUnit from "@/components/AdUnit";
 
 interface MediaItem {
   type: "movie" | "tv";
@@ -283,6 +284,8 @@ export default function ForYouPage() {
           <p className="text-sm">Start rating movies, following users, and adding to your watchlist to see personalized content here.</p>
         </div>
       )}
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME ?? ""} format="auto" className="mb-8" />
 
       {/* Top Picks For You */}
       {hasTopPicks && (

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
 import PageShare from "@/components/PageShare";
+import AdUnit from "@/components/AdUnit";
 import { prisma } from "@/lib/prisma";
 import CelebrityBio from "./CelebrityBio";
 import CelebrityUserPanel from "./CelebrityUserPanel";
@@ -403,6 +404,8 @@ export default async function CelebrityPage({ params }: Props) {
           {person.biography && <CelebrityBio biography={person.biography} />}
         </div>
       </div>
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-4" />
 
       {/* Tabbed content */}
       <CelebrityDetailTabs

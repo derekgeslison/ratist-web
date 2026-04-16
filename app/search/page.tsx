@@ -11,6 +11,7 @@ import MovieCard from "@/components/MovieCard";
 import ShowListItem from "@/components/ShowListItem";
 import ShowCard from "@/components/ShowCard";
 import { Suspense } from "react";
+import AdUnit from "@/components/AdUnit";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
@@ -221,6 +222,8 @@ export default async function SearchPage({ searchParams }: Props) {
           Showing results for <span className="text-white font-medium">&ldquo;{correctedQuery}&rdquo;</span>
         </p>
       )}
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-6" />
 
       {!q && (
         <p className="text-[var(--foreground-muted)]">Use the search bar above to find movies, shows, and people.</p>

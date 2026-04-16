@@ -8,6 +8,7 @@ import CelebritiesFilterBar from "./CelebritiesFilterBar";
 import { prisma } from "@/lib/prisma";
 import { upsertCelebrityList } from "@/lib/tmdb-sync";
 import { generateFuzzyVariants } from "@/lib/fuzzy-search";
+import AdUnit from "@/components/AdUnit";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -320,6 +321,8 @@ export default async function CelebritiesPage({ searchParams }: Props) {
           Showing results for <span className="text-white font-medium">&ldquo;{correctedQuery}&rdquo;</span>
         </p>
       )}
+
+      <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-6" />
 
       {people.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No results found.</p>
