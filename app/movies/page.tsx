@@ -153,7 +153,7 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   // Fetch movies
   if (showMovies) {
-    if (params.search && !hasFilters) {
+    if (params.search && !hasFilters && sort === "popular") {
       movieResult = await fetchMoviePages((p) => searchMovies(params.search!, p));
       pageTitle = `Search: "${params.search}"`;
     } else if (params.search || hasFilters) {
@@ -200,7 +200,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       releaseStatus,
     };
 
-    if (params.search && !hasFilters) {
+    if (params.search && !hasFilters && sort === "popular") {
       showResult = await fetchShowPages((p) => searchShows(params.search!, p));
     } else if (isSearchOrFilter) {
       showResult = await fetchShowPages((p) =>
