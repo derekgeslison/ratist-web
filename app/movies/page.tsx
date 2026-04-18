@@ -162,7 +162,7 @@ export default async function MoviesPage({ searchParams }: Props) {
         discoverMovies({ ...discoverOptions, query: params.search, page: p })
       );
       if (params.search) pageTitle = `Search: "${params.search}"`;
-      else if (releaseStatus === "now_playing") pageTitle = "Now Playing in Theaters";
+      else if (releaseStatus === "now_playing") pageTitle = "Now Playing & Streaming";
       else if (releaseStatus === "upcoming") pageTitle = "Coming Soon";
     } else if (sort === "popular") {
       movieResult = await fetchMoviePages((p) => getPopularMovies(p));

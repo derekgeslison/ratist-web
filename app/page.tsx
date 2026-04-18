@@ -184,9 +184,9 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* Now Playing */}
+        {/* Now Playing & Streaming */}
         <MovieRow
-          title="Now Playing in Theaters"
+          title="Now Playing & Streaming"
           movies={nowPlaying.results.slice(0, 12)}
           viewAllHref="/movies?releaseStatus=now_playing"
         />
