@@ -108,7 +108,7 @@ export default function ReviewCard({ review, movieTmdbId, showTmdbId, compact = 
         ) : (
           <>
             {review.reviewText && (
-              <p className={`text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-line ${!showFullText ? "line-clamp-4" : ""}`}>
+              <p className={`text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-line break-words ${!showFullText ? "line-clamp-4" : ""}`}>
                 {review.reviewText}
               </p>
             )}
