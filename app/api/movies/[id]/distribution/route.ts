@@ -16,14 +16,14 @@ export async function GET(req: NextRequest, { params }: Props) {
       select: { ratistRating: true },
     });
 
-    // Build buckets: bucket[0] = scores 1.0-1.9 (labeled "1"), ... bucket[9] = scores 10.0 (labeled "10")
+    // Build buckets: bucket[0] = scores 0.5-1.4 (labeled "1"), ... bucket[9] = scores 9.5-10.0 (labeled "10")
+    // Uses Math.round so 4.0 → bucket "4", 3.5+ → bucket "4", 3.4 → bucket "3"
     const buckets = Array(10).fill(0);
     let sum = 0;
     for (const r of ratings) {
       const score = r.ratistRating!;
       sum += score;
-      // 8.6 → floor=8, -1=7 (labeled "8"). 10.0 → floor=10, -1=9 (labeled "10"). 4.0 → floor=4, -1=3 (labeled "4")
-      const bucket = Math.max(0, Math.min(Math.floor(score) - 1, 9));
+      const bucket = Math.max(0, Math.min(Math.round(score) - 1, 9));
       buckets[bucket]++;
     }
 
