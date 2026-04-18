@@ -332,7 +332,7 @@ export async function GET(req: NextRequest) {
     }
 
     const ratistReviewCount = await prisma.movieRating.count({
-      where: { userId: user.id, plot: { not: null } },
+      where: { userId: user.id, plot: { not: null }, ratistRating: { not: null } },
     });
     return NextResponse.json({ collections, ratistReviewCount });
   } catch (err) {

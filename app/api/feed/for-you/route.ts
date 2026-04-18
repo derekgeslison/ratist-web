@@ -315,9 +315,9 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) { console.error("Top picks error:", e); }
 
-    // Count Ratist reviews (not quick/imported) for disclaimer
+    // Count completed Ratist reviews (not quick/imported/drafts) for disclaimer
     const ratistReviewCount = await prisma.movieRating.count({
-      where: { userId: user.id, plot: { not: null } },
+      where: { userId: user.id, plot: { not: null }, ratistRating: { not: null } },
     });
 
     return NextResponse.json({
