@@ -77,12 +77,12 @@ export default function CelebrityDetailTabs({
   return (
     <>
       {/* Tab navigation */}
-      <div className="flex items-center gap-1 border-b border-[var(--border)] mb-8">
+      <div className="flex items-center gap-1 border-b border-[var(--border)] mb-8 overflow-x-auto scrollbar-none">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`text-sm font-medium px-4 py-3 border-b-2 transition-colors ${
+            className={`text-sm font-medium px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab
                 ? "border-[var(--ratist-red)] text-white"
                 : "border-transparent text-[var(--foreground-muted)] hover:text-white"
