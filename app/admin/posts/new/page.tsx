@@ -80,6 +80,7 @@ function NewPostInner() {
             content={content}
             onChange={setContent}
             placeholder={`Write your ${TYPE_LABELS[type].toLowerCase()} here…`}
+            allowDebate={type === "PUNCH_AND_JUDY"}
           />
         </div>
 

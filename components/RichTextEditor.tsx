@@ -4,6 +4,8 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import ResizableImage from "./ResizableImage";
+import DebateBlock from "./DebateBlock";
+import TwoThumbsIcon from "./TwoThumbsIcon";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
@@ -64,6 +66,7 @@ interface Props {
   content: string;
   onChange: (json: string) => void;
   placeholder?: string;
+  allowDebate?: boolean;
 }
 
 const FONT_SIZES = [
@@ -118,7 +121,7 @@ const TEXT_COLORS = [
 
 /* ─── Component ──────────────────────────────────────────────────────────── */
 
-export default function RichTextEditor({ content, onChange, placeholder = "Start writing..." }: Props) {
+export default function RichTextEditor({ content, onChange, placeholder = "Start writing...", allowDebate = false }: Props) {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -143,6 +146,7 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
       Underline,
       TiptapLink.configure({ openOnClick: false, HTMLAttributes: { class: "text-[var(--ratist-red)] underline" } }),
       ResizableImage,
+      DebateBlock,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -432,6 +436,17 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
             </div>
           )}
         </div>
+
+        {/* Two Thumbs debate block — only on Two Thumbs posts */}
+        {allowDebate && (
+          <button
+            onClick={() => (editor.commands as unknown as { insertDebateBlock: () => boolean }).insertDebateBlock()}
+            className={btn(false)}
+            title="Insert Two Thumbs argument"
+          >
+            <TwoThumbsIcon className="text-current" size={16} />
+          </button>
+        )}
 
         <div className="w-px h-5 bg-[var(--border)] mx-1" />
 

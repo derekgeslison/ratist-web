@@ -116,6 +116,7 @@ export default function EditPostPage() {
               content={content}
               onChange={setContent}
               placeholder="Write here…"
+              allowDebate={type === "PUNCH_AND_JUDY"}
             />
           )}
         </div>
