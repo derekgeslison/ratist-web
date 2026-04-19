@@ -211,6 +211,35 @@ export default async function SearchPage({ searchParams }: Props) {
     ]);
     for (const m of movieCerts) if (m.mpaaRating) certMap.set(`m-${m.tmdbId}`, m.mpaaRating);
     for (const s of showCerts) if (s.contentRating) certMap.set(`s-${s.tmdbId}`, s.contentRating);
+
+    // Fill gaps from TMDB API
+    const missingMovieIds = movieIds.filter((id) => !certMap.has(`m-${id}`));
+    const missingShowIds = showIds.filter((id) => !certMap.has(`s-${id}`));
+    const API_KEY = process.env.TMDB_API_KEY;
+    if (API_KEY) {
+      await Promise.all([
+        ...missingMovieIds.map(async (id) => {
+          try {
+            const res = await fetch(`https://api.themoviedb.org/3/movie/${id}/release_dates?api_key=${API_KEY}`, { next: { revalidate: 86400 } });
+            if (!res.ok) return;
+            const data = await res.json();
+            const us = data.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
+            const rated = us?.release_dates?.find((d: { certification: string; type: number }) => d.certification && d.type === 3)
+              ?? us?.release_dates?.find((d: { certification: string }) => d.certification);
+            if (rated?.certification) certMap.set(`m-${id}`, rated.certification);
+          } catch { /* ignore */ }
+        }),
+        ...missingShowIds.map(async (id) => {
+          try {
+            const res = await fetch(`https://api.themoviedb.org/3/tv/${id}/content_ratings?api_key=${API_KEY}`, { next: { revalidate: 86400 } });
+            if (!res.ok) return;
+            const data = await res.json();
+            const us = data.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
+            if (us?.rating) certMap.set(`s-${id}`, us.rating);
+          } catch { /* ignore */ }
+        }),
+      ]);
+    }
   } catch { /* DB not ready */ }
 
   const total = contentItems.length + (showPeople ? people.length : 0) + uniqueKeywordResults.length;
