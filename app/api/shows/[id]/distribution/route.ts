@@ -21,7 +21,8 @@ export async function GET(req: NextRequest, { params }: Props) {
     for (const r of ratings) {
       const score = r.ratistRating!;
       sum += score;
-      const bucket = Math.max(0, Math.min(Math.round(score) - 1, 9));
+      const displayed = Math.round(score * 10) / 10; // match toFixed(1) rounding
+      const bucket = Math.max(0, Math.min(Math.floor(displayed) - 1, 9));
       buckets[bucket]++;
     }
 

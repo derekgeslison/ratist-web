@@ -16,14 +16,16 @@ export async function GET(req: NextRequest, { params }: Props) {
       select: { ratistRating: true },
     });
 
-    // Build buckets: bucket[0] = scores 0.5-1.4 (labeled "1"), ... bucket[9] = scores 9.5-10.0 (labeled "10")
-    // Uses Math.round so 4.0 → bucket "4", 3.5+ → bucket "4", 3.4 → bucket "3"
+    // Build buckets matching the displayed rating (rounded to 1 decimal).
+    // bucket[0] = displayed 1.0–1.9 (labeled "1"), ... bucket[9] = displayed 10.0 (labeled "10")
+    // A raw 3.949 displays as "3.9" → bucket "3". A raw 3.950 displays as "4.0" → bucket "4".
     const buckets = Array(10).fill(0);
     let sum = 0;
     for (const r of ratings) {
       const score = r.ratistRating!;
       sum += score;
-      const bucket = Math.max(0, Math.min(Math.round(score) - 1, 9));
+      const displayed = Math.round(score * 10) / 10; // match toFixed(1) rounding
+      const bucket = Math.max(0, Math.min(Math.floor(displayed) - 1, 9));
       buckets[bucket]++;
     }
 
