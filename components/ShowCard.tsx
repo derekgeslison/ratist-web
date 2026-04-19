@@ -112,7 +112,7 @@ export default function ShowCard({ show, characterName, streaming, rent }: Props
       <div className="p-2.5 flex flex-col gap-1">
         <p className="text-sm font-medium text-white line-clamp-1 leading-tight">{show.name}</p>
         {characterName && <p className="text-xs text-[var(--ratist-red)]/70 line-clamp-1">as {characterName}</p>}
-        <p className="text-xs text-[var(--foreground-muted)]">{show.first_air_date?.slice(0, 4) ?? "—"}</p>
+        <p className="text-xs text-[var(--foreground-muted)]">{show.first_air_date?.slice(0, 4) || "TBA"}</p>
         <div className="flex items-center gap-3 mt-0.5">
           <RatingBadge type="community" score={communityScore} size="sm" />
           <RatingBadge type="ratist" score={ratistRating} size="sm" />

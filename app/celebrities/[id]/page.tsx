@@ -214,7 +214,12 @@ export default async function CelebrityPage({ params }: Props) {
   }
 
   const filmography = [...filmMap.values()]
-    .sort((a, b) => new Date(b.release_date || "0").getTime() - new Date(a.release_date || "0").getTime());
+    .sort((a, b) => {
+      // No release date = announced/upcoming, sort to the top (newest)
+      const dateA = a.release_date ? new Date(a.release_date).getTime() : Infinity;
+      const dateB = b.release_date ? new Date(b.release_date).getTime() : Infinity;
+      return dateB - dateA;
+    });
 
   // Photos
   const photos = person.images?.profiles ?? [];
