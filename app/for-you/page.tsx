@@ -336,7 +336,7 @@ export default function ForYouPage() {
             <h3 className="text-sm font-semibold text-white">Customize Section Order</h3>
             <button onClick={() => setEditingOrder(false)}><X className="w-4 h-4 text-[var(--foreground-muted)]" /></button>
           </div>
-          <p className="text-xs text-[var(--foreground-muted)] mb-3">Drag to reorder the sections on your For You page.</p>
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">Reorder the sections on your For You page.</p>
           <div className="space-y-1.5 mb-4">
             {tempOrder.map((key, idx) => (
               <div
@@ -346,10 +346,26 @@ export default function ForYouPage() {
                 onDragEnter={() => { dragOver.current = idx; }}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
-                className="flex items-center gap-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing"
+                className="flex items-center gap-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 sm:cursor-grab sm:active:cursor-grabbing"
               >
-                <GripVertical className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
-                <span className="text-sm text-white">{SECTION_LABELS[key] ?? key}</span>
+                <GripVertical className="w-4 h-4 text-[var(--foreground-muted)] shrink-0 hidden sm:block" />
+                <span className="text-sm text-white flex-1">{SECTION_LABELS[key] ?? key}</span>
+                <div className="flex items-center gap-1 sm:hidden">
+                  <button
+                    onClick={() => { if (idx === 0) return; const r = [...tempOrder]; [r[idx - 1], r[idx]] = [r[idx], r[idx - 1]]; setTempOrder(r); }}
+                    disabled={idx === 0}
+                    className="p-1 rounded text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors"
+                  >
+                    <ChevronDown className="w-4 h-4 rotate-180" />
+                  </button>
+                  <button
+                    onClick={() => { if (idx === tempOrder.length - 1) return; const r = [...tempOrder]; [r[idx], r[idx + 1]] = [r[idx + 1], r[idx]]; setTempOrder(r); }}
+                    disabled={idx === tempOrder.length - 1}
+                    className="p-1 rounded text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
