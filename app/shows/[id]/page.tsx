@@ -76,11 +76,12 @@ export default async function ShowDetailPage({ params }: Props) {
     getShowRecommendations(show.id).catch(() => ({ results: [] })),
   ]);
 
-  // Cache to local DB (fire and forget)
-  prisma.tVShow.findUnique({ where: { tmdbId: show.id }, select: { cachedAt: true } })
+  // Cache to local DB — resync if stale (7 days) or if key fields are missing (fire and forget)
+  prisma.tVShow.findUnique({ where: { tmdbId: show.id }, select: { cachedAt: true, posterPath: true, contentRating: true } })
     .then((existing) => {
       const age = existing?.cachedAt ? Date.now() - new Date(existing.cachedAt as Date | string).getTime() : Infinity;
-      if (age > 7 * 24 * 60 * 60 * 1000) upsertTVShow(show).catch(() => {});
+      const missingData = existing && (!existing.posterPath || !existing.contentRating);
+      if (age > 7 * 24 * 60 * 60 * 1000 || missingData) upsertTVShow(show).catch(() => {});
     })
     .catch(() => {});
 

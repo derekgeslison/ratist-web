@@ -149,11 +149,11 @@ function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {href ? (
-            <Link href={href} className="text-sm font-semibold text-[var(--foreground)] hover:text-[var(--ratist-red)] transition-colors">
+            <Link href={href} className="text-sm font-semibold text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
               {name}
             </Link>
           ) : (
-            <span className="text-sm font-semibold text-[var(--foreground)]">{name}</span>
+            <span className="text-sm font-semibold text-[var(--foreground-muted)]">{name}</span>
           )}
           {isPrivate && <span className="text-[10px] text-[var(--foreground-muted)] opacity-60">Private</span>}
         </div>
@@ -180,7 +180,7 @@ function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile
               <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
                 <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
               </div>
-              <p className="text-[11px] text-[var(--foreground)] line-clamp-1">{m.title}</p>
+              <p className="text-[11px] text-[var(--foreground-muted)] line-clamp-1">{m.title}</p>
             </Link>
           ))}
         </div>

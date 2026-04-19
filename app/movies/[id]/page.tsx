@@ -84,11 +84,12 @@ export default async function MovieDetailPage({ params }: Props) {
       : Promise.resolve(null),
   ]);
 
-  // Cache to local DB — only if not recently synced (fire and forget)
-  prisma.movie.findUnique({ where: { tmdbId: movie.id }, select: { cachedAt: true } })
+  // Cache to local DB — resync if stale (7 days) or if key fields are missing (fire and forget)
+  prisma.movie.findUnique({ where: { tmdbId: movie.id }, select: { cachedAt: true, posterPath: true, mpaaRating: true } })
     .then((existing) => {
       const age = existing?.cachedAt ? Date.now() - new Date(existing.cachedAt as Date | string).getTime() : Infinity;
-      if (age > 7 * 24 * 60 * 60 * 1000) upsertMovie(movie).catch(() => {});
+      const missingData = existing && (!existing.posterPath || !existing.mpaaRating);
+      if (age > 7 * 24 * 60 * 60 * 1000 || missingData) upsertMovie(movie).catch(() => {});
     })
     .catch(() => {});
 

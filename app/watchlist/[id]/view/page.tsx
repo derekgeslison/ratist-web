@@ -117,7 +117,7 @@ export default async function PublicWatchlistPage({ params }: Props) {
                   {entry.movie.posterPath ? (
                     <Image src={posterUrl(entry.movie.posterPath, "w185")} alt={entry.movie.title} fill sizes="120px" className="object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                    <Image src="/placeholder-poster.svg" alt="" fill sizes="120px" className="object-cover" />
                   )}
                 </div>
               </PosterOverlay>
@@ -136,7 +136,7 @@ export default async function PublicWatchlistPage({ params }: Props) {
                   {entry.tvShow.posterPath ? (
                     <Image src={posterUrl(entry.tvShow.posterPath, "w185")} alt={entry.tvShow.name} fill sizes="120px" className="object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
+                    <Image src="/placeholder-poster.svg" alt="" fill sizes="120px" className="object-cover" />
                   )}
                   <span className="absolute top-1 left-1 bg-blue-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">TV</span>
                 </div>

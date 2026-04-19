@@ -1278,11 +1278,7 @@ export default function WatchlistPage() {
                           <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
                             movie.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
                           }`}>
-                            {movie.posterPath ? (
-                              <Image src={posterUrl(movie.posterPath, "w185")} alt={movie.title} fill sizes="120px" className="object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-sm text-[var(--foreground-muted)]">?</div>
-                            )}
+                            <Image src={movie.posterPath ? posterUrl(movie.posterPath, "w185") : "/placeholder-poster.svg"} alt={movie.title} fill sizes="120px" className="object-cover" />
                             {movie.mediaType === "tv" && (
                               <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
                                 <Tv className="w-2.5 h-2.5" />
