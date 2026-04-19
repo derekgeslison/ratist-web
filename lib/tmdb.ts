@@ -116,7 +116,7 @@ export function posterUrl(path: string | null, size = "w500"): string {
 }
 
 export function backdropUrl(path: string | null, size = "w1280"): string {
-  if (!path) return "/placeholder-backdrop.png";
+  if (!path) return "/placeholder-backdrop.svg";
   return `${IMAGE_BASE_URL}/${size}${path}`;
 }
 
