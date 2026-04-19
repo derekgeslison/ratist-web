@@ -322,7 +322,11 @@ export default async function MoviesPage({ searchParams }: Props) {
             const us = data.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
             const rated = us?.release_dates?.find((d: { certification: string; type: number }) => d.certification && d.type === 3)
               ?? us?.release_dates?.find((d: { certification: string }) => d.certification);
-            if (rated?.certification) certMap.set(`m-${id}`, rated.certification);
+            if (rated?.certification) {
+              certMap.set(`m-${id}`, rated.certification);
+              // Cache to DB (fire and forget)
+              prisma.movie.updateMany({ where: { tmdbId: id, mpaaRating: null }, data: { mpaaRating: rated.certification } }).catch(() => {});
+            }
           } catch { /* ignore */ }
         }),
         ...missingShowIds.map(async (id) => {
@@ -331,7 +335,10 @@ export default async function MoviesPage({ searchParams }: Props) {
             if (!res.ok) return;
             const data = await res.json();
             const us = data.results?.find((r: { iso_3166_1: string }) => r.iso_3166_1 === "US");
-            if (us?.rating) certMap.set(`s-${id}`, us.rating);
+            if (us?.rating) {
+              certMap.set(`s-${id}`, us.rating);
+              prisma.tVShow.updateMany({ where: { tmdbId: id, contentRating: null }, data: { contentRating: us.rating } }).catch(() => {});
+            }
           } catch { /* ignore */ }
         }),
       ]);
