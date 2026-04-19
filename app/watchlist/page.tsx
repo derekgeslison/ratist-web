@@ -900,6 +900,25 @@ export default function WatchlistPage() {
                     <div className="flex items-center gap-2">
                       <h2 className="text-lg font-bold text-white">{activeList.name}</h2>
                       {activeList.isPrivate && <Lock className="w-3.5 h-3.5 text-[var(--foreground-muted)]" />}
+                      {activeList.isDefault && activeList.isOwner && (
+                        <button
+                          onClick={async () => {
+                            if (!user) return;
+                            const token = await user.getIdToken();
+                            const newVal = !activeList.isPrivate;
+                            await fetch(`/api/watchlist/${activeList.id}`, {
+                              method: "PATCH",
+                              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                              body: JSON.stringify({ isPrivate: newVal }),
+                            });
+                            setWatchlists((prev) => prev.map((w) => w.id === activeList.id ? { ...w, isPrivate: newVal } : w));
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors"
+                          title={activeList.isPrivate ? "Make public" : "Make private"}
+                        >
+                          {activeList.isPrivate ? "Make public" : "Make private"}
+                        </button>
+                      )}
                     </div>
                     {activeList.description && <p className="text-sm text-[var(--foreground-muted)] mt-0.5">{activeList.description}</p>}
                     {!activeList.isOwner && activeList.ownerName && (

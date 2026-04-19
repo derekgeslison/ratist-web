@@ -135,7 +135,7 @@ interface Props {
 const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Stats", "Rankings"] as const;
 type Tab = (typeof TABS)[number];
 
-function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile, isEmpty, showPrivacyToggle, watchlistId }: {
+function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile, isEmpty }: {
   name: string;
   movieCount: number;
   isPrivate: boolean;
@@ -143,50 +143,24 @@ function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile
   href?: string;
   isOwnProfile: boolean;
   isEmpty?: boolean;
-  showPrivacyToggle?: boolean;
-  watchlistId?: string;
 }) {
-  const [privacyState, setPrivacyState] = useState(isPrivate);
-  const [toggling, setToggling] = useState(false);
-  const { user } = useAuth();
-
-  async function togglePrivacy() {
-    if (!user || !watchlistId || toggling) return;
-    setToggling(true);
-    try {
-      const token = await user.getIdToken();
-      await fetch(`/api/watchlists/${watchlistId}`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ isPrivate: !privacyState }),
-      });
-      setPrivacyState(!privacyState);
-    } catch { /* ignore */ }
-    setToggling(false);
-  }
-
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {href ? (
-            <Link href={href} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
+            <Link href={href} className="text-sm font-semibold text-[var(--foreground)] hover:text-[var(--ratist-red)] transition-colors">
               {name}
             </Link>
           ) : (
-            <span className="text-sm font-semibold text-white">{name}</span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">{name}</span>
           )}
-          {privacyState && <span className="text-[10px] text-[var(--foreground-muted)] opacity-60">Private</span>}
-          {showPrivacyToggle && (
-            <button onClick={togglePrivacy} disabled={toggling} className="text-[10px] text-[var(--foreground-muted)] hover:text-white transition-colors" title={privacyState ? "Make public" : "Make private"}>
-              {privacyState ? "🔒" : "🌐"}
-            </button>
-          )}
+          {isPrivate && <span className="text-[10px] text-[var(--foreground-muted)] opacity-60">Private</span>}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-[var(--foreground-muted)]">{movieCount} title{movieCount !== 1 ? "s" : ""}</span>
           {href && movieCount > 0 && (
-            <Link href={href} className="text-[11px] text-[var(--ratist-red)] hover:underline">View all →</Link>
+            <Link href={href} className="text-[11px] text-[var(--foreground)] hover:underline">View all →</Link>
           )}
         </div>
       </div>
@@ -203,9 +177,10 @@ function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
           {movies.slice(0, 8).map((m) => (
             <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group">
-              <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+              <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
                 <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
               </div>
+              <p className="text-[11px] text-[var(--foreground)] line-clamp-1">{m.title}</p>
             </Link>
           ))}
         </div>
@@ -794,8 +769,6 @@ export default function ProfileTabs({
               href={isOwnProfile ? "/watchlist" : (defaultWatchlistId ? `/watchlist/${defaultWatchlistId}/view` : undefined)}
               isOwnProfile={isOwnProfile}
               isEmpty={watchlistMovies.length === 0}
-              showPrivacyToggle={isOwnProfile}
-              watchlistId={defaultWatchlistId ?? undefined}
             />
           )}
 
