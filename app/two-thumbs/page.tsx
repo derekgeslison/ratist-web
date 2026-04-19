@@ -8,6 +8,7 @@ import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 import AdUnit from "@/components/AdUnit";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
+import SuggestIdeaButton from "@/components/SuggestIdeaButton";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +45,12 @@ export default async function TwoThumbsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-2">
-        <TwoThumbsIcon className="text-[var(--ratist-red)]" size={24} />
-        <h1 className="text-2xl font-bold text-white">Two Thumbs</h1>
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-center gap-3">
+          <TwoThumbsIcon className="text-[var(--ratist-red)]" size={24} />
+          <h1 className="text-2xl font-bold text-white">Two Thumbs</h1>
+        </div>
+        <SuggestIdeaButton type="PUNCH_AND_JUDY" label="Two Thumbs" />
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Head-to-head debates, comparisons, and contrarian takes.</p>
 

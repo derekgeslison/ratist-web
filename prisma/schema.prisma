@@ -107,6 +107,8 @@ model User {
   reportsResolved  Report[]  @relation("reportsResolved")
   feedbackSubmitted Feedback[] @relation("feedbackSubmitted")
   feedbackReplied   Feedback[] @relation("feedbackReplied")
+  ideasSubmitted    PostIdea[] @relation("ideasSubmitted")
+  ideasReviewed     PostIdea[] @relation("ideasReviewed")
   adminLogs        AdminLog[] @relation("adminLogs")
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
@@ -1632,6 +1634,37 @@ model Feedback {
   replier  User? @relation("feedbackReplied", fields: [repliedBy], references: [id], onDelete: SetNull)
 
   @@map("feedback")
+}
+
+model PostIdea {
+  id          String   @id @default(cuid())
+  type        PostType // PUNCH_AND_JUDY | MOVIE_MAP (BLOG not exposed for user submissions)
+  submitterId String?  @map("submitter_id")
+  description String   @db.Text
+
+  // Optional linked movie/show
+  mediaTmdbId     Int?    @map("media_tmdb_id")
+  mediaType       String? @map("media_type") // "movie" | "tv"
+  mediaTitle      String? @map("media_title")
+  mediaPosterPath String? @map("media_poster_path")
+
+  // Optional linked celebrity
+  personTmdbId      Int?    @map("person_tmdb_id")
+  personName        String? @map("person_name")
+  personProfilePath String? @map("person_profile_path")
+
+  status     String    @default("pending") // "pending" | "accepted" | "rejected" | "completed"
+  adminNotes String?   @db.Text @map("admin_notes")
+  reviewedBy String?   @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  submitter User? @relation("ideasSubmitted", fields: [submitterId], references: [id], onDelete: SetNull)
+  reviewer  User? @relation("ideasReviewed", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([type, status])
+  @@map("post_ideas")
 }
 
 model SiteSpotlight {

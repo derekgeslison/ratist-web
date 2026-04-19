@@ -7,6 +7,7 @@ import { Map, Calendar, Eye, MessageCircle, Search } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 import AdUnit from "@/components/AdUnit";
+import SuggestIdeaButton from "@/components/SuggestIdeaButton";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,12 @@ export default async function MovieMapsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-2">
-        <Map className="w-6 h-6 text-[var(--ratist-red)]" />
-        <h1 className="text-2xl font-bold text-white">Movie Maps</h1>
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-center gap-3">
+          <Map className="w-6 h-6 text-[var(--ratist-red)]" />
+          <h1 className="text-2xl font-bold text-white">Movie Maps</h1>
+        </div>
+        <SuggestIdeaButton type="MOVIE_MAP" label="Movie Map" />
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Curated journeys through cinema — themed lists, chronological watches, and essential viewing guides.</p>
 
