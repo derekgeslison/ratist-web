@@ -17,6 +17,8 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   try {
+    const dbShow = await prisma.tVShow.findUnique({ where: { tmdbId: Number(id) }, select: { name: true } });
+    if (dbShow?.name) return { title: `Reviews: ${dbShow.name}` };
     const show = await getShowDetails(Number(id));
     return { title: `Reviews: ${show.name}` };
   } catch {
@@ -28,16 +30,18 @@ export default async function ShowReviewsPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { sort = "recent", scope = "all" } = await searchParams;
 
-  let showName = "Show";
-  try {
-    const show = await getShowDetails(Number(id));
-    showName = show.name;
-  } catch { /* continue */ }
-
   const dbShow = await prisma.tVShow.findUnique({
     where: { tmdbId: Number(id) },
-    select: { id: true },
+    select: { id: true, name: true },
   });
+
+  let showName = dbShow?.name ?? "Show";
+  if (showName === "Show") {
+    try {
+      const show = await getShowDetails(Number(id));
+      showName = show.name;
+    } catch { /* continue */ }
+  }
 
   if (!dbShow) notFound();
 

@@ -17,6 +17,8 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   try {
+    const dbMovie = await prisma.movie.findUnique({ where: { tmdbId: Number(id) }, select: { title: true } });
+    if (dbMovie?.title) return { title: `Reviews: ${dbMovie.title}` };
     const movie = await getMovieDetails(Number(id));
     return { title: `Reviews: ${movie.title}` };
   } catch {
@@ -28,16 +30,18 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
   const { id } = await params;
   const { sort = "recent" } = await searchParams;
 
-  let movieTitle = "Movie";
-  try {
-    const movie = await getMovieDetails(Number(id));
-    movieTitle = movie.title;
-  } catch { /* continue */ }
-
   const dbMovie = await prisma.movie.findUnique({
     where: { tmdbId: Number(id) },
-    select: { id: true },
+    select: { id: true, title: true },
   });
+
+  let movieTitle = dbMovie?.title ?? "Movie";
+  if (movieTitle === "Movie") {
+    try {
+      const movie = await getMovieDetails(Number(id));
+      movieTitle = movie.title;
+    } catch { /* continue */ }
+  }
 
   if (!dbMovie) notFound();
 
