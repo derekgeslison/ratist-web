@@ -323,28 +323,11 @@ let _tvGenreCache: { genres: TMDBGenre[]; ts: number } | null = null;
 const GENRE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export async function getGenres() {
-  // In-memory cache (fastest)
   if (_movieGenreCache && Date.now() - _movieGenreCache.ts < GENRE_CACHE_TTL) {
     return { genres: _movieGenreCache.genres };
   }
-  // DB cache
-  try {
-    const { prisma } = await import("@/lib/prisma");
-    const dbGenres = await prisma.genre.findMany({ select: { id: true, name: true } });
-    if (dbGenres.length > 0) {
-      _movieGenreCache = { genres: dbGenres, ts: Date.now() };
-      return { genres: dbGenres };
-    }
-  } catch { /* DB not ready */ }
-  // TMDB fallback + backfill
   const data = await tmdbFetch<{ genres: TMDBGenre[] }>("/genre/movie/list");
   _movieGenreCache = { genres: data.genres, ts: Date.now() };
-  // Backfill DB (fire and forget)
-  import("@/lib/prisma").then(({ prisma }) =>
-    Promise.all(data.genres.map((g) =>
-      prisma.genre.upsert({ where: { id: g.id }, create: { id: g.id, name: g.name }, update: { name: g.name } })
-    ))
-  ).catch(() => {});
   return data;
 }
 
@@ -486,11 +469,9 @@ export async function searchShows(query: string, page = 1) {
 }
 
 export async function getShowGenres() {
-  // In-memory cache
   if (_tvGenreCache && Date.now() - _tvGenreCache.ts < GENRE_CACHE_TTL) {
     return { genres: _tvGenreCache.genres };
   }
-  // TMDB (TV genres have different IDs, not stored in the shared Genre table)
   const data = await tmdbFetch<{ genres: TMDBGenre[] }>("/genre/tv/list");
   _tvGenreCache = { genres: data.genres, ts: Date.now() };
   return data;
