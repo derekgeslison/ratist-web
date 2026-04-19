@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
 
 import PosterOverlay from "@/components/PosterOverlay";
+import CopyWatchlistButton from "@/components/CopyWatchlistButton";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -68,18 +69,27 @@ export default async function PublicWatchlistPage({ params }: Props) {
 
   const checkedCount = watchlist.movies.filter((m) => m.isChecked).length + watchlist.shows.filter((s) => s.isChecked).length;
   const totalCount = watchlist.movies.length + watchlist.shows.length;
+  const unwatchedCount = totalCount - checkedCount;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex items-start gap-3 mb-1">
-        <Bookmark className="w-6 h-6 text-[var(--ratist-red)] mt-0.5 shrink-0" />
-        <div>
-          <h1 className="text-2xl font-bold text-white">{watchlist.name}</h1>
-          {watchlist.description && (
-            <p className="text-sm text-[var(--foreground-muted)] mt-1">{watchlist.description}</p>
-          )}
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div className="flex items-start gap-3">
+          <Bookmark className="w-6 h-6 text-[var(--ratist-red)] mt-0.5 shrink-0" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">{watchlist.name}</h1>
+            {watchlist.description && (
+              <p className="text-sm text-[var(--foreground-muted)] mt-1">{watchlist.description}</p>
+            )}
+          </div>
         </div>
+        <CopyWatchlistButton
+          sourceId={watchlist.id}
+          sourceName={watchlist.name}
+          ownerFirebaseUid={watchlist.user.firebaseUid}
+          unwatchedCount={unwatchedCount}
+        />
       </div>
 
       {/* Owner + stats */}
