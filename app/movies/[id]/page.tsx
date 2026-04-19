@@ -318,10 +318,10 @@ export default async function MovieDetailPage({ params }: Props) {
                   {movie.release_date.slice(0, 4)}
                 </span>
               )}
-              {movie.runtime && (
+              {(movie.runtime ?? 0) > 0 && (
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
-                  {Math.floor(movie.runtime / 60)}h {movie.runtime % 60}m
+                  {Math.floor(movie.runtime! / 60)}h {movie.runtime! % 60}m
                 </span>
               )}
               {movie.original_language && movie.original_language !== "en" && (
