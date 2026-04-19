@@ -80,7 +80,7 @@ export default async function ProfilePage({ params }: Props) {
     tvSeenCount,
     allRatings,
     seenMovies,
-    watchlistMovies,
+    defaultWatchlistData,
     userWatchlists,
     savedRankings,
     seenShows,
@@ -144,8 +144,8 @@ export default async function ProfilePage({ params }: Props) {
       orderBy: { createdAt: "desc" },
     }),
     prisma.watchlist.findFirst({ where: { userId: user.id, isDefault: true } }).then(async (wl) => {
-      if (!wl) return [];
-      return prisma.watchlistMovie.findMany({
+      if (!wl) return { watchlist: null, movies: [] };
+      const movies = await prisma.watchlistMovie.findMany({
         where: { watchlistId: wl.id },
         include: {
           movie: {
@@ -158,6 +158,7 @@ export default async function ProfilePage({ params }: Props) {
         },
         orderBy: { addedAt: "desc" },
       });
+      return { watchlist: wl, movies };
     }),
     prisma.watchlist.findMany({
       where: { userId: user.id, isDefault: false },
@@ -495,7 +496,7 @@ export default async function ProfilePage({ params }: Props) {
             mediaType: "tv" as const,
           })),
         ].sort((a, b) => new Date(b.seenAt).getTime() - new Date(a.seenAt).getTime())}
-        watchlistMovies={watchlistMovies.map((w) => ({
+        watchlistMovies={defaultWatchlistData.movies.map((w) => ({
           tmdbId: w.movie.tmdbId,
           title: w.movie.title,
           posterPath: w.movie.posterPath,
@@ -503,6 +504,8 @@ export default async function ProfilePage({ params }: Props) {
           voteAverage: w.movie.voteAverage ?? null,
           ratistRating: w.movie.ratings[0]?.ratistRating ?? null,
         }))}
+        defaultWatchlistId={defaultWatchlistData.watchlist?.id ?? null}
+        defaultWatchlistPrivate={defaultWatchlistData.watchlist?.isPrivate ?? false}
         userWatchlists={userWatchlists.map((wl) => ({
           id: wl.id,
           name: wl.name,
