@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450" fill="none">
+  <rect width="300" height="450" fill="#1a1a1a"/>
+  <rect x="1" y="1" width="298" height="448" rx="4" stroke="#2e2e2e" stroke-width="2" fill="none"/>
+  <!-- Film strip icon -->
+  <g transform="translate(110, 170)" stroke="#3a3a3a" stroke-width="2" fill="none">
+    <rect x="0" y="0" width="80" height="60" rx="4"/>
+    <rect x="4" y="-8" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="16" y="-8" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="28" y="-8" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="44" y="-8" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="56" y="-8" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="68" y="-8" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="4" y="60" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="16" y="60" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="28" y="60" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="44" y="60" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="56" y="60" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <rect x="68" y="60" width="8" height="8" rx="1" fill="#3a3a3a"/>
+    <!-- Play triangle -->
+    <polygon points="30,18 30,42 55,30" fill="#3a3a3a"/>
+  </g>
+  <!-- "No Poster" text -->
+  <text x="150" y="280" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" fill="#4a4a4a">No Poster Available</text>
+</svg>

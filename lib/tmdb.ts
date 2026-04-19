@@ -111,7 +111,7 @@ export interface TMDBGenre {
 }
 
 export function posterUrl(path: string | null, size = "w500"): string {
-  if (!path) return "/placeholder-poster.png";
+  if (!path) return "/placeholder-poster.svg";
   return `${IMAGE_BASE_URL}/${size}${path}`;
 }
 
