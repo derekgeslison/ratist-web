@@ -1,11 +1,11 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import ResizableImage from "./ResizableImage";
 import DebateBlock from "./DebateBlock";
 import TwoThumbsIcon from "./TwoThumbsIcon";
+import { FontSize } from "./rte-extensions";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
@@ -30,35 +30,6 @@ import {
   Subscript as SubscriptIcon, Superscript as SuperscriptIcon, RemoveFormatting,
   ChevronDown,
 } from "lucide-react";
-
-/* ─── Custom FontSize extension (uses TextStyle mark) ───────────────────── */
-
-const FontSize = Extension.create({
-  name: "fontSize",
-  addGlobalAttributes() {
-    return [{
-      types: ["textStyle"],
-      attributes: {
-        fontSize: {
-          default: null,
-          parseHTML: (el) => el.style.fontSize || null,
-          renderHTML: (attrs) => {
-            if (!attrs.fontSize) return {};
-            return { style: `font-size: ${attrs.fontSize}` };
-          },
-        },
-      },
-    }];
-  },
-  addCommands() {
-    return {
-      setFontSize: (size: string) => ({ chain }: { chain: any }) =>
-        chain().setMark("textStyle", { fontSize: size }).run(),
-      unsetFontSize: () => ({ chain }: { chain: any }) =>
-        chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run(),
-    } as any;
-  },
-});
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -147,7 +118,7 @@ export default function RichTextEditor({ content, onChange, placeholder = "Start
       TiptapLink.configure({ openOnClick: false, HTMLAttributes: { class: "text-[var(--ratist-red)] underline" } }),
       ResizableImage,
       DebateBlock,
-      Table.configure({ resizable: true }),
+      Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,

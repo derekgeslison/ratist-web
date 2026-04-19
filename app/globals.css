@@ -120,13 +120,24 @@ body {
 }
 
 /* Tables */
+/* Tiptap wraps tables in <div class="tableWrapper"> — keep it bounded */
+.ProseMirror .tableWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
 .ProseMirror table {
   border-collapse: collapse;
   width: 100%;
+  table-layout: fixed;
   margin: 1rem 0;
   overflow: hidden;
   border-radius: 0.5rem;
   border: 1px solid var(--border);
+}
+/* Ignore any stored column widths — distribute equally */
+.ProseMirror table col {
+  width: auto !important;
 }
 .ProseMirror th,
 .ProseMirror td {
@@ -134,7 +145,8 @@ body {
   padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;
-  min-width: 80px;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .ProseMirror th {
   background: var(--surface-2);
@@ -158,24 +170,6 @@ body {
   pointer-events: none;
 }
 .ProseMirror.resize-cursor { cursor: col-resize; }
-
-/* Mobile: ignore stored column widths, distribute columns evenly, wrap content */
-@media (max-width: 640px) {
-  .ProseMirror table {
-    table-layout: fixed !important;
-    width: 100% !important;
-  }
-  .ProseMirror table col {
-    width: auto !important;
-  }
-  .ProseMirror th,
-  .ProseMirror td {
-    min-width: 0 !important;
-    width: auto !important;
-    word-break: break-word;
-    overflow-wrap: break-word;
-  }
-}
 
 /* Highlight */
 .ProseMirror mark {

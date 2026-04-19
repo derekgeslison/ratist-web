@@ -17,6 +17,7 @@ import FontFamily from "@tiptap/extension-font-family";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import DebateBlock from "./DebateBlock";
+import { FontSize } from "./rte-extensions";
 
 interface Props {
   content: string;
@@ -64,6 +65,7 @@ export default function RichTextRenderer({ content }: Props) {
       FontFamily,
       Subscript,
       Superscript,
+      FontSize,
       DebateBlock,
     ],
     content: content ? JSON.parse(content) : "",
