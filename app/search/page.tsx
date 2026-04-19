@@ -12,6 +12,7 @@ import ShowListItem from "@/components/ShowListItem";
 import ShowCard from "@/components/ShowCard";
 import { Suspense } from "react";
 import AdUnit from "@/components/AdUnit";
+import { prisma } from "@/lib/prisma";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
@@ -199,6 +200,19 @@ export default async function SearchPage({ searchParams }: Props) {
   else if (sortMode === "za") contentItems.sort((a, b) => b.title.localeCompare(a.title));
   else contentItems.sort((a, b) => b.popularity - a.popularity); // relevance = popularity
 
+  // Batch-lookup cached certifications from DB
+  const certMap = new Map<string, string>();
+  try {
+    const movieIds = contentItems.filter((c) => c.type === "movie").map((c) => c.id);
+    const showIds = contentItems.filter((c) => c.type === "tv").map((c) => c.id);
+    const [movieCerts, showCerts] = await Promise.all([
+      movieIds.length > 0 ? prisma.movie.findMany({ where: { tmdbId: { in: movieIds }, mpaaRating: { not: null } }, select: { tmdbId: true, mpaaRating: true } }) : [],
+      showIds.length > 0 ? prisma.tVShow.findMany({ where: { tmdbId: { in: showIds }, contentRating: { not: null } }, select: { tmdbId: true, contentRating: true } }) : [],
+    ]);
+    for (const m of movieCerts) if (m.mpaaRating) certMap.set(`m-${m.tmdbId}`, m.mpaaRating);
+    for (const s of showCerts) if (s.contentRating) certMap.set(`s-${s.tmdbId}`, s.contentRating);
+  } catch { /* DB not ready */ }
+
   const total = contentItems.length + (showPeople ? people.length : 0) + uniqueKeywordResults.length;
 
   return (
@@ -273,9 +287,9 @@ export default async function SearchPage({ searchParams }: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {contentItems.map((item) =>
                 item.type === "movie" ? (
-                  <MovieCard key={`m-${item.id}`} movie={item.data as TMDBMovie} />
+                  <MovieCard key={`m-${item.id}`} movie={item.data as TMDBMovie} certification={certMap.get(`m-${item.id}`)} />
                 ) : (
-                  <ShowCard key={`s-${item.id}`} show={item.data as TMDBShow} />
+                  <ShowCard key={`s-${item.id}`} show={item.data as TMDBShow} certification={certMap.get(`s-${item.id}`)} />
                 )
               )}
             </div>

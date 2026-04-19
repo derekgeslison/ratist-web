@@ -8,6 +8,7 @@ import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import AdUnit from "@/components/AdUnit";
 import SpotlightCards from "@/components/SpotlightCards";
+import { prisma } from "@/lib/prisma";
 
 // Genre ID mappings between movie and TV (TMDB uses different IDs for equivalent genres)
 const GENRE_MOVIE_TO_TV: Record<string, string[]> = {
@@ -292,6 +293,19 @@ export default async function MoviesPage({ searchParams }: Props) {
     for (let i = 0; i < showIds.length; i++) extractProviders(showProvidersList[i] as never, showIds[i]);
   }
 
+  // Batch-lookup cached certifications from DB
+  const certMap = new Map<string, string>();
+  try {
+    const movieTmdbIds = (movieResult?.results ?? []).map((m) => m.id);
+    const showTmdbIds = (showResult?.results ?? []).map((s) => s.id);
+    const [movieCerts, showCerts] = await Promise.all([
+      movieTmdbIds.length > 0 ? prisma.movie.findMany({ where: { tmdbId: { in: movieTmdbIds }, mpaaRating: { not: null } }, select: { tmdbId: true, mpaaRating: true } }) : [],
+      showTmdbIds.length > 0 ? prisma.tVShow.findMany({ where: { tmdbId: { in: showTmdbIds }, contentRating: { not: null } }, select: { tmdbId: true, contentRating: true } }) : [],
+    ]);
+    for (const m of movieCerts) if (m.mpaaRating) certMap.set(`m-${m.tmdbId}`, m.mpaaRating);
+    for (const s of showCerts) if (s.contentRating) certMap.set(`s-${s.tmdbId}`, s.contentRating);
+  } catch { /* DB not ready */ }
+
   const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);
   const totalPages = contentType === "tv"
     ? (showResult?.total_pages ?? 1)
@@ -330,9 +344,9 @@ export default async function MoviesPage({ searchParams }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {mixedResults.map((item) =>
               item.type === "movie" ? (
-                <MovieCard key={`m-${item.data.id}`} movie={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+                <MovieCard key={`m-${item.data.id}`} movie={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} certification={certMap.get(`m-${item.data.id}`)} />
               ) : (
-                <ShowCard key={`s-${item.data.id}`} show={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+                <ShowCard key={`s-${item.data.id}`} show={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} certification={certMap.get(`s-${item.data.id}`)} />
               )
             )}
           </div>
@@ -352,7 +366,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {movieResult.results.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} rent={rentMap.get(movie.id)} />
+                <MovieCard key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} rent={rentMap.get(movie.id)} certification={certMap.get(`m-${movie.id}`)} />
               ))}
             </div>
           )}
@@ -371,7 +385,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {showResult.results.map((show) => (
-                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} rent={rentMap.get(show.id)} />
+                <ShowCard key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} rent={rentMap.get(show.id)} certification={certMap.get(`s-${show.id}`)} />
               ))}
             </div>
           )}

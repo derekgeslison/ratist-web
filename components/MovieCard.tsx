@@ -15,9 +15,10 @@ interface Props {
   characterName?: string;
   streaming?: ProviderInfo[];
   rent?: ProviderInfo[];
+  certification?: string | null;
 }
 
-export default function MovieCard({ movie, characterName, streaming, rent }: Props) {
+export default function MovieCard({ movie, characterName, streaming, rent, certification }: Props) {
   const { user } = useAuth();
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
   const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useMovieUserState(movie.id);
@@ -102,6 +103,11 @@ export default function MovieCard({ movie, characterName, streaming, rent }: Pro
               {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {markingW ? "..." : "Watchlist"}</>}
             </button>
           </div>
+        )}
+        {certification && (
+          <span className="absolute bottom-2 right-2 bg-black/70 border border-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded z-10">
+            {certification}
+          </span>
         )}
       </div>
       <div className="p-2.5 flex flex-col gap-1">
