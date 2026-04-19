@@ -664,13 +664,23 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
 
             {/* Content Rating */}
             <div>
-              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">MPA Rating</p>
+              <div className="flex items-baseline gap-2 mb-2">
+                <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium">MPA Rating</p>
+                {(currentType === "all" || currentType === "tv") && (
+                  <p className="text-[10px] text-[var(--foreground-muted)]">
+                    Filter by{" "}
+                    <button onClick={() => update({ type: "movie" })} className="text-[var(--ratist-red)] hover:underline font-medium">
+                      Movies
+                    </button>
+                    {" "}to enable
+                  </p>
+                )}
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {MPAA_RATINGS.map((r) => (
                   <button
                     key={r}
                     onClick={() => currentType !== "all" && currentType !== "tv" && toggleMpaa(r)}
-                    title={currentType === "all" ? "Select Movies to filter by MPA rating" : currentType === "tv" ? "Switch to Movies to use MPA ratings" : undefined}
                     className={`${chipBase} ${
                       currentType === "all" || currentType === "tv"
                         ? "border-[var(--border)] text-[var(--foreground-muted)] opacity-40 cursor-not-allowed"
@@ -683,13 +693,23 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               </div>
             </div>
             <div>
-              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">TV Rating</p>
+              <div className="flex items-baseline gap-2 mb-2">
+                <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium">TV Rating</p>
+                {currentType !== "tv" && (
+                  <p className="text-[10px] text-[var(--foreground-muted)]">
+                    Filter by{" "}
+                    <button onClick={() => update({ type: "tv" })} className="text-[var(--ratist-red)] hover:underline font-medium">
+                      TV Shows
+                    </button>
+                    {" "}to enable
+                  </p>
+                )}
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {TV_RATINGS.map((r) => (
                   <button
                     key={r}
                     onClick={() => currentType === "tv" && toggleMpaa(r)}
-                    title={currentType === "all" ? "Select TV Shows to filter by TV rating" : currentType === "movie" ? "Switch to TV Shows to use TV ratings" : undefined}
                     className={`${chipBase} ${
                       currentType !== "tv"
                         ? "border-[var(--border)] text-[var(--foreground-muted)] opacity-40 cursor-not-allowed"
