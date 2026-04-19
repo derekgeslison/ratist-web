@@ -89,6 +89,7 @@ interface UserWatchlistInfo {
   description: string | null;
   isPrivate: boolean;
   movieCount: number;
+  previewMovies?: { tmdbId: number; title: string; posterPath: string | null }[];
 }
 
 interface EpisodeGroup {
@@ -693,16 +694,33 @@ export default function ProfileTabs({
 
       {/* ── WATCHLIST TAB ── */}
       {activeTab === "Watchlist" && (
-        <div>
-          {isOwnProfile && watchlistMovies.length > 0 && (
-            <div className="mb-4">
-              <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">
-                Manage watchlists →
-              </Link>
-            </div>
+        <div className="space-y-8">
+          {isOwnProfile && (watchlistMovies.length > 0 || userWatchlists.length > 0) && (
+            <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">
+              Manage watchlists →
+            </Link>
           )}
-          {watchlistMovies.length === 0 ? (
-            <div className="text-center py-16">
+
+          {/* Default watchlist */}
+          {watchlistMovies.length > 0 ? (
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-white">Watchlist</h3>
+                <span className="text-xs text-[var(--foreground-muted)]">{watchlistMovies.length} title{watchlistMovies.length !== 1 ? "s" : ""}</span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                {watchlistMovies.map((m, i) => (
+                  <Link key={i} href={`/movies/${m.tmdbId}`} className="group shrink-0 w-[100px]">
+                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
+                      <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
+                    </div>
+                    <p className="text-[11px] font-medium text-white line-clamp-1">{m.title}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <div className="text-center py-10">
               <p className="text-[var(--foreground-muted)] mb-3">
                 {isOwnProfile ? "Your watchlist is empty." : "No watchlist movies."}
               </p>
@@ -710,54 +728,36 @@ export default function ProfileTabs({
                 <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
               )}
             </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-              {watchlistMovies.map((m, i) => (
-                <Link key={i} href={`/movies/${m.tmdbId}`} className="group flex flex-col">
-                  <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
-                    {m.posterPath ? (
-                      <Image src={posterUrl(m.posterPath, "w185")} alt={m.title} fill sizes="120px" className="object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
-                    )}
-                  </div>
-                  <p className="text-xs font-medium text-white line-clamp-1">{m.title}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">{m.releaseDate?.slice(0, 4)}</p>
-                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    {m.voteAverage != null && m.voteAverage > 0 && (
-                      <RatingBadge type="community" score={m.voteAverage} size="sm" />
-                    )}
-                    {m.ratistRating != null && (
-                      <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
           )}
 
-          {/* Custom lists */}
-          {userWatchlists.filter((wl) => !wl.isPrivate || isOwnProfile).length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-sm font-semibold text-white mb-3">
-                {isOwnProfile ? "Your Lists" : "Lists"}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {userWatchlists
-                  .filter((wl) => !wl.isPrivate || isOwnProfile)
-                  .map((wl) => (
-                    <Link key={wl.id} href={isOwnProfile ? `/watchlist` : `/watchlist/${wl.id}/view`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors block">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-sm font-medium text-white truncate">{wl.name}</h4>
-                        <span className="text-xs text-[var(--foreground-muted)] shrink-0 ml-2">{wl.movieCount} movie{wl.movieCount !== 1 ? "s" : ""}</span>
-                      </div>
-                      {wl.description && <p className="text-xs text-[var(--foreground-muted)] line-clamp-2">{wl.description}</p>}
-                      {wl.isPrivate && <span className="text-[10px] text-[var(--foreground-muted)] opacity-60">Private</span>}
-                    </Link>
-                  ))}
-              </div>
-            </div>
-          )}
+          {/* Custom lists — one row per list */}
+          {userWatchlists
+            .filter((wl) => !wl.isPrivate || isOwnProfile)
+            .map((wl) => (
+              <section key={wl.id}>
+                <div className="flex items-center justify-between mb-3">
+                  <Link href={isOwnProfile ? "/watchlist" : `/watchlist/${wl.id}/view`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors flex items-center gap-2">
+                    {wl.name}
+                    {wl.isPrivate && <span className="text-[10px] text-[var(--foreground-muted)] opacity-60 font-normal">Private</span>}
+                  </Link>
+                  <span className="text-xs text-[var(--foreground-muted)]">{wl.movieCount} title{wl.movieCount !== 1 ? "s" : ""}</span>
+                </div>
+                {(wl.previewMovies?.length ?? 0) > 0 ? (
+                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                    {wl.previewMovies!.map((m) => (
+                      <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group shrink-0 w-[100px]">
+                        <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
+                          <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
+                        </div>
+                        <p className="text-[11px] font-medium text-white line-clamp-1">{m.title}</p>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--foreground-muted)]">No movies in this list yet.</p>
+                )}
+              </section>
+            ))}
         </div>
       )}
 

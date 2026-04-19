@@ -161,7 +161,14 @@ export default async function ProfilePage({ params }: Props) {
     }),
     prisma.watchlist.findMany({
       where: { userId: user.id, isDefault: false },
-      include: { _count: { select: { movies: true } } },
+      include: {
+        _count: { select: { movies: true } },
+        movies: {
+          take: 20,
+          orderBy: { addedAt: "desc" },
+          include: { movie: { select: { tmdbId: true, title: true, posterPath: true } } },
+        },
+      },
       orderBy: { createdAt: "asc" },
     }),
     prisma.userMovieRanking.findMany({
@@ -502,6 +509,7 @@ export default async function ProfilePage({ params }: Props) {
           description: wl.description,
           isPrivate: wl.isPrivate,
           movieCount: wl._count.movies,
+          previewMovies: wl.movies.map((m) => ({ tmdbId: m.movie.tmdbId, title: m.movie.title, posterPath: m.movie.posterPath })),
         }))}
         recommendations={recommendations}
         similarUsers={similarUsers}

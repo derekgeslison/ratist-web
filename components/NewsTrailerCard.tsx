@@ -316,10 +316,10 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
               </div>
             </button>
             {/* Poster + movie name */}
-            {posterPath && mediaLink ? (
+            {mediaLink ? (
               <Link href={mediaLink} className="w-[30%] shrink-0 bg-[var(--surface-2)] flex flex-col items-center justify-center gap-2 p-2">
                 <div className="relative w-full max-w-[80px] aspect-[2/3] rounded-lg overflow-hidden">
-                  <Image src={`https://image.tmdb.org/t/p/w154${posterPath}`} alt="" fill sizes="80px" className="object-cover" />
+                  <Image src={posterPath ? `https://image.tmdb.org/t/p/w154${posterPath}` : "/placeholder-poster.svg"} alt="" fill sizes="80px" className="object-cover" />
                 </div>
                 {movieName && (
                   <p className="text-xs font-semibold text-white text-center line-clamp-2 leading-tight">{movieName}</p>
@@ -344,10 +344,10 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
         {/* Desktop layout */}
         <div className="hidden sm:flex gap-4 p-4">
           {/* Movie/show poster */}
-          {posterPath && mediaLink && (
+          {mediaLink && (
             <Link href={mediaLink} className="relative w-20 aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/poster">
               <Image
-                src={`https://image.tmdb.org/t/p/w154${posterPath}`}
+                src={posterPath ? `https://image.tmdb.org/t/p/w154${posterPath}` : "/placeholder-poster.svg"}
                 alt=""
                 fill
                 sizes="80px"
