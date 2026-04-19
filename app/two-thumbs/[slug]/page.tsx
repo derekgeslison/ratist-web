@@ -50,7 +50,7 @@ export default async function TwoThumbsPostPage({ params }: Props) {
   if (!post) notFound();
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/two-thumbs" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Two Thumbs
       </Link>
