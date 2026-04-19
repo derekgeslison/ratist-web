@@ -206,6 +206,11 @@ export default function ForYouPage() {
   const [data, setData] = useState<FeedData | null>(null);
   const [fetching, setFetching] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAllPicks, setShowAllPicks] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(false);
+  const [tempOrder, setTempOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
 
   const fetchFeed = useCallback(async (isRefresh = false) => {
     if (!user) { setFetching(false); return; }
@@ -223,8 +228,6 @@ export default function ForYouPage() {
     if (loading) return;
     fetchFeed();
   }, [loading, fetchFeed]);
-
-  const [showAllPicks, setShowAllPicks] = useState(false);
 
   if (loading || fetching) {
     return (
@@ -258,10 +261,6 @@ export default function ForYouPage() {
   const isEmpty = !hasTopPicks && !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasIncomplete;
 
   const sectionOrder = data.sectionOrder ?? DEFAULT_SECTION_ORDER;
-  const [editingOrder, setEditingOrder] = useState(false);
-  const [tempOrder, setTempOrder] = useState<string[]>(sectionOrder);
-  const dragItem = useRef<number | null>(null);
-  const dragOver = useRef<number | null>(null);
 
   function openOrderEditor() {
     setTempOrder([...sectionOrder]);
