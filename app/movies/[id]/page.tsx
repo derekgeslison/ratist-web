@@ -213,7 +213,8 @@ export default async function MovieDetailPage({ params }: Props) {
         createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
       };
     });
-    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
+    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch { /* DB not ready */ }
 
   // Fetch awards from DB

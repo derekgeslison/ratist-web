@@ -277,13 +277,13 @@ export default async function CelebrityPage({ params }: Props) {
   } catch { /* DB not ready */ }
 
   // Fetch forum discussions about this person
-  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; linkHref?: string }[] = [];
+  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; createdAt: string; linkHref?: string }[] = [];
   try {
     const [threads, newsItems, blogItems] = await Promise.all([
       prisma.forumThread.findMany({
         where: { people: { some: { tmdbId: person.id } } },
         select: {
-          id: true, title: true, slug: true, threadType: true,
+          id: true, title: true, slug: true, threadType: true, createdAt: true,
           author: { select: { name: true } },
           _count: { select: { posts: true } },
         },
@@ -305,21 +305,25 @@ export default async function CelebrityPage({ params }: Props) {
     ]);
     const forumDiscussions = threads.map((t) => ({
       id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
-      authorName: t.author.name, postCount: t._count.posts, linkHref: `/forum/t/${t.slug}`,
+      authorName: t.author.name, postCount: t._count.posts,
+      createdAt: t.createdAt.toISOString(), linkHref: `/forum/t/${t.slug}`,
     }));
     const newsDiscussions = newsItems.map((n) => ({
       id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
-      authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `/news/${n.slug}`,
+      authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0,
+      createdAt: (n.publishedAt ?? new Date()).toISOString(), linkHref: `/news/${n.slug}`,
     }));
     const blogDiscussions = blogItems.map((b) => {
       const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
       const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
       return {
         id: b.id, title: b.title, slug: b.slug, threadType,
-        authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `${basePath}/${b.slug}`,
+        authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0,
+        createdAt: b.createdAt.toISOString(), linkHref: `${basePath}/${b.slug}`,
       };
     });
-    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
+    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch { /* DB not ready */ }
 
   return (

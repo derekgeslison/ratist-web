@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import CelebrityCreditsSection, { type Credit } from "./CelebrityCreditsSection";
 import CelebrityAwardsSection from "./CelebrityAwardsSection";
 import type { AwardBodyGroup } from "@/lib/awards";
+import DiscussionRow from "@/components/DiscussionRow";
 
 interface Discussion {
   id: string;
@@ -16,6 +17,7 @@ interface Discussion {
   threadType: string;
   authorName: string;
   postCount: number;
+  createdAt: string;
   linkHref?: string;
 }
 
@@ -179,16 +181,7 @@ export default function CelebrityDetailTabs({
           {discussions.length > 0 ? (
             <div className="space-y-2">
               {discussions.map((d) => (
-                <Link
-                  key={d.id}
-                  href={d.linkHref ?? `/forum/t/${d.slug}`}
-                  className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{d.title}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">{d.authorName !== "The Ratist" && `by ${d.authorName}`}{d.authorName !== "The Ratist" && d.postCount > 0 && " · "}{d.postCount > 0 && `${d.postCount} posts`}</p>
-                  </div>
-                </Link>
+                <DiscussionRow key={d.id} d={d} />
               ))}
             </div>
           ) : (

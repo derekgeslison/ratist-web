@@ -25,6 +25,7 @@ import AwardsTab from "./AwardsTab";
 import ReviewCard from "./ReviewCard";
 import RatingBadge from "./RatingBadge";
 import type { AwardBodyGroup } from "@/lib/awards";
+import DiscussionRow from "./DiscussionRow";
 
 interface Discussion {
   id: string;
@@ -1073,23 +1074,13 @@ export default function ShowDetailTabs({
                     <span className="text-[10px] text-yellow-400">May contain spoilers</span>
                   </div>
                   {discussions.filter((d) => d.threadType === "theory").map((d) => (
-                    <Link key={d.id} href={d.linkHref ?? `/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{d.title}</p>
-                        <p className="text-xs text-[var(--foreground-muted)]">{d.authorName !== "The Ratist" && `by ${d.authorName}`}{d.authorName !== "The Ratist" && d.postCount > 0 && " · "}{d.postCount > 0 && `${d.postCount} posts`}</p>
-                      </div>
-                    </Link>
+                    <DiscussionRow key={d.id} d={d} />
                   ))}
                   {discussions.some((d) => d.threadType !== "theory") && <hr className="border-[var(--border)] my-3" />}
                 </>
               )}
               {discussions.filter((d) => d.threadType !== "theory").map((d) => (
-                <Link key={d.id} href={d.linkHref ?? `/forum/t/${d.slug}`} className="flex items-center justify-between bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{d.title}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">{d.authorName !== "The Ratist" && `by ${d.authorName}`}{d.authorName !== "The Ratist" && d.postCount > 0 && " · "}{d.postCount > 0 && `${d.postCount} posts`}</p>
-                  </div>
-                </Link>
+                <DiscussionRow key={d.id} d={d} />
               ))}
             </div>
           ) : (
