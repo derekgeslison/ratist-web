@@ -124,46 +124,67 @@ export default function BackstagePassPage() {
         </div>
       )}
 
-      {/* Pricing toggle */}
-      {!hasPass && !loading && (
-        <>
-          <div className="flex justify-center gap-3 mb-8">
-            <button
-              onClick={() => setSelectedPlan("monthly")}
-              className={`px-6 py-3 rounded-xl text-sm font-semibold transition-colors ${
-                selectedPlan === "monthly" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-              }`}
-            >
-              $3.99 / month
-            </button>
-            <button
-              onClick={() => setSelectedPlan("annual")}
-              className={`px-6 py-3 rounded-xl text-sm font-semibold transition-colors relative ${
-                selectedPlan === "annual" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-              }`}
-            >
-              $39.99 / year
-              <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">Save 17%</span>
-            </button>
-          </div>
-
-          <div className="text-center mb-8">
-            {user ? (
-              <button
-                onClick={handleCheckout}
-                disabled={checkingOut}
-                className="px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors disabled:opacity-50"
-              >
-                {checkingOut ? "Redirecting to checkout..." : `Get Backstage Pass — ${selectedPlan === "annual" ? "$39.99/year" : "$3.99/month"}`}
-              </button>
-            ) : (
-              <SignInLink className="inline-block px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors">
-                Sign in to subscribe
-              </SignInLink>
+      {/* Pricing toggle — shown for non-subscribers, and for admin-granted users
+          whose free period is ending soon so they can subscribe without downtime */}
+      {(() => {
+        const expiryDate = expiry ? new Date(expiry) : null;
+        const expiryInFuture = expiryDate && expiryDate.getTime() > Date.now();
+        const showUpgrade = hasPass && status === "admin_granted" && expiryInFuture;
+        if (loading) return null;
+        if (!(!hasPass || showUpgrade)) return null;
+        return (
+          <>
+            {showUpgrade && expiryDate && (
+              <p className="text-center text-sm text-[var(--foreground-muted)] mb-4">
+                Subscribe now so you don&apos;t lose access — billing will start on{" "}
+                <span className="text-white font-semibold">
+                  {expiryDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                </span>{" "}
+                when your free period ends.
+              </p>
             )}
-          </div>
-        </>
-      )}
+            <div className="flex justify-center gap-3 mb-8">
+              <button
+                onClick={() => setSelectedPlan("monthly")}
+                className={`px-6 py-3 rounded-xl text-sm font-semibold transition-colors ${
+                  selectedPlan === "monthly" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                $3.99 / month
+              </button>
+              <button
+                onClick={() => setSelectedPlan("annual")}
+                className={`px-6 py-3 rounded-xl text-sm font-semibold transition-colors relative ${
+                  selectedPlan === "annual" ? "bg-[var(--ratist-red)] text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                $39.99 / year
+                <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">Save 17%</span>
+              </button>
+            </div>
+
+            <div className="text-center mb-8">
+              {user ? (
+                <button
+                  onClick={handleCheckout}
+                  disabled={checkingOut}
+                  className="px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {checkingOut
+                    ? "Redirecting to checkout..."
+                    : showUpgrade
+                      ? `Subscribe — ${selectedPlan === "annual" ? "$39.99/year" : "$3.99/month"} after free period`
+                      : `Get Backstage Pass — ${selectedPlan === "annual" ? "$39.99/year" : "$3.99/month"}`}
+                </button>
+              ) : (
+                <SignInLink className="inline-block px-8 py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-lg font-bold rounded-xl transition-colors">
+                  Sign in to subscribe
+                </SignInLink>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Feature comparison table */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">

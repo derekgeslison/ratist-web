@@ -37,6 +37,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // If the user has an admin-granted Backstage Pass that expires in the
+    // future, start the new Stripe subscription as a trial that ends when
+    // their free period does. Stripe requires trial_end to be at least 48h
+    // in the future — if it's closer than that, fall back to immediate billing.
+    const now = Date.now();
+    const minTrialMs = 48 * 60 * 60 * 1000;
+    let trialEnd: number | undefined;
+    if (
+      user.subscriptionStatus === "admin_granted" &&
+      user.subscriptionExpiry &&
+      new Date(user.subscriptionExpiry).getTime() - now > minTrialMs
+    ) {
+      trialEnd = Math.floor(new Date(user.subscriptionExpiry).getTime() / 1000);
+    }
+
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
@@ -44,6 +59,7 @@ export async function POST(req: NextRequest) {
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/backstage-pass?success=1`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/backstage-pass?canceled=1`,
       metadata: { userId: user.id },
+      ...(trialEnd ? { subscription_data: { trial_end: trialEnd } } : {}),
     });
 
     return NextResponse.json({ url: session.url });

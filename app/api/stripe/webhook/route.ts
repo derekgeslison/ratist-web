@@ -26,12 +26,16 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
         if (userId && session.subscription) {
+          // Fetch the subscription so we record the real status (trialing vs active)
+          const subId = session.subscription as string;
+          const sub = await getStripe().subscriptions.retrieve(subId).catch(() => null);
+          const status = sub?.status ?? "active";
           const updated = await prisma.user.update({
             where: { id: userId },
             data: {
               subscriptionTier: "backstage_pass",
-              subscriptionStatus: "active",
-              stripeSubscriptionId: session.subscription as string,
+              subscriptionStatus: status,
+              stripeSubscriptionId: subId,
               subscriptionExpiry: null,
             },
             select: { email: true, name: true },

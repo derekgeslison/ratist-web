@@ -25,8 +25,8 @@ export function isSubscriptionActive(user: {
 
   // Check status
   const status = user.subscriptionStatus;
-  if (status === "active" || status === "admin_granted") {
-    // Check expiry if set
+  if (status === "active" || status === "trialing" || status === "admin_granted") {
+    // Check expiry if set (admin_granted uses this; Stripe manages its own trial/period end)
     if (user.subscriptionExpiry) {
       return new Date(user.subscriptionExpiry) > new Date();
     }
