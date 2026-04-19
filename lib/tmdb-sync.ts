@@ -34,6 +34,9 @@ export interface TMDBMovieForSync {
   releases?: {
     countries?: { iso_3166_1: string; certification: string; release_dates?: { certification: string }[] }[];
   };
+  release_dates?: {
+    results?: { iso_3166_1: string; release_dates: { certification: string; type: number }[] }[];
+  };
   videos?: {
     results?: { key: string; site: string; type: string }[];
   };
@@ -79,11 +82,16 @@ export interface TMDBPersonForSync {
 // ─── Movie upsert ─────────────────────────────────────────────────────────────
 
 export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
-  // Derive MPAA rating from releases
+  // Derive MPAA rating from release_dates (preferred) or legacy releases
   let mpaaRating: string | null = null;
-  const usRelease = tmdb.releases?.countries?.find((c) => c.iso_3166_1 === "US");
-  if (usRelease?.certification) {
-    mpaaRating = usRelease.certification || null;
+  const usReleaseNew = tmdb.release_dates?.results?.find((r) => r.iso_3166_1 === "US");
+  if (usReleaseNew) {
+    const rated = usReleaseNew.release_dates.find((d) => d.certification && d.type === 3)
+      ?? usReleaseNew.release_dates.find((d) => d.certification);
+    if (rated?.certification) mpaaRating = rated.certification;
+  } else {
+    const usRelease = tmdb.releases?.countries?.find((c) => c.iso_3166_1 === "US");
+    if (usRelease?.certification) mpaaRating = usRelease.certification || null;
   }
 
   // Derive trailer key

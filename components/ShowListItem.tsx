@@ -15,9 +15,10 @@ interface Props {
   characterName?: string;
   streaming?: ProviderInfo[];
   rent?: ProviderInfo[];
+  certification?: string | null;
 }
 
-export default function ShowListItem({ show, characterName, streaming, rent }: Props) {
+export default function ShowListItem({ show, characterName, streaming, rent, certification }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
   const { seen, watchlisted, ratistRating, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
@@ -72,6 +73,7 @@ export default function ShowListItem({ show, characterName, streaming, rent }: P
         <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{show.name}</p>
         <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
           {show.first_air_date?.slice(0, 4) || "TBA"}
+          {certification && <span className="ml-2 border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold rounded text-white">{certification}</span>}
           {characterName && <span className="text-[var(--ratist-red)]/70 ml-2">as {characterName}</span>}
         </p>
         <p className="text-xs text-[var(--foreground-muted)] mt-1 line-clamp-2 hidden sm:block">{show.overview}</p>

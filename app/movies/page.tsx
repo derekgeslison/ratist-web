@@ -334,9 +334,9 @@ export default async function MoviesPage({ searchParams }: Props) {
           <div className="flex flex-col divide-y divide-[var(--border)]">
             {mixedResults.map((item) =>
               item.type === "movie" ? (
-                <MovieListItem key={`m-${item.data.id}`} movie={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+                <MovieListItem key={`m-${item.data.id}`} movie={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} certification={certMap.get(`m-${item.data.id}`)} />
               ) : (
-                <ShowListItem key={`s-${item.data.id}`} show={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} />
+                <ShowListItem key={`s-${item.data.id}`} show={item.data} characterName={characterMap.get(item.data.id)} streaming={streamingMap.get(item.data.id)} rent={rentMap.get(item.data.id)} certification={certMap.get(`s-${item.data.id}`)} />
               )
             )}
           </div>
@@ -360,7 +360,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {movieResult.results.map((movie) => (
-                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} rent={rentMap.get(movie.id)} />
+                <MovieListItem key={movie.id} movie={movie} characterName={characterMap.get(movie.id)} streaming={streamingMap.get(movie.id)} rent={rentMap.get(movie.id)} certification={certMap.get(`m-${movie.id}`)} />
               ))}
             </div>
           ) : (
@@ -379,7 +379,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           {view === "list" ? (
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {showResult.results.map((show) => (
-                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} rent={rentMap.get(show.id)} />
+                <ShowListItem key={show.id} show={show} characterName={characterMap.get(show.id)} streaming={streamingMap.get(show.id)} rent={rentMap.get(show.id)} certification={certMap.get(`s-${show.id}`)} />
               ))}
             </div>
           ) : (

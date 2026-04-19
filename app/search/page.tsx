@@ -297,9 +297,9 @@ export default async function SearchPage({ searchParams }: Props) {
             <div className="flex flex-col divide-y divide-[var(--border)]">
               {contentItems.map((item) =>
                 item.type === "movie" ? (
-                  <MovieListItem key={`m-${item.id}`} movie={item.data as TMDBMovie} />
+                  <MovieListItem key={`m-${item.id}`} movie={item.data as TMDBMovie} certification={certMap.get(`m-${item.id}`)} />
                 ) : (
-                  <ShowListItem key={`s-${item.id}`} show={item.data as TMDBShow} />
+                  <ShowListItem key={`s-${item.id}`} show={item.data as TMDBShow} certification={certMap.get(`s-${item.id}`)} />
                 )
               )}
             </div>
