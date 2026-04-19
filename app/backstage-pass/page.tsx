@@ -27,9 +27,11 @@ const FEATURES = [
 
 export default function BackstagePassPage() {
   const { user } = useAuth();
-  const { hasPass, loading } = useSubscription();
+  const { hasPass, status, expiry, loading } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "annual">("annual");
   const [checkingOut, setCheckingOut] = useState(false);
+  const [manageError, setManageError] = useState("");
+  const [manageLoading, setManageLoading] = useState(false);
 
   async function handleCheckout() {
     if (!user) return;
@@ -48,16 +50,30 @@ export default function BackstagePassPage() {
   }
 
   async function handleManage() {
-    if (!user) return;
-    const token = await user.getIdToken();
-    const res = await fetch("/api/subscription/portal", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const { url } = await res.json();
-      if (url) window.location.href = url;
+    if (!user || manageLoading) return;
+    setManageLoading(true);
+    setManageError("");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/subscription/portal", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setManageError(data.error ?? "Couldn't open the billing portal. Please try again later.");
+        setManageLoading(false);
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setManageError("The billing portal didn't return a URL.");
+    } catch {
+      setManageError("Network error — please try again.");
     }
+    setManageLoading(false);
   }
 
   return (
@@ -77,11 +93,34 @@ export default function BackstagePassPage() {
       {hasPass && !loading && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 mb-8 text-center">
           <p className="text-lg font-semibold text-emerald-400 mb-2">You have the Backstage Pass!</p>
-          <p className="text-sm text-[var(--foreground-muted)] mb-4">Enjoy all premium features.</p>
-          <button onClick={handleManage}
-            className="px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] transition-colors">
-            Manage Subscription
-          </button>
+          {status === "admin_granted" ? (
+            <>
+              <p className="text-sm text-[var(--foreground-muted)]">
+                Admin-granted Backstage Pass — managed by Ratist staff.
+                {expiry && (
+                  <> Expires{" "}
+                    <span className="text-white">
+                      {new Date(expiry).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                    </span>
+                    .
+                  </>
+                )}
+                {!expiry && " No expiration."}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-[var(--foreground-muted)] mb-4">Enjoy all premium features.</p>
+              <button
+                onClick={handleManage}
+                disabled={manageLoading}
+                className="px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+              >
+                {manageLoading ? "Opening..." : "Manage Subscription"}
+              </button>
+              {manageError && <p className="text-xs text-red-400 mt-2">{manageError}</p>}
+            </>
+          )}
         </div>
       )}
 
