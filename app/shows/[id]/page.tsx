@@ -114,7 +114,7 @@ export default async function ShowDetailPage({ params }: Props) {
       }),
       prisma.blogPost.findMany({
         where: { published: true, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
-        select: { id: true, title: true, slug: true, viewCount: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
+        select: { id: true, title: true, slug: true, type: true, viewCount: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
@@ -129,11 +129,15 @@ export default async function ShowDetailPage({ params }: Props) {
       authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
       createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
     }));
-    const blogDiscussions = linkedBlog.map((b) => ({
-      id: b.id, title: b.title, slug: b.slug, threadType: "blog",
-      authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
-      createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `/blog/${b.slug}`,
-    }));
+    const blogDiscussions = linkedBlog.map((b) => {
+      const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
+      const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
+      return {
+        id: b.id, title: b.title, slug: b.slug, threadType,
+        authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
+        createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
+      };
+    });
     discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
   } catch { /* DB not ready */ }
 

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import RichTextRenderer from "@/components/RichTextRenderer";
 import CommentSection from "@/components/CommentSection";
 import PostLikeButton from "@/components/PostLikeButton";
+import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
+import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
 import { ArrowLeft, Calendar, Map } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
@@ -40,6 +42,8 @@ export default async function MovieMapPostPage({ params }: Props) {
     where: { slug, published: true, type: "MOVIE_MAP" },
     include: {
       author: { select: { name: true, avatarUrl: true } },
+      media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
+      people: { select: { tmdbId: true, name: true, profilePath: true } },
     },
   });
   if (!post) notFound();
@@ -76,6 +80,9 @@ export default async function MovieMapPostPage({ params }: Props) {
           </p>
         </div>
       </div>
+      {post.media.length > 0 && <LinkedMediaRow media={post.media} />}
+      {post.people.length > 0 && <LinkedPeopleRow people={post.people} />}
+
       <RichTextRenderer content={post.content} />
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG_POST ?? ""} format="auto" className="my-8" />
       {/* Comments */}

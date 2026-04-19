@@ -298,7 +298,7 @@ export default async function CelebrityPage({ params }: Props) {
       }),
       prisma.blogPost.findMany({
         where: { published: true, people: { some: { tmdbId: person.id } } },
-        select: { id: true, title: true, slug: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
+        select: { id: true, title: true, slug: true, type: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
@@ -311,10 +311,14 @@ export default async function CelebrityPage({ params }: Props) {
       id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
       authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `/news/${n.slug}`,
     }));
-    const blogDiscussions = blogItems.map((b) => ({
-      id: b.id, title: b.title, slug: b.slug, threadType: "blog",
-      authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `/blog/${b.slug}`,
-    }));
+    const blogDiscussions = blogItems.map((b) => {
+      const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
+      const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
+      return {
+        id: b.id, title: b.title, slug: b.slug, threadType,
+        authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, linkHref: `${basePath}/${b.slug}`,
+      };
+    });
     discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions];
   } catch { /* DB not ready */ }
 
