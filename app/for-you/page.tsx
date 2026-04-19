@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { useAuth } from "@/context/AuthContext";
-import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check, Settings, GripVertical, X } from "lucide-react";
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -59,7 +59,18 @@ interface FeedData {
   unwatchedWatchlist: MediaItem[];
   completeTheRating: IncompleteItem[];
   ratistReviewCount?: number;
+  sectionOrder?: string[] | null;
 }
+
+const DEFAULT_SECTION_ORDER = ["topPicks", "becauseYouLiked", "trending", "watchlist", "following", "incomplete"];
+const SECTION_LABELS: Record<string, string> = {
+  topPicks: "Top Picks For You",
+  becauseYouLiked: "Because You Liked",
+  trending: "Trending on The Ratist",
+  watchlist: "From Your Watchlist",
+  following: "From People You Follow",
+  incomplete: "Complete Your Rating",
+};
 
 function toMovieProps(item: MediaItem) {
   return {
@@ -246,6 +257,40 @@ export default function ForYouPage() {
   const hasIncomplete = data.completeTheRating.length > 0;
   const isEmpty = !hasTopPicks && !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasIncomplete;
 
+  const sectionOrder = data.sectionOrder ?? DEFAULT_SECTION_ORDER;
+  const [editingOrder, setEditingOrder] = useState(false);
+  const [tempOrder, setTempOrder] = useState<string[]>(sectionOrder);
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
+
+  function openOrderEditor() {
+    setTempOrder([...sectionOrder]);
+    setEditingOrder(true);
+  }
+
+  async function saveOrder() {
+    if (!user) return;
+    setEditingOrder(false);
+    // Update local data so sections reorder immediately
+    if (data) (data as FeedData & { sectionOrder: string[] }).sectionOrder = tempOrder;
+    const token = await user.getIdToken();
+    await fetch("/api/feed/for-you/order", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ order: tempOrder }),
+    }).catch(() => {});
+  }
+
+  function handleDragEnd() {
+    if (dragItem.current === null || dragOver.current === null || dragItem.current === dragOver.current) return;
+    const reordered = [...tempOrder];
+    const [moved] = reordered.splice(dragItem.current, 1);
+    reordered.splice(dragOver.current, 0, moved);
+    setTempOrder(reordered);
+    dragItem.current = null;
+    dragOver.current = null;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
       {data?.ratistReviewCount != null && data.ratistReviewCount < 10 && (
@@ -266,15 +311,59 @@ export default function ForYouPage() {
           <h1 className="text-2xl font-bold text-white mb-1">For You</h1>
           <p className="text-sm text-[var(--foreground-muted)]">Your personalized feed based on your taste, activity, and who you follow.</p>
         </div>
-        <button
-          onClick={() => fetchFeed(true)}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openOrderEditor}
+            className="p-2 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors"
+            title="Customize section order"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => fetchFeed(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
+
+      {/* Section order editor */}
+      {editingOrder && (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white">Customize Section Order</h3>
+            <button onClick={() => setEditingOrder(false)}><X className="w-4 h-4 text-[var(--foreground-muted)]" /></button>
+          </div>
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">Drag to reorder the sections on your For You page.</p>
+          <div className="space-y-1.5 mb-4">
+            {tempOrder.map((key, idx) => (
+              <div
+                key={key}
+                draggable
+                onDragStart={() => { dragItem.current = idx; }}
+                onDragEnter={() => { dragOver.current = idx; }}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className="flex items-center gap-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing"
+              >
+                <GripVertical className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
+                <span className="text-sm text-white">{SECTION_LABELS[key] ?? key}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={saveOrder} className="px-4 py-1.5 bg-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors">
+              Save Order
+            </button>
+            <button onClick={() => { setTempOrder([...DEFAULT_SECTION_ORDER]); }} className="px-4 py-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
+              Reset to Default
+            </button>
+          </div>
+        </div>
+      )}
 
       <SpotlightCards placement="for_you" />
 
@@ -287,105 +376,108 @@ export default function ForYouPage() {
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME ?? ""} format="auto" className="mb-8" />
 
-      {/* Top Picks For You */}
-      {hasTopPicks && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Star className="w-5 h-5 text-[var(--ratist-red)]" />
-            <h2 className="text-lg font-semibold text-white">Top Picks For You</h2>
-          </div>
-          <p className="text-xs text-[var(--foreground-muted)] mb-4">Movies we think you&apos;d rate highest based on your taste profile. Only showing movies you haven&apos;t seen.</p>
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-            {(showAllPicks ? data.topPicks : data.topPicks.slice(0, 10)).map((pick, i) => (
-              <TopPickRow key={pick.tmdbId} pick={pick} rank={i + 1} />
+      {/* Sections rendered in user's preferred order */}
+      {sectionOrder.map((sectionKey) => {
+        if (sectionKey === "topPicks" && hasTopPicks) return (
+          <section key="topPicks">
+            <div className="flex items-center gap-2 mb-4">
+              <Star className="w-5 h-5 text-[var(--ratist-red)]" />
+              <h2 className="text-lg font-semibold text-white">Top Picks For You</h2>
+            </div>
+            <p className="text-xs text-[var(--foreground-muted)] mb-4">Movies we think you&apos;d rate highest based on your taste profile. Only showing movies you haven&apos;t seen.</p>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+              {(showAllPicks ? data.topPicks : data.topPicks.slice(0, 10)).map((pick, i) => (
+                <TopPickRow key={pick.tmdbId} pick={pick} rank={i + 1} />
+              ))}
+            </div>
+            {data.topPicks.length > 10 && (
+              <button
+                onClick={() => setShowAllPicks(!showAllPicks)}
+                className="flex items-center gap-1 mt-3 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform ${showAllPicks ? "rotate-180" : ""}`} />
+                {showAllPicks ? "Show less" : `Show ${data.topPicks.length - 10} more`}
+              </button>
+            )}
+          </section>
+        );
+
+        if (sectionKey === "becauseYouLiked" && hasBecauseYouLiked) return (
+          <div key="becauseYouLiked" className="space-y-12">
+            {data.becauseYouLiked.map((section) => (
+              <section key={section.source.tmdbId}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-5 h-5 text-[var(--ratist-red)]" />
+                  <h2 className="text-lg font-semibold text-white">
+                    Because you liked{" "}
+                    <Link href={`/movies/${section.source.tmdbId}`} className="text-[var(--ratist-red)] hover:underline">
+                      {section.source.title}
+                    </Link>
+                  </h2>
+                </div>
+                <MediaGrid items={section.recs} />
+              </section>
             ))}
           </div>
-          {data.topPicks.length > 10 && (
-            <button
-              onClick={() => setShowAllPicks(!showAllPicks)}
-              className="flex items-center gap-1 mt-3 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-            >
-              <ChevronDown className={`w-4 h-4 transition-transform ${showAllPicks ? "rotate-180" : ""}`} />
-              {showAllPicks ? "Show less" : `Show ${data.topPicks.length - 10} more`}
-            </button>
-          )}
-        </section>
-      )}
+        );
 
-      {/* Because You Liked X */}
-      {hasBecauseYouLiked && data.becauseYouLiked.map((section) => (
-        <section key={section.source.tmdbId}>
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-5 h-5 text-[var(--ratist-red)]" />
-            <h2 className="text-lg font-semibold text-white">
-              Because you liked{" "}
-              <Link href={`/movies/${section.source.tmdbId}`} className="text-[var(--ratist-red)] hover:underline">
-                {section.source.title}
-              </Link>
-            </h2>
-          </div>
-          <MediaGrid items={section.recs} />
-        </section>
-      ))}
+        if (sectionKey === "trending" && hasTrending) return (
+          <section key="trending">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-5 h-5 text-[var(--ratist-red)]" />
+              <h2 className="text-lg font-semibold text-white">Trending on The Ratist</h2>
+            </div>
+            <MediaGrid items={data.trendingInCluster} />
+          </section>
+        );
 
-      {/* Trending in Community */}
-      {hasTrending && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-[var(--ratist-red)]" />
-            <h2 className="text-lg font-semibold text-white">Trending on The Ratist</h2>
-          </div>
-          <MediaGrid items={data.trendingInCluster} />
-        </section>
-      )}
+        if (sectionKey === "watchlist" && hasWatchlist) return (
+          <section key="watchlist">
+            <div className="flex items-center gap-2 mb-4">
+              <Bookmark className="w-5 h-5 text-[var(--ratist-red)]" />
+              <h2 className="text-lg font-semibold text-white">From Your Watchlist</h2>
+            </div>
+            <MediaGrid items={data.unwatchedWatchlist} />
+          </section>
+        );
 
-      {/* Unwatched Watchlist */}
-      {hasWatchlist && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Bookmark className="w-5 h-5 text-[var(--ratist-red)]" />
-            <h2 className="text-lg font-semibold text-white">From Your Watchlist</h2>
-          </div>
-          <MediaGrid items={data.unwatchedWatchlist} />
-        </section>
-      )}
+        if (sectionKey === "following" && hasFollowActivity) return (
+          <section key="following">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="w-5 h-5 text-[var(--ratist-red)]" />
+              <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
+            </div>
+            <MediaGrid items={data.followActivity} showUser />
+          </section>
+        );
 
-      {/* Following Activity */}
-      {hasFollowActivity && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-5 h-5 text-[var(--ratist-red)]" />
-            <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
-          </div>
-          <MediaGrid items={data.followActivity} showUser />
-        </section>
-      )}
+        if (sectionKey === "incomplete" && hasIncomplete) return (
+          <section key="incomplete">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertCircle className="w-5 h-5 text-orange-400" />
+              <h2 className="text-lg font-semibold text-white">Complete Your Rating</h2>
+            </div>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">
+              These have quick ratings or incomplete reviews. Fill in the full breakdown to get a more accurate Ratist score.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {data.completeTheRating.map((item) => (
+                <div key={item.tmdbId} className="relative">
+                  <MovieCard movie={toMovieProps({ ...item, type: "movie" }) as never} />
+                  <Link
+                    href={`/movies/${item.tmdbId}/rate`}
+                    className="absolute top-2 right-2 z-10 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors hover:bg-orange-400 hover:text-black bg-black/70 border-orange-400/60 text-orange-300"
+                  >
+                    {item.reviewType === "basic" ? "Quick rating" : "Incomplete"}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
 
-      {/* Complete the Rating */}
-      {hasIncomplete && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle className="w-5 h-5 text-orange-400" />
-            <h2 className="text-lg font-semibold text-white">Complete Your Rating</h2>
-          </div>
-          <p className="text-xs text-[var(--foreground-muted)] mb-3">
-            These have quick ratings or incomplete reviews. Fill in the full breakdown to get a more accurate Ratist score.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {data.completeTheRating.map((item) => (
-              <div key={item.tmdbId} className="relative">
-                <MovieCard movie={toMovieProps({ ...item, type: "movie" }) as never} />
-                <Link
-                  href={`/movies/${item.tmdbId}/rate`}
-                  className="absolute top-2 right-2 z-10 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors hover:bg-orange-400 hover:text-black bg-black/70 border-orange-400/60 text-orange-300"
-                >
-                  {item.reviewType === "basic" ? "Quick rating" : "Incomplete"}
-                </Link>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+        return null;
+      })}
     </div>
   );
 }

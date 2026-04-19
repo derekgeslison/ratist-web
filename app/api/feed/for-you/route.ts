@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
-      select: { id: true },
+      select: { id: true, forYouOrder: true },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
@@ -328,6 +328,7 @@ export async function GET(req: NextRequest) {
       unwatchedWatchlist,
       completeTheRating,
       ratistReviewCount,
+      sectionOrder: (user.forYouOrder as string[] | null) ?? null,
     });
   } catch (err) {
     console.error("For You feed error:", err);

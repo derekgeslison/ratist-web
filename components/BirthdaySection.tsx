@@ -55,7 +55,7 @@ export default function BirthdaySection() {
                 </div>
               )}
             </div>
-            <p className="text-xs font-medium text-white line-clamp-1">{person.name}</p>
+            <p className="text-xs font-medium text-white line-clamp-2 leading-tight">{person.name}</p>
             {person.age != null && (
               <p className="text-[10px] text-[var(--foreground-muted)]">Turns {person.age}</p>
             )}
