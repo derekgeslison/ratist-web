@@ -533,7 +533,7 @@ export default function SeenPage() {
           {/* More filters shelf */}
           {moreFiltersOpen && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Release year range */}
                 <div>
                   <label className="block text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1.5">Release year</label>
@@ -544,7 +544,7 @@ export default function SeenPage() {
                       placeholder="From"
                       value={releaseYearFrom}
                       onChange={(e) => setReleaseYearFrom(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                      className="min-w-0 flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
                     />
                     <span className="text-[var(--foreground-muted)] text-sm">–</span>
                     <input
@@ -553,27 +553,7 @@ export default function SeenPage() {
                       placeholder="To"
                       value={releaseYearTo}
                       onChange={(e) => setReleaseYearTo(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-                    />
-                  </div>
-                </div>
-
-                {/* Watch date range */}
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1.5">Watched between</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="date"
-                      value={watchDateFrom}
-                      onChange={(e) => setWatchDateFrom(e.target.value)}
-                      className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
-                    />
-                    <span className="text-[var(--foreground-muted)] text-sm">–</span>
-                    <input
-                      type="date"
-                      value={watchDateTo}
-                      onChange={(e) => setWatchDateTo(e.target.value)}
-                      className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+                      className="min-w-0 flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
                     />
                   </div>
                 </div>
@@ -597,6 +577,26 @@ export default function SeenPage() {
                         {label}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Watch date range — own full-width row so two date pickers fit */}
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1.5">Watched between</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={watchDateFrom}
+                      onChange={(e) => setWatchDateFrom(e.target.value)}
+                      className="min-w-0 flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+                    />
+                    <span className="text-[var(--foreground-muted)] text-sm">–</span>
+                    <input
+                      type="date"
+                      value={watchDateTo}
+                      onChange={(e) => setWatchDateTo(e.target.value)}
+                      className="min-w-0 flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] [color-scheme:dark]"
+                    />
                   </div>
                 </div>
               </div>
