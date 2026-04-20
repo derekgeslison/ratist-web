@@ -533,7 +533,7 @@ export default function SeenPage() {
           {/* More filters shelf */}
           {moreFiltersOpen && (
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Release year range */}
                 <div>
                   <label className="block text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1.5">Release year</label>
