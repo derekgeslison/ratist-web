@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import ImageLightbox from "./ImageLightbox";
 import TiptapImage from "@tiptap/extension-image";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
@@ -24,6 +26,7 @@ interface Props {
 }
 
 export default function RichTextRenderer({ content }: Props) {
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -78,5 +81,21 @@ export default function RichTextRenderer({ content }: Props) {
   });
 
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  return (
+    <>
+      <div
+        className="rendered-rte"
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.tagName === "IMG") {
+            const img = target as HTMLImageElement;
+            setLightbox({ src: img.currentSrc || img.src, alt: img.alt });
+          }
+        }}
+      >
+        <EditorContent editor={editor} />
+      </div>
+      {lightbox && <ImageLightbox src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />}
+    </>
+  );
 }

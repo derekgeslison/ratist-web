@@ -171,6 +171,9 @@ body {
 }
 .ProseMirror.resize-cursor { cursor: col-resize; }
 
+/* Click-to-zoom affordance for images in rendered (read-only) content */
+.rendered-rte .ProseMirror img { cursor: zoom-in; }
+
 /* Highlight */
 .ProseMirror mark {
   border-radius: 0.15rem;
