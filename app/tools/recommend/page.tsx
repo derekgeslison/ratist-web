@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal, Wand2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl, STREAMING_PROVIDERS, IMAGE_BASE_URL } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -74,6 +74,11 @@ export default function RecommendPage() {
   const [watchlistingId, setWatchlistingId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+
+  // AI mode (alternative to the questionnaire, shown on step 0 only)
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   // Restore from sessionStorage on mount (avoids hydration mismatch)
   useEffect(() => {
@@ -172,6 +177,80 @@ export default function RecommendPage() {
     fetchResults(1, false);
   }
 
+  async function handleAiRecommend() {
+    const prompt = aiPrompt.trim();
+    if (!user) { setAiError("Sign in to use AI recommendations."); return; }
+    if (prompt.length < 5) { setAiError("Describe what you're in the mood for."); return; }
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/tools/recommend/ai", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiError(data.error ?? "AI extraction failed.");
+        setAiLoading(false);
+        return;
+      }
+      const f = data.filters as {
+        mediaType: "movie" | "tv" | "any";
+        genres: string[];
+        experience: string[];
+        runtime: string[];
+        era: string[];
+        excludeGenres: string[];
+      };
+      // Apply extracted filters to state so the user can see/tweak what was picked
+      setMediaType(f.mediaType);
+      setSelectedGenres(new Set(f.genres));
+      setExperience(new Set(f.experience));
+      setRuntime(new Set(f.runtime));
+      setEra(new Set(f.era));
+      setExcludeGenres(new Set(f.excludeGenres));
+      setResultMediaFilter(f.mediaType === "any" ? "all" : f.mediaType);
+      setFiltersOpen(false);
+      // Jump straight to results using the AI-picked filters
+      const providerIds = [...selectedStreamingProviders]
+        .map((short) => STREAMING_PROVIDERS.find((sp) => sp.short === short)?.id)
+        .filter(Boolean) as number[];
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      headers.Authorization = `Bearer ${token}`;
+      setLoading(true);
+      const rRes = await fetch("/api/tools/recommend", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          genres: f.genres,
+          experience: f.experience,
+          runtime: f.runtime,
+          era: f.era,
+          excludeGenres: f.excludeGenres,
+          page: 1,
+          sort: sortMode,
+          mediaType: f.mediaType,
+          providers: providerIds,
+        }),
+      });
+      if (rRes.ok) {
+        const rData = await rRes.json();
+        setResults(rData.results ?? []);
+        setVisibleCount(5);
+        setTotalPages(rData.totalPages ?? 1);
+        setCurrentPage(rData.page ?? 1);
+      }
+      setLoading(false);
+      setHasSearched(true);
+      setAiLoading(false);
+    } catch {
+      setAiError("Network error — please try again.");
+      setAiLoading(false);
+    }
+  }
+
   function handleSeeMore() {
     if (visibleCount < results.length) setVisibleCount((v: number) => v + 10);
     else if (currentPage < totalPages) { fetchResults(currentPage + 1, true); setVisibleCount((v: number) => v + 10); }
@@ -267,19 +346,60 @@ export default function RecommendPage() {
             <p className="text-sm text-[var(--foreground-muted)] mb-6">{STEPS[step].subtitle}</p>
 
             {step === 0 && (
-              <div className="grid sm:grid-cols-3 gap-3">
-                {[
-                  { value: "movie" as const, label: "A Movie", desc: "Single film, defined runtime" },
-                  { value: "tv" as const, label: "A TV Show", desc: "Series to binge or follow" },
-                  { value: "any" as const, label: "Either!", desc: "Open to movies or shows" },
-                ].map((opt) => (
-                  <button key={opt.value} onClick={() => setMediaType(opt.value)}
-                    className={`text-left p-4 rounded-xl border transition-colors ${mediaType === opt.value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
-                    <p className="text-sm font-semibold text-white">{opt.label}</p>
-                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* AI shortcut — describe it in your own words */}
+                <div className="mb-6 p-4 rounded-xl border border-[var(--ratist-red)]/30 bg-gradient-to-br from-[var(--ratist-red)]/5 to-transparent">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wand2 className="w-4 h-4 text-[var(--ratist-red)]" />
+                    <p className="text-sm font-semibold text-white">Or describe what you want in your own words</p>
+                  </div>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                    Skip the questions — our AI will pick filters for you based on a short description.
+                  </p>
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder='e.g. "A slow-burn sci-fi I can finish in a night" or "Cozy rom-com for a bad day"'
+                    rows={2}
+                    maxLength={500}
+                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-y mb-2"
+                  />
+                  {aiError && <p className="text-xs text-red-400 mb-2">{aiError}</p>}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-[var(--foreground-muted)]">
+                      {user ? "Free: 10/hour · Backstage Pass: unlimited" : "Sign in required"}
+                    </p>
+                    <button
+                      onClick={handleAiRecommend}
+                      disabled={aiLoading || !user || aiPrompt.trim().length < 5}
+                      className="flex items-center gap-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-1.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      {aiLoading ? "Thinking..." : "Find with AI"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-px bg-[var(--border)] flex-1" />
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)]">or use the questionnaire</span>
+                  <div className="h-px bg-[var(--border)] flex-1" />
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {[
+                    { value: "movie" as const, label: "A Movie", desc: "Single film, defined runtime" },
+                    { value: "tv" as const, label: "A TV Show", desc: "Series to binge or follow" },
+                    { value: "any" as const, label: "Either!", desc: "Open to movies or shows" },
+                  ].map((opt) => (
+                    <button key={opt.value} onClick={() => setMediaType(opt.value)}
+                      className={`text-left p-4 rounded-xl border transition-colors ${mediaType === opt.value ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
+                      <p className="text-sm font-semibold text-white">{opt.label}</p>
+                      <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
 
             {step === 1 && (

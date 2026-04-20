@@ -109,6 +109,7 @@ model User {
   feedbackReplied   Feedback[] @relation("feedbackReplied")
   ideasSubmitted    PostIdea[] @relation("ideasSubmitted")
   ideasReviewed     PostIdea[] @relation("ideasReviewed")
+  aiUsageLogs       AiUsageLog[]
   adminLogs        AdminLog[] @relation("adminLogs")
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
@@ -1665,6 +1666,20 @@ model PostIdea {
 
   @@index([type, status])
   @@map("post_ideas")
+}
+
+// Tracks AI feature usage for rate limiting. Paid (Backstage Pass) and admin
+// users bypass rate limits — this table is only consulted for free users.
+model AiUsageLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  feature   String   // e.g. "recommend"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, feature, createdAt])
+  @@map("ai_usage_logs")
 }
 
 model SiteSpotlight {
