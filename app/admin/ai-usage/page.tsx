@@ -21,6 +21,9 @@ interface TopUser {
   totalCalls: number;
   lastCall: string | null;
   byFeature: Record<string, number>;
+  // Server-computed: per-feature count of calendar days in the current
+  // window where the user hit their plan's daily cap for that feature.
+  daysAtCap: Record<string, number>;
 }
 
 interface UsageResponse {
@@ -38,33 +41,27 @@ const WINDOW_OPTIONS: { key: WindowKey; label: string }[] = [
   { key: "30d", label: "Last 30 days" },
 ];
 
-// Per-feature daily caps by plan. Must stay in sync with lib/ai/rate-limit.ts
-// call sites in the three AI routes.
-const DAILY_CAPS: Record<string, { free: number; paid: number }> = {
-  recommend: { free: 20, paid: 50 },
-  movies_search: { free: 20, paid: 50 },
-  collection: { free: 0, paid: 20 }, // free blocked upstream by subscription gate
+// Sustained cap-hitting thresholds by window. A user flagged "sustained" has
+// hit their plan's daily cap on at least N distinct days in the window. The
+// 24h view flags any user at cap today. Rate limits are hard blocks at the
+// route layer, so the interesting signal is pattern, not total volume.
+const SUSTAINED_THRESHOLD: Record<WindowKey, number> = {
+  "24h": 1,  // any cap-hit today
+  "7d": 4,   // 4 of 7
+  "30d": 15, // half the window
 };
 
-const WINDOW_DAYS: Record<WindowKey, number> = { "24h": 1, "7d": 7, "30d": 30 };
-
-// Classify heat for a user based on per-feature call counts across the window.
-// - "over": any single feature exceeds that user's plan cap × window days
-// - "high": any single feature within 80-100% of cap × window days
-// - null:   normal usage
-function heatFlag(user: TopUser, windowKey: WindowKey): "over" | "high" | null {
+function heatFlag(user: TopUser, windowKey: WindowKey): { feature: string; days: number } | null {
   if (user.isAdmin || user.aiDisabled) return null;
-  const days = WINDOW_DAYS[windowKey];
-  const plan = user.hasPass ? "paid" : "free";
-  let highest: "over" | "high" | null = null;
-  for (const [feature, count] of Object.entries(user.byFeature)) {
-    const cap = DAILY_CAPS[feature]?.[plan];
-    if (!cap) continue;
-    const budget = cap * days;
-    if (count > budget) return "over"; // strongest wins; bail early
-    if (count >= budget * 0.8) highest = "high";
+  const threshold = SUSTAINED_THRESHOLD[windowKey];
+  // Pick the worst feature — highest daysAtCap — when multiple features flag.
+  let worst: { feature: string; days: number } | null = null;
+  for (const [feature, days] of Object.entries(user.daysAtCap ?? {})) {
+    if (days >= threshold && (!worst || days > worst.days)) {
+      worst = { feature, days };
+    }
   }
-  return highest;
+  return worst;
 }
 
 export default function AdminAiUsagePage() {
@@ -227,9 +224,14 @@ export default function AdminAiUsagePage() {
                       {u.aiDisabled && <span className="text-[10px] px-2 py-0.5 rounded-full border border-red-500/50 text-red-400 bg-red-500/10">AI disabled</span>}
                       {(() => {
                         const heat = heatFlag(u, windowKey);
-                        if (heat === "over") return <span className="text-[10px] px-2 py-0.5 rounded-full border border-red-500/50 text-red-400 bg-red-500/10" title="Exceeds daily cap × days in this window">🔥 over</span>;
-                        if (heat === "high") return <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-400 bg-amber-400/10" title="≥80% of daily cap × days in this window">🔥 high</span>;
-                        return null;
+                        if (!heat) return null;
+                        const label = windowKey === "24h" ? "at cap today" : `${heat.days}d at cap`;
+                        const title = `Hit the daily cap on ${heat.feature} on ${heat.days} calendar day${heat.days === 1 ? "" : "s"} in this window — sustained pressure, worth a manual review.`;
+                        return (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-400 bg-amber-400/10" title={title}>
+                            🔥 {label}
+                          </span>
+                        );
                       })()}
                     </div>
                   </td>
@@ -272,7 +274,7 @@ export default function AdminAiUsagePage() {
         <div className="text-xs text-[var(--foreground-muted)] space-y-1">
           <p><strong className="text-white">Caps in place:</strong> Recommend + Movies AI search — free users 20/day per feature, Backstage Pass 50/day per feature. Collections — Backstage Pass only, capped at 20/day (free users are blocked by the subscription gate).</p>
           <p>Users flagged as <strong className="text-white">AI disabled</strong> cannot use any AI feature regardless of plan. Admins bypass all caps. Sign-in is required for every AI feature.</p>
-          <p><strong className="text-white">Heat flag:</strong> a user with a per-feature call count ≥ their daily cap × days-in-window shows an <span className="text-amber-400">🔥 high</span> badge. If they exceed the cap itself across any single feature they show <span className="text-red-400">🔥 over</span> — these indicate sustained API pressure or bypass attempts and are worth a manual review.</p>
+          <p><strong className="text-white">Heat flag:</strong> since the caps are hard blocks at the API layer (no one can exceed them), the flag tracks sustained cap-hitting patterns instead of totals. A user shows <span className="text-amber-400">🔥 Nd at cap</span> when they've hit their daily cap on the worst feature for at least <em>N</em> calendar days in the current window — thresholds are <strong>1/1 for 24h</strong>, <strong>4/7 for 7-day</strong>, and <strong>15/30 for 30-day</strong>. This highlights users who are consistently pegged at the cap and may warrant manual review.</p>
         </div>
       </div>
     </div>

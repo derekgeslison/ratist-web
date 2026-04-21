@@ -17,6 +17,17 @@ export interface AiLimits {
   paidDaily: number;
 }
 
+// Per-feature caps — exported so the admin heat-flag logic can read the same
+// numbers the routes enforce. Keep in sync with the checkAiRateLimit call
+// sites in app/api/tools/recommend/ai, app/api/movies/ai, and
+// app/api/tools/collections/ai. `free: 0` means the feature is fully blocked
+// for free users upstream (e.g. collection's subscription gate).
+export const FEATURE_CAPS: Record<string, AiLimits> = {
+  recommend: { freeDaily: 20, paidDaily: 50 },
+  movies_search: { freeDaily: 20, paidDaily: 50 },
+  collection: { freeDaily: 0, paidDaily: 20 },
+};
+
 /**
  * Check AI usage caps. Order of checks:
  *   1. Admin-set aiDisabled flag → always blocked.

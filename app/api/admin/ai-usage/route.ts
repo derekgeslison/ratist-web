@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
+import { isSubscriptionActive } from "@/lib/subscription";
+import { FEATURE_CAPS } from "@/lib/ai/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,39 @@ export async function GET(req: NextRequest) {
     featureBreakdownMap.set(row.userId, existing);
   }
 
+  // Compute per-user "days at cap" per feature. A day-at-cap = calendar day
+  // (UTC) where the user made >= their daily cap of calls for that feature.
+  // Caps vary by plan, so we resolve plan per user before counting.
+  const rawLogs = userIds.length > 0
+    ? await prisma.aiUsageLog.findMany({
+        where: { userId: { in: userIds }, createdAt: { gte: since } },
+        select: { userId: true, feature: true, createdAt: true },
+      })
+    : [];
+  // (userId, feature, yyyy-mm-dd) → count
+  const dailyCounts = new Map<string, number>();
+  for (const row of rawLogs) {
+    const day = row.createdAt.toISOString().slice(0, 10);
+    const key = `${row.userId}\u0001${row.feature}\u0001${day}`;
+    dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + 1);
+  }
+  const daysAtCapByUser = new Map<string, Record<string, number>>();
+  for (const [key, count] of dailyCounts) {
+    const [uid, feature, _day] = key.split("\u0001");
+    void _day;
+    const caps = FEATURE_CAPS[feature];
+    if (!caps) continue;
+    const u = userMap.get(uid);
+    const isPaid = u ? isSubscriptionActive(u) : false;
+    const cap = isPaid ? caps.paidDaily : caps.freeDaily;
+    if (cap === 0) continue; // feature blocked for this plan; no "at cap" concept
+    if (count >= cap) {
+      const existing = daysAtCapByUser.get(uid) ?? {};
+      existing[feature] = (existing[feature] ?? 0) + 1;
+      daysAtCapByUser.set(uid, existing);
+    }
+  }
+
   const topUsers = topUserGroups.map((g) => {
     const u = userMap.get(g.userId);
     const hasPass = u?.subscriptionTier === "backstage_pass" &&
@@ -87,6 +122,7 @@ export async function GET(req: NextRequest) {
       totalCalls: g._count.id,
       lastCall: g._max.createdAt?.toISOString() ?? null,
       byFeature: featureBreakdownMap.get(g.userId) ?? {},
+      daysAtCap: daysAtCapByUser.get(g.userId) ?? {},
     };
   });
 
