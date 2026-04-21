@@ -26,6 +26,10 @@ const SYSTEM_PROMPT = `You extract structured filters for building a movie/TV co
 
 You do NOT name specific movies or shows. You only extract filter values. The site's recommendation engine will run the actual search against a real catalog.
 
+### Negative constraints
+When the user says "not X", "nothing too X", "avoid X", "but not X", "without X":
+- If X is a genre → put it in excludeGenres (NOT in genres), even if the overall topic is adjacent. Example: "Halloween movies for kids, nothing too scary" → genres: [Family, Fantasy], excludeGenres: [Horror].
+
 ### Genre mapping
 Map synonyms to canonical genres: "sci-fi"/"cyberpunk"/"space" → "Science Fiction"; "rom-com" → "Comedy" + "Romance"; "superhero" → "Action" + "Adventure"; "slasher"/"gore" → "Horror".
 
