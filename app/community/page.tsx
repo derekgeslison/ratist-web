@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-export const metadata: Metadata = { title: "Community Hub", description: "Join The Ratist community: submit hot takes, suggest recasts, find celebrity lookalikes, and engage with fellow movie lovers.", alternates: { canonical: "/community" } };
+export const metadata: Metadata = { title: "Community Hub", description: "Hot takes, fantasy recasts, celebrity lookalikes, movie pitches, Cine-Q trivia, and a forum for cinephiles. Join the most opinionated movie community on the internet.", alternates: { canonical: "/community" } };
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";

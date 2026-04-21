@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-export const metadata: Metadata = { title: "Celebrities", description: "Explore popular actors, directors, and celebrities. See their filmographies, photos, and roles across movies and TV shows.", alternates: { canonical: "/celebrities" } };
+export const metadata: Metadata = { title: "Celebrities", description: "Actor and director filmographies, roles across movies and TV shows, awards, and photos. Explore who's in what — from A-list stars to directors you should know.", alternates: { canonical: "/celebrities" } };
 import { Users, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
