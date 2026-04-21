@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import {
-  FileText, Map, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Shield,
+  FileText, Map, Edit, Eye, EyeOff, Trash2, Users, Star, Film, Shield,
   Ticket, Lightbulb, Flag, MessageCircle, ShieldAlert, Cpu, AlertCircle,
+  Eye as EyeIcon, Heart, Newspaper, UsersRound, MessageSquare, Trophy,
+  Clapperboard, Gamepad2, BookMarked, BarChart3,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -24,7 +26,6 @@ interface SiteStats {
   ratings: { total: number; day: number; week: number; reviews: number };
   movies: { total: number };
   seenEntries: number;
-  publishedPosts: number;
   subscribers: { active: number; week: number; month: number };
   queues: {
     ideas: number;
@@ -32,6 +33,35 @@ interface SiteStats {
     feedback: number;
     fraud: number;
     aiFlagged: number;
+  };
+  content: {
+    publishedPosts: number;
+    publishedArticles: number;
+    postViews: number;
+    likes: number;
+    comments: number;
+  };
+  community: {
+    looksLike: { posts: number; votes: number };
+    recast: { posts: number; votes: number };
+    hotTake: { posts: number; votes: number };
+    pitch: { posts: number; votes: number };
+  };
+  forum: {
+    threads: number;
+    threadsWeek: number;
+    posts: number;
+    postsWeek: number;
+    reactions: number;
+    views: number;
+  };
+  tools: {
+    screeningSessions: number;
+    screeningSessionsWeek: number;
+    cineqAttemptsWeek: number;
+    oscarVotes: number;
+    collections: number;
+    rankingLists: number;
   };
 }
 
@@ -48,6 +78,42 @@ interface Alert {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   tone: "warn" | "info" | "danger";
+}
+
+type Icon = React.ComponentType<{ className?: string }>;
+
+function StatTile({ icon: Icon, color, label, value, sub }: { icon: Icon; color: string; label: string; value: number; sub?: string }) {
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className={`w-4 h-4 ${color}`} />
+        <span className="text-xs text-[var(--foreground-muted)]">{label}</span>
+      </div>
+      <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
+      {sub && <p className="text-xs text-[var(--foreground-muted)] mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function DualTile({ icon: Icon, color, label, primary, primaryLabel, secondary, secondaryLabel }: { icon: Icon; color: string; label: string; primary: number; primaryLabel: string; secondary: number; secondaryLabel: string }) {
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon className={`w-4 h-4 ${color}`} />
+        <span className="text-xs text-[var(--foreground-muted)]">{label}</span>
+      </div>
+      <div className="flex items-baseline gap-3">
+        <div>
+          <p className="text-2xl font-bold text-white">{primary.toLocaleString()}</p>
+          <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{primaryLabel}</p>
+        </div>
+        <div className="opacity-70">
+          <p className="text-lg font-semibold text-[var(--foreground-muted)]">{secondary.toLocaleString()}</p>
+          <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{secondaryLabel}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function AdminDashboard() {
@@ -170,57 +236,65 @@ export default function AdminDashboard() {
       {stats && (
         <section>
           <h2 className="text-base font-semibold text-white mb-4">Site Overview</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatTile icon={Users} color="text-blue-400" label="Users" value={stats.users.total} sub={`+${stats.users.day} today · +${stats.users.week} this week`} />
+            <StatTile icon={Ticket} color="text-[var(--ratist-red)]" label="Subscribers" value={stats.subscribers.active} sub={`+${stats.subscribers.week} this week · +${stats.subscribers.month} this month`} />
+            <StatTile icon={Star} color="text-yellow-400" label="Ratings" value={stats.ratings.total} sub={`+${stats.ratings.day} today · ${stats.ratings.reviews} reviews`} />
+            <StatTile icon={Film} color="text-green-400" label="Movies in DB" value={stats.movies.total} sub={`${stats.seenEntries.toLocaleString()} seen entries`} />
+          </div>
+        </section>
+      )}
+
+      {/* Content */}
+      {stats && (
+        <section>
+          <h2 className="text-base font-semibold text-white mb-4">Content</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-blue-400" />
-                <span className="text-xs text-[var(--foreground-muted)]">Users</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{stats.users.total.toLocaleString()}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">
-                +{stats.users.day} today · +{stats.users.week} this week
-              </p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Ticket className="w-4 h-4 text-[var(--ratist-red)]" />
-                <span className="text-xs text-[var(--foreground-muted)]">Subscribers</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{stats.subscribers.active.toLocaleString()}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">
-                +{stats.subscribers.week} this week · +{stats.subscribers.month} this month
-              </p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Star className="w-4 h-4 text-yellow-400" />
-                <span className="text-xs text-[var(--foreground-muted)]">Ratings</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{stats.ratings.total.toLocaleString()}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">
-                +{stats.ratings.day} today · {stats.ratings.reviews} reviews
-              </p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Film className="w-4 h-4 text-green-400" />
-                <span className="text-xs text-[var(--foreground-muted)]">Movies in DB</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{stats.movies.total.toLocaleString()}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">
-                {stats.seenEntries.toLocaleString()} seen entries
-              </p>
-            </div>
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BookOpen className="w-4 h-4 text-purple-400" />
-                <span className="text-xs text-[var(--foreground-muted)]">Published Posts</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{stats.publishedPosts}</p>
-              <p className="text-xs text-[var(--foreground-muted)] mt-1">
-                +{stats.users.month} new users this month
-              </p>
-            </div>
+            <StatTile icon={FileText} color="text-purple-400" label="Published Posts" value={stats.content.publishedPosts} sub="Blog · Two Thumbs · Movie Maps" />
+            <StatTile icon={Newspaper} color="text-sky-400" label="Articles" value={stats.content.publishedArticles} sub="Editorial news pieces" />
+            <StatTile icon={EyeIcon} color="text-indigo-400" label="Post Views" value={stats.content.postViews} sub="Posts + articles combined" />
+            <StatTile icon={Heart} color="text-pink-400" label="Post Likes" value={stats.content.likes} sub="On blog posts" />
+            <StatTile icon={MessageSquare} color="text-teal-400" label="Post Comments" value={stats.content.comments} sub="On blog posts" />
+          </div>
+        </section>
+      )}
+
+      {/* Community Activity */}
+      {stats && (
+        <section>
+          <h2 className="text-base font-semibold text-white mb-4">Community Activity</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <DualTile icon={UsersRound} color="text-fuchsia-400" label="Looks Like" primary={stats.community.looksLike.posts} primaryLabel="posts" secondary={stats.community.looksLike.votes} secondaryLabel="votes" />
+            <DualTile icon={BookMarked} color="text-amber-400" label="Recasts" primary={stats.community.recast.posts} primaryLabel="posts" secondary={stats.community.recast.votes} secondaryLabel="votes" />
+            <DualTile icon={Star} color="text-orange-400" label="Hot Takes" primary={stats.community.hotTake.posts} primaryLabel="takes" secondary={stats.community.hotTake.votes} secondaryLabel="votes" />
+            <DualTile icon={Lightbulb} color="text-yellow-400" label="Movie Pitches" primary={stats.community.pitch.posts} primaryLabel="pitches" secondary={stats.community.pitch.votes} secondaryLabel="votes" />
+          </div>
+        </section>
+      )}
+
+      {/* Forum Activity */}
+      {stats && (
+        <section>
+          <h2 className="text-base font-semibold text-white mb-4">Forum Activity</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatTile icon={MessageCircle} color="text-cyan-400" label="Threads" value={stats.forum.threads} sub={`+${stats.forum.threadsWeek} this week`} />
+            <StatTile icon={MessageSquare} color="text-sky-400" label="Posts" value={stats.forum.posts} sub={`+${stats.forum.postsWeek} this week`} />
+            <StatTile icon={Heart} color="text-pink-400" label="Reactions" value={stats.forum.reactions} sub="All-time" />
+            <StatTile icon={EyeIcon} color="text-indigo-400" label="Thread Views" value={stats.forum.views} sub="All-time" />
+          </div>
+        </section>
+      )}
+
+      {/* Tools Usage */}
+      {stats && (
+        <section>
+          <h2 className="text-base font-semibold text-white mb-4">Tools Usage</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <StatTile icon={Clapperboard} color="text-purple-400" label="Screening Rooms" value={stats.tools.screeningSessions} sub={`+${stats.tools.screeningSessionsWeek} this week`} />
+            <StatTile icon={Gamepad2} color="text-green-400" label="Cine-Q" value={stats.tools.cineqAttemptsWeek} sub="Attempts this week" />
+            <StatTile icon={Trophy} color="text-yellow-400" label="Oscar Votes" value={stats.tools.oscarVotes} sub="All-time" />
+            <StatTile icon={BookMarked} color="text-blue-400" label="AI Collections" value={stats.tools.collections} sub="Saved by users" />
+            <StatTile icon={BarChart3} color="text-rose-400" label="Rankings Lists" value={stats.tools.rankingLists} sub="Created by users" />
           </div>
         </section>
       )}

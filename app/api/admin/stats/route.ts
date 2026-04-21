@@ -26,24 +26,29 @@ export async function GET(req: NextRequest) {
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [
-    totalUsers,
-    newUsersDay,
-    newUsersWeek,
-    newUsersMonth,
-    totalRatings,
-    newRatingsDay,
-    newRatingsWeek,
-    totalMovies,
-    totalSeenEntries,
-    publishedPosts,
-    totalReviews,
-    activeSubscribers,
-    newSubscribersWeek,
-    newSubscribersMonth,
-    pendingIdeas,
-    pendingReports,
-    openFeedback,
-    openFraud,
+    totalUsers, newUsersDay, newUsersWeek, newUsersMonth,
+    totalRatings, newRatingsDay, newRatingsWeek, totalReviews,
+    totalMovies, totalSeenEntries,
+    activeSubscribers, newSubscribersWeek, newSubscribersMonth,
+    pendingIdeas, pendingReports, openFeedback, openFraud,
+    // content
+    publishedPosts, publishedArticles,
+    postViewAgg, articleViewAgg, blogLikes, blogComments,
+    // community
+    looksLikePosts, looksLikeVotes,
+    recastPosts, recastVotes,
+    hotTakePosts, hotTakeVotes,
+    pitchPosts, pitchVotes,
+    // forum
+    forumThreads, forumThreadsWeek,
+    forumPosts, forumPostsWeek,
+    forumReactions, forumViewAgg,
+    // tools
+    screeningSessionsTotal, screeningSessionsWeek,
+    cineqAttemptsWeek,
+    oscarVotesTotal,
+    collectionsTotal,
+    rankingListsTotal,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { createdAt: { gte: dayAgo } } }),
@@ -52,10 +57,9 @@ export async function GET(req: NextRequest) {
     prisma.movieRating.count(),
     prisma.movieRating.count({ where: { createdAt: { gte: dayAgo } } }),
     prisma.movieRating.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.movieRating.count({ where: { reviewText: { not: null } } }),
     prisma.movie.count(),
     prisma.userFavoriteMovie.count(),
-    prisma.blogPost.count({ where: { published: true } }),
-    prisma.movieRating.count({ where: { reviewText: { not: null } } }),
     prisma.user.count({
       where: {
         subscriptionTier: "backstage_pass",
@@ -81,6 +85,36 @@ export async function GET(req: NextRequest) {
     prisma.report.count({ where: { status: "pending" } }),
     prisma.feedback.count({ where: { status: { in: ["open", "in_progress"] } } }),
     prisma.fraudFlag.count({ where: { status: "open" } }),
+    // content
+    prisma.blogPost.count({ where: { published: true } }),
+    prisma.newsItem.count({ where: { type: "EDITORIAL" } }),
+    prisma.blogPost.aggregate({ _sum: { viewCount: true }, where: { published: true } }),
+    prisma.newsItem.aggregate({ _sum: { viewCount: true } }),
+    prisma.postLike.count({ where: { targetType: "blog" } }),
+    prisma.comment.count({ where: { targetType: "blog" } }),
+    // community
+    prisma.looksLike.count(),
+    prisma.looksLikeVote.count(),
+    prisma.recast.count(),
+    prisma.recastVote.count(),
+    prisma.hotTake.count(),
+    prisma.hotTakeVote.count(),
+    prisma.moviePitch.count(),
+    prisma.moviePitchVote.count(),
+    // forum
+    prisma.forumThread.count(),
+    prisma.forumThread.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.forumPost.count(),
+    prisma.forumPost.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.forumReaction.count(),
+    prisma.forumThread.aggregate({ _sum: { viewCount: true } }),
+    // tools
+    prisma.screeningSession.count(),
+    prisma.screeningSession.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.cineQAttempt.count({ where: { createdAt: { gte: weekAgo } } }),
+    prisma.oscarVote.count(),
+    prisma.customCollection.count(),
+    prisma.userRankingList.count(),
   ]);
 
   // AI heat flag: count distinct users who have hit their daily cap on 4+
@@ -93,7 +127,6 @@ export async function GET(req: NextRequest) {
     ratings: { total: totalRatings, day: newRatingsDay, week: newRatingsWeek, reviews: totalReviews },
     movies: { total: totalMovies },
     seenEntries: totalSeenEntries,
-    publishedPosts,
     subscribers: { active: activeSubscribers, week: newSubscribersWeek, month: newSubscribersMonth },
     queues: {
       ideas: pendingIdeas,
@@ -101,6 +134,35 @@ export async function GET(req: NextRequest) {
       feedback: openFeedback,
       fraud: openFraud,
       aiFlagged: aiFlaggedUsers,
+    },
+    content: {
+      publishedPosts,
+      publishedArticles,
+      postViews: (postViewAgg._sum.viewCount ?? 0) + (articleViewAgg._sum.viewCount ?? 0),
+      likes: blogLikes,
+      comments: blogComments,
+    },
+    community: {
+      looksLike: { posts: looksLikePosts, votes: looksLikeVotes },
+      recast: { posts: recastPosts, votes: recastVotes },
+      hotTake: { posts: hotTakePosts, votes: hotTakeVotes },
+      pitch: { posts: pitchPosts, votes: pitchVotes },
+    },
+    forum: {
+      threads: forumThreads,
+      threadsWeek: forumThreadsWeek,
+      posts: forumPosts,
+      postsWeek: forumPostsWeek,
+      reactions: forumReactions,
+      views: forumViewAgg._sum.viewCount ?? 0,
+    },
+    tools: {
+      screeningSessions: screeningSessionsTotal,
+      screeningSessionsWeek,
+      cineqAttemptsWeek,
+      oscarVotes: oscarVotesTotal,
+      collections: collectionsTotal,
+      rankingLists: rankingListsTotal,
     },
   });
 }
