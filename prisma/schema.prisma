@@ -1707,6 +1707,23 @@ model CustomCollectionItem {
   @@map("custom_collection_items")
 }
 
+// Cached parents'-guide severities (from DoesTheDogDie) per movie. Written
+// through on every /api/movies/[id]/parents-guide fetch so values track live
+// DDD vote data. Read by AI filter routes without triggering DDD calls.
+model MovieParentsGuide {
+  tmdbId                     Int      @id @map("tmdb_id")
+  violenceSeverity           String   @map("violence_severity") // "none" | "mild" | "mild-moderate" | "moderate" | "moderate-severe" | "severe"
+  sexualSeverity             String   @map("sexual_severity")
+  languageSubstanceSeverity  String   @map("language_substance_severity")
+  scaryIntenseSeverity       String   @map("scary_intense_severity")
+  sensitiveThemesSeverity    String   @map("sensitive_themes_severity")
+  totalVoters                Int      @default(0) @map("total_voters")
+  limitedData                Boolean  @default(false) @map("limited_data")
+  fetchedAt                  DateTime @default(now()) @map("fetched_at")
+
+  @@map("movie_parents_guides")
+}
+
 // Cached AI-generated community review summaries, keyed by TMDB id + media type.
 // Regenerated when the review count has grown meaningfully since last generation.
 model ReviewDigest {

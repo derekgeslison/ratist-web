@@ -3,9 +3,31 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
-import { extractCollectionFilters } from "@/lib/ai/collection-filters";
+import { extractCollectionFilters, SEVERITY_ORDER, type Severity } from "@/lib/ai/collection-filters";
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
+
+// Returns true if title passes all severity caps.
+// Uncached titles pass through (coverage is partial).
+function passesSeverityCaps(
+  cache: { violenceSeverity: string; sexualSeverity: string; languageSubstanceSeverity: string; scaryIntenseSeverity: string; sensitiveThemesSeverity: string } | undefined,
+  caps: { maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null },
+): boolean {
+  if (!cache) return true;
+  const rank = (s: string) => (SEVERITY_ORDER as readonly string[]).indexOf(s);
+  const checks: [string, Severity | null][] = [
+    [cache.violenceSeverity, caps.maxViolence],
+    [cache.sexualSeverity, caps.maxSexualContent],
+    [cache.languageSubstanceSeverity, caps.maxLanguageSubstance],
+    [cache.scaryIntenseSeverity, caps.maxScaryIntense],
+    [cache.sensitiveThemesSeverity, caps.maxSensitiveThemes],
+  ];
+  for (const [actual, cap] of checks) {
+    if (cap == null) continue;
+    if (rank(actual) > rank(cap)) return false;
+  }
+  return true;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -137,11 +159,16 @@ export async function POST(req: NextRequest) {
       seenTmdbIds = new Set(seen.map((s) => s.movie.tmdbId));
     }
 
-    // Paginate through TMDB discover until we have `limit` items or exhaust pages (cap at 5 pages)
+    // Severity caps require a bulk cache lookup at the end. Collect a larger
+    // candidate pool when any cap is set so filtering still leaves enough items.
+    const hasSeverityCap = filters.maxViolence || filters.maxSexualContent || filters.maxLanguageSubstance || filters.maxScaryIntense || filters.maxSensitiveThemes;
+    const targetPool = hasSeverityCap ? filters.limit * 3 : filters.limit;
+
+    // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages)
     const collected: Item[] = [];
     const maxPages = 5;
     let page = 1;
-    while (collected.length < filters.limit && page <= maxPages) {
+    while (collected.length < targetPool && page <= maxPages) {
       if (useTv) {
         const data = await discoverTvShows({
           genreIds: includeIds.length ? includeIds : undefined,
@@ -162,7 +189,7 @@ export async function POST(req: NextRequest) {
             releaseDate: s.first_air_date ?? null,
             voteAverage: s.vote_average ?? null,
           });
-          if (collected.length >= filters.limit) break;
+          if (collected.length >= targetPool) break;
         }
         if (data.page >= data.total_pages || data.results.length === 0) break;
         page++;
@@ -190,16 +217,38 @@ export async function POST(req: NextRequest) {
             releaseDate: m.release_date ?? null,
             voteAverage: m.vote_average ?? null,
           });
-          if (collected.length >= filters.limit) break;
+          if (collected.length >= targetPool) break;
         }
         if (data.page >= data.total_pages) break;
         page++;
       }
     }
 
+    // Apply parents-guide severity caps via cache lookup (movies only).
+    let finalItems = collected;
+    if (hasSeverityCap && !useTv) {
+      const tmdbIds = collected.map((c) => c.tmdbId);
+      const cached = await prisma.movieParentsGuide.findMany({
+        where: { tmdbId: { in: tmdbIds } },
+      });
+      const cacheByTmdbId = new Map(cached.map((c) => [c.tmdbId, c]));
+      finalItems = collected.filter((c) => {
+        const entry = cacheByTmdbId.get(c.tmdbId);
+        return passesSeverityCaps(entry, {
+          maxViolence: filters.maxViolence,
+          maxSexualContent: filters.maxSexualContent,
+          maxLanguageSubstance: filters.maxLanguageSubstance,
+          maxScaryIntense: filters.maxScaryIntense,
+          maxSensitiveThemes: filters.maxSensitiveThemes,
+        });
+      });
+    }
+
+    finalItems = finalItems.slice(0, filters.limit);
+
     await logAiUsage(user.id, "collection");
 
-    return NextResponse.json({ filters, items: collected });
+    return NextResponse.json({ filters, items: finalItems });
   } catch (err) {
     if (err instanceof Anthropic.APIError) {
       console.error(`AI collection — Anthropic error ${err.status}:`, err.message);

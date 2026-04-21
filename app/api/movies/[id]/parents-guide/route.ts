@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -298,10 +299,39 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (hasStrong) categoriesWithStrongData++;
     }
 
+    const limitedData = categoriesWithStrongData < 2;
+
+    // Write-through cache: severities only (AI filter routes read this).
+    // Fire-and-forget — UI response is unaffected by DB write failures.
+    const bySeverity = (name: string) => categories.find((c) => c.category === name)?.severity ?? "none";
+    prisma.movieParentsGuide.upsert({
+      where: { tmdbId },
+      create: {
+        tmdbId,
+        violenceSeverity: bySeverity("Violence & Gore"),
+        sexualSeverity: bySeverity("Sexual Content"),
+        languageSubstanceSeverity: bySeverity("Language & Substance"),
+        scaryIntenseSeverity: bySeverity("Scary & Intense"),
+        sensitiveThemesSeverity: bySeverity("Sensitive Themes"),
+        totalVoters,
+        limitedData,
+      },
+      update: {
+        violenceSeverity: bySeverity("Violence & Gore"),
+        sexualSeverity: bySeverity("Sexual Content"),
+        languageSubstanceSeverity: bySeverity("Language & Substance"),
+        scaryIntenseSeverity: bySeverity("Scary & Intense"),
+        sensitiveThemesSeverity: bySeverity("Sensitive Themes"),
+        totalVoters,
+        limitedData,
+        fetchedAt: new Date(),
+      },
+    }).catch((err) => { console.error("Failed to cache parents guide:", err); });
+
     return NextResponse.json({
       categories,
       totalVoters,
-      limitedData: categoriesWithStrongData < 2,
+      limitedData,
       source: "DoesTheDogDie.com",
     });
   } catch (err) {

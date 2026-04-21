@@ -9,6 +9,11 @@ export const TMDB_MOVIE_GENRES = [
   "War", "Western",
 ] as const;
 
+// Severity levels in ascending order. "max" filters accept titles whose cached
+// severity is <= the cap. null means no cap.
+export const SEVERITY_ORDER = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"] as const;
+export type Severity = (typeof SEVERITY_ORDER)[number];
+
 export interface CollectionFilters {
   mediaType: "movie" | "tv" | "any";
   genres: string[];
@@ -18,6 +23,11 @@ export interface CollectionFilters {
   minRating: number | null;
   textQuery: string | null;
   seenFilter: "any" | "unseen" | "seen_only";
+  maxViolence: Severity | null;
+  maxSexualContent: Severity | null;
+  maxLanguageSubstance: Severity | null;
+  maxScaryIntense: Severity | null;
+  maxSensitiveThemes: Severity | null;
   limit: number;
   suggestedName: string;
 }
@@ -51,6 +61,23 @@ ONLY use textQuery for truly niche concepts that are NOT captured by any main ge
 - "recent"/"new"/"modern" → yearFrom: 2020.
 - "golden age"/"Hollywood classic era" → yearTo: 1960.
 - "classic" ALONE (e.g. "classic gangster movies", "classic comedies") usually means canonical / iconic, NOT a specific era. LEAVE yearFrom and yearTo null in this case — don't force a year filter.
+
+### Parents-guide severity caps
+Five categories can be capped at a max severity level (none < mild < mild-moderate < moderate < moderate-severe < severe). A cap filters OUT titles whose cached severity is higher than the cap. Leave a cap null when the user doesn't mention it.
+
+Common phrase → cap mappings:
+- "not too graphic" / "not too violent" / "nothing too bloody" → maxViolence: "moderate"
+- "no gore" → maxViolence: "mild"
+- "no sex" / "no nudity" / "no sexual content" → maxSexualContent: "mild"
+- "clean" / "no swearing" / "no cursing" / "no drugs" → maxLanguageSubstance: "mild"
+- "nothing scary" / "not too intense" / "no jumpscares" → maxScaryIntense: "mild"
+- "no animal deaths" / "no suicide" / "nothing triggering" → maxSensitiveThemes: "moderate"
+- "family-friendly" / "kid-safe" / "for kids" → ALL caps at "mild"
+- "for my 10-year-old" / "with my little sister" → ALL caps at "mild"
+- "not too heavy" / "something light" → maxViolence + maxSensitiveThemes at "moderate"
+- "Halloween, not too scary" → maxScaryIntense: "moderate", maxViolence: "moderate"
+
+These are filters over the DoesTheDogDie parents-guide data we cache per movie. Data coverage is partial — uncached titles pass through these filters.
 
 ### Other
 - "rated above X" / "higher than X" / "over X stars" → minRating: X (0-10 scale, community vote average).
@@ -93,13 +120,43 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
         enum: ["any", "unseen", "seen_only"],
         description: "Default 'unseen'. Use 'seen_only' when the user wants titles they've already watched (rewatch, rewatchable, already seen). Use 'any' only when the user explicitly says they want the full catalog.",
       },
+      maxViolence: {
+        type: ["string", "null"],
+        enum: [...SEVERITY_ORDER, null],
+        description: "Max allowed violence/gore severity. null = no cap.",
+      },
+      maxSexualContent: {
+        type: ["string", "null"],
+        enum: [...SEVERITY_ORDER, null],
+        description: "Max allowed sexual content / nudity severity. null = no cap.",
+      },
+      maxLanguageSubstance: {
+        type: ["string", "null"],
+        enum: [...SEVERITY_ORDER, null],
+        description: "Max allowed language/drug/substance-abuse severity. null = no cap.",
+      },
+      maxScaryIntense: {
+        type: ["string", "null"],
+        enum: [...SEVERITY_ORDER, null],
+        description: "Max allowed scary/intense severity. null = no cap.",
+      },
+      maxSensitiveThemes: {
+        type: ["string", "null"],
+        enum: [...SEVERITY_ORDER, null],
+        description: "Max allowed sensitive-themes severity (suicide, abuse, animal death, etc.). null = no cap.",
+      },
       limit: { type: "integer", minimum: 5, maximum: 25, description: "Number of titles to include (default 10)." },
       suggestedName: { type: "string", description: "Short friendly name for the collection." },
     },
-    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "limit", "suggestedName"],
+    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "limit", "suggestedName"],
     additionalProperties: false,
   },
 };
+
+function normalizeSeverity(v: unknown): Severity | null {
+  if (typeof v !== "string") return null;
+  return (SEVERITY_ORDER as readonly string[]).includes(v) ? (v as Severity) : null;
+}
 
 export async function extractCollectionFilters(userPrompt: string): Promise<CollectionFilters> {
   const client = getAnthropic();
@@ -127,6 +184,11 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     minRating: typeof raw.minRating === "number" && raw.minRating >= 0 && raw.minRating <= 10 ? raw.minRating : null,
     textQuery: typeof raw.textQuery === "string" && raw.textQuery.trim().length > 0 ? raw.textQuery.trim() : null,
     seenFilter: raw.seenFilter === "seen_only" || raw.seenFilter === "any" ? raw.seenFilter : "unseen",
+    maxViolence: normalizeSeverity(raw.maxViolence),
+    maxSexualContent: normalizeSeverity(raw.maxSexualContent),
+    maxLanguageSubstance: normalizeSeverity(raw.maxLanguageSubstance),
+    maxScaryIntense: normalizeSeverity(raw.maxScaryIntense),
+    maxSensitiveThemes: normalizeSeverity(raw.maxSensitiveThemes),
     limit: typeof raw.limit === "number" ? Math.max(5, Math.min(25, Math.floor(raw.limit))) : 10,
     suggestedName: typeof raw.suggestedName === "string" && raw.suggestedName.trim().length > 0 ? raw.suggestedName.trim().slice(0, 80) : "Custom Collection",
   };
