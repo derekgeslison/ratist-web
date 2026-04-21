@@ -9,6 +9,7 @@ import Link from "next/link";
 import type { PostType } from "@prisma/client";
 import MediaLinker from "@/components/forum/MediaLinker";
 import PersonLinker from "@/components/forum/PersonLinker";
+import AiMovieMapPanel from "@/components/admin/AiMovieMapPanel";
 
 const TYPE_LABELS: Record<PostType, string> = {
   BLOG: "Blog Post",
@@ -175,6 +176,8 @@ export default function EditPostPage() {
             <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Linked Movies & Shows</label>
             <MediaLinker selected={media} onChange={setMedia} max={10} />
           </div>
+
+          {type === "MOVIE_MAP" && <AiMovieMapPanel linkedMedia={media} />}
 
           {/* Linked Celebrities */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">

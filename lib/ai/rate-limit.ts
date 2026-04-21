@@ -26,6 +26,10 @@ export const FEATURE_CAPS: Record<string, AiLimits> = {
   recommend: { freeDaily: 20, paidDaily: 50 },
   movies_search: { freeDaily: 20, paidDaily: 50 },
   collection: { freeDaily: 0, paidDaily: 20 },
+  // Admin-only endpoint — admins bypass the limiter before caps are checked,
+  // so both caps stay at 0 as defense-in-depth: if requireAdmin is ever
+  // removed, non-admins still get hard-blocked at the rate-limit layer.
+  movie_map_draft: { freeDaily: 0, paidDaily: 0 },
 };
 
 /**
