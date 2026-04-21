@@ -205,6 +205,7 @@ export default function RecommendPage() {
         era: string[];
         excludeGenres: string[];
         providers: string[];
+        moods: string[];
         maxViolence: string | null;
         maxSexualContent: string | null;
         maxLanguageSubstance: string | null;
@@ -247,6 +248,7 @@ export default function RecommendPage() {
           sort: sortMode,
           mediaType: f.mediaType,
           providers: providerIds,
+          moods: f.moods,
           maxViolence: f.maxViolence,
           maxSexualContent: f.maxSexualContent,
           maxLanguageSubstance: f.maxLanguageSubstance,

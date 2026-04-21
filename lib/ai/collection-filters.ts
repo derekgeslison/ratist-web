@@ -14,6 +14,15 @@ export const TMDB_MOVIE_GENRES = [
 export const SEVERITY_ORDER = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"] as const;
 export type Severity = (typeof SEVERITY_ORDER)[number];
 
+// Hidden mood tags — same vocabulary as recommend. The route expands these
+// into additional genre adds/excludes before fetching.
+export const MOODS = [
+  "feel-good", "dark", "scary", "romantic", "tearjerker",
+  "mind-bending", "thought-provoking", "epic", "inspiring", "offbeat",
+  "funny", "edge-of-seat",
+] as const;
+export type Mood = (typeof MOODS)[number];
+
 export interface CollectionFilters {
   mediaType: "movie" | "tv" | "any";
   genres: string[];
@@ -33,6 +42,7 @@ export interface CollectionFilters {
   minLanguageSubstance: Severity | null;
   minScaryIntense: Severity | null;
   minSensitiveThemes: Severity | null;
+  moods: Mood[];
   limit: number;
   suggestedName: string;
 }
@@ -94,6 +104,23 @@ Five categories can be capped at a max (ceiling) or min (floor) severity level: 
 Don't kink-shame or moralize — extract what the user asked for. Set both a min and max only if the user explicitly wants a range (e.g. "violent but not gory"). Leave caps null when the user doesn't mention them.
 
 Data coverage for these caps is partial — uncached titles pass through MAX caps (include by default) but are EXCLUDED from MIN caps (can't confirm they meet the floor).
+
+### Moods (hidden tags — use liberally)
+moods is a multi-select array that shapes results beyond what genres can capture. The server expands each mood into extra genres to include + genres to avoid. Pick 0-3 moods based on the tone the user describes:
+- "feel-good": uplifting, cozy, heartwarming
+- "dark": gritty, bleak, noir, grim, psychological
+- "scary": horror / terror / frightening (also for TV where Horror genre doesn't exist)
+- "romantic": love-driven, emotional (CRITICAL for TV where Romance genre doesn't exist)
+- "tearjerker": "makes me cry", bittersweet, heart-wrenching
+- "mind-bending": twisty, nonlinear, reality-bending
+- "thought-provoking": cerebral, reflective, philosophical
+- "epic": grand-scale, sweeping
+- "inspiring": motivational, underdog, triumphant
+- "offbeat": weird, indie, arthouse, quirky
+- "funny": comedic, laugh-out-loud
+- "edge-of-seat": suspenseful, nail-biting
+
+ALWAYS set moods when the user describes tone — they compensate for thin genre coverage. "a dark TV show" → moods: ["dark"]. "a romantic TV show" → moods: ["romantic"] (TV lacks Romance genre). "a scary show" → moods: ["scary"] (TV lacks Horror genre).
 
 ### Other
 - "rated above X" / "higher than X" / "over X stars" → minRating: X (0-10 scale, community vote average).
@@ -186,10 +213,15 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
         enum: [...SEVERITY_ORDER, null],
         description: "Minimum required sensitive-themes severity. Set when user wants dark/disturbing/bleak. null = no floor.",
       },
+      moods: {
+        type: "array",
+        items: { type: "string", enum: [...MOODS] },
+        description: "Hidden mood tags that shape results beyond genres. Pick 0-3 based on the user's described tone. Always set when user describes mood, especially for TV where Romance/Horror/Thriller genres don't exist.",
+      },
       limit: { type: "integer", minimum: 5, maximum: 25, description: "Number of titles to include (default 10)." },
       suggestedName: { type: "string", description: "Short friendly name for the collection." },
     },
-    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "limit", "suggestedName"],
+    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "limit", "suggestedName"],
     additionalProperties: false,
   },
 };
@@ -235,6 +267,7 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     minLanguageSubstance: normalizeSeverity(raw.minLanguageSubstance),
     minScaryIntense: normalizeSeverity(raw.minScaryIntense),
     minSensitiveThemes: normalizeSeverity(raw.minSensitiveThemes),
+    moods: Array.isArray(raw.moods) ? (raw.moods.filter((m) => (MOODS as readonly string[]).includes(m)) as Mood[]) : [],
     limit: typeof raw.limit === "number" ? Math.max(5, Math.min(25, Math.floor(raw.limit))) : 10,
     suggestedName: typeof raw.suggestedName === "string" && raw.suggestedName.trim().length > 0 ? raw.suggestedName.trim().slice(0, 80) : "Custom Collection",
   };

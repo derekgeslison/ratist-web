@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getGenres } from "@/lib/tmdb";
+import { expandMoods } from "@/lib/ai/mood-expand";
 
 export const dynamic = "force-dynamic";
 
@@ -117,11 +118,23 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getUser(req);
     const body = await req.json();
-    const genres: string[] = body.genres ?? [];
+    const rawGenres: string[] = body.genres ?? [];
     const experienceArr: string[] = Array.isArray(body.experience) ? body.experience : (body.experience ? [body.experience] : []);
     const runtimeArr: string[] = Array.isArray(body.runtime) ? body.runtime : (body.runtime ? [body.runtime] : []);
     const eraArr: string[] = Array.isArray(body.era) ? body.era : (body.era ? [body.era] : []);
-    const excludeGenres: string[] = body.excludeGenres ?? [];
+    const rawExcludeGenres: string[] = body.excludeGenres ?? [];
+    const moodsArr: string[] = Array.isArray(body.moods) ? body.moods : [];
+
+    // Expand hidden mood tags into genre adds / avoids. Moods don't count as
+    // UI filters but they re-shape the search (e.g. "dark" adds Drama/Crime/
+    // Thriller, avoids Comedy/Family). See lib/ai/mood-expand.ts.
+    const MOOD_VALUES = new Set(["feel-good", "dark", "scary", "romantic", "tearjerker", "mind-bending", "thought-provoking", "epic", "inspiring", "offbeat", "funny", "edge-of-seat"]);
+    const validMoods = moodsArr.filter((m) => MOOD_VALUES.has(m)) as import("@/lib/ai/recommend-filters").Mood[];
+    const moodExpanded = validMoods.length > 0
+      ? expandMoods(validMoods, rawGenres, rawExcludeGenres)
+      : { genres: rawGenres, excludeGenres: rawExcludeGenres };
+    const genres: string[] = moodExpanded.genres;
+    const excludeGenres: string[] = moodExpanded.excludeGenres;
     const page: number = body.page ?? 1;
     const userSort: string = body.sort ?? "match";
     const mediaType: string = body.mediaType ?? "any";

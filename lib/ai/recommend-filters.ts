@@ -22,6 +22,17 @@ const ERA_VALUES = ["classic", "70s", "80s", "90s", "2000s", "2010s", "recent"] 
 // Must match STREAMING_PROVIDERS `short` values in lib/tmdb.ts
 const PROVIDERS = ["Netflix", "Prime", "Disney+", "Hulu", "Max", "Apple TV+", "Peacock", "Paramount+"] as const;
 
+// Hidden "mood" tags — the AI can emit these to shape results in ways that
+// genres alone can't capture (e.g. "dark" prefers Drama/Crime and avoids
+// Comedy/Family). These are NOT surfaced as UI chips and don't count in the
+// filter-drawer badge; the server expands them into genre adds/excludes.
+export const MOODS = [
+  "feel-good", "dark", "scary", "romantic", "tearjerker",
+  "mind-bending", "thought-provoking", "epic", "inspiring", "offbeat",
+  "funny", "edge-of-seat",
+] as const;
+export type Mood = (typeof MOODS)[number];
+
 // Shared with lib/ai/collection-filters.ts — keep in lockstep
 export const SEVERITY_ORDER = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"] as const;
 export type Severity = (typeof SEVERITY_ORDER)[number];
@@ -34,6 +45,7 @@ export interface ExtractedFilters {
   era: string[];
   excludeGenres: string[];
   providers: string[];
+  moods: Mood[];
   maxViolence: Severity | null;
   maxSexualContent: Severity | null;
   maxLanguageSubstance: Severity | null;
@@ -115,6 +127,23 @@ Five categories can be capped at a MAX (ceiling) or MIN (floor) severity: none <
 
 No kink-shaming — extract what the user asked for. Leave fields null when not mentioned.
 
+### Moods (hidden tags — use liberally)
+moods is a multi-select array used to shape results beyond what genres can capture. The server expands each mood into extra genres to include + genres to avoid. Pick 0-3 moods based on the tone the user describes:
+- "feel-good": light, uplifting, cozy, heartwarming, "to cheer me up", "with my mom", "Christmas movie"
+- "dark": gritty, bleak, noir, psychological, grim, "heavy", "not for the faint of heart"
+- "scary": horror / frightening / terrifying — use with "scary", "horror", "terror", "chilling", "jumpscare"
+- "romantic": love-driven, emotional — "date night", "love story", "rom-com", "romance"
+- "tearjerker": "makes me cry", "sob", "heart-wrenching", "bittersweet"
+- "mind-bending": twisty, nonlinear, reality-bending — "like Inception", "time loop", "mind-blown"
+- "thought-provoking": cerebral, reflective — "makes you think", "philosophical", "existential"
+- "epic": grand-scale, sweeping, long — "epic fantasy", "saga", "Lord of the Rings scale"
+- "inspiring": uplifting-but-serious — "motivational", "underdog", "triumphant"
+- "offbeat": weird, indie, arthouse — "A24-style", "quirky", "bizarre"
+- "funny": comedic — "hilarious", "laugh-out-loud", "I need to laugh"
+- "edge-of-seat": suspenseful — "keeps you guessing", "nail-biting"
+
+ALWAYS set moods when the user describes tone; they compensate for cases where genre alone is thin. Example: "a dark TV show" → moods: ["dark"]. "a feel-good Christmas movie" → moods: ["feel-good"]. "a romantic show" for TV → moods: ["romantic"] (TV has no Romance genre; the mood compensates).
+
 ### Providers (streaming services)
 If the user mentions a service by name, add its short code. Otherwise leave empty.
 - Netflix → "Netflix"
@@ -167,6 +196,11 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
         items: { type: "string", enum: [...PROVIDERS] },
         description: "Streaming services the user wants. Empty if unspecified.",
       },
+      moods: {
+        type: "array",
+        items: { type: "string", enum: [...MOODS] },
+        description: "Hidden mood tags that shape results beyond genres. Pick 0-3 based on the user's described tone. Always set when the user describes a mood.",
+      },
       maxViolence: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed violence severity. null = no cap." },
       maxSexualContent: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed sexual/nudity severity. null = no cap." },
       maxLanguageSubstance: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed language/drug severity. null = no cap." },
@@ -178,7 +212,7 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
       minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -207,6 +241,7 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     era: Array.isArray(input.era) ? input.era.filter((g) => (ERA_VALUES as readonly string[]).includes(g)) : [],
     excludeGenres: Array.isArray(input.excludeGenres) ? input.excludeGenres.filter((g) => (GENRES as readonly string[]).includes(g)) : [],
     providers: Array.isArray(input.providers) ? input.providers.filter((p) => (PROVIDERS as readonly string[]).includes(p)) : [],
+    moods: Array.isArray(input.moods) ? (input.moods.filter((m) => (MOODS as readonly string[]).includes(m)) as Mood[]) : [],
     maxViolence: normalizeSeverity(input.maxViolence),
     maxSexualContent: normalizeSeverity(input.maxSexualContent),
     maxLanguageSubstance: normalizeSeverity(input.maxLanguageSubstance),
