@@ -361,6 +361,43 @@ export default function RecommendPage() {
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
 
+  // Reset every filter dimension but keep the user on the results view and
+  // refetch with an empty filter set. Distinct from handleStartOver (which
+  // kicks the user back to the questionnaire). Inline the POST here rather
+  // than call fetchResults — fetchResults reads filter state via closure,
+  // and React setState is batched, so it would otherwise fetch with the
+  // pre-clear values on this render.
+  async function handleClearFilters() {
+    setSelectedGenres(new Set());
+    setExperience(new Set());
+    setRuntime(new Set());
+    setEra(new Set());
+    setExcludeGenres(new Set());
+    setMpaaSelected(new Set(ALL_MPAA));
+    setTvRatingSelected(new Set(ALL_TV_RATINGS));
+    setSelectedStreamingProviders(new Set());
+    setAiHidden(AI_HIDDEN_EMPTY);
+    setResultMediaFilter("all");
+    setMediaType("any");
+    setFiltersOpen(false);
+    setVisibleCount(5);
+    setLoading(true);
+    const token = await getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch("/api/tools/recommend", {
+      method: "POST", headers,
+      body: JSON.stringify({ page: 1, sort: sortMode, mediaType: "any" }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setResults(data.results ?? []);
+      setTotalPages(data.totalPages ?? 1);
+      setCurrentPage(data.page ?? 1);
+    }
+    setLoading(false);
+  }
+
   async function addToWatchlist(movie: MovieResult) {
     if (!user || watchlistingId) return;
     setWatchlistingId(movie.tmdbId);
@@ -624,18 +661,30 @@ export default function RecommendPage() {
             </div>
           </div>
 
-          {/* Filters toggle */}
-          <button
-            onClick={() => setFiltersOpen((v) => !v)}
-            className="flex items-center gap-2 mb-3 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            Filters
+          {/* Filters toggle + Clear-all (visible whenever any filter is set) */}
+          <div className="flex items-center gap-3 mb-3">
+            <button
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="flex items-center gap-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>
+              )}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+            </button>
             {activeFilterCount > 0 && (
-              <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeFilterCount}</span>
+              <button
+                onClick={handleClearFilters}
+                disabled={loading}
+                className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors disabled:opacity-50"
+                title="Clear every filter and refetch"
+              >
+                Clear filters
+              </button>
             )}
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
-          </button>
+          </div>
 
           {filtersOpen && (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4 space-y-4">
@@ -747,11 +796,19 @@ export default function RecommendPage() {
               </div>
             </div>
 
-            {/* Apply filters button */}
-            <button onClick={() => { fetchResults(1, false); setFiltersOpen(false); }} disabled={loading}
-              className="w-full py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
-              {loading ? "Updating..." : "Apply Filters"}
-            </button>
+            {/* Apply + Clear filter actions */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => { fetchResults(1, false); setFiltersOpen(false); }} disabled={loading}
+                className="flex-1 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
+                {loading ? "Updating..." : "Apply Filters"}
+              </button>
+              {activeFilterCount > 0 && (
+                <button onClick={handleClearFilters} disabled={loading}
+                  className="py-2 px-4 border border-[var(--border)] hover:border-[var(--ratist-red)]/50 text-xs text-[var(--foreground-muted)] hover:text-white rounded-lg transition-colors disabled:opacity-50">
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
           )}
 
