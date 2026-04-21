@@ -52,6 +52,7 @@ const PER_PAGE_OPTIONS = [
 
 
 const SORT_OPTIONS = [
+  { value: "relevance", label: "Relevance" },
   { value: "popular", label: "Most Popular" },
   { value: "top_rated", label: "Top Rated" },
   { value: "newest", label: "Newest First" },
@@ -59,6 +60,14 @@ const SORT_OPTIONS = [
   { value: "title_az", label: "Title A–Z" },
   { value: "title_za", label: "Title Z–A" },
 ];
+
+// URL keys that represent an *active filter*. Touching any of these is what
+// should trigger the auto-Relevance behavior.
+const FILTER_URL_KEYS = new Set([
+  "genres", "cast", "castLabels", "keywords", "keywordLabels",
+  "yearFrom", "yearTo", "mpaa", "ratingOp", "ratingVal",
+  "releaseStatus", "providers", "language",
+]);
 
 const RELEASE_OPTIONS = [
   { value: "", label: "All" },
@@ -165,6 +174,16 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
       else params.set(key, value);
     }
     params.delete("page");
+    // Auto-switch to Relevance sort ONLY when:
+    //   (1) this update is touching a filter key (not view/type/sort/etc.)
+    //   (2) the user had zero active filters before this change
+    //   (3) the user hasn't already explicitly set a sort
+    // After any of these conditions stop holding, further filter changes keep
+    // whatever sort the user picked.
+    const touchingFilter = Object.keys(updates).some((k) => FILTER_URL_KEYS.has(k));
+    if (touchingFilter && activeFilterCount === 0 && !searchParams.has("sort")) {
+      params.set("sort", "relevance");
+    }
     router.push(`/movies?${params.toString()}`);
   }
 

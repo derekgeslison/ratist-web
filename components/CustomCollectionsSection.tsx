@@ -179,7 +179,7 @@ export default function CustomCollectionsSection() {
           <h2 className="text-base font-semibold text-white">Create a custom collection with AI</h2>
         </div>
         <p className="text-xs text-[var(--foreground-muted)] mb-3">
-          Describe what you want. The AI picks filters — the Ratist catalog does the actual search, so no titles are made up.
+          Describe the vibe, genre, era, or mood you&apos;re after and we&apos;ll build a collection you can save and revisit.
         </p>
         <textarea
           value={prompt}

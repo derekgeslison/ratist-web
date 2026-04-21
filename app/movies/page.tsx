@@ -128,11 +128,19 @@ export default async function MoviesPage({ searchParams }: Props) {
     };
   }
 
+  // Relevance sort: use popularity ordering from TMDB but force genreMode to
+  // "any" so hybrids still show up, then sort results by match-count below.
+  const isRelevance = sort === "relevance";
+  const effectiveGenreMode = isRelevance && genres && genres.length >= 2
+    ? "any"
+    : (params.genreMode as "any" | "all" | undefined);
+  const effectiveSort = isRelevance ? "popular" : sort;
+
   const discoverOptions = {
     genres,
-    genreMode: params.genreMode as "any" | "all" | undefined,
+    genreMode: effectiveGenreMode,
     castIds,
-    sort,
+    sort: effectiveSort,
     yearFrom: params.yearFrom ?? legacyDecade?.from,
     yearTo: params.yearTo ?? legacyDecade?.to,
     certifications: mpaaRatings.length > 0 ? mpaaRatings : undefined,
@@ -181,10 +189,13 @@ export default async function MoviesPage({ searchParams }: Props) {
     }
   }
 
-  // Fetch shows — for "tv" mode OR for "all" mode when searching/filtering
-  // Skip shows in "all" mode when cast filter is active (TMDB TV discover doesn't support with_cast,
-  // so results would be unfiltered shows interleaved with correctly filtered movies)
-  const shouldFetchShows = contentType === "tv" || (contentType === "all" && !castIds?.length);
+  // Fetch shows — for "tv" mode OR for "all" mode when searching/filtering.
+  // Skip shows in "all" mode when:
+  //   - cast filter is active (TMDB TV discover doesn't support with_cast)
+  //   - any selected genre is movie-only (Romance, Horror, etc. have no TV equivalent
+  //     — including unfiltered TV results would bypass the user's intent)
+  const hasMovieOnlyGenre = contentType === "all" && genres && genres.some((g) => MOVIE_ONLY_GENRES.has(g));
+  const shouldFetchShows = contentType === "tv" || (contentType === "all" && !castIds?.length && !hasMovieOnlyGenre);
   if (showShows && shouldFetchShows) {
     const isSearchOrFilter = !!(params.search || hasFilters);
     const tvGenres = genres?.length ? translateGenresForTV(genres) : undefined;
@@ -236,13 +247,39 @@ export default async function MoviesPage({ searchParams }: Props) {
     pageTitle = "Movies & TV";
   }
 
+  // Relevance sort: re-order each result list by how many of the selected
+  // genres actually match (descending), preserving TMDB's popularity order
+  // within each tier. Movies and TV get sorted against their own genre IDs.
+  if (isRelevance && genres && genres.length >= 2) {
+    const movieGenreSet = new Set(genres.map((g) => Number(g)));
+    const tvGenreSet = new Set(translateGenresForTV(genres).map((g) => Number(g)));
+    const matchOf = (ids: number[] | undefined, set: Set<number>) =>
+      (ids ?? []).filter((id) => set.has(id)).length;
+    if (movieResult) {
+      const sorted = [...movieResult.results].map((m, i) => ({ m, i, match: matchOf((m as { genre_ids?: number[] }).genre_ids, movieGenreSet) }));
+      sorted.sort((a, b) => b.match - a.match || a.i - b.i);
+      movieResult = { ...movieResult, results: sorted.map((x) => x.m) };
+    }
+    if (showResult) {
+      const sorted = [...showResult.results].map((s, i) => ({ s, i, match: matchOf((s as { genre_ids?: number[] }).genre_ids, tvGenreSet) }));
+      sorted.sort((a, b) => b.match - a.match || a.i - b.i);
+      showResult = { ...showResult, results: sorted.map((x) => x.s) };
+    }
+  }
+
   // When searching/filtering in "all" mode, merge movies + shows by relevance (popularity)
   const isSearchMode = contentType === "all" && !!(params.search || hasFilters);
   let mixedResults: MixedItem[] = [];
   if (isSearchMode && (movieResult || showResult)) {
     const movies: MixedItem[] = (movieResult?.results ?? []).map((m) => ({ type: "movie" as const, data: m, popularity: m.popularity }));
     const shows: MixedItem[] = (showResult?.results ?? []).map((s) => ({ type: "show" as const, data: s, popularity: s.popularity }));
-    mixedResults = [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, perPage);
+    if (isRelevance && genres && genres.length >= 2) {
+      // Relevance already placed best matches first — preserve that order
+      // (don't re-sort by popularity which would undo the client match sort).
+      mixedResults = [...movies, ...shows].slice(0, perPage);
+    } else {
+      mixedResults = [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, perPage);
+    }
   }
 
   const genreList = await (contentType === "tv" ? getShowGenres() : getGenres());

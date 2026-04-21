@@ -87,7 +87,8 @@ export default function RecommendPage() {
       setStep(saved.step ?? 0);
       setMediaType(saved.mediaType ?? "any");
       setSelectedGenres(new Set(saved.selectedGenres ?? []));
-      setExperience(new Set(Array.isArray(saved.experience) ? saved.experience : []));
+      const VALID_EXPERIENCES = new Set(["popular", "hidden_gem", "classic", "taste"]);
+      setExperience(new Set((Array.isArray(saved.experience) ? saved.experience : []).filter((e: string) => VALID_EXPERIENCES.has(e))));
       setRuntime(new Set(Array.isArray(saved.runtime) ? saved.runtime : []));
       setEra(new Set(Array.isArray(saved.era) ? saved.era : []));
       setExcludeGenres(new Set(saved.excludeGenres ?? []));

@@ -10,11 +10,10 @@ const GENRES = [
   "Mystery", "Romance", "Science Fiction", "Thriller", "War", "Western",
 ] as const;
 
-const EXPERIENCE_TAGS = [
-  "thought-provoking", "feel-good", "tearjerker", "dark", "funny",
-  "edge-of-seat", "epic", "offbeat", "romantic", "scary", "inspiring",
-  "mind-bending",
-] as const;
+// Must match the four experience buttons rendered in the /tools/recommend
+// filter drawer — anything else gets dropped at the server so the filter-count
+// badge never overcounts hidden entries.
+const EXPERIENCE_TAGS = ["popular", "hidden_gem", "classic", "taste"] as const;
 
 const RUNTIME_BUCKETS = ["short", "feature", "long", "epic"] as const;
 
@@ -62,18 +61,9 @@ mediaType is "any" UNLESS the user explicitly says one of: "movie", "film", "fli
 When the user says "not too X", "nothing too X", "no X", "avoid X", "but not X", "without X", treat X as something to AVOID:
 - If X is a genre → add it to excludeGenres (NOT to genres, even if the topic is related).
 - "Halloween movie but nothing too scary" → genres: [Family, Fantasy], excludeGenres: [Horror]. Do NOT include Horror in genres just because Halloween is implied.
-- "date night but nothing cheesy" → don't force Romance; skip experience tags that contradict.
-- "with my mom, nothing too dark" → excludeGenres: [Horror, Thriller]; add experience "feel-good".
-- "something animated but not for little kids" → genres: [Animation], excludeGenres: [Family]; add experience "offbeat" if the user implies adult tone.
+- "with my mom, nothing too dark" → excludeGenres: [Horror, Thriller].
+- "something animated but not for little kids" → genres: [Animation], excludeGenres: [Family].
 - "watching with my teenager" (no extra negation) → DO NOT default to genre "Family" alone; teens fit Comedy, Adventure, Action, Science Fiction, Fantasy. Pick 1-2 broadly teen-friendly genres and exclude Horror unless the user asked for it.
-
-### Anti-duplication rule (important)
-If a concept fits a genre, DON'T also add it as an experience tag:
-- "romance" / "rom-com" → genre "Romance" — do NOT also set experience "romantic"
-- "comedy" / "funny movie" → genre "Comedy" — do NOT also set experience "funny"
-- "horror" / "scary movie" → genre "Horror" — do NOT also set experience "scary"
-- "epic adventure" → genre "Adventure" — do NOT also set experience "epic" unless the user specifically emphasized scale
-Experience tags are for FEELINGS beyond genre ("thought-provoking", "feel-good", "dark", "mind-bending", "tearjerker", "offbeat", "inspiring", "edge-of-seat"). Only use them when the user's wording implies a mood that a genre alone wouldn't capture.
 
 ### Genre mapping
 - "sci-fi" / "science fiction" / "cyberpunk" / "space" → "Science Fiction"
@@ -94,8 +84,14 @@ Experience tags are for FEELINGS beyond genre ("thought-provoking", "feel-good",
 - "classic" = pre-1970, "70s" / "80s" / "90s" / "2000s" / "2010s"
 - "recent" = 2020+
 
-### Experience tags (use sparingly — see Anti-duplication above)
-"thought-provoking", "feel-good", "tearjerker", "dark", "funny", "edge-of-seat", "epic", "offbeat", "romantic", "scary", "inspiring", "mind-bending"
+### Experience tags (use sparingly)
+Four values only — pick when the user is explicit; otherwise leave empty:
+- "popular" → user wants currently-popular/well-known titles
+- "classic" → user wants canon / highly-rated older/historical titles
+- "hidden_gem" → user wants off-radar, highly-rated low-popularity titles
+- "taste" → user references their own profile ("based on my taste", "what I'd like")
+
+Do NOT invent tags. If the user says "feel-good" or "tearjerker" or "dark", leave experience EMPTY and let genres/excludeGenres do the work.
 
 ### Parents-guide severity caps
 Five categories can be capped at a MAX (ceiling) or MIN (floor) severity: none < mild < mild-moderate < moderate < moderate-severe < severe.
