@@ -31,7 +31,7 @@ interface MovieResult {
   overview: string; voteAverage: number; genres: string[];
   runtime: number | null; mpaaRating: string | null;
   streaming: ProviderInfo[]; rentBuy: ProviderInfo[];
-  matchScore: number | null; reason: string;
+  matchScore: number | null; requestedMatchCount?: number; reason: string;
   mediaType?: "movie" | "tv";
 }
 
@@ -312,7 +312,11 @@ export default function RecommendPage() {
   });
   const sorted = sortMode === "rating" ? [...filtered].sort((a, b) => b.voteAverage - a.voteAverage)
     : sortMode === "match" ? [...filtered].sort((a, b) => {
-        // Sort by matchScore first, fall back to rating for non-personalized results
+        // Explicit query-genre matches win first. Sci-Fi + Romance title beats
+        // a pure Romance title even if the user rates romance higher on average.
+        const aReq = a.requestedMatchCount ?? 0;
+        const bReq = b.requestedMatchCount ?? 0;
+        if (aReq !== bReq) return bReq - aReq;
         const aScore = a.matchScore ?? 0;
         const bScore = b.matchScore ?? 0;
         if (aScore !== bScore) return bScore - aScore;
@@ -643,8 +647,9 @@ export default function RecommendPage() {
           </div>
           )}
 
-          {/* Sort + filter bar */}
-          {results.length > 0 && (
+          {/* Sort + filter bar — stays visible even with zero results so the
+              user can loosen filters without losing the controls. */}
+          {hasSearched && (
             <div className="flex flex-wrap items-center gap-3 mb-4 text-xs">
               {/* Media type toggle */}
               <div className="flex items-center gap-1">

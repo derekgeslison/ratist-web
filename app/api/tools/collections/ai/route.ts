@@ -134,6 +134,9 @@ export async function POST(req: NextRequest) {
     type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null };
     if (filters.seenFilter === "seen_only" && !useTv) {
       const includeIdsNum = includeIds.map(Number);
+      // Fetch a bigger quality-filtered pool, then randomly sample so repeat
+      // prompts don't yield the identical list every time.
+      const poolSize = Math.max(filters.limit * 5, 50);
       const seenRows = await prisma.userFavoriteMovie.findMany({
         where: {
           userId: user.id,
@@ -153,9 +156,15 @@ export async function POST(req: NextRequest) {
           movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
         },
         orderBy: { movie: { voteAverage: "desc" } },
-        take: filters.limit,
+        take: poolSize,
       });
-      const collectedSeen: Item[] = seenRows.map((r) => ({
+      // Fisher-Yates shuffle, take limit
+      const shuffled = [...seenRows];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const collectedSeen: Item[] = shuffled.slice(0, filters.limit).map((r) => ({
         mediaType: "movie" as const,
         tmdbId: r.movie.tmdbId,
         title: r.movie.title,
@@ -183,7 +192,9 @@ export async function POST(req: NextRequest) {
     const hasMaxCap = filters.maxViolence || filters.maxSexualContent || filters.maxLanguageSubstance || filters.maxScaryIntense || filters.maxSensitiveThemes;
     const hasMinCap = filters.minViolence || filters.minSexualContent || filters.minLanguageSubstance || filters.minScaryIntense || filters.minSensitiveThemes;
     const hasSeverityCap = hasMaxCap || hasMinCap;
-    const targetPool = hasMinCap ? filters.limit * 5 : hasMaxCap ? filters.limit * 3 : filters.limit;
+    // Always overshoot so the end-of-flow shuffle yields variety on repeat
+    // prompts. Severity caps need an even bigger pool to survive filtering.
+    const targetPool = hasMinCap ? filters.limit * 5 : hasMaxCap ? filters.limit * 3 : filters.limit * 3;
 
     // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages)
     const collected: Item[] = [];
@@ -270,7 +281,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    finalItems = finalItems.slice(0, filters.limit);
+    // Shuffle within-pool so repeat prompts give different results. Quality is
+    // preserved because every pool item already passes all filters and came
+    // from top_rated pages. Seen_only path above has its own shuffle.
+    const shuffled = [...finalItems];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    finalItems = shuffled.slice(0, filters.limit);
 
     await logAiUsage(user.id, "collection");
 

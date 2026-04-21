@@ -36,6 +36,27 @@ async function tmdbGet(path: string, params: Record<string, string> = {}) {
   return res.json();
 }
 
+// Mirror /movies page mapping so "Science Fiction" movie selection also finds
+// TV shows tagged "Sci-Fi & Fantasy", etc. Movie-only genres (Romance, Horror,
+// History, Music, Thriller, TV Movie) have no TV equivalent and are dropped.
+const GENRE_MOVIE_TO_TV: Record<string, string[]> = {
+  "28": ["10759"],    // Action → Action & Adventure
+  "12": ["10759"],    // Adventure → Action & Adventure
+  "878": ["10765"],   // Science Fiction → Sci-Fi & Fantasy
+  "14": ["10765"],    // Fantasy → Sci-Fi & Fantasy
+  "10752": ["10768"], // War → War & Politics
+};
+const MOVIE_ONLY_GENRES = new Set(["36", "27", "10402", "10749", "53", "10770"]); // History, Horror, Music, Romance, Thriller, TV Movie
+
+function translateGenresForTV(ids: string[]): string[] {
+  const out = new Set<string>();
+  for (const id of ids) {
+    if (GENRE_MOVIE_TO_TV[id]) for (const m of GENRE_MOVIE_TO_TV[id]) out.add(m);
+    else if (!MOVIE_ONLY_GENRES.has(id)) out.add(id);
+  }
+  return [...out];
+}
+
 const EXPERIENCE_LABELS: Record<string, string> = {
   hidden_gem: "Hidden gem",
   classic: "Classic",
@@ -187,14 +208,17 @@ export async function POST(req: NextRequest) {
     // sorted by *how many* of the selected genres they hit. With 4 genres a
     // movie matching 3 beats one matching only 2, which beats one matching 1.
     async function tmdbGetGenreAware(endpoint: string, params: Record<string, string>) {
-      if (genreIds.length === 0) {
-        return tmdbGet(endpoint, params);
+      // Translate movie genre IDs → TV genre IDs when hitting /discover/tv
+      const effectiveGenreIds = endpoint === "/discover/tv" ? translateGenresForTV(genreIds) : genreIds;
+      if (effectiveGenreIds.length === 0) {
+        // If all requested genres are movie-only (e.g. Romance for TV), skip the TV call
+        return genreIds.length > 0 ? { results: [], total_pages: 0 } : tmdbGet(endpoint, params);
       }
-      if (genreIds.length === 1) {
-        return tmdbGet(endpoint, { ...params, with_genres: genreIds[0] });
+      if (effectiveGenreIds.length === 1) {
+        return tmdbGet(endpoint, { ...params, with_genres: effectiveGenreIds[0] });
       }
-      const andParams = { ...params, with_genres: genreIds.join(",") };
-      const orParams = { ...params, with_genres: genreIds.join("|") };
+      const andParams = { ...params, with_genres: effectiveGenreIds.join(",") };
+      const orParams = { ...params, with_genres: effectiveGenreIds.join("|") };
       const [andRes, orRes] = await Promise.all([
         tmdbGet(endpoint, andParams).catch(() => null),
         tmdbGet(endpoint, orParams).catch(() => null),
@@ -205,8 +229,8 @@ export async function POST(req: NextRequest) {
       const orUnique = orResults.filter((r) => !andIds.has(r.id));
 
       // For 3+ genres, stable-sort OR-unique remainder by match count descending.
-      if (genreIds.length >= 3) {
-        const selected = new Set(genreIds.map(Number));
+      if (effectiveGenreIds.length >= 3) {
+        const selected = new Set(effectiveGenreIds.map(Number));
         const matchCount = (r: Record<string, unknown>) =>
           ((r.genre_ids as number[] | undefined) ?? []).filter((g) => selected.has(g)).length;
         const decorated = orUnique.map((r, i) => ({ r, i, m: matchCount(r) }));
@@ -393,10 +417,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // How many of the user's requested genres match this title's genre tags.
+    // Client sorts by this first so an explicit "sci-fi + romance" query keeps
+    // hybrid titles on top regardless of the user's personal taste profile.
+    const requestedGenreIdSet = new Set(genreIds.map(Number));
+
     // Build results
     let results = (discoverData.results ?? []).map((m: Record<string, unknown>) => {
       const mt = m._mediaType as string;
-      const itemGenres = ((m.genre_ids as number[]) ?? []).map((id) => idToName.get(id)).filter(Boolean) as string[];
+      const itemGenreIds = (m.genre_ids as number[] | undefined) ?? [];
+      const itemGenres = itemGenreIds.map((id) => idToName.get(id)).filter(Boolean) as string[];
       const details = detailsMap.get(m.id as number);
       const providers = providersMap.get(m.id as number);
 
@@ -405,6 +435,10 @@ export async function POST(req: NextRequest) {
         const scores = itemGenres.map((g) => userGenrePrefs.get(g) ?? 0).filter((s) => s > 0);
         if (scores.length > 0) matchScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
       }
+
+      const requestedMatchCount = requestedGenreIdSet.size > 0
+        ? itemGenreIds.filter((g) => requestedGenreIdSet.has(g)).length
+        : 0;
 
       return {
         tmdbId: m.id as number,
@@ -421,6 +455,7 @@ export async function POST(req: NextRequest) {
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
+        requestedMatchCount,
         reason: (m._experience as string)
           ? getReasonForExperience(m._experience as string)
           : getReasonForResult(experienceArr, m.vote_average as number, m.vote_count as number, m.popularity as number, matchScore),
