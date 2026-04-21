@@ -74,6 +74,9 @@ export default function RecommendPage() {
   const [watchlistingId, setWatchlistingId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Moods are extracted by the AI and applied as a hidden filter. The user sees
+  // only a generic "AI mood filter" chip in the drawer — not the specific moods.
+  const [aiMoods, setAiMoods] = useState<string[]>([]);
 
   // AI mode (alternative to the questionnaire, shown on step 0 only)
   const [aiPrompt, setAiPrompt] = useState("");
@@ -103,6 +106,7 @@ export default function RecommendPage() {
       setResultMediaFilter(saved.resultMediaFilter ?? "all");
       setTvRatingSelected(new Set(saved.tvRatingSelected ?? ALL_TV_RATINGS));
       setSelectedStreamingProviders(new Set(saved.selectedStreamingProviders ?? []));
+      setAiMoods(Array.isArray(saved.aiMoods) ? saved.aiMoods : []);
     }
     setHydrated(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,6 +118,7 @@ export default function RecommendPage() {
     runtime.size > 0,
     era.size > 0,
     excludeGenres.size > 0,
+    aiMoods.length > 0,
   ].filter(Boolean).length;
 
   // Persist state to sessionStorage
@@ -125,9 +130,10 @@ export default function RecommendPage() {
         hasSearched, currentPage, totalPages, sortMode, watchlisted: [...watchlisted],
         resultMediaFilter, tvRatingSelected: [...tvRatingSelected],
         selectedStreamingProviders: [...selectedStreamingProviders],
+        aiMoods,
       }));
     } catch {}
-  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders]);
+  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders, aiMoods]);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
@@ -155,6 +161,7 @@ export default function RecommendPage() {
         sort: sortMode,
         mediaType: effectiveMediaType,
         providers: providerIds,
+        moods: aiMoods,
       }),
     });
     if (res.ok) {
@@ -224,6 +231,7 @@ export default function RecommendPage() {
       setRuntime(new Set(f.runtime));
       setEra(new Set(f.era));
       setExcludeGenres(new Set(f.excludeGenres));
+      setAiMoods(Array.isArray(f.moods) ? f.moods : []);
       const extractedProviders = new Set(f.providers ?? []);
       setSelectedStreamingProviders(extractedProviders);
       setResultMediaFilter(f.mediaType === "any" ? "all" : f.mediaType);
@@ -289,6 +297,7 @@ export default function RecommendPage() {
     setEra(new Set()); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
     setFiltersOpen(false); setResultMediaFilter("all"); setSelectedStreamingProviders(new Set());
     setTvRatingSelected(new Set(ALL_TV_RATINGS));
+    setAiMoods([]);
     setHasSearched(false); setVisibleCount(5); setSortMode("match");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
@@ -571,6 +580,22 @@ export default function RecommendPage() {
 
           {filtersOpen && (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4 space-y-4">
+            {/* AI mood filter (hidden vocabulary, shown as a single generic chip) */}
+            {aiMoods.length > 0 && (
+              <div>
+                <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">AI</p>
+                <button
+                  onClick={() => setAiMoods([])}
+                  title="Remove AI mood filter"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white hover:bg-[var(--ratist-red)]/20 transition-colors"
+                >
+                  <Wand2 className="w-2.5 h-2.5" />
+                  AI mood filter
+                  <X className="w-2.5 h-2.5 ml-0.5" />
+                </button>
+              </div>
+            )}
+
             {/* Genres */}
             <div>
               <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Genres</p>
