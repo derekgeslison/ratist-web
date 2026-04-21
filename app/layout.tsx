@@ -24,7 +24,6 @@ export const metadata: Metadata = {
   description:
     "Discover movies and TV shows through deep, criteria-based ratings. Get personalized recommendations based on your unique taste profile.",
   metadataBase: new URL("https://www.theratist.com"),
-  alternates: { canonical: "/" },
   icons: {
     icon: [
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },

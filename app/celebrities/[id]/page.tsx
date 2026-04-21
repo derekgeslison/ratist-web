@@ -109,6 +109,7 @@ export async function generateMetadata({ params }: Props) {
     return {
       title: person.name,
       description,
+      alternates: { canonical: `/celebrities/${id}` },
       openGraph: {
         title: `${person.name} — The Ratist`,
         description,

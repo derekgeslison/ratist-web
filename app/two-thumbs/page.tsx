@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-export const metadata: Metadata = { title: "Two Thumbs", description: "Head-to-head debates, comparisons, and contrarian takes." };
+export const metadata: Metadata = { title: "Two Thumbs", description: "Head-to-head debates, comparisons, and contrarian takes.", alternates: { canonical: "/two-thumbs" } };
 import Link from "next/link";
 import Image from "next/image";
 import { Calendar, Eye, MessageCircle, Search } from "lucide-react";

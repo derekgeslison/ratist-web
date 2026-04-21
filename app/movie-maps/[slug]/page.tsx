@@ -23,6 +23,7 @@ export async function generateMetadata({ params }: Props) {
   return {
     title: post.title,
     description,
+    alternates: { canonical: `/movie-maps/${slug}` },
     openGraph: {
       title: `${post.title} — The Ratist`,
       description,

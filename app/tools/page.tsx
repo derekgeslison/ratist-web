@@ -4,7 +4,7 @@ import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorP
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 
-export const metadata: Metadata = { title: "Cinephile Tools", description: "Movie and TV show tools: find shared cast between films, look up actor filmographies, create rankings, get personalized recommendations, and more." };
+export const metadata: Metadata = { title: "Cinephile Tools", description: "Movie and TV show tools: find shared cast between films, look up actor filmographies, create rankings, get personalized recommendations, and more.", alternates: { canonical: "/tools" } };
 
 const TOOLS = [
   {

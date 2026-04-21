@@ -23,6 +23,7 @@ export async function generateMetadata({ params }: Props) {
   return {
     title: item.title,
     description: item.excerpt ?? undefined,
+    alternates: { canonical: `/news/${slug}` },
     openGraph: {
       title: `${item.title} — The Ratist`,
       description: item.excerpt ?? undefined,

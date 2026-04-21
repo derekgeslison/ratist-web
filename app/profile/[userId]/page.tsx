@@ -45,6 +45,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: user.name,
     description,
+    alternates: { canonical: `/profile/${userId}` },
     openGraph: {
       title: `${user.name} — The Ratist`,
       description,

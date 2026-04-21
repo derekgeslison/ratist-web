@@ -8,6 +8,7 @@ import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 export const metadata: Metadata = {
   title: "About",
   description: "Why The Ratist exists — and why traditional movie and TV show ratings are broken.",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {

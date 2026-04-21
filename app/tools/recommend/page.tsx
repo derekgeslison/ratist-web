@@ -502,7 +502,7 @@ export default function RecommendPage() {
                   {aiError && <p className="text-xs text-red-400 mb-2">{aiError}</p>}
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] text-[var(--foreground-muted)]">
-                      {user ? "Free: 10/hour · Backstage Pass: unlimited" : "Sign in required"}
+                      {user ? "Free: 20/day · Backstage Pass: 50/day" : "Sign in required"}
                     </p>
                     <button
                       onClick={handleAiRecommend}

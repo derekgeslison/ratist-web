@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-export const metadata: Metadata = { title: "News", description: "The latest movie and TV show news, trailers, announcements, and editorial takes from The Ratist." };
+export const metadata: Metadata = { title: "News", description: "The latest movie and TV show news, trailers, announcements, and editorial takes from The Ratist.", alternates: { canonical: "/news" } };
 
 export const dynamic = "force-dynamic";
 import Image from "next/image";

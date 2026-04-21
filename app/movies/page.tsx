@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-export const metadata: Metadata = { title: "Movies & TV", description: "Browse and discover movies and TV shows. Filter by genre, streaming service, year, and more. Read community reviews and get personalized ratings." };
+export const metadata: Metadata = { title: "Movies & TV", description: "Browse and discover movies and TV shows. Filter by genre, streaming service, year, and more. Read community reviews and get personalized ratings.", alternates: { canonical: "/movies" } };
 import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";

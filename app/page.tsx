@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Sparkles, Swords, Film } from "lucide-react";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
 import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";

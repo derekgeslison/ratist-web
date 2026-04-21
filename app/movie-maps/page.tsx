@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-export const metadata: Metadata = { title: "Movie Maps", description: "Curated journeys through cinema — themed lists, chronological watches, and essential viewing guides." };
+export const metadata: Metadata = { title: "Movie Maps", description: "Curated journeys through cinema — themed lists, chronological watches, and essential viewing guides.", alternates: { canonical: "/movie-maps" } };
 import Link from "next/link";
 import Image from "next/image";
 import { Map, Calendar, Eye, MessageCircle, Search } from "lucide-react";
