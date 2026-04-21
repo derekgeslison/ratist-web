@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getGenres } from "@/lib/tmdb";
 import { expandMoods } from "@/lib/ai/mood-expand";
+import { resolveKeywords } from "@/lib/tmdb-keywords";
 
 export const dynamic = "force-dynamic";
 
@@ -124,6 +125,19 @@ export async function POST(req: NextRequest) {
     const eraArr: string[] = Array.isArray(body.era) ? body.era : (body.era ? [body.era] : []);
     const rawExcludeGenres: string[] = body.excludeGenres ?? [];
     const moodsArr: string[] = Array.isArray(body.moods) ? body.moods : [];
+    const originalLanguageArr: string[] = Array.isArray(body.originalLanguage)
+      ? body.originalLanguage.filter((l: unknown): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [];
+    const excludeOriginalLanguagesArr: string[] = Array.isArray(body.excludeOriginalLanguages)
+      ? body.excludeOriginalLanguages.filter((l: unknown): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [];
+    const excludeAnimeFlag: boolean = body.excludeAnime === true;
+    const precisePeriodFrom: number | null = typeof body.yearFrom === "number" && body.yearFrom > 1800 ? Math.floor(body.yearFrom) : null;
+    const precisePeriodTo: number | null = typeof body.yearTo === "number" && body.yearTo > 1800 ? Math.floor(body.yearTo) : null;
+    const minRatingNum: number | null = typeof body.minRating === "number" && body.minRating >= 0 && body.minRating <= 10 ? body.minRating : null;
+    const keywordPhrases: string[] = Array.isArray(body.keywords)
+      ? body.keywords.filter((k: unknown): k is string => typeof k === "string" && k.trim().length > 0).map((k: string) => k.trim().toLowerCase()).slice(0, 3)
+      : [];
+    const keywordIds = keywordPhrases.length > 0 ? await resolveKeywords(keywordPhrases) : [];
+    const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
 
     // Expand hidden mood tags into genre adds / avoids. Moods don't count as
     // UI filters but they re-shape the search (e.g. "dark" adds Drama/Crime/
@@ -174,6 +188,9 @@ export async function POST(req: NextRequest) {
         yearFrom = ""; yearTo = "";
       }
     }
+    // Precise year range from AI overrides era buckets when set.
+    if (precisePeriodFrom != null) yearFrom = String(precisePeriodFrom);
+    if (precisePeriodTo != null) yearTo = String(precisePeriodTo);
 
     // ── Runtime ──
     const runtimeParams: Record<string, string> = {};
@@ -228,12 +245,22 @@ export async function POST(req: NextRequest) {
 
     // Build shared params (era, runtime, providers). Genres are applied later by
     // tmdbGetGenreAware so 2+ selected genres can do an AND-first / OR-fallback pass.
-    function buildBaseParams(sortBy: string): Record<string, string> {
+    function buildBaseParams(sortBy: string, includeKeywords = true): Record<string, string> {
       const p: Record<string, string> = { page: String(actualPage), sort_by: sortBy };
       if (excludeIds.length > 0) p.without_genres = excludeIds.join(",");
       if (yearFrom) p[isTV ? "first_air_date.gte" : "primary_release_date.gte"] = `${yearFrom}-01-01`;
       if (yearTo) p[isTV ? "first_air_date.lte" : "primary_release_date.lte"] = `${yearTo}-12-31`;
       if (providerIds.length > 0) { p.with_watch_providers = providerIds.join("|"); p.watch_region = "US"; }
+      // TMDB native include-language (only supports a single code). Multi-code
+      // whitelists fall back to a post-filter pass later. Passing the first
+      // code here narrows the query server-side for the common single-language
+      // case (e.g. "Korean thrillers" → ko).
+      if (originalLanguageArr.length === 1) p.with_original_language = originalLanguageArr[0];
+      // Min-rating floor via vote_average.gte (only when user explicitly set).
+      if (minRatingNum != null) p["vote_average.gte"] = String(minRatingNum);
+      // Keyword tags for niche themes (future, time loop, christmas, etc.).
+      // Toggled off by the fallback pass below when the keyword query is sparse.
+      if (includeKeywords && keywordsParam) p.with_keywords = keywordsParam;
       return p;
     }
 
@@ -295,9 +322,9 @@ export async function POST(req: NextRequest) {
       return tv;
     }
 
-    async function fetchForExperience(exp: string): Promise<{ results: Record<string, unknown>[]; total_pages: number }> {
+    async function fetchForExperience(exp: string, includeKeywords = true): Promise<{ results: Record<string, unknown>[]; total_pages: number }> {
       const config = EXPERIENCE_PARAMS[exp] ?? { sort: "popularity.desc", params: { "vote_count.gte": "10" } };
-      const p = { ...buildBaseParams(config.sort), ...config.params };
+      const p = { ...buildBaseParams(config.sort, includeKeywords), ...config.params };
       Object.assign(p, runtimeParams);
       applyUserSort(p);
       const tvP = buildTvParams(p);
@@ -325,34 +352,32 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Fetch results ──
-    let discoverData: { results: Record<string, unknown>[]; total_pages: number };
-
-    if (experienceArr.length > 1) {
-      // Multiple experiences: run separate queries, interleave evenly
-      const fetches = await Promise.all(experienceArr.map((exp) => fetchForExperience(exp)));
-      const perExp = Math.ceil(20 / experienceArr.length);
-      const merged: Record<string, unknown>[] = [];
-      const cursors = fetches.map(() => 0);
-      // Round-robin: take one from each experience in turn
-      let added = 0;
-      while (added < 20) {
-        let anyAdded = false;
-        for (let e = 0; e < fetches.length && added < 20; e++) {
-          if (cursors[e] < fetches[e].results.length) {
-            merged.push(fetches[e].results[cursors[e]++]);
-            added++;
-            anyAdded = true;
+    // Wrapped so we can re-run with keywords dropped as a fallback pass
+    // when the keyword-constrained query is sparse.
+    async function runMainFetch(includeKeywords: boolean): Promise<{ results: Record<string, unknown>[]; total_pages: number } | null> {
+      if (experienceArr.length > 1) {
+        const fetches = await Promise.all(experienceArr.map((exp) => fetchForExperience(exp, includeKeywords)));
+        const merged: Record<string, unknown>[] = [];
+        const cursors = fetches.map(() => 0);
+        let added = 0;
+        while (added < 20) {
+          let anyAdded = false;
+          for (let e = 0; e < fetches.length && added < 20; e++) {
+            if (cursors[e] < fetches[e].results.length) {
+              merged.push(fetches[e].results[cursors[e]++]);
+              added++;
+              anyAdded = true;
+            }
           }
+          if (!anyAdded) break;
         }
-        if (!anyAdded) break;
+        return { results: merged, total_pages: Math.max(...fetches.map((f) => f.total_pages)) };
       }
-      discoverData = { results: merged, total_pages: Math.max(...fetches.map((f) => f.total_pages)) };
-    } else if (experienceArr.length === 1) {
-      discoverData = await fetchForExperience(experienceArr[0]);
-      discoverData.results = discoverData.results.slice(0, 20);
-    } else {
-      // No experience = random popular mix
-      const p = { ...buildBaseParams("popularity.desc"), "vote_count.gte": "10" };
+      if (experienceArr.length === 1) {
+        const d = await fetchForExperience(experienceArr[0], includeKeywords);
+        return { results: d.results.slice(0, 20), total_pages: d.total_pages };
+      }
+      const p = { ...buildBaseParams("popularity.desc", includeKeywords), "vote_count.gte": "10" };
       Object.assign(p, runtimeParams);
       applyUserSort(p);
       const tvP = buildTvParams(p);
@@ -367,14 +392,53 @@ export async function POST(req: NextRequest) {
           if (mi < mvR.length) merged.push(mvR[mi++]);
           if (ti < tvR.length) merged.push(tvR[ti++]);
         }
-        discoverData = { results: merged.slice(0, 20), total_pages: Math.max(mv?.total_pages ?? 1, tv?.total_pages ?? 1) };
-      } else {
-        const endpoint = isTV ? "/discover/tv" : "/discover/movie";
-        const fetchP = isTV ? tvP : p;
-        const raw = await tmdbGetGenreAware(endpoint, fetchP);
-        if (!raw) return NextResponse.json({ error: "TMDB error" }, { status: 502 });
-        discoverData = { results: (raw.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: isTV ? "tv" : "movie" })), total_pages: raw.total_pages ?? 1 };
+        return { results: merged.slice(0, 20), total_pages: Math.max(mv?.total_pages ?? 1, tv?.total_pages ?? 1) };
       }
+      const endpoint = isTV ? "/discover/tv" : "/discover/movie";
+      const fetchP = isTV ? tvP : p;
+      const raw = await tmdbGetGenreAware(endpoint, fetchP);
+      if (!raw) return null;
+      return { results: (raw.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: isTV ? "tv" : "movie" })), total_pages: raw.total_pages ?? 1 };
+    }
+
+    let discoverData: { results: Record<string, unknown>[]; total_pages: number };
+    const primary = await runMainFetch(true);
+    if (!primary) return NextResponse.json({ error: "TMDB error" }, { status: 502 });
+    discoverData = primary;
+    // Keyword fallback: if the keyword-constrained pass produced fewer than
+    // 10 titles, pad with no-keyword results (deduped, keyword-matched first).
+    if (keywordsParam && discoverData.results.length < 10) {
+      const fallback = await runMainFetch(false);
+      if (fallback) {
+        const seen = new Set(discoverData.results.map((r) => `${r._mediaType}:${r.id}`));
+        for (const r of fallback.results) {
+          const key = `${r._mediaType}:${r.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          discoverData.results.push(r);
+          if (discoverData.results.length >= 20) break;
+        }
+        discoverData.total_pages = Math.max(discoverData.total_pages, fallback.total_pages);
+      }
+    }
+
+    // ── Language + anime post-filter ──
+    // TMDB's with_original_language only accepts one code, so multi-code
+    // whitelists and all blacklists happen here. Anime exclusion is also a
+    // compound filter (Japanese origin + Animation genre) that can't be
+    // expressed via TMDB discover params.
+    if (originalLanguageArr.length > 1 || excludeOriginalLanguagesArr.length > 0 || excludeAnimeFlag) {
+      const whitelist = originalLanguageArr.length > 1 ? new Set(originalLanguageArr) : null;
+      const blacklist = new Set(excludeOriginalLanguagesArr);
+      const ANIMATION_GENRE_ID = 16;
+      discoverData.results = discoverData.results.filter((m) => {
+        const lang = (m.original_language as string | undefined) ?? "";
+        const genreIdsArr = (m.genre_ids as number[] | undefined) ?? [];
+        if (whitelist && !whitelist.has(lang)) return false;
+        if (blacklist.has(lang)) return false;
+        if (excludeAnimeFlag && lang === "ja" && genreIdsArr.includes(ANIMATION_GENRE_ID)) return false;
+        return true;
+      });
     }
 
     const resultIds: number[] = discoverData.results.map((m) => m.id as number);

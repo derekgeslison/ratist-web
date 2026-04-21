@@ -260,6 +260,8 @@ export async function discoverMovies(options: {
   language?: string;
   keywords?: string;
   releaseStatus?: string;
+  minRuntime?: number;
+  maxRuntime?: number;
   page?: number;
   // legacy
   genre?: string;
@@ -313,6 +315,8 @@ export async function discoverMovies(options: {
   }
   if (options.language) params.with_original_language = options.language;
   if (options.keywords) params.with_keywords = options.keywords;
+  if (options.minRuntime != null) params["with_runtime.gte"] = String(options.minRuntime);
+  if (options.maxRuntime != null) params["with_runtime.lte"] = String(options.maxRuntime);
 
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", params);
 }

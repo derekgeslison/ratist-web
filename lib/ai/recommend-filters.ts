@@ -46,6 +46,25 @@ export interface ExtractedFilters {
   excludeGenres: string[];
   providers: string[];
   moods: Mood[];
+  // TMDB 2-letter language codes. originalLanguage is an INCLUDE whitelist;
+  // excludeOriginalLanguages is a BLACKLIST.
+  originalLanguage: string[];
+  excludeOriginalLanguages: string[];
+  // Compound filter: "no anime" means Japanese-origin Animation only — we can't
+  // just exclude Animation (over-excludes Pixar) or just exclude Japanese
+  // (over-excludes Japanese live-action).
+  excludeAnime: boolean;
+  // Precise year range that overrides era buckets when set. Use for prompts
+  // like "1985–1995" or "summer 2023" that era buckets can't express.
+  yearFrom: number | null;
+  yearTo: number | null;
+  // Community rating floor on TMDB's 0–10 scale.
+  minRating: number | null;
+  // Natural-language keyword phrases (1–3) that map to TMDB keyword tags for
+  // niche themes not captured by genre/mood. Resolved server-side via
+  // /search/keyword. Server falls back to no-keyword results if the keyword
+  // query yields too few matches.
+  keywords: string[];
   maxViolence: Severity | null;
   maxSexualContent: Severity | null;
   maxLanguageSubstance: Severity | null;
@@ -108,14 +127,16 @@ Do NOT invent tags. If the user says "feel-good" or "tearjerker" or "dark", leav
 ### Parents-guide severity caps
 Five categories can be capped at a MAX (ceiling) or MIN (floor) severity: none < mild < mild-moderate < moderate < moderate-severe < severe.
 
-**Max caps** — user wants LESS of something:
+**Max caps** — user wants LESS of something. ALWAYS set these when the phrasing matches, even in compound prompts ("no horror, no gore" → both excludeGenres Horror AND maxViolence:"mild"). Don't assume genre excludes alone cover it.
 - "not too graphic" / "not too violent" → maxViolence: "moderate"
-- "no gore" → maxViolence: "mild"
+- "no gore" / "no blood" → maxViolence: "mild"
 - "no sex" / "no nudity" → maxSexualContent: "mild"
 - "clean" / "no swearing" / "no drugs" → maxLanguageSubstance: "mild"
-- "nothing scary" / "not too intense" → maxScaryIntense: "mild"
+- "nothing scary" / "not too intense" / "nothing too dark" → maxScaryIntense: "mild" AND maxSensitiveThemes: "moderate"
+- "no jumpscares" / "not jumpy" → maxScaryIntense: "mild"
+- "not too scary" → maxScaryIntense: "moderate"
 - "no animal deaths" / "nothing triggering" → maxSensitiveThemes: "moderate"
-- "family-friendly" / "kid-safe" / "for my kids" → ALL caps at "mild"
+- "family-friendly" / "kid-safe" / "for my kids" / "for my 8-year-old" → ALL five max caps at "mild"
 - "with my mom, nothing too dark" → maxViolence/maxScary/maxSensitive at "moderate"
 
 **Min caps** — user wants MORE of something:
@@ -143,6 +164,39 @@ moods is a multi-select array used to shape results beyond what genres can captu
 - "edge-of-seat": suspenseful — "keeps you guessing", "nail-biting"
 
 ALWAYS set moods when the user describes tone; they compensate for cases where genre alone is thin. Example: "a dark TV show" → moods: ["dark"]. "a feel-good Christmas movie" → moods: ["feel-good"]. "a romantic show" for TV → moods: ["romantic"] (TV has no Romance genre; the mood compensates).
+
+### Language / origin
+Use TMDB 2-letter ISO codes. originalLanguage is an INCLUDE whitelist; excludeOriginalLanguages is a BLACKLIST. Common codes: en=English, ja=Japanese, ko=Korean, zh=Chinese (Mandarin), hi=Hindi, es=Spanish, fr=French, de=German, it=Italian, pt=Portuguese, ru=Russian, tr=Turkish, ar=Arabic, th=Thai, sv=Swedish, da=Danish, no=Norwegian, nl=Dutch, pl=Polish.
+
+- "Korean thriller" / "K-drama" → originalLanguage: ["ko"] (K-drama also implies mediaType: "tv")
+- "Bollywood" / "Hindi movie" → originalLanguage: ["hi"]
+- "Japanese horror" → originalLanguage: ["ja"]
+- "foreign films" / "subtitled movies" / "international cinema" → leave originalLanguage empty BUT set excludeOriginalLanguages: ["en"] (foreign = non-English from a US perspective)
+- "no foreign films" / "no subtitles" / "English only" → originalLanguage: ["en"]
+- "anime" (wanting) → originalLanguage: ["ja"] + genres: ["Animation"]
+
+### Compound: anime exclusion
+"no anime", "not anime", "I hate anime", "except anime" → set excludeAnime: true. Do NOT set excludeGenres: ["Animation"] for these prompts — that would also exclude Pixar/DreamWorks/etc. The server post-filters to remove only Japanese-origin animation. Leave excludeAnime false in all other cases.
+
+### Precise year range (overrides era)
+If the user names a specific year or year span, set yearFrom/yearTo instead of using era buckets:
+- "from 2018" / "released 2018" → yearFrom: 2018, yearTo: 2018
+- "between 1985 and 1995" / "late 80s to mid 90s" → yearFrom: 1985, yearTo: 1995
+- "before 2010" → yearTo: 2009
+- "after 2015" → yearFrom: 2015
+When the user only says a decade like "80s", prefer the era bucket ("80s"); use yearFrom/yearTo only for specific year numbers.
+
+### Min rating
+"rated 8 or above" / "highly rated" / "at least 8 stars" / "only good stuff" → minRating: 8. "7+" → minRating: 7. Leave null if the user doesn't cite a rating threshold.
+
+### Keywords (niche themes)
+keywords is an array of 1–3 short natural-language phrases that name themes genres can't capture. The server resolves each phrase to a TMDB keyword tag; if the keyword query yields too few titles, it falls back to regular genre results. Use keywords when the prompt names:
+- setting/time: "set in the future" → "future"; "post-apocalyptic" → "post-apocalyptic"; "dystopia"/"dystopian" → "dystopia"; "set in space" → "space"; "set during WWII" → "world war ii"
+- structural/technique: "time loop" → "time loop"; "found footage" → "found footage"; "one-shot" / "shot in one take" → "one-shot"; "nonlinear" → "nonlinear timeline"; "mockumentary" → "mockumentary"
+- holidays/occasions: "christmas movie" → "christmas"; "halloween" → "halloween"; "thanksgiving" → "thanksgiving"; "valentine's" → "valentine's day"
+- specific scenarios: "road trip" → "road trip"; "heist" → "heist" (use ALONGSIDE Crime genre); "courtroom" → "courtroom"; "prison" → "prison"; "high school" → "high school"; "boarding school" → "boarding school"; "wedding" → "wedding"; "first contact" → "first contact"; "serial killer" → "serial killer"
+
+Do NOT pad with keywords. If the user didn't name a specific theme, leave keywords empty. Genres + moods already cover most prompts. Pick at most 3, prefer 1–2. Single-word phrases are best.
 
 ### Providers (streaming services)
 If the user mentions a service by name, add its short code. Otherwise leave empty.
@@ -201,6 +255,28 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
         items: { type: "string", enum: [...MOODS] },
         description: "Hidden mood tags that shape results beyond genres. Pick 0-3 based on the user's described tone. Always set when the user describes a mood.",
       },
+      originalLanguage: {
+        type: "array",
+        items: { type: "string" },
+        description: "Whitelist of TMDB 2-letter language codes (en, ja, ko, hi, es, fr, de, it, etc.). Empty if unspecified.",
+      },
+      excludeOriginalLanguages: {
+        type: "array",
+        items: { type: "string" },
+        description: "Blacklist of TMDB 2-letter language codes. Used for 'foreign films' (=excludeOriginalLanguages:['en']). Empty if unspecified.",
+      },
+      excludeAnime: {
+        type: "boolean",
+        description: "Set true only when the user says 'no anime'/'not anime'. Server removes Japanese-origin Animation specifically. Do NOT set for 'no animation' (use excludeGenres:['Animation'] for that).",
+      },
+      yearFrom: { type: ["integer", "null"], description: "Precise earliest year (overrides era). null if unspecified." },
+      yearTo: { type: ["integer", "null"], description: "Precise latest year (overrides era). null if unspecified." },
+      minRating: { type: ["number", "null"], description: "Community rating floor 0-10. null if user didn't cite a threshold." },
+      keywords: {
+        type: "array",
+        items: { type: "string" },
+        description: "0-3 short natural-language phrases for niche themes TMDB tracks as keywords (e.g. 'future', 'time loop', 'christmas', 'road trip', 'found footage', 'one-shot'). Empty if no niche theme named.",
+      },
       maxViolence: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed violence severity. null = no cap." },
       maxSexualContent: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed sexual/nudity severity. null = no cap." },
       maxLanguageSubstance: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed language/drug severity. null = no cap." },
@@ -212,7 +288,7 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
       minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "yearFrom", "yearTo", "minRating", "keywords", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -242,6 +318,15 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     excludeGenres: Array.isArray(input.excludeGenres) ? input.excludeGenres.filter((g) => (GENRES as readonly string[]).includes(g)) : [],
     providers: Array.isArray(input.providers) ? input.providers.filter((p) => (PROVIDERS as readonly string[]).includes(p)) : [],
     moods: Array.isArray(input.moods) ? (input.moods.filter((m) => (MOODS as readonly string[]).includes(m)) as Mood[]) : [],
+    originalLanguage: Array.isArray(input.originalLanguage) ? input.originalLanguage.filter((l): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [],
+    excludeOriginalLanguages: Array.isArray(input.excludeOriginalLanguages) ? input.excludeOriginalLanguages.filter((l): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [],
+    excludeAnime: input.excludeAnime === true,
+    yearFrom: typeof input.yearFrom === "number" && input.yearFrom > 1800 && input.yearFrom < 2100 ? Math.floor(input.yearFrom) : null,
+    yearTo: typeof input.yearTo === "number" && input.yearTo > 1800 && input.yearTo < 2100 ? Math.floor(input.yearTo) : null,
+    minRating: typeof input.minRating === "number" && input.minRating >= 0 && input.minRating <= 10 ? input.minRating : null,
+    keywords: Array.isArray(input.keywords)
+      ? input.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
     maxViolence: normalizeSeverity(input.maxViolence),
     maxSexualContent: normalizeSeverity(input.maxSexualContent),
     maxLanguageSubstance: normalizeSeverity(input.maxLanguageSubstance),

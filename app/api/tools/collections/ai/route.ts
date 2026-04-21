@@ -7,6 +7,7 @@ import { extractCollectionFilters, SEVERITY_ORDER, type Severity } from "@/lib/a
 import { expandMoods } from "@/lib/ai/mood-expand";
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
+import { resolveKeywords } from "@/lib/tmdb-keywords";
 
 interface SeverityCaps {
   maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null;
@@ -64,6 +65,8 @@ async function discoverTvShows(params: {
   yearFrom?: number | null;
   yearTo?: number | null;
   ratingGte?: number | null;
+  originalLanguage?: string | null;
+  keywords?: string | null;
   page?: number;
 }): Promise<{ results: TMDBShow[]; page: number; total_pages: number }> {
   const qp: Record<string, string> = {
@@ -75,6 +78,8 @@ async function discoverTvShows(params: {
   if (params.yearFrom) qp["first_air_date.gte"] = `${params.yearFrom}-01-01`;
   if (params.yearTo) qp["first_air_date.lte"] = `${params.yearTo}-12-31`;
   if (params.ratingGte != null) qp["vote_average.gte"] = String(params.ratingGte);
+  if (params.originalLanguage) qp.with_original_language = params.originalLanguage;
+  if (params.keywords) qp.with_keywords = params.keywords;
   const url = new URL("https://api.themoviedb.org/3/discover/tv");
   url.searchParams.set("api_key", process.env.TMDB_API_KEY ?? "0a8b11e67dd3e6ee739bb736777f4695");
   for (const [k, v] of Object.entries(qp)) url.searchParams.set(k, v);
@@ -206,7 +211,42 @@ export async function POST(req: NextRequest) {
     // Multi-genre handling: when 2+ genres are selected, fetch AND-match
     // results first (titles matching ALL selected genres) then OR-match
     // (titles matching any) so hybrids like "sci-fi + romance" surface on top.
-    async function discoverAndOr(page: number, genreIds: string[]) {
+    // Translate runtime buckets to minutes. Buckets stack: if the user picks
+    // multiple, we take the widest span (gte from lowest bucket, lte from
+    // highest). Empty array → no runtime constraint.
+    const runtimeMins = (() => {
+      if (!filters.runtime.length) return { min: undefined as number | undefined, max: undefined as number | undefined };
+      const spans: Record<string, [number | undefined, number | undefined]> = {
+        short: [undefined, 89],
+        feature: [90, 120],
+        long: [120, 150],
+        epic: [150, undefined],
+      };
+      let min: number | undefined;
+      let max: number | undefined;
+      for (const r of filters.runtime) {
+        const span = spans[r];
+        if (!span) continue;
+        if (span[0] != null) min = Math.min(min ?? span[0], span[0]);
+        if (span[1] != null) max = Math.max(max ?? span[1], span[1]);
+      }
+      // If user picked only upper-bucket (e.g. "epic" only) there's no max;
+      // if only "short", there's no min — both valid.
+      return { min, max };
+    })();
+    // TMDB with_original_language only accepts one code, so we pass the
+    // first whitelist entry (if exactly one) to narrow the query server-side.
+    // Multi-entry whitelists and all blacklists run as post-filters below.
+    const tmdbLangCode = filters.originalLanguage.length === 1 ? filters.originalLanguage[0] : undefined;
+
+    // Resolve keyword phrases → TMDB keyword IDs. OR semantics (pipe) so any
+    // matching keyword qualifies. If resolution fails or yields nothing, we
+    // just don't constrain by keyword.
+    const keywordIds = await resolveKeywords(filters.keywords);
+    const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
+
+    async function discoverAndOr(page: number, genreIds: string[], useKeywords: boolean) {
+      const kw = useKeywords ? keywordsParam : undefined;
       if (genreIds.length <= 1) {
         return discoverMovies({
           genres: genreIds.length ? genreIds : undefined,
@@ -215,6 +255,10 @@ export async function POST(req: NextRequest) {
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          language: tmdbLangCode,
+          keywords: kw,
+          minRuntime: runtimeMins.min,
+          maxRuntime: runtimeMins.max,
           sort: "top_rated",
           page,
         });
@@ -227,6 +271,10 @@ export async function POST(req: NextRequest) {
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          language: tmdbLangCode,
+          keywords: kw,
+          minRuntime: runtimeMins.min,
+          maxRuntime: runtimeMins.max,
           sort: "top_rated",
           page,
         }).catch(() => null),
@@ -237,6 +285,10 @@ export async function POST(req: NextRequest) {
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          language: tmdbLangCode,
+          keywords: kw,
+          minRuntime: runtimeMins.min,
+          maxRuntime: runtimeMins.max,
           sort: "top_rated",
           page,
         }).catch(() => null),
@@ -262,59 +314,87 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages)
+    // Language/anime post-filters applied inline during result ingestion.
+    const langWhitelist = filters.originalLanguage.length > 1 ? new Set(filters.originalLanguage) : null;
+    const langBlacklist = new Set(filters.excludeOriginalLanguages);
+    const ANIMATION_GENRE_ID = 16;
+    const passesLang = (lang: string, genreIdsArr: number[]) => {
+      if (langWhitelist && !langWhitelist.has(lang)) return false;
+      if (langBlacklist.has(lang)) return false;
+      if (filters.excludeAnime && lang === "ja" && genreIdsArr.includes(ANIMATION_GENRE_ID)) return false;
+      return true;
+    };
+
+    // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages).
+    // Factored as a reusable loop so we can run a no-keyword fallback pass
+    // when the keyword query yields too few hits.
     const collected: Item[] = [];
     const maxPages = 5;
-    let page = 1;
-    while (collected.length < targetPool && page <= maxPages) {
-      if (useTv) {
-        const data = await discoverTvShows({
-          genreIds: includeIds.length ? includeIds : undefined,
-          yearFrom: filters.yearFrom,
-          yearTo: filters.yearTo,
-          ratingGte: filters.minRating,
-          page,
-        });
-        const includedIdSet = new Set(includeIds.map(Number));
-        for (const s of data.results) {
-          const sGenreIds = (s as TMDBShow & { genre_ids?: number[] }).genre_ids ?? [];
-          if (excludeIds.length > 0 && sGenreIds.some((id) => excludeIds.includes(id))) continue;
-          if (collected.some((c) => c.tmdbId === s.id && c.mediaType === "tv")) continue;
-          collected.push({
-            mediaType: "tv",
-            tmdbId: s.id,
-            title: s.name,
-            posterPath: s.poster_path ?? null,
-            releaseDate: s.first_air_date ?? null,
-            voteAverage: s.vote_average ?? null,
-            genreMatchCount: sGenreIds.filter((g) => includedIdSet.has(g)).length,
+    async function collectLoop(useKeywords: boolean) {
+      let page = 1;
+      while (collected.length < targetPool && page <= maxPages) {
+        if (useTv) {
+          const data = await discoverTvShows({
+            genreIds: includeIds.length ? includeIds : undefined,
+            yearFrom: filters.yearFrom,
+            yearTo: filters.yearTo,
+            ratingGte: filters.minRating,
+            originalLanguage: tmdbLangCode,
+            keywords: useKeywords ? keywordsParam : undefined,
+            page,
           });
-          if (collected.length >= targetPool) break;
+          const includedIdSet = new Set(includeIds.map(Number));
+          for (const s of data.results) {
+            const sGenreIds = (s as TMDBShow & { genre_ids?: number[] }).genre_ids ?? [];
+            if (excludeIds.length > 0 && sGenreIds.some((id) => excludeIds.includes(id))) continue;
+            if (!passesLang((s as TMDBShow & { original_language?: string }).original_language ?? "", sGenreIds)) continue;
+            if (collected.some((c) => c.tmdbId === s.id && c.mediaType === "tv")) continue;
+            collected.push({
+              mediaType: "tv",
+              tmdbId: s.id,
+              title: s.name,
+              posterPath: s.poster_path ?? null,
+              releaseDate: s.first_air_date ?? null,
+              voteAverage: s.vote_average ?? null,
+              genreMatchCount: sGenreIds.filter((g) => includedIdSet.has(g)).length,
+            });
+            if (collected.length >= targetPool) break;
+          }
+          if (data.page >= data.total_pages || data.results.length === 0) break;
+          page++;
+        } else {
+          const data = await discoverAndOr(page, includeIds, useKeywords);
+          const movieIncludedIdSet = new Set(includeIds.map(Number));
+          for (const m of data.results) {
+            const mGenreIds = (m as TMDBMovie & { genre_ids?: number[] }).genre_ids ?? [];
+            if (excludeIds.length > 0 && mGenreIds.some((id) => excludeIds.includes(id))) continue;
+            if (!passesLang((m as TMDBMovie & { original_language?: string }).original_language ?? "", mGenreIds)) continue;
+            if (seenTmdbIds.has(m.id)) continue;
+            if (collected.some((c) => c.tmdbId === m.id && c.mediaType === "movie")) continue;
+            collected.push({
+              mediaType: "movie",
+              tmdbId: m.id,
+              title: m.title,
+              posterPath: m.poster_path ?? null,
+              releaseDate: m.release_date ?? null,
+              voteAverage: m.vote_average ?? null,
+              genreMatchCount: mGenreIds.filter((g) => movieIncludedIdSet.has(g)).length,
+            });
+            if (collected.length >= targetPool) break;
+          }
+          if (data.page >= data.total_pages) break;
+          page++;
         }
-        if (data.page >= data.total_pages || data.results.length === 0) break;
-        page++;
-      } else {
-        const data = await discoverAndOr(page, includeIds);
-        const movieIncludedIdSet = new Set(includeIds.map(Number));
-        for (const m of data.results) {
-          const mGenreIds = (m as TMDBMovie & { genre_ids?: number[] }).genre_ids ?? [];
-          if (excludeIds.length > 0 && mGenreIds.some((id) => excludeIds.includes(id))) continue;
-          if (seenTmdbIds.has(m.id)) continue;
-          if (collected.some((c) => c.tmdbId === m.id && c.mediaType === "movie")) continue;
-          collected.push({
-            mediaType: "movie",
-            tmdbId: m.id,
-            title: m.title,
-            posterPath: m.poster_path ?? null,
-            releaseDate: m.release_date ?? null,
-            voteAverage: m.vote_average ?? null,
-            genreMatchCount: mGenreIds.filter((g) => movieIncludedIdSet.has(g)).length,
-          });
-          if (collected.length >= targetPool) break;
-        }
-        if (data.page >= data.total_pages) break;
-        page++;
       }
+    }
+
+    await collectLoop(true);
+    // Fallback: if the keyword-constrained pass yielded too few matches, run
+    // a second pass with keywords dropped to pad the pool. Keyword-matched
+    // results stay first because they were collected first.
+    const fallbackThreshold = Math.ceil(filters.limit * 0.6);
+    if (keywordsParam && collected.length < fallbackThreshold) {
+      await collectLoop(false);
     }
 
     // Apply parents-guide severity caps via cache lookup (movies only).

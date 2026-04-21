@@ -74,9 +74,21 @@ export default function RecommendPage() {
   const [watchlistingId, setWatchlistingId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  // Moods are extracted by the AI and applied as a hidden filter. The user sees
-  // only a generic "AI mood filter" chip in the drawer — not the specific moods.
-  const [aiMoods, setAiMoods] = useState<string[]>([]);
+  // Hidden AI-extracted filters. The user sees a single generic "AI filter"
+  // chip in the drawer (not each dimension) and can remove the whole bundle.
+  interface AiHidden {
+    moods: string[];
+    originalLanguage: string[];
+    excludeOriginalLanguages: string[];
+    excludeAnime: boolean;
+    yearFrom: number | null;
+    yearTo: number | null;
+    minRating: number | null;
+    keywords: string[];
+  }
+  const AI_HIDDEN_EMPTY: AiHidden = { moods: [], originalLanguage: [], excludeOriginalLanguages: [], excludeAnime: false, yearFrom: null, yearTo: null, minRating: null, keywords: [] };
+  const [aiHidden, setAiHidden] = useState<AiHidden>(AI_HIDDEN_EMPTY);
+  const aiHiddenActive = aiHidden.moods.length > 0 || aiHidden.originalLanguage.length > 0 || aiHidden.excludeOriginalLanguages.length > 0 || aiHidden.excludeAnime || aiHidden.yearFrom != null || aiHidden.yearTo != null || aiHidden.minRating != null || aiHidden.keywords.length > 0;
 
   // AI mode (alternative to the questionnaire, shown on step 0 only)
   const [aiPrompt, setAiPrompt] = useState("");
@@ -106,7 +118,21 @@ export default function RecommendPage() {
       setResultMediaFilter(saved.resultMediaFilter ?? "all");
       setTvRatingSelected(new Set(saved.tvRatingSelected ?? ALL_TV_RATINGS));
       setSelectedStreamingProviders(new Set(saved.selectedStreamingProviders ?? []));
-      setAiMoods(Array.isArray(saved.aiMoods) ? saved.aiMoods : []);
+      if (saved.aiHidden && typeof saved.aiHidden === "object") {
+        setAiHidden({
+          moods: Array.isArray(saved.aiHidden.moods) ? saved.aiHidden.moods : [],
+          originalLanguage: Array.isArray(saved.aiHidden.originalLanguage) ? saved.aiHidden.originalLanguage : [],
+          excludeOriginalLanguages: Array.isArray(saved.aiHidden.excludeOriginalLanguages) ? saved.aiHidden.excludeOriginalLanguages : [],
+          excludeAnime: saved.aiHidden.excludeAnime === true,
+          yearFrom: typeof saved.aiHidden.yearFrom === "number" ? saved.aiHidden.yearFrom : null,
+          yearTo: typeof saved.aiHidden.yearTo === "number" ? saved.aiHidden.yearTo : null,
+          minRating: typeof saved.aiHidden.minRating === "number" ? saved.aiHidden.minRating : null,
+          keywords: Array.isArray(saved.aiHidden.keywords) ? saved.aiHidden.keywords : [],
+        });
+      } else if (Array.isArray(saved.aiMoods)) {
+        // Legacy session state from before the AI-hidden bundle.
+        setAiHidden({ ...AI_HIDDEN_EMPTY, moods: saved.aiMoods });
+      }
     }
     setHydrated(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,7 +144,7 @@ export default function RecommendPage() {
     runtime.size > 0,
     era.size > 0,
     excludeGenres.size > 0,
-    aiMoods.length > 0,
+    aiHiddenActive,
   ].filter(Boolean).length;
 
   // Persist state to sessionStorage
@@ -130,10 +156,10 @@ export default function RecommendPage() {
         hasSearched, currentPage, totalPages, sortMode, watchlisted: [...watchlisted],
         resultMediaFilter, tvRatingSelected: [...tvRatingSelected],
         selectedStreamingProviders: [...selectedStreamingProviders],
-        aiMoods,
+        aiHidden,
       }));
     } catch {}
-  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders, aiMoods]);
+  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders, aiHidden]);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
@@ -161,7 +187,14 @@ export default function RecommendPage() {
         sort: sortMode,
         mediaType: effectiveMediaType,
         providers: providerIds,
-        moods: aiMoods,
+        moods: aiHidden.moods,
+        originalLanguage: aiHidden.originalLanguage,
+        excludeOriginalLanguages: aiHidden.excludeOriginalLanguages,
+        excludeAnime: aiHidden.excludeAnime,
+        yearFrom: aiHidden.yearFrom,
+        yearTo: aiHidden.yearTo,
+        minRating: aiHidden.minRating,
+        keywords: aiHidden.keywords,
       }),
     });
     if (res.ok) {
@@ -213,6 +246,13 @@ export default function RecommendPage() {
         excludeGenres: string[];
         providers: string[];
         moods: string[];
+        originalLanguage: string[];
+        excludeOriginalLanguages: string[];
+        excludeAnime: boolean;
+        yearFrom: number | null;
+        yearTo: number | null;
+        minRating: number | null;
+        keywords: string[];
         maxViolence: string | null;
         maxSexualContent: string | null;
         maxLanguageSubstance: string | null;
@@ -231,7 +271,16 @@ export default function RecommendPage() {
       setRuntime(new Set(f.runtime));
       setEra(new Set(f.era));
       setExcludeGenres(new Set(f.excludeGenres));
-      setAiMoods(Array.isArray(f.moods) ? f.moods : []);
+      setAiHidden({
+        moods: Array.isArray(f.moods) ? f.moods : [],
+        originalLanguage: Array.isArray(f.originalLanguage) ? f.originalLanguage : [],
+        excludeOriginalLanguages: Array.isArray(f.excludeOriginalLanguages) ? f.excludeOriginalLanguages : [],
+        excludeAnime: f.excludeAnime === true,
+        yearFrom: typeof f.yearFrom === "number" ? f.yearFrom : null,
+        yearTo: typeof f.yearTo === "number" ? f.yearTo : null,
+        minRating: typeof f.minRating === "number" ? f.minRating : null,
+        keywords: Array.isArray(f.keywords) ? f.keywords : [],
+      });
       const extractedProviders = new Set(f.providers ?? []);
       setSelectedStreamingProviders(extractedProviders);
       setResultMediaFilter(f.mediaType === "any" ? "all" : f.mediaType);
@@ -257,6 +306,13 @@ export default function RecommendPage() {
           mediaType: f.mediaType,
           providers: providerIds,
           moods: f.moods,
+          originalLanguage: f.originalLanguage,
+          excludeOriginalLanguages: f.excludeOriginalLanguages,
+          excludeAnime: f.excludeAnime,
+          yearFrom: f.yearFrom,
+          yearTo: f.yearTo,
+          minRating: f.minRating,
+          keywords: f.keywords,
           maxViolence: f.maxViolence,
           maxSexualContent: f.maxSexualContent,
           maxLanguageSubstance: f.maxLanguageSubstance,
@@ -297,7 +353,7 @@ export default function RecommendPage() {
     setEra(new Set()); setExcludeGenres(new Set()); setMpaaSelected(new Set(ALL_MPAA)); setResults([]);
     setFiltersOpen(false); setResultMediaFilter("all"); setSelectedStreamingProviders(new Set());
     setTvRatingSelected(new Set(ALL_TV_RATINGS));
-    setAiMoods([]);
+    setAiHidden(AI_HIDDEN_EMPTY);
     setHasSearched(false); setVisibleCount(5); setSortMode("match");
     try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
   }
@@ -580,17 +636,18 @@ export default function RecommendPage() {
 
           {filtersOpen && (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-4 space-y-4">
-            {/* AI mood filter (hidden vocabulary, shown as a single generic chip) */}
-            {aiMoods.length > 0 && (
+            {/* AI hidden filters (moods, language, year range, etc.) shown as a single
+                removable chip so the user knows AI-specific tuning is active. */}
+            {aiHiddenActive && (
               <div>
                 <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">AI</p>
                 <button
-                  onClick={() => setAiMoods([])}
-                  title="Remove AI mood filter"
+                  onClick={() => setAiHidden(AI_HIDDEN_EMPTY)}
+                  title="Remove AI filter"
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white hover:bg-[var(--ratist-red)]/20 transition-colors"
                 >
                   <Wand2 className="w-2.5 h-2.5" />
-                  AI mood filter
+                  AI filter
                   <X className="w-2.5 h-2.5 ml-0.5" />
                 </button>
               </div>
