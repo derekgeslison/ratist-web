@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       });
 
   const samples = reviews
-    .filter((r) => r.reviewText && r.reviewText.trim().length >= 20)
+    .filter((r) => r.reviewText && r.reviewText.trim().length >= 10)
     .slice(0, 20)
     .map((r) => ({ rating: r.ratistRating, text: r.reviewText ?? "" }));
 

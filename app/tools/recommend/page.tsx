@@ -203,6 +203,7 @@ export default function RecommendPage() {
         runtime: string[];
         era: string[];
         excludeGenres: string[];
+        providers: string[];
       };
       // Apply extracted filters to state so the user can see/tweak what was picked
       setMediaType(f.mediaType);
@@ -211,10 +212,12 @@ export default function RecommendPage() {
       setRuntime(new Set(f.runtime));
       setEra(new Set(f.era));
       setExcludeGenres(new Set(f.excludeGenres));
+      const extractedProviders = new Set(f.providers ?? []);
+      setSelectedStreamingProviders(extractedProviders);
       setResultMediaFilter(f.mediaType === "any" ? "all" : f.mediaType);
       setFiltersOpen(false);
       // Jump straight to results using the AI-picked filters
-      const providerIds = [...selectedStreamingProviders]
+      const providerIds = [...extractedProviders]
         .map((short) => STREAMING_PROVIDERS.find((sp) => sp.short === short)?.id)
         .filter(Boolean) as number[];
       const headers: Record<string, string> = { "Content-Type": "application/json" };
