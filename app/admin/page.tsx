@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { FileText, Map, Plus, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Shield } from "lucide-react";
+import {
+  FileText, Map, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Shield,
+  Ticket, Lightbulb, Flag, MessageCircle, ShieldAlert, Newspaper, Cpu, AlertCircle,
+} from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 interface Post {
@@ -22,6 +25,15 @@ interface SiteStats {
   movies: { total: number };
   seenEntries: number;
   publishedPosts: number;
+  subscribers: { active: number; week: number; month: number };
+  queues: {
+    ideas: number;
+    reports: number;
+    feedback: number;
+    fraud: number;
+    news: number;
+    aiFlagged: number;
+  };
 }
 
 const TYPE_META = {
@@ -30,13 +42,21 @@ const TYPE_META = {
   MOVIE_MAP: { label: "Movie Map", icon: Map, color: "text-green-400" },
 };
 
+interface Alert {
+  key: string;
+  label: string;
+  count: number;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: "warn" | "info" | "danger";
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [stats, setStats] = useState<SiteStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  // Policy notification
   const [policyOpen, setPolicyOpen] = useState(false);
   const [policyType, setPolicyType] = useState<"privacy" | "terms" | "both">("privacy");
   const [policySummary, setPolicySummary] = useState("");
@@ -95,16 +115,64 @@ export default function AdminDashboard() {
   if (loading) return <p className="text-[var(--foreground-muted)]">Loading…</p>;
   if (error) return <p className="text-red-400">{error}</p>;
 
-  const counts = { BLOG: 0, PUNCH_AND_JUDY: 0, MOVIE_MAP: 0 };
-  posts.forEach((p) => counts[p.type]++);
+  const alerts: Alert[] = stats
+    ? (
+        [
+          { key: "reports", label: "Pending reports", count: stats.queues.reports, href: "/admin/moderation", icon: Flag, tone: "danger" as const },
+          { key: "fraud", label: "Open fraud flags", count: stats.queues.fraud, href: "/admin/fraud", icon: ShieldAlert, tone: "danger" as const },
+          { key: "aiFlagged", label: "Flagged AI users", count: stats.queues.aiFlagged, href: "/admin/ai-usage", icon: Cpu, tone: "warn" as const },
+          { key: "ideas", label: "New idea submissions", count: stats.queues.ideas, href: "/admin/ideas", icon: Lightbulb, tone: "info" as const },
+          { key: "feedback", label: "Open feedback", count: stats.queues.feedback, href: "/admin/feedback", icon: MessageCircle, tone: "info" as const },
+          { key: "news", label: "RSS headlines to triage", count: stats.queues.news, href: "/admin/news", icon: Newspaper, tone: "info" as const },
+        ] as Alert[]
+      ).filter((a) => a.count > 0)
+    : [];
 
   return (
     <div className="space-y-8">
+      {/* Needs Attention — alerts for non-zero queues */}
+      {alerts.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-[var(--ratist-red)]" />
+            Needs Attention
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {alerts.map(({ key, label, count, href, icon: Icon, tone }) => {
+              const toneClasses = {
+                danger: "border-red-500/40 bg-red-500/5 hover:border-red-500/70",
+                warn: "border-yellow-500/40 bg-yellow-500/5 hover:border-yellow-500/70",
+                info: "border-blue-500/30 bg-blue-500/5 hover:border-blue-500/60",
+              }[tone];
+              const iconTone = {
+                danger: "text-red-400",
+                warn: "text-yellow-400",
+                info: "text-blue-400",
+              }[tone];
+              return (
+                <Link
+                  key={key}
+                  href={href}
+                  className={`group flex items-center gap-3 border rounded-xl p-4 transition-colors ${toneClasses}`}
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${iconTone}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white font-medium">{label}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">Click to review</p>
+                  </div>
+                  <span className={`text-2xl font-bold ${iconTone}`}>{count}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Site stats */}
       {stats && (
         <section>
           <h2 className="text-base font-semibold text-white mb-4">Site Overview</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Users className="w-4 h-4 text-blue-400" />
@@ -113,6 +181,16 @@ export default function AdminDashboard() {
               <p className="text-2xl font-bold text-white">{stats.users.total.toLocaleString()}</p>
               <p className="text-xs text-[var(--foreground-muted)] mt-1">
                 +{stats.users.day} today · +{stats.users.week} this week
+              </p>
+            </div>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Ticket className="w-4 h-4 text-[var(--ratist-red)]" />
+                <span className="text-xs text-[var(--foreground-muted)]">Subscribers</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{stats.subscribers.active.toLocaleString()}</p>
+              <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                +{stats.subscribers.week} this week · +{stats.subscribers.month} this month
               </p>
             </div>
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
@@ -224,37 +302,10 @@ export default function AdminDashboard() {
         )}
       </section>
 
-      {/* Post type shortcuts */}
-      <div className="grid grid-cols-3 gap-4">
-        {(Object.keys(TYPE_META) as (keyof typeof TYPE_META)[]).map((type) => {
-          const { label, icon: Icon, color } = TYPE_META[type];
-          return (
-            <Link
-              key={type}
-              href={`/admin/posts/new?type=${type}`}
-              className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors group"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Icon className={`w-5 h-5 ${color}`} />
-                <Plus className="w-4 h-4 text-[var(--foreground-muted)] group-hover:text-[var(--ratist-red)] transition-colors" />
-              </div>
-              <p className="text-2xl font-bold text-white">{counts[type]}</p>
-              <p className="text-xs text-[var(--foreground-muted)]">{label} post{counts[type] !== 1 ? "s" : ""}</p>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Posts table */}
+      {/* Recent posts table */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-          <h2 className="font-semibold text-white">All Posts</h2>
-          <Link
-            href="/admin/posts/new"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--ratist-red)] text-white rounded-lg text-sm hover:bg-[var(--ratist-red)]/80 transition-colors"
-          >
-            <Plus className="w-4 h-4" /> New Post
-          </Link>
+        <div className="px-5 py-4 border-b border-[var(--border)]">
+          <h2 className="font-semibold text-white">Recent Posts</h2>
         </div>
         {posts.length === 0 ? (
           <p className="text-[var(--foreground-muted)] text-sm px-5 py-8 text-center">No posts yet.</p>
