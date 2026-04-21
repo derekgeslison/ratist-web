@@ -7,24 +7,42 @@ import { extractCollectionFilters, SEVERITY_ORDER, type Severity } from "@/lib/a
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
 
-// Returns true if title passes all severity caps.
-// Uncached titles pass through (coverage is partial).
+interface SeverityCaps {
+  maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null;
+  minViolence: Severity | null; minSexualContent: Severity | null; minLanguageSubstance: Severity | null; minScaryIntense: Severity | null; minSensitiveThemes: Severity | null;
+}
+
+// Returns true if the title passes all severity caps.
+// - Max caps (safety): uncached titles PASS THROUGH (we can't prove they're too extreme, so include by default).
+// - Min caps (preference): uncached titles are EXCLUDED (we can't confirm they meet the floor user wants).
 function passesSeverityCaps(
   cache: { violenceSeverity: string; sexualSeverity: string; languageSubstanceSeverity: string; scaryIntenseSeverity: string; sensitiveThemesSeverity: string } | undefined,
-  caps: { maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null },
+  caps: SeverityCaps,
 ): boolean {
-  if (!cache) return true;
+  const hasMin = caps.minViolence || caps.minSexualContent || caps.minLanguageSubstance || caps.minScaryIntense || caps.minSensitiveThemes;
+  if (!cache) return !hasMin; // uncached → pass only if no min-floor is set
   const rank = (s: string) => (SEVERITY_ORDER as readonly string[]).indexOf(s);
-  const checks: [string, Severity | null][] = [
+  const maxChecks: [string, Severity | null][] = [
     [cache.violenceSeverity, caps.maxViolence],
     [cache.sexualSeverity, caps.maxSexualContent],
     [cache.languageSubstanceSeverity, caps.maxLanguageSubstance],
     [cache.scaryIntenseSeverity, caps.maxScaryIntense],
     [cache.sensitiveThemesSeverity, caps.maxSensitiveThemes],
   ];
-  for (const [actual, cap] of checks) {
+  for (const [actual, cap] of maxChecks) {
     if (cap == null) continue;
     if (rank(actual) > rank(cap)) return false;
+  }
+  const minChecks: [string, Severity | null][] = [
+    [cache.violenceSeverity, caps.minViolence],
+    [cache.sexualSeverity, caps.minSexualContent],
+    [cache.languageSubstanceSeverity, caps.minLanguageSubstance],
+    [cache.scaryIntenseSeverity, caps.minScaryIntense],
+    [cache.sensitiveThemesSeverity, caps.minSensitiveThemes],
+  ];
+  for (const [actual, floor] of minChecks) {
+    if (floor == null) continue;
+    if (rank(actual) < rank(floor)) return false;
   }
   return true;
 }
@@ -161,8 +179,11 @@ export async function POST(req: NextRequest) {
 
     // Severity caps require a bulk cache lookup at the end. Collect a larger
     // candidate pool when any cap is set so filtering still leaves enough items.
-    const hasSeverityCap = filters.maxViolence || filters.maxSexualContent || filters.maxLanguageSubstance || filters.maxScaryIntense || filters.maxSensitiveThemes;
-    const targetPool = hasSeverityCap ? filters.limit * 3 : filters.limit;
+    // Min caps exclude uncached titles, so bump the pool even more aggressively.
+    const hasMaxCap = filters.maxViolence || filters.maxSexualContent || filters.maxLanguageSubstance || filters.maxScaryIntense || filters.maxSensitiveThemes;
+    const hasMinCap = filters.minViolence || filters.minSexualContent || filters.minLanguageSubstance || filters.minScaryIntense || filters.minSensitiveThemes;
+    const hasSeverityCap = hasMaxCap || hasMinCap;
+    const targetPool = hasMinCap ? filters.limit * 5 : hasMaxCap ? filters.limit * 3 : filters.limit;
 
     // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages)
     const collected: Item[] = [];
@@ -240,6 +261,11 @@ export async function POST(req: NextRequest) {
           maxLanguageSubstance: filters.maxLanguageSubstance,
           maxScaryIntense: filters.maxScaryIntense,
           maxSensitiveThemes: filters.maxSensitiveThemes,
+          minViolence: filters.minViolence,
+          minSexualContent: filters.minSexualContent,
+          minLanguageSubstance: filters.minLanguageSubstance,
+          minScaryIntense: filters.minScaryIntense,
+          minSensitiveThemes: filters.minSensitiveThemes,
         });
       });
     }

@@ -108,9 +108,14 @@ export default function CustomCollectionsSection() {
       return;
     }
     if (!data.items || data.items.length === 0) {
-      setGenerateError("No results matched. Try a more specific prompt or broaden the filters.");
+      setGenerateError("No titles matched your prompt. Try broader wording, drop a filter (\"not too graphic\", a decade, a rating floor), or remove the seen/unseen preference.");
       setGenerating(false);
       return;
+    }
+    const requestedLimit = (data.filters?.limit as number) ?? 10;
+    if (data.items.length < Math.min(5, requestedLimit)) {
+      // Low-result warning — we still show the preview, just note the gap
+      setGenerateError(`Only ${data.items.length} title${data.items.length === 1 ? "" : "s"} matched. You can save this or try a broader prompt — e.g. loosen a content filter, widen the era, or drop the rating floor.`);
     }
     setPreview({
       items: data.items,

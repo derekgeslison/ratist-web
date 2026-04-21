@@ -775,6 +775,15 @@ export default function RecommendPage() {
             </div>
           ) : (
             <>
+              {sorted.length < 5 && (
+                <div className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-3 mb-4 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-[var(--ratist-red)] mt-0.5 shrink-0" />
+                  <div className="text-xs text-[var(--foreground-muted)]">
+                    <strong className="text-white">Only {sorted.length} match{sorted.length === 1 ? "" : "es"}.</strong>{" "}
+                    Try loosening your filters — drop a streaming service, widen the era, remove a content cap, or skip the rating floor to see more.
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
                 {sorted.slice(0, visibleCount).map((movie, i) => (
                   <div key={`${movie.tmdbId}-${i}`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)]/50 transition-colors">
