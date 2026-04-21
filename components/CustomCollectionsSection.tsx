@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Wand2, Save, Sparkles, Trash2, X } from "lucide-react";
+import { Wand2, Save, Sparkles, Trash2, X, ListPlus, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import MovieCard from "./MovieCard";
@@ -170,6 +170,54 @@ export default function CustomCollectionsSection() {
     if (res.ok) loadSaved();
   }
 
+  const [creatingWlId, setCreatingWlId] = useState<string | null>(null);
+  const [wlMessage, setWlMessage] = useState<{ text: string; href?: string; type: "success" | "error" } | null>(null);
+
+  async function createWatchlist(collectionId: string, collectionName: string) {
+    if (!user || creatingWlId) return;
+    const name = window.prompt("Name for the watchlist:", collectionName);
+    if (!name?.trim()) return;
+    setCreatingWlId(collectionId);
+    setWlMessage(null);
+    try {
+      const token = await user.getIdToken();
+      // Fetch full items for the collection (list only returns preview posters)
+      const detailRes = await fetch(`/api/custom-collections/${collectionId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!detailRes.ok) { setWlMessage({ text: "Failed to load collection.", type: "error" }); return; }
+      const detailData = await detailRes.json();
+      const items: Array<{ tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; mediaType: string }> = detailData.collection?.items ?? [];
+
+      const createRes = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!createRes.ok) { setWlMessage({ text: "Failed to create watchlist.", type: "error" }); return; }
+      const created = await createRes.json();
+      const wlId: string | undefined = created.watchlist?.id ?? created.id;
+      if (!wlId) { setWlMessage({ text: "Failed to create watchlist.", type: "error" }); return; }
+
+      const results = await Promise.allSettled(
+        items.map((item) =>
+          fetch(`/api/watchlist/${wlId}/movies`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tmdbId: item.tmdbId, title: item.title, posterPath: item.posterPath, releaseDate: item.releaseDate, mediaType: item.mediaType,
+            }),
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)).length;
+      const added = items.length - failed;
+      setWlMessage({ text: `Watchlist "${name}" created with ${added}/${items.length} title${items.length === 1 ? "" : "s"}.`, href: `/watchlist?list=${wlId}`, type: "success" });
+    } catch {
+      setWlMessage({ text: "Failed to create watchlist.", type: "error" });
+    } finally {
+      setCreatingWlId(null);
+    }
+  }
+
   return (
     <div className="space-y-6 mb-8">
       {/* AI Generator */}
@@ -286,6 +334,16 @@ export default function CustomCollectionsSection() {
             <Sparkles className="w-4 h-4 text-[var(--ratist-red)]" />
             <h2 className="text-base font-semibold text-white">Your Custom Collections</h2>
           </div>
+          {wlMessage && (
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 mb-3 text-xs ${
+              wlMessage.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-300" : "bg-red-500/10 border border-red-500/30 text-red-300"
+            }`}>
+              {wlMessage.type === "success" && <Check className="w-3.5 h-3.5 shrink-0" />}
+              <span className="flex-1">{wlMessage.text}</span>
+              {wlMessage.href && <Link href={wlMessage.href} className="text-white underline hover:no-underline">View</Link>}
+              <button onClick={() => setWlMessage(null)} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-3 h-3" /></button>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {savedList.map((c) => (
               <div
@@ -312,12 +370,21 @@ export default function CustomCollectionsSection() {
                     {c.itemCount} title{c.itemCount !== 1 ? "s" : ""}
                   </p>
                 </Link>
-                <button
-                  onClick={() => handleDelete(c.id)}
-                  className="mt-2 flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="w-3 h-3" /> Delete
-                </button>
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    onClick={() => createWatchlist(c.id, c.name)}
+                    disabled={creatingWlId === c.id}
+                    className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <ListPlus className="w-3 h-3" /> {creatingWlId === c.id ? "Creating…" : "Create watchlist"}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(c.id)}
+                    className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>

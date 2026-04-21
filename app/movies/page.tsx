@@ -128,12 +128,15 @@ export default async function MoviesPage({ searchParams }: Props) {
     };
   }
 
-  // Relevance sort: use popularity ordering from TMDB but force genreMode to
-  // "any" so hybrids still show up, then sort results by match-count below.
+  // Relevance sort: use popularity ordering from TMDB, and when the user
+  // hasn't explicitly forced "all" mode, broaden to "any" so the client-side
+  // match-count sort below can tier 4/4 > 3/4 > 2/4 > 1/4. When the user
+  // explicitly picks genreMode=all, we respect that (strict AND, no fallback).
   const isRelevance = sort === "relevance";
-  const effectiveGenreMode = isRelevance && genres && genres.length >= 2
-    ? "any"
-    : (params.genreMode as "any" | "all" | undefined);
+  const userSetStrictMode = params.genreMode === "all";
+  const effectiveGenreMode = userSetStrictMode
+    ? "all"
+    : (isRelevance && genres && genres.length >= 2 ? "any" : (params.genreMode as "any" | "all" | undefined));
   const effectiveSort = isRelevance ? "popular" : sort;
 
   const discoverOptions = {

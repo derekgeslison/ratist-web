@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2, ListPlus, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
@@ -35,6 +35,8 @@ export default function CustomCollectionPage() {
   const [collection, setCollection] = useState<Collection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [creatingWl, setCreatingWl] = useState(false);
+  const [wlMessage, setWlMessage] = useState<{ type: "success" | "error"; text: string; href?: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -59,6 +61,53 @@ export default function CustomCollectionPage() {
     if (res.ok) router.push("/tools/collections");
   }
 
+  async function handleCreateWatchlist() {
+    if (!user || !collection || creatingWl) return;
+    const name = window.prompt("Name for the watchlist:", collection.name);
+    if (!name?.trim()) return;
+    setCreatingWl(true);
+    setWlMessage(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!res.ok) { setWlMessage({ type: "error", text: "Failed to create watchlist." }); return; }
+      const data = await res.json();
+      const wlId: string | undefined = data.watchlist?.id ?? data.id;
+      if (!wlId) { setWlMessage({ type: "error", text: "Failed to create watchlist." }); return; }
+
+      const results = await Promise.allSettled(
+        collection.items.map((item) =>
+          fetch(`/api/watchlist/${wlId}/movies`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tmdbId: item.tmdbId,
+              title: item.title,
+              posterPath: item.posterPath,
+              releaseDate: item.releaseDate,
+              mediaType: item.mediaType,
+            }),
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)).length;
+      const added = collection.items.length - failed;
+      setWlMessage({
+        type: "success",
+        text: `Watchlist "${name}" created with ${added}/${collection.items.length} title${collection.items.length === 1 ? "" : "s"}.`,
+        href: `/watchlist?list=${wlId}`,
+      });
+    } catch {
+      setWlMessage({ type: "error", text: "Failed to create watchlist." });
+    } finally {
+      setCreatingWl(false);
+    }
+  }
+
   if (loading) return <p className="max-w-5xl mx-auto px-4 py-8 text-[var(--foreground-muted)]">Loading…</p>;
   if (error || !collection) return <p className="max-w-5xl mx-auto px-4 py-8 text-red-400">{error || "Not found"}</p>;
 
@@ -79,17 +128,39 @@ export default function CustomCollectionPage() {
             <p className="text-sm text-[var(--foreground-muted)] mt-1">{collection.description}</p>
           )}
         </div>
-        <button
-          onClick={handleDelete}
-          className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-red-400 border border-[var(--border)] hover:border-red-400/50 rounded-full px-3 py-1.5 transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" /> Delete
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleCreateWatchlist}
+            disabled={creatingWl || collection.items.length === 0}
+            className="flex items-center gap-1.5 text-xs text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] rounded-full px-3 py-1.5 transition-colors disabled:opacity-40"
+          >
+            <ListPlus className="w-3.5 h-3.5" />
+            {creatingWl ? "Creating…" : "Create watchlist"}
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-red-400 border border-[var(--border)] hover:border-red-400/50 rounded-full px-3 py-1.5 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Delete
+          </button>
+        </div>
       </div>
 
       <p className="text-xs text-[var(--foreground-muted)] italic mb-6">
         Generated from: &ldquo;{collection.prompt}&rdquo;
       </p>
+
+      {wlMessage && (
+        <div className={`flex items-center gap-2 rounded-xl px-4 py-3 mb-4 text-sm ${
+          wlMessage.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-300" : "bg-red-500/10 border border-red-500/30 text-red-300"
+        }`}>
+          {wlMessage.type === "success" && <Check className="w-4 h-4 shrink-0" />}
+          <span className="flex-1">{wlMessage.text}</span>
+          {wlMessage.href && (
+            <Link href={wlMessage.href} className="text-white underline hover:no-underline">View watchlist →</Link>
+          )}
+        </div>
+      )}
 
       {collection.items.length === 0 ? (
         <p className="text-center py-16 text-[var(--foreground-muted)]">No items in this collection.</p>
