@@ -253,6 +253,8 @@ export default function RecommendPage() {
         yearTo: number | null;
         minRating: number | null;
         keywords: string[];
+        mpaaRatings: string[];
+        cast: string[];
         maxViolence: string | null;
         maxSexualContent: string | null;
         maxLanguageSubstance: string | null;
@@ -313,6 +315,7 @@ export default function RecommendPage() {
           yearTo: f.yearTo,
           minRating: f.minRating,
           keywords: f.keywords,
+          cast: f.cast,
           maxViolence: f.maxViolence,
           maxSexualContent: f.maxSexualContent,
           maxLanguageSubstance: f.maxLanguageSubstance,

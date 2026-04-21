@@ -73,6 +73,12 @@ export interface ExtractedFilters {
   // MPAA movie ratings (G/PG/PG-13/R/NC-17) and US TV ratings (TV-Y through TV-MA).
   // /movies page uses a single `mpaa` URL param for both.
   mpaaRatings: string[];
+  // Actor names extracted from prompts like "Tom Hanks movies" or "with
+  // Saoirse Ronan". Resolved server-side via TMDB /search/person (best actor
+  // match) and passed as with_cast. Directors are sometimes mentioned here
+  // too — TMDB discover doesn't natively filter by director, so director-only
+  // prompts fall through; AI should still extract the name.
+  cast: string[];
   maxViolence: Severity | null;
   maxSexualContent: Severity | null;
   maxLanguageSubstance: Severity | null;
@@ -96,7 +102,7 @@ You do NOT suggest or name any movies or shows. You only pick filter values from
 
 Be conservative. If a dimension isn't clearly implied by the user, leave it empty. Don't pad the result. It's better to return too few filters than to force-fit values that weren't actually requested.
 
-NEVER fill an array with all possible values as a way of saying "no filter". If the user didn't specify a dimension (genre, era, runtime, experience, provider), the array MUST be empty, not exhaustive. Example: "a Christmas movie" with no era hint → era: [], NOT [classic, 70s, 80s, 90s, 2000s, 2010s, recent].
+NEVER fill an array with all possible values as a way of saying "no filter". If the user didn't specify a dimension (genre, era, runtime, experience, provider), the array MUST be empty, not exhaustive. Example: "a Christmas movie" with no era hint → era: [], NOT [classic, 70s, 80s, 90s, 2000s, 2010s, recent]. Franchise prompts that span decades ("James Bond", "Star Wars") also → era: [] — a long-running series is NOT a signal to fill every era bucket.
 
 ### mediaType default
 mediaType is "any" UNLESS the user explicitly says one of: "movie", "film", "flick", "feature" (→ "movie") or "show", "TV", "series", "season", "episode" (→ "tv"). Vague prompts like "a Christmas thing", "something romantic", "cozy rom-com", "scary", "slow burn sci-fi" → mediaType: "any". The word "movie" in the system name ("What Should I Watch?") does NOT count — only the user's own words count. Do not default to "movie" just because most catalog content is movies.
@@ -160,9 +166,10 @@ Five categories can be capped at a MAX (ceiling) or MIN (floor) severity: none <
 - "with my mom, nothing too dark" → maxViolence/maxScary/maxSensitive at "moderate"
 
 **Min caps** — user wants MORE of something:
-- "very violent" / "brutal" / "gore porn" → minViolence: "moderate-severe"
+- "very violent" / "brutal" / "gore porn" / "bloody" / "gory" / "bloodbath" / "ultra-violent" / "Saw-level" → minViolence: "moderate-severe"
+- "some action and violence" → minViolence: "moderate"
 - "sexy" / "steamy" / "erotic" / "lots of nudity" → minSexualContent: "moderate"
-- "really scary" / "terrifying" → minScaryIntense: "moderate-severe"
+- "really scary" / "terrifying" / "intense horror" → minScaryIntense: "moderate-severe"
 - "dark and disturbing" / "bleak" → minSensitiveThemes: "moderate"
 - "stoner flick" / "lots of drugs" → minLanguageSubstance: "moderate"
 
@@ -209,8 +216,19 @@ Today's year is ${currentYear}. If the user names a specific year or year span, 
 
 When the user only says a decade like "80s", prefer the era bucket ("80s"); use yearFrom/yearTo only for specific year numbers or relative phrases.
 
+### Cast / people
+cast is an array of up to 3 actor/director names extracted from the prompt. The server resolves names to TMDB person IDs; TMDB can filter by actor via with_cast but NOT by director, so director-only prompts may still fall through to unrelated results.
+- "Tom Hanks movies" → cast: ["Tom Hanks"]
+- "anything with Saoirse Ronan" → cast: ["Saoirse Ronan"]
+- "Christopher Nolan films" → cast: ["Christopher Nolan"] (director — may not filter cleanly)
+- "a Tarantino movie" / "by Tarantino" → cast: ["Quentin Tarantino"]
+- "Wes Anderson type stuff" → LEAVE cast empty (this is stylistic, not a specific-person request) and use moods=["offbeat"] instead
+- "with Tom Hanks or Meryl Streep" → cast: ["Tom Hanks", "Meryl Streep"]
+
+Do NOT set cast for franchise mentions ("Marvel", "James Bond", "Star Wars") — those aren't people. Do NOT set cast for style comparisons ("like X", "X-esque", "X type stuff") — those call for moods/genres instead.
+
 ### Min rating
-- "highly rated" / "well-rated" / "only good stuff" → minRating: 7.5
+- "highly rated" / "well-rated" / "only good stuff" / "critically acclaimed" / "great movies only" → minRating: 7.5
 - "rated 8 or above" / "at least 8 stars" / "8+" → minRating: 8
 - "7+" / "at least 7" → minRating: 7
 - "9 stars or higher" → minRating: 9
@@ -239,12 +257,16 @@ If the user mentions a service by name, add its short code. Otherwise leave empt
 ### Content ratings (MPAA + TV)
 mpaaRatings is an array combining movie (${MPAA_RATINGS.join(", ")}) and TV (${TV_RATINGS.join(", ")}) certifications. Set only when the user explicitly asks for a rating — don't infer from adjacent words like "family-friendly" (use severity caps instead).
 - "R-rated" / "rated R" → ["R"]
-- "PG-13 or lower" → ["G", "PG", "PG-13"]
+- "PG-13 or lower" / "nothing above PG-13" / "PG-13 max" / "up to PG-13" → ["G", "PG", "PG-13"]
 - "NC-17" → ["NC-17"]
 - "TV-MA" / "mature TV" → ["TV-MA"]
-- "TV-14" → ["TV-14"]
+- "TV-14" (alone, no "max" / "and below") → ["TV-14"]
+- "TV-14 max" / "TV-14 and below" / "TV-14 or lower" → ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14"]
+- "TV-PG max" → ["TV-Y", "TV-Y7", "TV-G", "TV-PG"]
 - "only R-rated stuff" → ["R"]
-- "family-friendly" → leave empty; use severity caps (handles both movies and TV)`;
+- "family-friendly" → leave empty; use severity caps (handles both movies and TV)
+
+**Expansion rule:** "X max" / "up to X" / "and below" / "or lower" / "nothing above X" ALWAYS expands to X plus every rating less restrictive than X. Never leave just the single value. Order for MPAA (least → most restrictive): G < PG < PG-13 < R < NC-17. Order for TV: TV-Y < TV-Y7 < TV-G < TV-PG < TV-14 < TV-MA.`;
 }
 
 // Cache the built prompt per-year so cache_control keeps hitting within a year.
@@ -332,7 +354,12 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       mpaaRatings: {
         type: "array",
         items: { type: "string", enum: [...ALL_CERTS] },
-        description: "Explicit MPAA (G/PG/PG-13/R/NC-17) or TV (TV-Y/TV-Y7/TV-G/TV-PG/TV-14/TV-MA) certifications the user named. Empty if user didn't cite a rating.",
+        description: "Explicit MPAA (G/PG/PG-13/R/NC-17) or TV (TV-Y/TV-Y7/TV-G/TV-PG/TV-14/TV-MA) certifications the user named. 'X max' expands to X + every less-restrictive rating. Empty if user didn't cite a rating.",
+      },
+      cast: {
+        type: "array",
+        items: { type: "string" },
+        description: "0-3 actor/director full names the user named. Use only for explicit person requests ('Tom Hanks movies', 'with X', 'by Y'). Do NOT set for style comparisons ('like X', 'X-esque') or franchises ('Marvel', 'James Bond').",
       },
       maxViolence: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed violence severity. null = no cap." },
       maxSexualContent: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed sexual/nudity severity. null = no cap." },
@@ -345,7 +372,7 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
       minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "genreMode", "yearFrom", "yearTo", "minRating", "keywords", "mpaaRatings", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "genreMode", "yearFrom", "yearTo", "minRating", "keywords", "mpaaRatings", "cast", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -398,6 +425,9 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
       : [],
     mpaaRatings: Array.isArray(input.mpaaRatings)
       ? input.mpaaRatings.filter((r): r is string => typeof r === "string" && (ALL_CERTS as readonly string[]).includes(r))
+      : [],
+    cast: Array.isArray(input.cast)
+      ? input.cast.filter((n): n is string => typeof n === "string" && n.trim().length > 0 && n.length < 100).map((n) => n.trim()).slice(0, 3)
       : [],
     maxViolence: normalizeSeverity(input.maxViolence),
     maxSexualContent: normalizeSeverity(input.maxSexualContent),

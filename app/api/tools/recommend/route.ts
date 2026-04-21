@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getGenres } from "@/lib/tmdb";
 import { expandMoods } from "@/lib/ai/mood-expand";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
+import { resolveCast } from "@/lib/tmdb-cast";
 
 export const dynamic = "force-dynamic";
 
@@ -138,6 +139,11 @@ export async function POST(req: NextRequest) {
       : [];
     const keywordIds = keywordPhrases.length > 0 ? await resolveKeywords(keywordPhrases) : [];
     const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
+    const castPhrases: string[] = Array.isArray(body.cast)
+      ? body.cast.filter((n: unknown): n is string => typeof n === "string" && n.trim().length > 0).map((n: string) => n.trim()).slice(0, 3)
+      : [];
+    const castIds = castPhrases.length > 0 ? await resolveCast(castPhrases) : [];
+    const castParam = castIds.length > 0 ? castIds.join(",") : undefined;
 
     // Expand hidden mood tags into genre adds / avoids. Moods don't count as
     // UI filters but they re-shape the search (e.g. "dark" adds Drama/Crime/
@@ -261,6 +267,10 @@ export async function POST(req: NextRequest) {
       // Keyword tags for niche themes (future, time loop, christmas, etc.).
       // Toggled off by the fallback pass below when the keyword query is sparse.
       if (includeKeywords && keywordsParam) p.with_keywords = keywordsParam;
+      // Cast filter — TMDB /discover/movie supports with_cast (actors only).
+      // On /discover/tv this param is ignored; TV results won't be narrowed
+      // by actor but won't crash.
+      if (castParam) p.with_cast = castParam;
       return p;
     }
 

@@ -10,6 +10,7 @@ import { expandMoods } from "@/lib/ai/mood-expand";
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { getGenres, getShowGenres, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { resolveKeywordsFull } from "@/lib/tmdb-keywords";
+import { resolveCastFull } from "@/lib/tmdb-cast";
 
 // Movie-genre ID → TV-genre ID(s) mapping. Same table /movies uses internally.
 const MOVIE_TO_TV_GENRE_ID: Record<number, number[]> = {
@@ -100,6 +101,8 @@ export async function POST(req: NextRequest) {
 
     // Resolve keyword phrases to TMDB keyword IDs + labels.
     const resolvedKeywords = raw.keywords.length > 0 ? await resolveKeywordsFull(raw.keywords) : [];
+    // Resolve cast names to TMDB person IDs + canonical names.
+    const resolvedCast = raw.cast.length > 0 ? await resolveCastFull(raw.cast) : [];
 
     // Provider short codes → TMDB provider IDs.
     const providerIds: number[] = [];
@@ -110,6 +113,9 @@ export async function POST(req: NextRequest) {
 
     // Build URL query params for /movies.
     const qp = new URLSearchParams();
+    // Default sort is relevance — AI-triggered searches should feel organized
+    // by how well titles match the prompt, not alphabetical or by raw popularity.
+    qp.set("sort", "relevance");
     if (raw.mediaType !== "any") qp.set("type", raw.mediaType);
     if (genreIds.length > 0) qp.set("genres", genreIds.join(","));
     if (excludeGenreIds.length > 0) qp.set("excludeGenres", excludeGenreIds.join(","));
@@ -153,6 +159,10 @@ export async function POST(req: NextRequest) {
     if (resolvedKeywords.length > 0) {
       qp.set("keywords", resolvedKeywords.map((k) => k.id).join(","));
       qp.set("keywordLabels", resolvedKeywords.map((k) => k.name).join(","));
+    }
+    if (resolvedCast.length > 0) {
+      qp.set("cast", resolvedCast.map((c) => c.id).join(","));
+      qp.set("castLabels", resolvedCast.map((c) => c.name).join(","));
     }
 
     // Severity caps passed through as-is; /movies reads them.

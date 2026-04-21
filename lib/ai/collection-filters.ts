@@ -59,9 +59,23 @@ export interface CollectionFilters {
   moods: Mood[];
   limit: number;
   suggestedName: string;
+  // MPAA movie ratings (G/PG/PG-13/R/NC-17) + US TV ratings (TV-Y..TV-MA) the
+  // user explicitly named. Kept separate from severity caps — ratings are a
+  // hard certification filter (collections applies via TMDB discover), while
+  // severity caps are our own parents-guide post-filter.
+  mpaaRatings: string[];
+  // Actor names extracted from "Tom Hanks movies" / "with X" / "by Y".
+  // Resolved to TMDB person IDs. Directors aren't natively filterable by
+  // TMDB discover but the AI still extracts their names for consistency.
+  cast: string[];
 }
 
-const SYSTEM_PROMPT = `You extract structured filters for building a movie/TV collection from a user's natural-language prompt.
+const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"] as const;
+const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"] as const;
+const ALL_CERTS = [...MPAA_RATINGS, ...TV_RATINGS] as const;
+
+function buildSystemPrompt(currentYear: number): string {
+  return `You extract structured filters for building a movie/TV collection from a user's natural-language prompt.
 
 You do NOT name specific movies or shows. You only extract filter values. The site's recommendation engine will run the actual search against a real catalog.
 
@@ -86,10 +100,15 @@ If a sub-genre IS well-represented by a canonical genre, use that genre ALONE �
 ONLY use textQuery for truly niche concepts that are NOT captured by any main genre: "giallo", "mockumentary", "cyberpunk" (still primarily Sci-Fi, but has enough distinct feel that textQuery can help), very specific themes like "time loop", "found footage". Keep textQuery short (1-2 words).
 
 ### Year mapping
+Today's year is ${currentYear}. Use this for relative time phrases.
 - "70s" → yearFrom: 1970, yearTo: 1979. Same pattern for 80s/90s/2000s/2010s.
 - "recent"/"new"/"modern" → yearFrom: 2020.
 - "golden age"/"Hollywood classic era" → yearTo: 1960.
 - "classic" ALONE (e.g. "classic gangster movies", "classic comedies") usually means canonical / iconic, NOT a specific era. LEAVE yearFrom and yearTo null in this case — don't force a year filter.
+- "in the last N years" / "past N years" / "the last decade" → yearFrom: ${currentYear} - N (or 10 for "decade"), yearTo: null. **Never set yearTo for open-ended relative phrases** — the user means "up to now", which is the default.
+- "released this year" / "from this year" → yearFrom: ${currentYear}, yearTo: ${currentYear}
+- "before X" → yearTo: X-1 (no yearFrom)
+- "after X" → yearFrom: X (no yearTo)
 
 ### Parents-guide severity caps
 Five categories can be capped at a max (ceiling) or min (floor) severity level: none < mild < mild-moderate < moderate < moderate-severe < severe.
@@ -167,8 +186,16 @@ keywords is an array of 1–3 short natural-language phrases resolved server-sid
 
 Do NOT pad keywords. Genres/moods cover most prompts. Prefer single-word phrases. textQuery is a separate mechanism for true sub-genre labels — don't duplicate content across keywords and textQuery.
 
+### Cast / people
+cast is an array of up to 3 actor/director full names extracted from the prompt.
+- "Tom Hanks movies" → cast: ["Tom Hanks"]
+- "a Tarantino movie" → cast: ["Quentin Tarantino"]
+- "with Emma Stone" → cast: ["Emma Stone"]
+- "Wes Anderson-style" / "A24 vibes" / "like Nolan" → LEAVE cast empty (style comparison, not a person request)
+- "Marvel" / "James Bond" / "Star Wars" → LEAVE cast empty (franchise, not a person)
+
 ### Other
-- "highly rated" / "well-rated" / "only good stuff" → minRating: 7.5
+- "highly rated" / "well-rated" / "only good stuff" / "critically acclaimed" / "great movies only" → minRating: 7.5
 - "rated above X" / "higher than X" / "over X stars" / "X+" → minRating: X (0-10 scale, community vote average).
 - seenFilter has three values:
   - "unseen" — user wants titles they HAVEN'T seen ("haven't seen", "new to me", "unseen", "I might have missed"). This is the DEFAULT.
@@ -178,7 +205,29 @@ Do NOT pad keywords. Genres/moods cover most prompts. Prefer single-word phrases
 - Limit defaults to 10, cap at 25.
 - suggestedName: a short, friendly title for the collection (e.g. "Classic Gangster Movies", "Rewatchable Sci-Fi Favorites").
 
+### Content ratings (MPAA + TV)
+mpaaRatings is an array combining movie (${MPAA_RATINGS.join(", ")}) and TV (${TV_RATINGS.join(", ")}) certifications. Set only when the user explicitly names a rating.
+- "R-rated" → ["R"]
+- "PG-13 or lower" / "nothing above PG-13" / "PG-13 max" / "up to PG-13" → ["G", "PG", "PG-13"]
+- "NC-17" → ["NC-17"]
+- "TV-MA" → ["TV-MA"]
+- "TV-14 max" / "TV-14 and below" → ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14"]
+- "family-friendly" → leave empty; severity caps handle this
+
+Rule: "X max" / "up to X" / "and below" / "or lower" / "nothing above X" expands to X plus every rating less restrictive. Never leave just ["PG-13"] for "PG-13 or lower" — always include the lower rungs.
+
 Be conservative. Leave fields null/empty if not clearly implied.`;
+}
+
+// Cache the built prompt per-year so the Anthropic cache_control breakpoint
+// keeps hitting. The prompt changes once per year.
+let cachedSystemPrompt: { year: number; text: string } | null = null;
+function getSystemPrompt(): string {
+  const year = new Date().getFullYear();
+  if (cachedSystemPrompt && cachedSystemPrompt.year === year) return cachedSystemPrompt.text;
+  cachedSystemPrompt = { year, text: buildSystemPrompt(year) };
+  return cachedSystemPrompt.text;
+}
 
 const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
   name: "set_collection_filters",
@@ -288,10 +337,20 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
         items: { type: "string" },
         description: "0-3 short natural-language phrases for niche themes TMDB tracks as keywords (e.g. 'future', 'time loop', 'christmas', 'road trip', 'heist'). Empty if no niche theme named.",
       },
+      mpaaRatings: {
+        type: "array",
+        items: { type: "string", enum: [...ALL_CERTS] },
+        description: "Explicit MPAA (G/PG/PG-13/R/NC-17) or TV (TV-Y..TV-MA) certifications the user named. 'X max' / 'X or lower' expands to X plus every lower rung. Empty if user didn't cite a rating.",
+      },
+      cast: {
+        type: "array",
+        items: { type: "string" },
+        description: "0-3 actor/director full names the user named. Only for explicit people ('Tom Hanks', 'by X'). Do NOT set for style comparisons or franchises.",
+      },
       limit: { type: "integer", minimum: 5, maximum: 25, description: "Number of titles to include (default 10)." },
       suggestedName: { type: "string", description: "Short friendly name for the collection." },
     },
-    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "runtime", "keywords", "limit", "suggestedName"],
+    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "runtime", "keywords", "mpaaRatings", "cast", "limit", "suggestedName"],
     additionalProperties: false,
   },
 };
@@ -306,7 +365,7 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
   const response = await client.messages.create({
     model: "claude-haiku-4-5",
     max_tokens: 1024,
-    system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: getSystemPrompt(), cache_control: { type: "ephemeral" } }],
     tools: [EXTRACT_COLLECTION_TOOL],
     tool_choice: { type: "tool", name: "set_collection_filters" },
     messages: [{ role: "user", content: userPrompt }],
@@ -323,7 +382,17 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     genres: Array.isArray(raw.genres) ? raw.genres.filter((g) => validGenres.has(g as (typeof TMDB_MOVIE_GENRES)[number])) : [],
     excludeGenres: Array.isArray(raw.excludeGenres) ? raw.excludeGenres.filter((g) => validGenres.has(g as (typeof TMDB_MOVIE_GENRES)[number])) : [],
     yearFrom: typeof raw.yearFrom === "number" && raw.yearFrom > 1800 ? Math.floor(raw.yearFrom) : null,
-    yearTo: typeof raw.yearTo === "number" && raw.yearTo > 1800 ? Math.floor(raw.yearTo) : null,
+    // Strip yearTo when it's a redundant current-year ceiling paired with a
+    // yearFrom — model sometimes fills it in on "last N years" prompts even
+    // though the system prompt says not to.
+    yearTo: (() => {
+      if (typeof raw.yearTo !== "number" || raw.yearTo <= 1800) return null;
+      const y = Math.floor(raw.yearTo);
+      const currentYear = new Date().getFullYear();
+      const hasFrom = typeof raw.yearFrom === "number" && raw.yearFrom > 1800;
+      if (hasFrom && y >= currentYear - 1) return null;
+      return y;
+    })(),
     minRating: typeof raw.minRating === "number" && raw.minRating >= 0 && raw.minRating <= 10 ? raw.minRating : null,
     textQuery: typeof raw.textQuery === "string" && raw.textQuery.trim().length > 0 ? raw.textQuery.trim() : null,
     seenFilter: raw.seenFilter === "seen_only" || raw.seenFilter === "any" ? raw.seenFilter : "unseen",
@@ -344,6 +413,12 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     runtime: Array.isArray(raw.runtime) ? raw.runtime.filter((r): r is string => typeof r === "string" && ["short", "feature", "long", "epic"].includes(r)) : [],
     keywords: Array.isArray(raw.keywords)
       ? raw.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
+    mpaaRatings: Array.isArray(raw.mpaaRatings)
+      ? raw.mpaaRatings.filter((r): r is string => typeof r === "string" && (ALL_CERTS as readonly string[]).includes(r))
+      : [],
+    cast: Array.isArray(raw.cast)
+      ? raw.cast.filter((n): n is string => typeof n === "string" && n.trim().length > 0 && n.length < 100).map((n) => n.trim()).slice(0, 3)
       : [],
     limit: typeof raw.limit === "number" ? Math.max(5, Math.min(25, Math.floor(raw.limit))) : 10,
     suggestedName: typeof raw.suggestedName === "string" && raw.suggestedName.trim().length > 0 ? raw.suggestedName.trim().slice(0, 80) : "Custom Collection",

@@ -8,6 +8,7 @@ import { expandMoods } from "@/lib/ai/mood-expand";
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
+import { resolveCast } from "@/lib/tmdb-cast";
 
 interface SeverityCaps {
   maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null;
@@ -245,6 +246,18 @@ export async function POST(req: NextRequest) {
     const keywordIds = await resolveKeywords(filters.keywords);
     const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
 
+    // Resolve cast names to TMDB person IDs (actors only — director prompts
+    // may resolve to the person but TMDB /discover can't filter by director).
+    const castIds = filters.cast.length > 0 ? await resolveCast(filters.cast) : [];
+    const castIdsStr = castIds.length > 0 ? castIds.map(String) : undefined;
+
+    // Split MPAA array: movie certifications pass to TMDB /discover/movie
+    // via `certification`. TV ratings (TV-*) aren't supported by /discover/tv
+    // — they'd need a post-filter via content_ratings lookup (skipped).
+    const MOVIE_CERTS = new Set(["G", "PG", "PG-13", "R", "NC-17"]);
+    const movieCertifications = filters.mpaaRatings.filter((r) => MOVIE_CERTS.has(r));
+    const movieCertsParam = movieCertifications.length > 0 ? movieCertifications : undefined;
+
     async function discoverAndOr(page: number, genreIds: string[], useKeywords: boolean) {
       const kw = useKeywords ? keywordsParam : undefined;
       if (genreIds.length <= 1) {
@@ -252,6 +265,8 @@ export async function POST(req: NextRequest) {
           genres: genreIds.length ? genreIds : undefined,
           genreMode: "any",
           query: filters.textQuery ?? undefined,
+          certifications: movieCertsParam,
+          castIds: castIdsStr,
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
@@ -268,6 +283,8 @@ export async function POST(req: NextRequest) {
           genres: genreIds,
           genreMode: "all",
           query: filters.textQuery ?? undefined,
+          certifications: movieCertsParam,
+          castIds: castIdsStr,
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
@@ -282,6 +299,8 @@ export async function POST(req: NextRequest) {
           genres: genreIds,
           genreMode: "any",
           query: filters.textQuery ?? undefined,
+          certifications: movieCertsParam,
+          castIds: castIdsStr,
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
