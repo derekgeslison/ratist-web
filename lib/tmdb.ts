@@ -248,6 +248,7 @@ export const STREAMING_PROVIDERS = [
 export async function discoverMovies(options: {
   query?: string;
   genres?: string[];
+  excludeGenres?: string[];
   genreMode?: "any" | "all";
   castIds?: string[];
   sort?: string;
@@ -280,6 +281,7 @@ export async function discoverMovies(options: {
   if (genreIds.length > 0) {
     params.with_genres = genreIds.join(options.genreMode === "all" ? "," : "|");
   }
+  if (options.excludeGenres?.length) params.without_genres = options.excludeGenres.join(",");
   if (options.castIds?.length) params.with_cast = options.castIds.join(",");
 
   // Theater status constrains date range and release type
@@ -486,6 +488,7 @@ export const TV_RATING_ORDER = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-M
 export async function discoverShows(options: {
   query?: string;
   genres?: string[];
+  excludeGenres?: string[];
   genreMode?: "any" | "all";
   sort?: string;
   yearFrom?: string;
@@ -518,6 +521,7 @@ export async function discoverShows(options: {
   if (genreIds.length > 0) {
     params.with_genres = genreIds.join(options.genreMode === "all" ? "," : "|");
   }
+  if (options.excludeGenres?.length) params.without_genres = options.excludeGenres.join(",");
 
   // Release status constrains date range / show status
   if (options.releaseStatus === "now_playing") {

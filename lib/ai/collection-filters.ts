@@ -168,7 +168,8 @@ keywords is an array of 1–3 short natural-language phrases resolved server-sid
 Do NOT pad keywords. Genres/moods cover most prompts. Prefer single-word phrases. textQuery is a separate mechanism for true sub-genre labels — don't duplicate content across keywords and textQuery.
 
 ### Other
-- "rated above X" / "higher than X" / "over X stars" → minRating: X (0-10 scale, community vote average).
+- "highly rated" / "well-rated" / "only good stuff" → minRating: 7.5
+- "rated above X" / "higher than X" / "over X stars" / "X+" → minRating: X (0-10 scale, community vote average).
 - seenFilter has three values:
   - "unseen" — user wants titles they HAVEN'T seen ("haven't seen", "new to me", "unseen", "I might have missed"). This is the DEFAULT.
   - "seen_only" — user wants titles they HAVE seen ("already seen", "rewatch", "rewatchable", "movies I've watched", "from my list", "best of what I've seen").

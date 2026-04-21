@@ -65,6 +65,9 @@ export interface ExtractedFilters {
   // /search/keyword. Server falls back to no-keyword results if the keyword
   // query yields too few matches.
   keywords: string[];
+  // MPAA movie ratings (G/PG/PG-13/R/NC-17) and US TV ratings (TV-Y through TV-MA).
+  // /movies page uses a single `mpaa` URL param for both.
+  mpaaRatings: string[];
   maxViolence: Severity | null;
   maxSexualContent: Severity | null;
   maxLanguageSubstance: Severity | null;
@@ -77,7 +80,12 @@ export interface ExtractedFilters {
   minSensitiveThemes: Severity | null;
 }
 
-const SYSTEM_PROMPT = `You extract structured movie/TV recommendation filters from a user's description of what they feel like watching.
+const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"] as const;
+const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"] as const;
+const ALL_CERTS = [...MPAA_RATINGS, ...TV_RATINGS] as const;
+
+function buildSystemPrompt(currentYear: number): string {
+  return `You extract structured movie/TV recommendation filters from a user's description of what they feel like watching.
 
 You do NOT suggest or name any movies or shows. You only pick filter values from the fixed vocabularies below. The site's own recommendation engine will do the actual search against a real movie database.
 
@@ -179,15 +187,22 @@ Use TMDB 2-letter ISO codes. originalLanguage is an INCLUDE whitelist; excludeOr
 "no anime", "not anime", "I hate anime", "except anime" → set excludeAnime: true. Do NOT set excludeGenres: ["Animation"] for these prompts — that would also exclude Pixar/DreamWorks/etc. The server post-filters to remove only Japanese-origin animation. Leave excludeAnime false in all other cases.
 
 ### Precise year range (overrides era)
-If the user names a specific year or year span, set yearFrom/yearTo instead of using era buckets:
+Today's year is ${currentYear}. If the user names a specific year or year span, set yearFrom/yearTo instead of using era buckets:
 - "from 2018" / "released 2018" → yearFrom: 2018, yearTo: 2018
 - "between 1985 and 1995" / "late 80s to mid 90s" → yearFrom: 1985, yearTo: 1995
-- "before 2010" → yearTo: 2009
-- "after 2015" → yearFrom: 2015
-When the user only says a decade like "80s", prefer the era bucket ("80s"); use yearFrom/yearTo only for specific year numbers.
+- "before 2010" → yearTo: 2009 (no yearFrom)
+- "after 2015" → yearFrom: 2015 (no yearTo)
+- "in the last N years" / "past N years" / "the last decade" → yearFrom: ${currentYear} - N (or 10 for "decade"), yearTo: null. **Never set yearTo for open-ended relative phrases** — the user means "up to now", which is the default and doesn't need an upper bound.
+- "released this year" → yearFrom: ${currentYear}, yearTo: ${currentYear}
+
+When the user only says a decade like "80s", prefer the era bucket ("80s"); use yearFrom/yearTo only for specific year numbers or relative phrases.
 
 ### Min rating
-"rated 8 or above" / "highly rated" / "at least 8 stars" / "only good stuff" → minRating: 8. "7+" → minRating: 7. Leave null if the user doesn't cite a rating threshold.
+- "highly rated" / "well-rated" / "only good stuff" → minRating: 7.5
+- "rated 8 or above" / "at least 8 stars" / "8+" → minRating: 8
+- "7+" / "at least 7" → minRating: 7
+- "9 stars or higher" → minRating: 9
+Leave null if the user doesn't cite a rating threshold or quality adjective.
 
 ### Keywords (niche themes)
 keywords is an array of 1–3 short natural-language phrases that name themes genres can't capture. The server resolves each phrase to a TMDB keyword tag; if the keyword query yields too few titles, it falls back to regular genre results. Use keywords when the prompt names:
@@ -207,7 +222,27 @@ If the user mentions a service by name, add its short code. Otherwise leave empt
 - HBO Max / Max / HBO → "Max"
 - Apple TV+ / Apple TV → "Apple TV+"
 - Peacock → "Peacock"
-- Paramount+ → "Paramount+"`;
+- Paramount+ → "Paramount+"
+
+### Content ratings (MPAA + TV)
+mpaaRatings is an array combining movie (${MPAA_RATINGS.join(", ")}) and TV (${TV_RATINGS.join(", ")}) certifications. Set only when the user explicitly asks for a rating — don't infer from adjacent words like "family-friendly" (use severity caps instead).
+- "R-rated" / "rated R" → ["R"]
+- "PG-13 or lower" → ["G", "PG", "PG-13"]
+- "NC-17" → ["NC-17"]
+- "TV-MA" / "mature TV" → ["TV-MA"]
+- "TV-14" → ["TV-14"]
+- "only R-rated stuff" → ["R"]
+- "family-friendly" → leave empty; use severity caps (handles both movies and TV)`;
+}
+
+// Cache the built prompt per-year so cache_control keeps hitting within a year.
+let cachedSystemPrompt: { year: number; text: string } | null = null;
+function getSystemPrompt(): string {
+  const year = new Date().getFullYear();
+  if (cachedSystemPrompt && cachedSystemPrompt.year === year) return cachedSystemPrompt.text;
+  cachedSystemPrompt = { year, text: buildSystemPrompt(year) };
+  return cachedSystemPrompt.text;
+}
 
 const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
   name: "set_recommendation_filters",
@@ -277,6 +312,11 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
         items: { type: "string" },
         description: "0-3 short natural-language phrases for niche themes TMDB tracks as keywords (e.g. 'future', 'time loop', 'christmas', 'road trip', 'found footage', 'one-shot'). Empty if no niche theme named.",
       },
+      mpaaRatings: {
+        type: "array",
+        items: { type: "string", enum: [...ALL_CERTS] },
+        description: "Explicit MPAA (G/PG/PG-13/R/NC-17) or TV (TV-Y/TV-Y7/TV-G/TV-PG/TV-14/TV-MA) certifications the user named. Empty if user didn't cite a rating.",
+      },
       maxViolence: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed violence severity. null = no cap." },
       maxSexualContent: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed sexual/nudity severity. null = no cap." },
       maxLanguageSubstance: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed language/drug severity. null = no cap." },
@@ -288,7 +328,7 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
       minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "yearFrom", "yearTo", "minRating", "keywords", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "yearFrom", "yearTo", "minRating", "keywords", "mpaaRatings", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -298,7 +338,7 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
   const response = await client.messages.create({
     model: "claude-haiku-4-5",
     max_tokens: 1024,
-    system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: getSystemPrompt(), cache_control: { type: "ephemeral" } }],
     tools: [EXTRACT_FILTERS_TOOL],
     tool_choice: { type: "tool", name: "set_recommendation_filters" },
     messages: [{ role: "user", content: userPrompt }],
@@ -322,10 +362,24 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     excludeOriginalLanguages: Array.isArray(input.excludeOriginalLanguages) ? input.excludeOriginalLanguages.filter((l): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [],
     excludeAnime: input.excludeAnime === true,
     yearFrom: typeof input.yearFrom === "number" && input.yearFrom > 1800 && input.yearFrom < 2100 ? Math.floor(input.yearFrom) : null,
-    yearTo: typeof input.yearTo === "number" && input.yearTo > 1800 && input.yearTo < 2100 ? Math.floor(input.yearTo) : null,
+    // yearTo normalization: the model sometimes sets yearTo=currentYear on
+    // "last N years" prompts even though we tell it not to. If yearFrom is set
+    // and yearTo is within 1 year of "now", it's redundant — strip it so the
+    // user doesn't see a pointless upper bound.
+    yearTo: (() => {
+      if (typeof input.yearTo !== "number" || input.yearTo <= 1800 || input.yearTo >= 2100) return null;
+      const y = Math.floor(input.yearTo);
+      const currentYear = new Date().getFullYear();
+      const hasFrom = typeof input.yearFrom === "number" && input.yearFrom > 1800;
+      if (hasFrom && y >= currentYear - 1) return null;
+      return y;
+    })(),
     minRating: typeof input.minRating === "number" && input.minRating >= 0 && input.minRating <= 10 ? input.minRating : null,
     keywords: Array.isArray(input.keywords)
       ? input.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
+    mpaaRatings: Array.isArray(input.mpaaRatings)
+      ? input.mpaaRatings.filter((r): r is string => typeof r === "string" && (ALL_CERTS as readonly string[]).includes(r))
       : [],
     maxViolence: normalizeSeverity(input.maxViolence),
     maxSexualContent: normalizeSeverity(input.maxSexualContent),

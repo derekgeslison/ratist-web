@@ -75,7 +75,8 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
         <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Movies & TV</Link>
         {" "}or{" "}
         <Link href="/celebrities" className="text-[var(--ratist-red)] hover:underline">Celebrities</Link>
-        {" "}for advanced filtering options.
+        {" "}for advanced filtering options. For AI search, head to{" "}
+        <Link href="/movies" className="text-[var(--ratist-red)] hover:underline">Movies & TV</Link>.
       </p>
 
       {/* Inline search bar */}

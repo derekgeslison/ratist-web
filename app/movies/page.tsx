@@ -6,6 +6,7 @@ import ShowCard from "@/components/ShowCard";
 import MovieListItem from "@/components/MovieListItem";
 import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
+import MoviesAiSearch from "@/components/MoviesAiSearch";
 import AdUnit from "@/components/AdUnit";
 import SpotlightCards from "@/components/SpotlightCards";
 import { prisma } from "@/lib/prisma";
@@ -75,6 +76,33 @@ export default async function MoviesPage({ searchParams }: Props) {
   const language = params.language;
   const keywords = params.keywords;
 
+  // AI-powered hidden filters (applied as post-filters after TMDB fetch).
+  // Surfaced to the user as a single removable "AI filter" pill; the specific
+  // dimensions aren't shown on the filter bar.
+  const excludeGenres = params.excludeGenres?.split(",").filter(Boolean) ?? [];
+  const excludeLanguages = params.excludeLanguages?.split(",").filter(Boolean) ?? [];
+  const excludeAnime = params.excludeAnime === "1";
+  const SEVERITY_VALUES = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"];
+  const severityOf = (v: string | undefined) => (v && SEVERITY_VALUES.includes(v) ? v : null);
+  const severityCaps = {
+    maxViolence: severityOf(params.maxViolence),
+    maxSexualContent: severityOf(params.maxSexualContent),
+    maxLanguageSubstance: severityOf(params.maxLanguageSubstance),
+    maxScaryIntense: severityOf(params.maxScaryIntense),
+    maxSensitiveThemes: severityOf(params.maxSensitiveThemes),
+    minViolence: severityOf(params.minViolence),
+    minSexualContent: severityOf(params.minSexualContent),
+    minLanguageSubstance: severityOf(params.minLanguageSubstance),
+    minScaryIntense: severityOf(params.minScaryIntense),
+    minSensitiveThemes: severityOf(params.minSensitiveThemes),
+  };
+  const hasHiddenAiFilters = excludeGenres.length > 0
+    || excludeLanguages.length > 0
+    || excludeAnime
+    || Object.values(severityCaps).some((v) => v !== null);
+  const hasMaxCap = severityCaps.maxViolence || severityCaps.maxSexualContent || severityCaps.maxLanguageSubstance || severityCaps.maxScaryIntense || severityCaps.maxSensitiveThemes;
+  const hasMinCap = severityCaps.minViolence || severityCaps.minSexualContent || severityCaps.minLanguageSubstance || severityCaps.minScaryIntense || severityCaps.minSensitiveThemes;
+
   const hasFilters = !!(
     genres?.length ||
     castIds?.length ||
@@ -85,6 +113,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     language ||
     keywords ||
     releaseStatus ||
+    hasHiddenAiFilters ||
     // legacy
     params.genre || params.decade || params.rating
   );
@@ -141,6 +170,7 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   const discoverOptions = {
     genres,
+    excludeGenres: excludeGenres.length > 0 ? excludeGenres : undefined,
     genreMode: effectiveGenreMode,
     castIds,
     sort: effectiveSort,
@@ -202,8 +232,10 @@ export default async function MoviesPage({ searchParams }: Props) {
   if (showShows && shouldFetchShows) {
     const isSearchOrFilter = !!(params.search || hasFilters);
     const tvGenres = genres?.length ? translateGenresForTV(genres) : undefined;
+    const tvExcludeGenres = excludeGenres.length > 0 ? translateGenresForTV(excludeGenres) : undefined;
     const tvDiscoverOptions = {
       genres: tvGenres,
+      excludeGenres: tvExcludeGenres && tvExcludeGenres.length > 0 ? tvExcludeGenres : undefined,
       genreMode: discoverOptions.genreMode,
       sort,
       yearFrom: discoverOptions.yearFrom,
@@ -248,6 +280,79 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   if (!params.search && !hasFilters && contentType === "all") {
     pageTitle = "Movies & TV";
+  }
+
+  // ── AI-driven post-filters ──
+  // Language exclusion, anime compound filter (Japanese + Animation), and
+  // parents'-guide severity caps. Severity is movie-only (TV isn't tracked).
+  if (hasHiddenAiFilters) {
+    const ANIMATION_GENRE_ID = 16;
+    const langExclude = new Set(excludeLanguages);
+    const passesLang = (lang: string, genreIdsArr: number[]) => {
+      if (langExclude.has(lang)) return false;
+      if (excludeAnime && lang === "ja" && genreIdsArr.includes(ANIMATION_GENRE_ID)) return false;
+      return true;
+    };
+    if (movieResult) {
+      movieResult = {
+        ...movieResult,
+        results: movieResult.results.filter((m) => passesLang(
+          (m as { original_language?: string }).original_language ?? "",
+          (m as { genre_ids?: number[] }).genre_ids ?? [],
+        )),
+      };
+    }
+    if (showResult) {
+      showResult = {
+        ...showResult,
+        results: showResult.results.filter((s) => passesLang(
+          (s as { original_language?: string }).original_language ?? "",
+          (s as { genre_ids?: number[] }).genre_ids ?? [],
+        )),
+      };
+    }
+    // Severity caps via MovieParentsGuide cache (movies only).
+    if (movieResult && (hasMaxCap || hasMinCap)) {
+      try {
+        const ids = movieResult.results.map((m) => m.id);
+        const cached = ids.length > 0
+          ? await prisma.movieParentsGuide.findMany({ where: { tmdbId: { in: ids } } })
+          : [];
+        const cacheByTmdbId = new Map(cached.map((c) => [c.tmdbId, c]));
+        const rank = (s: string) => SEVERITY_VALUES.indexOf(s);
+        movieResult = {
+          ...movieResult,
+          results: movieResult.results.filter((m) => {
+            const entry = cacheByTmdbId.get(m.id);
+            // Max caps: uncached pass through. Min floors: uncached excluded.
+            if (!entry) return !hasMinCap;
+            const maxChecks: [string, string | null][] = [
+              [entry.violenceSeverity, severityCaps.maxViolence],
+              [entry.sexualSeverity, severityCaps.maxSexualContent],
+              [entry.languageSubstanceSeverity, severityCaps.maxLanguageSubstance],
+              [entry.scaryIntenseSeverity, severityCaps.maxScaryIntense],
+              [entry.sensitiveThemesSeverity, severityCaps.maxSensitiveThemes],
+            ];
+            for (const [actual, cap] of maxChecks) {
+              if (cap == null) continue;
+              if (rank(actual) > rank(cap)) return false;
+            }
+            const minChecks: [string, string | null][] = [
+              [entry.violenceSeverity, severityCaps.minViolence],
+              [entry.sexualSeverity, severityCaps.minSexualContent],
+              [entry.languageSubstanceSeverity, severityCaps.minLanguageSubstance],
+              [entry.scaryIntenseSeverity, severityCaps.minScaryIntense],
+              [entry.sensitiveThemesSeverity, severityCaps.minSensitiveThemes],
+            ];
+            for (const [actual, floor] of minChecks) {
+              if (floor == null) continue;
+              if (rank(actual) < rank(floor)) return false;
+            }
+            return true;
+          }),
+        };
+      } catch { /* DB not ready — skip severity filtering */ }
+    }
   }
 
   // Relevance sort: re-order each result list by how many of the selected
@@ -399,6 +504,8 @@ export default async function MoviesPage({ searchParams }: Props) {
       <div className="mb-4">
         <SpotlightCards placement="movies" />
       </div>
+
+      <MoviesAiSearch />
 
       <MoviesFilterBar
         genres={genreList.genres}

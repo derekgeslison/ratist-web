@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Prompt is too long (max 500 characters)" }, { status: 400 });
   }
 
-  const rateLimitError = await checkAiRateLimit(user, "collection", 10);
+  const rateLimitError = await checkAiRateLimit(user, "collection", { freeDaily: 20, paidDaily: 20 });
   if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
 
   try {

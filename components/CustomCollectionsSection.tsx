@@ -238,7 +238,10 @@ export default function CustomCollectionsSection() {
           className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-y mb-2"
         />
         {generateError && <p className="text-xs text-red-400 mb-2">{generateError}</p>}
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] text-[var(--foreground-muted)]">
+            Backstage Pass: 20/day
+          </p>
           <button
             onClick={handleGenerate}
             disabled={generating || prompt.trim().length < 5}

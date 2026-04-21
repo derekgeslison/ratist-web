@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useIsTyping } from "@/context/TypingGuardContext";
-import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor } from "lucide-react";
+import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor, Wand2 } from "lucide-react";
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
 import { STREAMING_PROVIDERS, IMAGE_BASE_URL, LANGUAGES } from "@/lib/tmdb";
@@ -114,6 +114,17 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentKeywordIds = searchParams.get("keywords")?.split(",").filter(Boolean) ?? [];
   const currentKeywordLabels = searchParams.get("keywordLabels")?.split(",").filter(Boolean) ?? [];
 
+  // AI-only URL params — set by the AI search bar but have no visible
+  // per-dimension control. Surfaced as a single removable "AI filter" pill.
+  const AI_ONLY_PARAMS = [
+    "excludeGenres",
+    "excludeAnime",
+    "excludeLanguages",
+    "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes",
+    "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes",
+  ];
+  const hasAiFilter = AI_ONLY_PARAMS.some((k) => searchParams.has(k));
+
   // Local debounced state for text inputs
   // We track a "pending" ref per field: set to true when the user edits locally
   // and cleared when the URL catches up. This prevents stale URL values from
@@ -165,7 +176,15 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentReleaseStatus,
     currentProviders.length > 0,
     currentLanguage,
+    hasAiFilter,
   ].filter(Boolean).length;
+
+  function clearAiFilters() {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const k of AI_ONLY_PARAMS) params.delete(k);
+    params.delete("page");
+    router.push(`/movies?${params.toString()}`);
+  }
 
   function update(updates: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -188,6 +207,8 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   }
 
   function clearAllFilters() {
+    // Keep only non-filter session state (view/sort/search/perPage/type).
+    // AI params are filters too — they get cleared alongside everything else.
     const params = new URLSearchParams();
     const sort = searchParams.get("sort");
     const view = searchParams.get("view");
@@ -491,6 +512,13 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               <button onClick={() => update({ language: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
+          {hasAiFilter && (
+            <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white" title="AI-applied filters (severity caps, exclusions, etc.)">
+              <Wand2 className="w-3 h-3 text-[var(--ratist-red)]" />
+              AI filter
+              <button onClick={clearAiFilters}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+            </span>
+          )}
           <button onClick={clearAllFilters} className="text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
             Clear all
           </button>
@@ -766,6 +794,22 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               </div>
             </div>
           </div>
+
+          {/* AI filter (hidden dimensions bundle) */}
+          {hasAiFilter && (
+            <div>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">AI</p>
+              <button
+                onClick={clearAiFilters}
+                title="Remove AI-applied filters (severity caps, exclusions, etc.)"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-white hover:bg-[var(--ratist-red)]/20 transition-colors"
+              >
+                <Wand2 className="w-3 h-3" />
+                AI filter
+                <X className="w-3 h-3 ml-0.5" />
+              </button>
+            </div>
+          )}
 
           {/* Footer */}
           {activeFilterCount > 0 && (

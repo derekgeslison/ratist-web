@@ -10,46 +10,46 @@ interface UserForRateLimit {
   subscriptionExpiry: Date | null;
 }
 
-// Safety net even for paid users — prevents a Backstage Pass holder from
-// running thousands of AI calls a day and costing more than their subscription.
-const PAID_DAILY_CAP = 50;
+export interface AiLimits {
+  // Free (logged-in) daily cap. Not-logged-in users are rejected upstream.
+  freeDaily: number;
+  // Backstage Pass daily cap. Prevents runaway cost for a paid holder.
+  paidDaily: number;
+}
 
 /**
  * Check AI usage caps. Order of checks:
  *   1. Admin-set aiDisabled flag → always blocked.
  *   2. Admin user → unlimited.
- *   3. Backstage Pass holder → daily cap of PAID_DAILY_CAP per feature.
- *   4. Free user → `maxPerHour` per feature (default 10).
+ *   3. Backstage Pass holder → paidDaily per feature.
+ *   4. Free user → freeDaily per feature.
  *
- * Returns null if allowed, or a user-friendly error message string.
+ * Returns null if allowed, or a user-friendly error message.
  */
 export async function checkAiRateLimit(
   user: UserForRateLimit,
   feature: string,
-  maxPerHour = 10,
+  limits: AiLimits,
 ): Promise<string | null> {
   if (user.aiDisabled) {
     return "AI features have been disabled for your account. Contact support if you believe this is a mistake.";
   }
   if (user.isAdmin) return null;
 
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const count = await prisma.aiUsageLog.count({
+    where: { userId: user.id, feature, createdAt: { gte: dayAgo } },
+  });
+
   if (isSubscriptionActive(user)) {
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const count = await prisma.aiUsageLog.count({
-      where: { userId: user.id, feature, createdAt: { gte: dayAgo } },
-    });
-    if (count >= PAID_DAILY_CAP) {
-      return `You've reached the daily AI usage limit (${PAID_DAILY_CAP} per day). This cap resets every 24 hours.`;
+    if (count >= limits.paidDaily) {
+      return `You've reached the daily AI usage limit (${limits.paidDaily} per day). This cap resets every 24 hours.`;
     }
     return null;
   }
 
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  const count = await prisma.aiUsageLog.count({
-    where: { userId: user.id, feature, createdAt: { gte: hourAgo } },
-  });
-  if (count >= maxPerHour) {
-    return `You've reached the free AI usage limit (${maxPerHour} per hour). Backstage Pass members get unlimited AI recommendations — or try the manual questionnaire.`;
+  if (count >= limits.freeDaily) {
+    return `You've reached the daily AI limit (${limits.freeDaily} per day). Upgrade to Backstage Pass for a higher cap, or try the manual filters.`;
   }
   return null;
 }

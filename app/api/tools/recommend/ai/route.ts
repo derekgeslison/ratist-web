@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Description is too long (max 500 characters)" }, { status: 400 });
   }
 
-  const rateLimitError = await checkAiRateLimit(user, "recommend", 10);
+  const rateLimitError = await checkAiRateLimit(user, "recommend", { freeDaily: 20, paidDaily: 50 });
   if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
 
   try {

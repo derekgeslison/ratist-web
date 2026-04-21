@@ -10,9 +10,11 @@
 // retry /search/keyword.
 import { searchKeywords } from "./tmdb";
 
-const cache = new Map<string, number | null>();
+export interface ResolvedKeyword { id: number; name: string; }
 
-async function resolveOne(phrase: string): Promise<number | null> {
+const cache = new Map<string, ResolvedKeyword | null>();
+
+async function resolveOne(phrase: string): Promise<ResolvedKeyword | null> {
   const key = phrase.trim().toLowerCase();
   if (!key) return null;
   if (cache.has(key)) return cache.get(key)!;
@@ -21,9 +23,9 @@ async function resolveOne(phrase: string): Promise<number | null> {
     const results = data.results ?? [];
     const exact = results.find((k) => k.name.toLowerCase() === key);
     const pick = exact ?? results[0] ?? null;
-    const id = pick?.id ?? null;
-    cache.set(key, id);
-    return id;
+    const out = pick ? { id: pick.id, name: pick.name } : null;
+    cache.set(key, out);
+    return out;
   } catch {
     cache.set(key, null);
     return null;
@@ -31,7 +33,12 @@ async function resolveOne(phrase: string): Promise<number | null> {
 }
 
 export async function resolveKeywords(phrases: string[]): Promise<number[]> {
+  const full = await resolveKeywordsFull(phrases);
+  return full.map((k) => k.id);
+}
+
+export async function resolveKeywordsFull(phrases: string[]): Promise<ResolvedKeyword[]> {
   if (!phrases?.length) return [];
-  const ids = await Promise.all(phrases.slice(0, 3).map(resolveOne));
-  return ids.filter((id): id is number => id != null);
+  const out = await Promise.all(phrases.slice(0, 3).map(resolveOne));
+  return out.filter((k): k is ResolvedKeyword => k != null);
 }
