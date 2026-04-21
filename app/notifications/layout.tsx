@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Notifications" };
+export const metadata: Metadata = { title: "Notifications" , robots: { index: false } };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

@@ -327,8 +327,23 @@ export default async function CelebrityPage({ params }: Props) {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch { /* DB not ready */ }
 
+  const personSchema = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: person.name,
+    url: `https://www.theratist.com/celebrities/${id}`,
+    ...(person.profile_path ? { image: `https://image.tmdb.org/t/p/w500${person.profile_path}` } : {}),
+    ...(person.biography ? { description: person.biography.slice(0, 500) } : {}),
+    ...(person.birthday ? { birthDate: person.birthday } : {}),
+    ...(person.deathday ? { deathDate: person.deathday } : {}),
+    ...(person.place_of_birth ? { birthPlace: person.place_of_birth } : {}),
+    ...(person.known_for_department ? { jobTitle: person.known_for_department } : {}),
+    ...(person.imdb_id ? { sameAs: [`https://www.imdb.com/name/${person.imdb_id}/`] } : {}),
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }} />
       <Link
         href="/celebrities"
         className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors"

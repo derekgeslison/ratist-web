@@ -57,8 +57,26 @@ export default async function BlogPostPage({ params }: Props) {
 
   if (!post) notFound();
 
+  const articleSchema = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    url: `https://www.theratist.com/blog/${slug}`,
+    datePublished: post.createdAt.toISOString(),
+    dateModified: post.updatedAt.toISOString(),
+    ...(post.excerpt ? { description: post.excerpt } : {}),
+    ...(post.coverImage ? { image: [post.coverImage] } : {}),
+    author: { "@type": "Person", name: post.author.name },
+    publisher: {
+      "@type": "Organization",
+      name: "The Ratist",
+      logo: { "@type": "ImageObject", url: "https://www.theratist.com/icon-512.png" },
+    },
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
       <Link
         href="/blog"
         className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors"

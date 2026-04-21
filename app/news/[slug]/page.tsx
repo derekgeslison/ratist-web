@@ -55,8 +55,28 @@ export default async function NewsArticlePage({ params }: Props) {
 
   if (!item) notFound();
 
+  const newsSchema = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: item.title,
+    url: `https://www.theratist.com/news/${slug}`,
+    datePublished: item.createdAt.toISOString(),
+    dateModified: item.updatedAt.toISOString(),
+    ...(item.excerpt ? { description: item.excerpt } : {}),
+    ...(item.coverImage ? { image: [item.coverImage] } : {}),
+    ...(item.showAuthor !== false && item.author
+      ? { author: { "@type": "Person", name: item.author.name } }
+      : { author: { "@type": "Organization", name: "The Ratist" } }),
+    publisher: {
+      "@type": "Organization",
+      name: "The Ratist",
+      logo: { "@type": "ImageObject", url: "https://www.theratist.com/icon-512.png" },
+    },
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(newsSchema) }} />
       <Link href="/news" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to News
       </Link>
