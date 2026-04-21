@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { getGenres } from "@/lib/tmdb";
+import { getGenres, getShowGenres } from "@/lib/tmdb";
 import { expandMoods } from "@/lib/ai/mood-expand";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
@@ -24,9 +24,16 @@ let genreCache: Map<string, number> | null = null;
 let genreIdToName: Map<number, string> | null = null;
 async function getGenreMaps() {
   if (genreCache && genreIdToName) return { nameToId: genreCache, idToName: genreIdToName };
-  const data = await getGenres();
-  genreCache = new Map(data.genres.map((g) => [g.name, g.id]));
-  genreIdToName = new Map(data.genres.map((g) => [g.id, g.name]));
+  // Merge movie + TV genre lists. nameToId uses the movie IDs for the
+  // genres the user selects (e.g. "Action" → 28); idToName covers IDs from
+  // both sides so TV responses can still display "Action & Adventure" /
+  // "Sci-Fi & Fantasy" / "War & Politics" even though those IDs don't
+  // exist in the movie genre list.
+  const [movieData, tvData] = await Promise.all([getGenres(), getShowGenres()]);
+  genreCache = new Map(movieData.genres.map((g) => [g.name, g.id]));
+  genreIdToName = new Map();
+  for (const g of movieData.genres) genreIdToName.set(g.id, g.name);
+  for (const g of tvData.genres) if (!genreIdToName.has(g.id)) genreIdToName.set(g.id, g.name);
   return { nameToId: genreCache, idToName: genreIdToName };
 }
 
