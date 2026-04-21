@@ -47,6 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${rating.user.name}'s review of ${rating.movie.title}`;
   return {
     title,
+    alternates: { canonical: `/movies/${id}/reviews/${reviewId}` },
     openGraph: {
       title,
       images: [{ url: `${SITE_URL}/api/og/rating?userId=${rating.user.name}&tmdbId=${id}`, width: 800, height: 500 }],
@@ -71,8 +72,48 @@ export default async function SingleReviewPage({ params }: Props) {
   const fieldComments = (rating.fieldComments ?? {}) as Record<string, string>;
   const categoryComments = (rating.categoryComments ?? {}) as Record<string, string>;
 
+  // Review schema — eligible for Google star-rating rich snippet under the
+  // review's search result. Only emit when we actually have a score (otherwise
+  // Google rejects the schema).
+  const reviewSchema = rating.ratistRating != null ? {
+    "@context": "https://schema.org",
+    "@type": "Review",
+    itemReviewed: {
+      "@type": "Movie",
+      name: rating.movie.title,
+      url: `https://www.theratist.com/movies/${rating.movie.tmdbId}`,
+      ...(rating.movie.posterPath ? { image: posterUrl(rating.movie.posterPath, "w500") } : {}),
+      ...(rating.movie.releaseDate ? { datePublished: rating.movie.releaseDate } : {}),
+    },
+    reviewRating: {
+      "@type": "Rating",
+      ratingValue: rating.ratistRating.toFixed(1),
+      bestRating: "10",
+      worstRating: "1",
+    },
+    author: { "@type": "Person", name: rating.user.name },
+    datePublished: rating.createdAt.toISOString(),
+    ...(rating.reviewText ? { reviewBody: rating.reviewText.slice(0, 1000) } : {}),
+    url: `https://www.theratist.com/movies/${id}/reviews/${reviewId}`,
+  } : null;
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.theratist.com" },
+      { "@type": "ListItem", position: 2, name: "Movies", item: "https://www.theratist.com/movies" },
+      { "@type": "ListItem", position: 3, name: rating.movie.title, item: `https://www.theratist.com/movies/${rating.movie.tmdbId}` },
+      { "@type": "ListItem", position: 4, name: "Reviews", item: `https://www.theratist.com/movies/${rating.movie.tmdbId}/reviews` },
+      { "@type": "ListItem", position: 5, name: `${rating.user.name}'s review`, item: `https://www.theratist.com/movies/${id}/reviews/${reviewId}` },
+    ],
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      {reviewSchema && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }} />}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <h1 className="sr-only">{rating.user.name}&apos;s review of {rating.movie.title}</h1>
       <Link
         href={`/movies/${id}/reviews`}
         className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors mb-6"

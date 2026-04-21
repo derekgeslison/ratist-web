@@ -38,8 +38,20 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
 
   const totalPages = Math.ceil(total / perPage);
 
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: items.filter((i) => i.slug && i.type === "EDITORIAL").slice(0, 30).map((i, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      url: `https://www.theratist.com/news/${i.slug}`,
+      name: i.title,
+    })),
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">News</h1>
         <span className="text-sm text-[var(--foreground-muted)]">{total} article{total !== 1 ? "s" : ""}</span>

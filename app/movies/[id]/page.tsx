@@ -233,6 +233,26 @@ export default async function MovieDetailPage({ params }: Props) {
   const mpaaRating = getMpaaRating(movie);
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
 
+  // Ratist's own community aggregate. Prefer this in JSON-LD when we have
+  // meaningful volume; otherwise fall through to TMDB numbers.
+  let ratistAggregate: { value: number; count: number } | null = null;
+  try {
+    const dbMovie = await prisma.movie.findUnique({
+      where: { tmdbId: movie.id },
+      select: { id: true },
+    });
+    if (dbMovie) {
+      const agg = await prisma.movieRating.aggregate({
+        where: { movieId: dbMovie.id, ratistRating: { not: null } },
+        _avg: { ratistRating: true },
+        _count: { ratistRating: true },
+      });
+      if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
+        ratistAggregate = { value: agg._avg.ratistRating, count: agg._count.ratistRating };
+      }
+    }
+  } catch { /* DB not ready */ }
+
   // Check if movie is currently in theaters (released within last 8 weeks)
   const releaseDate = movie.release_date ? new Date(movie.release_date) : null;
   const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
@@ -256,15 +276,27 @@ export default async function MovieDetailPage({ params }: Props) {
     ...(movie.genres?.length ? { genre: movie.genres.map((g) => g.name) } : {}),
     ...(movie.runtime ? { duration: `PT${movie.runtime}M` } : {}),
     ...(mpaaRating ? { contentRating: mpaaRating } : {}),
-    ...(communityScore ? {
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: communityScore.toFixed(1),
-        bestRating: "10",
-        worstRating: "1",
-        ratingCount: movie.vote_count ?? 0,
-      },
-    } : {}),
+    ...(ratistAggregate
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: ratistAggregate.value.toFixed(1),
+            bestRating: "10",
+            worstRating: "1",
+            ratingCount: ratistAggregate.count,
+          },
+        }
+      : communityScore
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: communityScore.toFixed(1),
+            bestRating: "10",
+            worstRating: "1",
+            ratingCount: movie.vote_count ?? 0,
+          },
+        }
+      : {}),
     url: `https://www.theratist.com/movies/${movie.id}`,
   };
 

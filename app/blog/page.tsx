@@ -41,8 +41,20 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
   const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
   const postsWithComments = posts.map((p) => ({ ...p, commentCount: commentMap[p.id] ?? 0 }));
 
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: postsWithComments.slice(0, 30).map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      url: `https://www.theratist.com/blog/${p.slug}`,
+      name: p.title,
+    })),
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
       <div className="flex items-center gap-3 mb-2">
         <BookOpen className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Blog</h1>

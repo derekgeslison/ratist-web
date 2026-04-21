@@ -392,6 +392,7 @@ export default async function ProfilePage({ params }: Props) {
   return (
     <ProfileThemeWrapper theme={theme}>
     <div>
+      <h1 className="sr-only">{user.name} — The Ratist</h1>
       {/* Banner / Header area */}
       <div className="relative">
         {/* Banner image or gradient */}

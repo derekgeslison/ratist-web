@@ -261,6 +261,26 @@ export default async function ShowDetailPage({ params }: Props) {
   const trailerKey = getShowTrailerKey(show);
   const contentRating = getShowContentRating(show);
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
+
+  // Ratist series-level community aggregate for JSON-LD. Falls through to
+  // TMDB numbers when Ratist hasn't accumulated any series ratings yet.
+  let ratistAggregate: { value: number; count: number } | null = null;
+  try {
+    const dbShow = await prisma.tVShow.findUnique({
+      where: { tmdbId: show.id },
+      select: { id: true },
+    });
+    if (dbShow) {
+      const agg = await prisma.tVShowRating.aggregate({
+        where: { tvShowId: dbShow.id, ratingScope: "series", ratistRating: { not: null } },
+        _avg: { ratistRating: true },
+        _count: { ratistRating: true },
+      });
+      if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
+        ratistAggregate = { value: agg._avg.ratistRating, count: agg._count.ratistRating };
+      }
+    }
+  } catch { /* DB not ready */ }
   const cast = show.aggregate_credits?.cast ?? [];
   const crew = show.aggregate_credits?.crew ?? [];
   const images = show.images?.backdrops ?? [];
@@ -282,15 +302,27 @@ export default async function ShowDetailPage({ params }: Props) {
     ...(show.number_of_seasons ? { numberOfSeasons: show.number_of_seasons } : {}),
     ...(show.number_of_episodes ? { numberOfEpisodes: show.number_of_episodes } : {}),
     ...(contentRating ? { contentRating } : {}),
-    ...(communityScore ? {
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: communityScore.toFixed(1),
-        bestRating: "10",
-        worstRating: "1",
-        ratingCount: show.vote_count ?? 0,
-      },
-    } : {}),
+    ...(ratistAggregate
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: ratistAggregate.value.toFixed(1),
+            bestRating: "10",
+            worstRating: "1",
+            ratingCount: ratistAggregate.count,
+          },
+        }
+      : communityScore
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: communityScore.toFixed(1),
+            bestRating: "10",
+            worstRating: "1",
+            ratingCount: show.vote_count ?? 0,
+          },
+        }
+      : {}),
     url: `https://www.theratist.com/shows/${show.id}`,
   };
 

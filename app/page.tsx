@@ -117,6 +117,7 @@ export default async function HomePage() {
       {/* Brand lockup — above the hero so the logo is the first thing visitors see */}
       <div className="bg-[var(--surface)] py-8 sm:py-10 border-b border-[var(--border)]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-3 text-center">
+          <h1 className="sr-only">The Ratist — Movie &amp; TV Show Ratings, Community, &amp; Tools</h1>
           <Image
             src="/logo-full.png"
             alt="The Ratist"
