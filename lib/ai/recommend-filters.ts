@@ -23,6 +23,10 @@ const ERA_VALUES = ["classic", "70s", "80s", "90s", "2000s", "2010s", "recent"] 
 // Must match STREAMING_PROVIDERS `short` values in lib/tmdb.ts
 const PROVIDERS = ["Netflix", "Prime", "Disney+", "Hulu", "Max", "Apple TV+", "Peacock", "Paramount+"] as const;
 
+// Shared with lib/ai/collection-filters.ts — keep in lockstep
+export const SEVERITY_ORDER = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"] as const;
+export type Severity = (typeof SEVERITY_ORDER)[number];
+
 export interface ExtractedFilters {
   mediaType: "movie" | "tv" | "any";
   genres: string[];
@@ -31,6 +35,16 @@ export interface ExtractedFilters {
   era: string[];
   excludeGenres: string[];
   providers: string[];
+  maxViolence: Severity | null;
+  maxSexualContent: Severity | null;
+  maxLanguageSubstance: Severity | null;
+  maxScaryIntense: Severity | null;
+  maxSensitiveThemes: Severity | null;
+  minViolence: Severity | null;
+  minSexualContent: Severity | null;
+  minLanguageSubstance: Severity | null;
+  minScaryIntense: Severity | null;
+  minSensitiveThemes: Severity | null;
 }
 
 const SYSTEM_PROMPT = `You extract structured movie/TV recommendation filters from a user's description of what they feel like watching.
@@ -82,6 +96,28 @@ Experience tags are for FEELINGS beyond genre ("thought-provoking", "feel-good",
 
 ### Experience tags (use sparingly — see Anti-duplication above)
 "thought-provoking", "feel-good", "tearjerker", "dark", "funny", "edge-of-seat", "epic", "offbeat", "romantic", "scary", "inspiring", "mind-bending"
+
+### Parents-guide severity caps
+Five categories can be capped at a MAX (ceiling) or MIN (floor) severity: none < mild < mild-moderate < moderate < moderate-severe < severe.
+
+**Max caps** — user wants LESS of something:
+- "not too graphic" / "not too violent" → maxViolence: "moderate"
+- "no gore" → maxViolence: "mild"
+- "no sex" / "no nudity" → maxSexualContent: "mild"
+- "clean" / "no swearing" / "no drugs" → maxLanguageSubstance: "mild"
+- "nothing scary" / "not too intense" → maxScaryIntense: "mild"
+- "no animal deaths" / "nothing triggering" → maxSensitiveThemes: "moderate"
+- "family-friendly" / "kid-safe" / "for my kids" → ALL caps at "mild"
+- "with my mom, nothing too dark" → maxViolence/maxScary/maxSensitive at "moderate"
+
+**Min caps** — user wants MORE of something:
+- "very violent" / "brutal" / "gore porn" → minViolence: "moderate-severe"
+- "sexy" / "steamy" / "erotic" / "lots of nudity" → minSexualContent: "moderate"
+- "really scary" / "terrifying" → minScaryIntense: "moderate-severe"
+- "dark and disturbing" / "bleak" → minSensitiveThemes: "moderate"
+- "stoner flick" / "lots of drugs" → minLanguageSubstance: "moderate"
+
+No kink-shaming — extract what the user asked for. Leave fields null when not mentioned.
 
 ### Providers (streaming services)
 If the user mentions a service by name, add its short code. Otherwise leave empty.
@@ -135,8 +171,18 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
         items: { type: "string", enum: [...PROVIDERS] },
         description: "Streaming services the user wants. Empty if unspecified.",
       },
+      maxViolence: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed violence severity. null = no cap." },
+      maxSexualContent: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed sexual/nudity severity. null = no cap." },
+      maxLanguageSubstance: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed language/drug severity. null = no cap." },
+      maxScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed scary/intense severity. null = no cap." },
+      maxSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Max allowed sensitive-themes severity. null = no cap." },
+      minViolence: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required violence severity. Set when user wants brutal/gore-porn. null = no floor." },
+      minSexualContent: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sexual/nudity severity. Set when user wants steamy/erotic. null = no floor." },
+      minLanguageSubstance: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required language/drug severity. Set when user wants stoner/heavy-drug. null = no floor." },
+      minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
+      minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -165,5 +211,20 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     era: Array.isArray(input.era) ? input.era.filter((g) => (ERA_VALUES as readonly string[]).includes(g)) : [],
     excludeGenres: Array.isArray(input.excludeGenres) ? input.excludeGenres.filter((g) => (GENRES as readonly string[]).includes(g)) : [],
     providers: Array.isArray(input.providers) ? input.providers.filter((p) => (PROVIDERS as readonly string[]).includes(p)) : [],
+    maxViolence: normalizeSeverity(input.maxViolence),
+    maxSexualContent: normalizeSeverity(input.maxSexualContent),
+    maxLanguageSubstance: normalizeSeverity(input.maxLanguageSubstance),
+    maxScaryIntense: normalizeSeverity(input.maxScaryIntense),
+    maxSensitiveThemes: normalizeSeverity(input.maxSensitiveThemes),
+    minViolence: normalizeSeverity(input.minViolence),
+    minSexualContent: normalizeSeverity(input.minSexualContent),
+    minLanguageSubstance: normalizeSeverity(input.minLanguageSubstance),
+    minScaryIntense: normalizeSeverity(input.minScaryIntense),
+    minSensitiveThemes: normalizeSeverity(input.minSensitiveThemes),
   };
+}
+
+function normalizeSeverity(v: unknown): Severity | null {
+  if (typeof v !== "string") return null;
+  return (SEVERITY_ORDER as readonly string[]).includes(v) ? (v as Severity) : null;
 }

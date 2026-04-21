@@ -204,6 +204,16 @@ export default function RecommendPage() {
         era: string[];
         excludeGenres: string[];
         providers: string[];
+        maxViolence: string | null;
+        maxSexualContent: string | null;
+        maxLanguageSubstance: string | null;
+        maxScaryIntense: string | null;
+        maxSensitiveThemes: string | null;
+        minViolence: string | null;
+        minSexualContent: string | null;
+        minLanguageSubstance: string | null;
+        minScaryIntense: string | null;
+        minSensitiveThemes: string | null;
       };
       // Apply extracted filters to state so the user can see/tweak what was picked
       setMediaType(f.mediaType);
@@ -236,6 +246,16 @@ export default function RecommendPage() {
           sort: sortMode,
           mediaType: f.mediaType,
           providers: providerIds,
+          maxViolence: f.maxViolence,
+          maxSexualContent: f.maxSexualContent,
+          maxLanguageSubstance: f.maxLanguageSubstance,
+          maxScaryIntense: f.maxScaryIntense,
+          maxSensitiveThemes: f.maxSensitiveThemes,
+          minViolence: f.minViolence,
+          minSexualContent: f.minSexualContent,
+          minLanguageSubstance: f.minLanguageSubstance,
+          minScaryIntense: f.minScaryIntense,
+          minSensitiveThemes: f.minSensitiveThemes,
         }),
       });
       if (rRes.ok) {

@@ -131,7 +131,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ── seen_only mode: skip TMDB entirely, query user's own seen list from DB ──
-    type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null };
+    // genreMatchCount tracks how many of the user's selected genres this title
+    // actually has — used to preserve AND-first ordering through the shuffle.
+    type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; genreMatchCount: number };
     if (filters.seenFilter === "seen_only" && !useTv) {
       const includeIdsNum = includeIds.map(Number);
       // Fetch a bigger quality-filtered pool, then randomly sample so repeat
@@ -171,6 +173,7 @@ export async function POST(req: NextRequest) {
         posterPath: r.movie.posterPath,
         releaseDate: r.movie.releaseDate,
         voteAverage: r.movie.voteAverage,
+        genreMatchCount: 0, // not tracked for seen_only — DB filter already enforces genres
       }));
       await logAiUsage(user.id, "collection");
       return NextResponse.json({ filters, items: collectedSeen });
@@ -196,6 +199,65 @@ export async function POST(req: NextRequest) {
     // prompts. Severity caps need an even bigger pool to survive filtering.
     const targetPool = hasMinCap ? filters.limit * 5 : hasMaxCap ? filters.limit * 3 : filters.limit * 3;
 
+    // Multi-genre handling: when 2+ genres are selected, fetch AND-match
+    // results first (titles matching ALL selected genres) then OR-match
+    // (titles matching any) so hybrids like "sci-fi + romance" surface on top.
+    async function discoverAndOr(page: number, genreIds: string[]) {
+      if (genreIds.length <= 1) {
+        return discoverMovies({
+          genres: genreIds.length ? genreIds : undefined,
+          genreMode: "any",
+          query: filters.textQuery ?? undefined,
+          yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
+          yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
+          ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          sort: "top_rated",
+          page,
+        });
+      }
+      const [andRes, orRes] = await Promise.all([
+        discoverMovies({
+          genres: genreIds,
+          genreMode: "all",
+          query: filters.textQuery ?? undefined,
+          yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
+          yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
+          ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          sort: "top_rated",
+          page,
+        }).catch(() => null),
+        discoverMovies({
+          genres: genreIds,
+          genreMode: "any",
+          query: filters.textQuery ?? undefined,
+          yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
+          yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
+          ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          sort: "top_rated",
+          page,
+        }).catch(() => null),
+      ]);
+      const andResults = andRes?.results ?? [];
+      const orResults = orRes?.results ?? [];
+      const andIds = new Set(andResults.map((r) => r.id));
+      const orUnique = orResults.filter((r) => !andIds.has(r.id));
+      // For 3+ genres, stable-sort OR-unique by how many of the selected genres match
+      if (genreIds.length >= 3) {
+        const selected = new Set(genreIds.map(Number));
+        const matchCount = (r: TMDBMovie & { genre_ids?: number[] }) =>
+          (r.genre_ids ?? []).filter((g) => selected.has(g)).length;
+        const decorated = orUnique.map((r, i) => ({ r, i, m: matchCount(r as TMDBMovie & { genre_ids?: number[] }) }));
+        decorated.sort((a, b) => b.m - a.m || a.i - b.i);
+        orUnique.length = 0;
+        for (const d of decorated) orUnique.push(d.r);
+      }
+      return {
+        results: [...andResults, ...orUnique],
+        page,
+        total_pages: Math.max(andRes?.total_pages ?? 1, orRes?.total_pages ?? 1),
+      };
+    }
+
     // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages)
     const collected: Item[] = [];
     const maxPages = 5;
@@ -209,9 +271,10 @@ export async function POST(req: NextRequest) {
           ratingGte: filters.minRating,
           page,
         });
+        const includedIdSet = new Set(includeIds.map(Number));
         for (const s of data.results) {
-          const sGenreIds = (s as TMDBShow & { genre_ids?: number[] }).genre_ids;
-          if (excludeIds.length > 0 && sGenreIds?.some((id) => excludeIds.includes(id))) continue;
+          const sGenreIds = (s as TMDBShow & { genre_ids?: number[] }).genre_ids ?? [];
+          if (excludeIds.length > 0 && sGenreIds.some((id) => excludeIds.includes(id))) continue;
           if (collected.some((c) => c.tmdbId === s.id && c.mediaType === "tv")) continue;
           collected.push({
             mediaType: "tv",
@@ -220,25 +283,18 @@ export async function POST(req: NextRequest) {
             posterPath: s.poster_path ?? null,
             releaseDate: s.first_air_date ?? null,
             voteAverage: s.vote_average ?? null,
+            genreMatchCount: sGenreIds.filter((g) => includedIdSet.has(g)).length,
           });
           if (collected.length >= targetPool) break;
         }
         if (data.page >= data.total_pages || data.results.length === 0) break;
         page++;
       } else {
-        const data = await discoverMovies({
-          genres: includeIds.length ? includeIds : undefined,
-          genreMode: "any",
-          query: filters.textQuery ?? undefined,
-          yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
-          yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
-          ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
-          sort: "top_rated",
-          page,
-        });
+        const data = await discoverAndOr(page, includeIds);
+        const movieIncludedIdSet = new Set(includeIds.map(Number));
         for (const m of data.results) {
-          const mGenreIds = (m as TMDBMovie & { genre_ids?: number[] }).genre_ids;
-          if (excludeIds.length > 0 && mGenreIds?.some((id) => excludeIds.includes(id))) continue;
+          const mGenreIds = (m as TMDBMovie & { genre_ids?: number[] }).genre_ids ?? [];
+          if (excludeIds.length > 0 && mGenreIds.some((id) => excludeIds.includes(id))) continue;
           if (seenTmdbIds.has(m.id)) continue;
           if (collected.some((c) => c.tmdbId === m.id && c.mediaType === "movie")) continue;
           collected.push({
@@ -248,6 +304,7 @@ export async function POST(req: NextRequest) {
             posterPath: m.poster_path ?? null,
             releaseDate: m.release_date ?? null,
             voteAverage: m.vote_average ?? null,
+            genreMatchCount: mGenreIds.filter((g) => movieIncludedIdSet.has(g)).length,
           });
           if (collected.length >= targetPool) break;
         }
@@ -281,15 +338,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Shuffle within-pool so repeat prompts give different results. Quality is
-    // preserved because every pool item already passes all filters and came
-    // from top_rated pages. Seen_only path above has its own shuffle.
-    const shuffled = [...finalItems];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    // Shuffle WITHIN match-count tiers so repeat prompts give different results
+    // but 2-of-2 genre matches still beat 1-of-2 matches. Single-genre queries
+    // collapse to one tier (all items have match count 0 or 1), so it's just a
+    // straight shuffle in that case.
+    const tiers = new Map<number, Item[]>();
+    for (const item of finalItems) {
+      const t = item.genreMatchCount;
+      if (!tiers.has(t)) tiers.set(t, []);
+      tiers.get(t)!.push(item);
     }
-    finalItems = shuffled.slice(0, filters.limit);
+    const tierKeys = [...tiers.keys()].sort((a, b) => b - a); // highest match first
+    const tiered: Item[] = [];
+    for (const k of tierKeys) {
+      const group = tiers.get(k)!;
+      for (let i = group.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [group[i], group[j]] = [group[j], group[i]];
+      }
+      tiered.push(...group);
+    }
+    finalItems = tiered.slice(0, filters.limit);
 
     await logAiUsage(user.id, "collection");
 

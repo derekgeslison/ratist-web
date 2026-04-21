@@ -127,6 +127,26 @@ export async function POST(req: NextRequest) {
     const mediaType: string = body.mediaType ?? "any";
     const providerIds: number[] = body.providers ?? [];
 
+    // Parents-guide severity caps (optional). Shape mirrors collection AI.
+    const SEVERITY_VALUES = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"];
+    function validSeverity(v: unknown): string | null {
+      return typeof v === "string" && SEVERITY_VALUES.includes(v) ? v : null;
+    }
+    const severityCaps = {
+      maxViolence: validSeverity(body.maxViolence),
+      maxSexualContent: validSeverity(body.maxSexualContent),
+      maxLanguageSubstance: validSeverity(body.maxLanguageSubstance),
+      maxScaryIntense: validSeverity(body.maxScaryIntense),
+      maxSensitiveThemes: validSeverity(body.maxSensitiveThemes),
+      minViolence: validSeverity(body.minViolence),
+      minSexualContent: validSeverity(body.minSexualContent),
+      minLanguageSubstance: validSeverity(body.minLanguageSubstance),
+      minScaryIntense: validSeverity(body.minScaryIntense),
+      minSensitiveThemes: validSeverity(body.minSensitiveThemes),
+    };
+    const hasSeverityCap = Object.values(severityCaps).some((v) => v !== null);
+    const hasMinCap = severityCaps.minViolence || severityCaps.minSexualContent || severityCaps.minLanguageSubstance || severityCaps.minScaryIntense || severityCaps.minSensitiveThemes;
+
     const { nameToId, idToName } = await getGenreMaps();
     const currentYear = new Date().getFullYear();
 
@@ -481,6 +501,45 @@ export async function POST(req: NextRequest) {
       results = results.filter((r: { tmdbId: number; mediaType: string }) =>
         r.mediaType === "tv" ? !tvExclude.has(r.tmdbId) : !movieExclude.has(r.tmdbId)
       );
+    }
+
+    // Apply parents-guide severity caps (movies only; TV not tracked).
+    if (hasSeverityCap) {
+      const movieTmdbIds = results.filter((r: { mediaType: string }) => r.mediaType === "movie").map((r: { tmdbId: number }) => r.tmdbId);
+      const cached = movieTmdbIds.length > 0
+        ? await prisma.movieParentsGuide.findMany({ where: { tmdbId: { in: movieTmdbIds } } })
+        : [];
+      const cacheByTmdbId = new Map(cached.map((c) => [c.tmdbId, c]));
+      const rank = (s: string) => SEVERITY_VALUES.indexOf(s);
+      results = results.filter((r: { tmdbId: number; mediaType: string }) => {
+        if (r.mediaType !== "movie") return true; // TV passes (no cache)
+        const entry = cacheByTmdbId.get(r.tmdbId);
+        // Max caps: uncached passes through. Min floors: uncached excluded.
+        if (!entry) return !hasMinCap;
+        const maxChecks: [string, string | null][] = [
+          [entry.violenceSeverity, severityCaps.maxViolence],
+          [entry.sexualSeverity, severityCaps.maxSexualContent],
+          [entry.languageSubstanceSeverity, severityCaps.maxLanguageSubstance],
+          [entry.scaryIntenseSeverity, severityCaps.maxScaryIntense],
+          [entry.sensitiveThemesSeverity, severityCaps.maxSensitiveThemes],
+        ];
+        for (const [actual, cap] of maxChecks) {
+          if (cap == null) continue;
+          if (rank(actual) > rank(cap)) return false;
+        }
+        const minChecks: [string, string | null][] = [
+          [entry.violenceSeverity, severityCaps.minViolence],
+          [entry.sexualSeverity, severityCaps.minSexualContent],
+          [entry.languageSubstanceSeverity, severityCaps.minLanguageSubstance],
+          [entry.scaryIntenseSeverity, severityCaps.minScaryIntense],
+          [entry.sensitiveThemesSeverity, severityCaps.minSensitiveThemes],
+        ];
+        for (const [actual, floor] of minChecks) {
+          if (floor == null) continue;
+          if (rank(actual) < rank(floor)) return false;
+        }
+        return true;
+      });
     }
 
     return NextResponse.json({
