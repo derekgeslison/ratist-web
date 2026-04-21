@@ -8,8 +8,30 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 import { extractRecommendationFilters, type Mood } from "@/lib/ai/recommend-filters";
 import { expandMoods } from "@/lib/ai/mood-expand";
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
-import { getGenres, STREAMING_PROVIDERS } from "@/lib/tmdb";
+import { getGenres, getShowGenres, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { resolveKeywordsFull } from "@/lib/tmdb-keywords";
+
+// Movie-genre ID → TV-genre ID(s) mapping. Same table /movies uses internally.
+const MOVIE_TO_TV_GENRE_ID: Record<number, number[]> = {
+  28: [10759],    // Action → Action & Adventure
+  12: [10759],    // Adventure → Action & Adventure
+  878: [10765],   // Science Fiction → Sci-Fi & Fantasy
+  14: [10765],    // Fantasy → Sci-Fi & Fantasy
+  10752: [10768], // War → War & Politics
+};
+const MOVIE_ONLY_GENRE_IDS = new Set([36, 27, 10402, 10749, 53, 10770]); // History, Horror, Music, Romance, Thriller, TV Movie
+
+// Translate movie-genre IDs to TV-genre IDs. Movie-only genres drop because
+// they have no TV equivalent (scary/romantic prompts rely on the mood
+// expansion on the extraction side to add Mystery/Drama/etc.).
+function translateGenreIdsForTv(movieIds: number[]): number[] {
+  const out = new Set<number>();
+  for (const id of movieIds) {
+    if (MOVIE_TO_TV_GENRE_ID[id]) for (const m of MOVIE_TO_TV_GENRE_ID[id]) out.add(m);
+    else if (!MOVIE_ONLY_GENRE_IDS.has(id)) out.add(id);
+  }
+  return [...out];
+}
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +61,42 @@ export async function POST(req: NextRequest) {
     const excludeGenreNames = expanded.excludeGenres;
 
     // Resolve genre names → TMDB IDs (/movies URL uses IDs, not names).
+    // For TV media type, translate movie IDs to TV IDs so the filter bar
+    // highlights the right chips and TMDB discover/tv receives the right
+    // genres. Movie-only genres (Horror, Romance, Thriller, Music, History,
+    // TV Movie) drop on TV — mood expansion on the extraction side adds
+    // compensating genres (e.g. "scary" → Mystery + Sci-Fi).
     const genreData = await getGenres();
     const nameToId = new Map(genreData.genres.map((g) => [g.name, g.id]));
-    const genreIds = genreNames.map((n) => nameToId.get(n)).filter((id): id is number => id != null);
-    const excludeGenreIds = excludeGenreNames.map((n) => nameToId.get(n)).filter((id): id is number => id != null);
+    const rawGenreIds = genreNames.map((n) => nameToId.get(n)).filter((id): id is number => id != null);
+    const rawExcludeGenreIds = excludeGenreNames.map((n) => nameToId.get(n)).filter((id): id is number => id != null);
+    // If mediaType is TV, pull the TV-genre list to look up any names that
+    // only exist as TV genres (e.g. "Sci-Fi & Fantasy", "Action & Adventure",
+    // "War & Politics", "Kids", "Reality", "Soap", "Talk", "News").
+    let genreIds: number[];
+    let excludeGenreIds: number[];
+    if (raw.mediaType === "tv") {
+      const tvGenreData = await getShowGenres();
+      const tvNameToId = new Map(tvGenreData.genres.map((g) => [g.name, g.id]));
+      // First, translate any movie IDs we already resolved. Then backfill
+      // anything that only exists as a TV genre name directly.
+      const translated = translateGenreIdsForTv(rawGenreIds);
+      const translatedExclude = translateGenreIdsForTv(rawExcludeGenreIds);
+      // Also look up names that didn't resolve as movie genres (TV-only).
+      const tvOnlyIncludes: number[] = [];
+      for (const n of genreNames) {
+        if (!nameToId.has(n) && tvNameToId.has(n)) tvOnlyIncludes.push(tvNameToId.get(n)!);
+      }
+      const tvOnlyExcludes: number[] = [];
+      for (const n of excludeGenreNames) {
+        if (!nameToId.has(n) && tvNameToId.has(n)) tvOnlyExcludes.push(tvNameToId.get(n)!);
+      }
+      genreIds = [...new Set([...translated, ...tvOnlyIncludes])];
+      excludeGenreIds = [...new Set([...translatedExclude, ...tvOnlyExcludes])];
+    } else {
+      genreIds = rawGenreIds;
+      excludeGenreIds = rawExcludeGenreIds;
+    }
 
     // Resolve keyword phrases to TMDB keyword IDs + labels.
     const resolvedKeywords = raw.keywords.length > 0 ? await resolveKeywordsFull(raw.keywords) : [];
@@ -59,6 +113,10 @@ export async function POST(req: NextRequest) {
     if (raw.mediaType !== "any") qp.set("type", raw.mediaType);
     if (genreIds.length > 0) qp.set("genres", genreIds.join(","));
     if (excludeGenreIds.length > 0) qp.set("excludeGenres", excludeGenreIds.join(","));
+    // Genre mode — /movies page treats unset as "any", but setting it
+    // explicitly (a) keeps the chip toggle in sync and (b) lets the
+    // relevance-sort code preserve strict-AND when the user prompted that way.
+    if (genreIds.length >= 2) qp.set("genreMode", raw.genreMode);
 
     // Year range — precise overrides era buckets. Fall back to era if no precise.
     const currentYear = new Date().getFullYear();

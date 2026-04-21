@@ -54,6 +54,11 @@ export interface ExtractedFilters {
   // just exclude Animation (over-excludes Pixar) or just exclude Japanese
   // (over-excludes Japanese live-action).
   excludeAnime: boolean;
+  // Genre mode — "any" = match at least one selected genre (OR), "all" =
+  // match every selected genre (AND). Inferred from the user's phrasing:
+  // "or" / "either" → any; "and" / comma-only compounds → all. Single-genre
+  // prompts stay "any" by default.
+  genreMode: "any" | "all";
   // Precise year range that overrides era buckets when set. Use for prompts
   // like "1985–1995" or "summer 2023" that era buckets can't express.
   yearFrom: number | null;
@@ -103,6 +108,13 @@ When the user says "not too X", "nothing too X", "no X", "avoid X", "but not X",
 - "with my mom, nothing too dark" → excludeGenres: [Horror, Thriller].
 - "something animated but not for little kids" → genres: [Animation], excludeGenres: [Family].
 - "watching with my teenager" (no extra negation) → DO NOT default to genre "Family" alone; teens fit Comedy, Adventure, Action, Science Fiction, Fantasy. Pick 1-2 broadly teen-friendly genres and exclude Horror unless the user asked for it.
+
+### Genre mode (any vs all)
+genreMode defaults to "any" (OR). Only set "all" (AND) when multiple genres are picked and the user's phrasing makes intersection clear:
+- "X and Y" / "X, Y" / "X Y" (comma or juxtaposition without "or") → "all". Example: "comedy drama show", "a comedy, drama tv show", "sci-fi horror", "action comedy".
+- "X or Y" / "either X or Y" / "X or Y, I don't care which" → "any". Example: "comedy or action", "horror or thriller".
+- Single genre → "any" (irrelevant but keep default).
+- Mixed phrasing with "or" anywhere → "any" (the user explicitly opened the door to either).
 
 ### Genre mapping
 - "sci-fi" / "science fiction" / "cyberpunk" / "space" → "Science Fiction"
@@ -304,6 +316,11 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
         type: "boolean",
         description: "Set true only when the user says 'no anime'/'not anime'. Server removes Japanese-origin Animation specifically. Do NOT set for 'no animation' (use excludeGenres:['Animation'] for that).",
       },
+      genreMode: {
+        type: "string",
+        enum: ["any", "all"],
+        description: "'any' = OR (match at least one selected genre). 'all' = AND (match every selected genre). Default 'any'. Use 'all' only when the user's phrasing implies intersection (comma/juxtaposition without 'or', or explicit 'and').",
+      },
       yearFrom: { type: ["integer", "null"], description: "Precise earliest year (overrides era). null if unspecified." },
       yearTo: { type: ["integer", "null"], description: "Precise latest year (overrides era). null if unspecified." },
       minRating: { type: ["number", "null"], description: "Community rating floor 0-10. null if user didn't cite a threshold." },
@@ -328,7 +345,7 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
       minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "yearFrom", "yearTo", "minRating", "keywords", "mpaaRatings", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "genreMode", "yearFrom", "yearTo", "minRating", "keywords", "mpaaRatings", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -361,6 +378,7 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     originalLanguage: Array.isArray(input.originalLanguage) ? input.originalLanguage.filter((l): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [],
     excludeOriginalLanguages: Array.isArray(input.excludeOriginalLanguages) ? input.excludeOriginalLanguages.filter((l): l is string => typeof l === "string" && /^[a-z]{2}$/.test(l)) : [],
     excludeAnime: input.excludeAnime === true,
+    genreMode: input.genreMode === "all" ? "all" : "any",
     yearFrom: typeof input.yearFrom === "number" && input.yearFrom > 1800 && input.yearFrom < 2100 ? Math.floor(input.yearFrom) : null,
     // yearTo normalization: the model sometimes sets yearTo=currentYear on
     // "last N years" prompts even though we tell it not to. If yearFrom is set
