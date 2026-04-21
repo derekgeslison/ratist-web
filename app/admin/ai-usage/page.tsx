@@ -38,6 +38,35 @@ const WINDOW_OPTIONS: { key: WindowKey; label: string }[] = [
   { key: "30d", label: "Last 30 days" },
 ];
 
+// Per-feature daily caps by plan. Must stay in sync with lib/ai/rate-limit.ts
+// call sites in the three AI routes.
+const DAILY_CAPS: Record<string, { free: number; paid: number }> = {
+  recommend: { free: 20, paid: 50 },
+  movies_search: { free: 20, paid: 50 },
+  collection: { free: 0, paid: 20 }, // free blocked upstream by subscription gate
+};
+
+const WINDOW_DAYS: Record<WindowKey, number> = { "24h": 1, "7d": 7, "30d": 30 };
+
+// Classify heat for a user based on per-feature call counts across the window.
+// - "over": any single feature exceeds that user's plan cap × window days
+// - "high": any single feature within 80-100% of cap × window days
+// - null:   normal usage
+function heatFlag(user: TopUser, windowKey: WindowKey): "over" | "high" | null {
+  if (user.isAdmin || user.aiDisabled) return null;
+  const days = WINDOW_DAYS[windowKey];
+  const plan = user.hasPass ? "paid" : "free";
+  let highest: "over" | "high" | null = null;
+  for (const [feature, count] of Object.entries(user.byFeature)) {
+    const cap = DAILY_CAPS[feature]?.[plan];
+    if (!cap) continue;
+    const budget = cap * days;
+    if (count > budget) return "over"; // strongest wins; bail early
+    if (count >= budget * 0.8) highest = "high";
+  }
+  return highest;
+}
+
 export default function AdminAiUsagePage() {
   const { user } = useAuth();
   const [windowKey, setWindowKey] = useState<WindowKey>("7d");
@@ -196,6 +225,12 @@ export default function AdminAiUsagePage() {
                       {u.hasPass && !u.isAdmin && <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-400 bg-amber-400/10">Backstage</span>}
                       {!u.isAdmin && !u.hasPass && <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--foreground-muted)]">Free</span>}
                       {u.aiDisabled && <span className="text-[10px] px-2 py-0.5 rounded-full border border-red-500/50 text-red-400 bg-red-500/10">AI disabled</span>}
+                      {(() => {
+                        const heat = heatFlag(u, windowKey);
+                        if (heat === "over") return <span className="text-[10px] px-2 py-0.5 rounded-full border border-red-500/50 text-red-400 bg-red-500/10" title="Exceeds daily cap × days in this window">🔥 over</span>;
+                        if (heat === "high") return <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-400 bg-amber-400/10" title="≥80% of daily cap × days in this window">🔥 high</span>;
+                        return null;
+                      })()}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-white font-semibold">{u.totalCalls.toLocaleString()}</td>
@@ -235,8 +270,9 @@ export default function AdminAiUsagePage() {
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-start gap-3">
         <AlertCircle className="w-4 h-4 text-[var(--foreground-muted)] mt-0.5 shrink-0" />
         <div className="text-xs text-[var(--foreground-muted)] space-y-1">
-          <p><strong className="text-white">Caps in place:</strong> Free users are limited to 10 AI calls per hour per feature. Backstage Pass members bypass hourly limits but are capped at 50 per day per feature.</p>
-          <p>Users flagged as <strong className="text-white">AI disabled</strong> cannot use any AI feature regardless of plan. Admins bypass all caps.</p>
+          <p><strong className="text-white">Caps in place:</strong> Recommend + Movies AI search — free users 20/day per feature, Backstage Pass 50/day per feature. Collections — Backstage Pass only, capped at 20/day (free users are blocked by the subscription gate).</p>
+          <p>Users flagged as <strong className="text-white">AI disabled</strong> cannot use any AI feature regardless of plan. Admins bypass all caps. Sign-in is required for every AI feature.</p>
+          <p><strong className="text-white">Heat flag:</strong> a user with a per-feature call count ≥ their daily cap × days-in-window shows an <span className="text-amber-400">🔥 high</span> badge. If they exceed the cap itself across any single feature they show <span className="text-red-400">🔥 over</span> — these indicate sustained API pressure or bypass attempts and are worth a manual review.</p>
         </div>
       </div>
     </div>
