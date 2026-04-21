@@ -104,7 +104,8 @@ export default function CustomCollectionsSection() {
         name,
         description: saveDescription.trim() || null,
         prompt: preview.promptUsed,
-        mediaType: "movie",
+        // If every item is TV, mark the collection TV; else default movie.
+        mediaType: preview.items.length > 0 && preview.items.every((i) => i.mediaType === "tv") ? "tv" : "movie",
         items: preview.items,
       }),
     });
@@ -171,12 +172,15 @@ export default function CustomCollectionsSection() {
             </p>
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {preview.items.map((item) => (
-                <Link key={item.tmdbId} href={`/movies/${item.tmdbId}`} className="group">
+                <Link key={`${item.mediaType}-${item.tmdbId}`} href={item.mediaType === "tv" ? `/shows/${item.tmdbId}` : `/movies/${item.tmdbId}`} className="group">
                   <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                     {item.posterPath ? (
                       <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="100px" className="object-cover" />
                     ) : (
                       <Image src="/placeholder-poster.svg" alt="" fill sizes="100px" className="object-cover" />
+                    )}
+                    {item.mediaType === "tv" && (
+                      <span className="absolute top-0.5 left-0.5 bg-blue-600/90 text-white text-[8px] font-bold px-1 py-0.5 rounded">TV</span>
                     )}
                   </div>
                   <p className="text-[10px] text-white truncate mt-1 group-hover:text-[var(--ratist-red)] transition-colors">{item.title}</p>

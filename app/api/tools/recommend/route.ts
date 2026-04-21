@@ -172,15 +172,40 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // Build shared params (genre, era, runtime, providers)
+    // Build shared params (era, runtime, providers). Genres are applied later by
+    // tmdbGetGenreAware so 2+ selected genres can do an AND-first / OR-fallback pass.
     function buildBaseParams(sortBy: string): Record<string, string> {
       const p: Record<string, string> = { page: String(actualPage), sort_by: sortBy };
-      if (genreIds.length > 0) p.with_genres = genreIds.join("|");
       if (excludeIds.length > 0) p.without_genres = excludeIds.join(",");
       if (yearFrom) p[isTV ? "first_air_date.gte" : "primary_release_date.gte"] = `${yearFrom}-01-01`;
       if (yearTo) p[isTV ? "first_air_date.lte" : "primary_release_date.lte"] = `${yearTo}-12-31`;
       if (providerIds.length > 0) { p.with_watch_providers = providerIds.join("|"); p.watch_region = "US"; }
       return p;
+    }
+
+    // When 2+ genres are selected, movies matching ALL of them should surface
+    // first, with OR-matching titles filling in afterwards.
+    async function tmdbGetGenreAware(endpoint: string, params: Record<string, string>) {
+      if (genreIds.length === 0) {
+        return tmdbGet(endpoint, params);
+      }
+      if (genreIds.length === 1) {
+        return tmdbGet(endpoint, { ...params, with_genres: genreIds[0] });
+      }
+      const andParams = { ...params, with_genres: genreIds.join(",") };
+      const orParams = { ...params, with_genres: genreIds.join("|") };
+      const [andRes, orRes] = await Promise.all([
+        tmdbGet(endpoint, andParams).catch(() => null),
+        tmdbGet(endpoint, orParams).catch(() => null),
+      ]);
+      const andResults = (andRes?.results ?? []) as Record<string, unknown>[];
+      const orResults = (orRes?.results ?? []) as Record<string, unknown>[];
+      const andIds = new Set(andResults.map((r) => r.id));
+      const orUnique = orResults.filter((r) => !andIds.has(r.id));
+      return {
+        results: [...andResults, ...orUnique],
+        total_pages: Math.max(andRes?.total_pages ?? 1, orRes?.total_pages ?? 1),
+      };
     }
 
     function applyUserSort(p: Record<string, string>) {
@@ -208,7 +233,7 @@ export async function POST(req: NextRequest) {
       const tvP = buildTvParams(p);
 
       if (isBoth) {
-        const [mv, tv] = await Promise.all([tmdbGet("/discover/movie", p), tmdbGet("/discover/tv", tvP)]);
+        const [mv, tv] = await Promise.all([tmdbGetGenreAware("/discover/movie", p), tmdbGetGenreAware("/discover/tv", tvP)]);
         const mvR = (mv?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: "movie", _experience: exp }));
         const tvR = (tv?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: "tv", _experience: exp }));
         const merged: Record<string, unknown>[] = [];
@@ -222,7 +247,7 @@ export async function POST(req: NextRequest) {
       }
       const endpoint = isTV ? "/discover/tv" : "/discover/movie";
       const fetchP = isTV ? tvP : p;
-      const raw = await tmdbGet(endpoint, fetchP);
+      const raw = await tmdbGetGenreAware(endpoint, fetchP);
       return {
         results: (raw?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: isTV ? "tv" : "movie", _experience: exp })),
         total_pages: raw?.total_pages ?? 1,
@@ -262,7 +287,7 @@ export async function POST(req: NextRequest) {
       applyUserSort(p);
       const tvP = buildTvParams(p);
       if (isBoth) {
-        const [mv, tv] = await Promise.all([tmdbGet("/discover/movie", p), tmdbGet("/discover/tv", tvP)]);
+        const [mv, tv] = await Promise.all([tmdbGetGenreAware("/discover/movie", p), tmdbGetGenreAware("/discover/tv", tvP)]);
         const mvR = (mv?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: "movie" }));
         const tvR = (tv?.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: "tv" }));
         const merged: Record<string, unknown>[] = [];
@@ -276,7 +301,7 @@ export async function POST(req: NextRequest) {
       } else {
         const endpoint = isTV ? "/discover/tv" : "/discover/movie";
         const fetchP = isTV ? tvP : p;
-        const raw = await tmdbGet(endpoint, fetchP);
+        const raw = await tmdbGetGenreAware(endpoint, fetchP);
         if (!raw) return NextResponse.json({ error: "TMDB error" }, { status: 502 });
         discoverData = { results: (raw.results ?? []).map((r: Record<string, unknown>) => ({ ...r, _mediaType: isTV ? "tv" : "movie" })), total_pages: raw.total_pages ?? 1 };
       }

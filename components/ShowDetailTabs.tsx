@@ -746,6 +746,7 @@ export default function ShowDetailTabs({
                   See all reviews <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+              <ReviewDigest mediaType="tv" tmdbId={show.id} />
               {reviews.slice(0, 3).map((r) => (
                 <div key={r.id}>
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 mb-1 inline-block">

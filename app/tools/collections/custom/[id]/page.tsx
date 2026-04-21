@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import MovieCard from "@/components/MovieCard";
+import Image from "next/image";
+import { posterUrl } from "@/lib/tmdb";
 
 interface Item {
   id: string;
@@ -95,20 +97,37 @@ export default function CustomCollectionPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {collection.items.map((item) => (
-            <MovieCard
-              key={item.id}
-              movie={{
-                id: item.tmdbId,
-                title: item.title,
-                overview: "",
-                poster_path: item.posterPath,
-                backdrop_path: null,
-                release_date: item.releaseDate ?? "",
-                popularity: 0,
-                vote_average: item.voteAverage ?? 0,
-                vote_count: 0,
-              }}
-            />
+            item.mediaType === "movie" ? (
+              <MovieCard
+                key={item.id}
+                movie={{
+                  id: item.tmdbId,
+                  title: item.title,
+                  overview: "",
+                  poster_path: item.posterPath,
+                  backdrop_path: null,
+                  release_date: item.releaseDate ?? "",
+                  popularity: 0,
+                  vote_average: item.voteAverage ?? 0,
+                  vote_count: 0,
+                }}
+              />
+            ) : (
+              <Link key={item.id} href={`/shows/${item.tmdbId}`} className="group flex flex-col">
+                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1.5">
+                  {item.posterPath ? (
+                    <Image src={posterUrl(item.posterPath, "w342")} alt={item.title} fill sizes="200px" className="object-cover" />
+                  ) : (
+                    <Image src="/placeholder-poster.svg" alt="" fill sizes="200px" className="object-cover" />
+                  )}
+                  <span className="absolute top-1 left-1 bg-blue-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Tv className="w-2.5 h-2.5" /> TV
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{item.title}</p>
+                <p className="text-xs text-[var(--foreground-muted)]">{item.releaseDate?.slice(0, 4) ?? ""}</p>
+              </Link>
+            )
           ))}
         </div>
       )}

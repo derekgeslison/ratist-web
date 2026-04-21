@@ -185,6 +185,7 @@ export default function MovieDetailTabs({
                       See all reviews <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                  <ReviewDigest mediaType="movie" tmdbId={movie.id} />
                   {reviews.slice(0, 3).map((r) => (
                     <ReviewCard
                       key={r.id}

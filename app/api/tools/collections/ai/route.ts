@@ -5,9 +5,42 @@ import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
 import { extractCollectionFilters } from "@/lib/ai/collection-filters";
 import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
-import { discoverMovies, getGenres, type TMDBMovie } from "@/lib/tmdb";
+import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
 
 export const dynamic = "force-dynamic";
+
+// Movie-genre names → TV-genre names (TMDB groups some TV genres differently)
+const MOVIE_TO_TV_GENRE: Record<string, string> = {
+  "Science Fiction": "Sci-Fi & Fantasy",
+  "Fantasy": "Sci-Fi & Fantasy",
+  "Action": "Action & Adventure",
+  "Adventure": "Action & Adventure",
+  "War": "War & Politics",
+};
+
+async function discoverTvShows(params: {
+  genreIds?: string[];
+  yearFrom?: number | null;
+  yearTo?: number | null;
+  ratingGte?: number | null;
+  page?: number;
+}): Promise<{ results: TMDBShow[]; page: number; total_pages: number }> {
+  const qp: Record<string, string> = {
+    page: String(params.page ?? 1),
+    sort_by: "vote_average.desc",
+    "vote_count.gte": "50",
+  };
+  if (params.genreIds?.length) qp.with_genres = params.genreIds.join("|");
+  if (params.yearFrom) qp["first_air_date.gte"] = `${params.yearFrom}-01-01`;
+  if (params.yearTo) qp["first_air_date.lte"] = `${params.yearTo}-12-31`;
+  if (params.ratingGte != null) qp["vote_average.gte"] = String(params.ratingGte);
+  const url = new URL("https://api.themoviedb.org/3/discover/tv");
+  url.searchParams.set("api_key", process.env.TMDB_API_KEY ?? "0a8b11e67dd3e6ee739bb736777f4695");
+  for (const [k, v] of Object.entries(qp)) url.searchParams.set(k, v);
+  const res = await fetch(url.toString());
+  if (!res.ok) return { results: [], page: 1, total_pages: 0 };
+  return res.json();
+}
 
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req);
@@ -32,16 +65,34 @@ export async function POST(req: NextRequest) {
 
   try {
     const filters = await extractCollectionFilters(prompt);
+    const useTv = filters.mediaType === "tv";
 
-    // Map genre names to TMDB IDs
-    const { genres: allGenres } = await getGenres();
-    const nameToId = new Map(allGenres.map((g) => [g.name, g.id]));
-    const includeIds = filters.genres.map((g) => nameToId.get(g)).filter((id): id is number => id != null).map(String);
-    const excludeIds = filters.excludeGenres.map((g) => nameToId.get(g)).filter((id): id is number => id != null);
+    // Map genre names to TMDB IDs (movie vs TV genre sets)
+    const movieGenres = await getGenres();
+    const movieNameToId = new Map(movieGenres.genres.map((g) => [g.name, g.id]));
 
-    // Build user's seen-TMDB-IDs set if excludeSeen is on
+    let includeIds: string[] = [];
+    let excludeIds: number[] = [];
+    if (useTv) {
+      const tvGenres = await getShowGenres();
+      const tvNameToId = new Map(tvGenres.genres.map((g) => [g.name, g.id]));
+      // Map movie-genre names the AI picked to TV-genre equivalents, then dedupe
+      const tvNames = new Set<string>();
+      for (const g of filters.genres) {
+        tvNames.add(MOVIE_TO_TV_GENRE[g] ?? g);
+      }
+      includeIds = [...tvNames].map((n) => tvNameToId.get(n)).filter((id): id is number => id != null).map(String);
+      const tvExcludeNames = new Set<string>();
+      for (const g of filters.excludeGenres) tvExcludeNames.add(MOVIE_TO_TV_GENRE[g] ?? g);
+      excludeIds = [...tvExcludeNames].map((n) => tvNameToId.get(n)).filter((id): id is number => id != null);
+    } else {
+      includeIds = filters.genres.map((g) => movieNameToId.get(g)).filter((id): id is number => id != null).map(String);
+      excludeIds = filters.excludeGenres.map((g) => movieNameToId.get(g)).filter((id): id is number => id != null);
+    }
+
+    // Build user's seen-TMDB-IDs set if excludeSeen is on (movies only — no TV seen tracking yet)
     let seenTmdbIds = new Set<number>();
-    if (filters.excludeSeen) {
+    if (filters.excludeSeen && !useTv) {
       const seen = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
         select: { movie: { select: { tmdbId: true } } },
@@ -50,46 +101,69 @@ export async function POST(req: NextRequest) {
     }
 
     // Paginate through TMDB discover until we have `limit` items or exhaust pages (cap at 5 pages)
-    const collected: TMDBMovie[] = [];
+    type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null };
+    const collected: Item[] = [];
     const maxPages = 5;
     let page = 1;
     while (collected.length < filters.limit && page <= maxPages) {
-      const data = await discoverMovies({
-        genres: includeIds.length ? includeIds : undefined,
-        genreMode: "any",
-        query: filters.textQuery ?? undefined,
-        yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
-        yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
-        ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
-        sort: "top_rated",
-        page,
-      });
-      for (const m of data.results) {
-        const mGenreIds = (m as TMDBMovie & { genre_ids?: number[] }).genre_ids;
-        // Skip excluded genres
-        if (excludeIds.length > 0 && mGenreIds?.some((id) => excludeIds.includes(id))) continue;
-        if (seenTmdbIds.has(m.id)) continue;
-        if (collected.some((c) => c.id === m.id)) continue;
-        collected.push(m);
-        if (collected.length >= filters.limit) break;
+      if (useTv) {
+        const data = await discoverTvShows({
+          genreIds: includeIds.length ? includeIds : undefined,
+          yearFrom: filters.yearFrom,
+          yearTo: filters.yearTo,
+          ratingGte: filters.minRating,
+          page,
+        });
+        for (const s of data.results) {
+          const sGenreIds = (s as TMDBShow & { genre_ids?: number[] }).genre_ids;
+          if (excludeIds.length > 0 && sGenreIds?.some((id) => excludeIds.includes(id))) continue;
+          if (collected.some((c) => c.tmdbId === s.id && c.mediaType === "tv")) continue;
+          collected.push({
+            mediaType: "tv",
+            tmdbId: s.id,
+            title: s.name,
+            posterPath: s.poster_path ?? null,
+            releaseDate: s.first_air_date ?? null,
+            voteAverage: s.vote_average ?? null,
+          });
+          if (collected.length >= filters.limit) break;
+        }
+        if (data.page >= data.total_pages || data.results.length === 0) break;
+        page++;
+      } else {
+        const data = await discoverMovies({
+          genres: includeIds.length ? includeIds : undefined,
+          genreMode: "any",
+          query: filters.textQuery ?? undefined,
+          yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
+          yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
+          ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
+          sort: "top_rated",
+          page,
+        });
+        for (const m of data.results) {
+          const mGenreIds = (m as TMDBMovie & { genre_ids?: number[] }).genre_ids;
+          if (excludeIds.length > 0 && mGenreIds?.some((id) => excludeIds.includes(id))) continue;
+          if (seenTmdbIds.has(m.id)) continue;
+          if (collected.some((c) => c.tmdbId === m.id && c.mediaType === "movie")) continue;
+          collected.push({
+            mediaType: "movie",
+            tmdbId: m.id,
+            title: m.title,
+            posterPath: m.poster_path ?? null,
+            releaseDate: m.release_date ?? null,
+            voteAverage: m.vote_average ?? null,
+          });
+          if (collected.length >= filters.limit) break;
+        }
+        if (data.page >= data.total_pages) break;
+        page++;
       }
-      if (data.page >= data.total_pages) break;
-      page++;
     }
 
     await logAiUsage(user.id, "collection");
 
-    return NextResponse.json({
-      filters,
-      items: collected.map((m) => ({
-        mediaType: "movie" as const,
-        tmdbId: m.id,
-        title: m.title,
-        posterPath: m.poster_path ?? null,
-        releaseDate: m.release_date ?? null,
-        voteAverage: m.vote_average ?? null,
-      })),
-    });
+    return NextResponse.json({ filters, items: collected });
   } catch (err) {
     if (err instanceof Anthropic.APIError) {
       console.error(`AI collection — Anthropic error ${err.status}:`, err.message);
