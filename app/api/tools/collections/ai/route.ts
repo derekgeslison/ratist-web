@@ -90,9 +90,46 @@ export async function POST(req: NextRequest) {
       excludeIds = filters.excludeGenres.map((g) => movieNameToId.get(g)).filter((id): id is number => id != null);
     }
 
-    // Build user's seen-TMDB-IDs set if excludeSeen is on (movies only — no TV seen tracking yet)
+    // ── seen_only mode: skip TMDB entirely, query user's own seen list from DB ──
+    type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null };
+    if (filters.seenFilter === "seen_only" && !useTv) {
+      const includeIdsNum = includeIds.map(Number);
+      const seenRows = await prisma.userFavoriteMovie.findMany({
+        where: {
+          userId: user.id,
+          movie: {
+            ...(filters.minRating != null ? { voteAverage: { gte: filters.minRating } } : {}),
+            ...(filters.yearFrom != null ? { releaseDate: { gte: `${filters.yearFrom}-01-01` } } : {}),
+            ...(filters.yearTo != null ? { releaseDate: { lte: `${filters.yearTo}-12-31` } } : {}),
+            ...(includeIdsNum.length > 0
+              ? { genres: { some: { genreId: { in: includeIdsNum } } } }
+              : {}),
+            ...(excludeIds.length > 0
+              ? { genres: { none: { genreId: { in: excludeIds } } } }
+              : {}),
+          },
+        },
+        select: {
+          movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
+        },
+        orderBy: { movie: { voteAverage: "desc" } },
+        take: filters.limit,
+      });
+      const collectedSeen: Item[] = seenRows.map((r) => ({
+        mediaType: "movie" as const,
+        tmdbId: r.movie.tmdbId,
+        title: r.movie.title,
+        posterPath: r.movie.posterPath,
+        releaseDate: r.movie.releaseDate,
+        voteAverage: r.movie.voteAverage,
+      }));
+      await logAiUsage(user.id, "collection");
+      return NextResponse.json({ filters, items: collectedSeen });
+    }
+
+    // Build user's seen-TMDB-IDs set when we need to EXCLUDE seen (unseen mode)
     let seenTmdbIds = new Set<number>();
-    if (filters.excludeSeen && !useTv) {
+    if (filters.seenFilter === "unseen" && !useTv) {
       const seen = await prisma.userFavoriteMovie.findMany({
         where: { userId: user.id },
         select: { movie: { select: { tmdbId: true } } },
@@ -101,7 +138,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Paginate through TMDB discover until we have `limit` items or exhaust pages (cap at 5 pages)
-    type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null };
     const collected: Item[] = [];
     const maxPages = 5;
     let page = 1;

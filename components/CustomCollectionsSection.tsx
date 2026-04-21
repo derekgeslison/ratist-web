@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Wand2, Save, Sparkles, Trash2, Check, X } from "lucide-react";
+import { Wand2, Save, Sparkles, Trash2, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
+import MovieCard from "./MovieCard";
+import ShowCard from "./ShowCard";
 
 interface PreviewItem {
   mediaType: "movie" | "tv";
@@ -33,6 +35,8 @@ interface PreviewState {
   promptUsed: string;
 }
 
+const PREVIEW_STORAGE_KEY = "ratist-custom-collection-preview";
+
 export default function CustomCollectionsSection() {
   const { user } = useAuth();
 
@@ -45,6 +49,33 @@ export default function CustomCollectionsSection() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [savedList, setSavedList] = useState<SavedCollection[]>([]);
+
+  // Restore any unsaved preview from sessionStorage so clicking into a result
+  // and hitting Back doesn't lose the list the user was about to save.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem(PREVIEW_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { preview: PreviewState; saveName: string; saveDescription: string };
+      if (parsed?.preview?.items?.length) {
+        setPreview(parsed.preview);
+        setSaveName(parsed.saveName ?? parsed.preview.suggestedName);
+        setSaveDescription(parsed.saveDescription ?? "");
+        setPrompt(parsed.preview.promptUsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Persist preview state (including save form edits) whenever it changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (preview) {
+      sessionStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify({ preview, saveName, saveDescription }));
+    } else {
+      sessionStorage.removeItem(PREVIEW_STORAGE_KEY);
+    }
+  }, [preview, saveName, saveDescription]);
 
   const loadSaved = useCallback(async () => {
     if (!user) return;
@@ -170,21 +201,39 @@ export default function CustomCollectionsSection() {
             <p className="text-xs text-[var(--foreground-muted)]">
               Preview — {preview.items.length} title{preview.items.length !== 1 ? "s" : ""}
             </p>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {preview.items.map((item) => (
-                <Link key={`${item.mediaType}-${item.tmdbId}`} href={item.mediaType === "tv" ? `/shows/${item.tmdbId}` : `/movies/${item.tmdbId}`} className="group">
-                  <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                    {item.posterPath ? (
-                      <Image src={posterUrl(item.posterPath, "w185")} alt={item.title} fill sizes="100px" className="object-cover" />
-                    ) : (
-                      <Image src="/placeholder-poster.svg" alt="" fill sizes="100px" className="object-cover" />
-                    )}
-                    {item.mediaType === "tv" && (
-                      <span className="absolute top-0.5 left-0.5 bg-blue-600/90 text-white text-[8px] font-bold px-1 py-0.5 rounded">TV</span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-white truncate mt-1 group-hover:text-[var(--ratist-red)] transition-colors">{item.title}</p>
-                </Link>
+                item.mediaType === "tv" ? (
+                  <ShowCard
+                    key={`tv-${item.tmdbId}`}
+                    show={{
+                      id: item.tmdbId,
+                      name: item.title,
+                      overview: "",
+                      poster_path: item.posterPath,
+                      backdrop_path: null,
+                      first_air_date: item.releaseDate ?? "",
+                      popularity: 0,
+                      vote_average: item.voteAverage ?? 0,
+                      vote_count: 0,
+                    }}
+                  />
+                ) : (
+                  <MovieCard
+                    key={`movie-${item.tmdbId}`}
+                    movie={{
+                      id: item.tmdbId,
+                      title: item.title,
+                      overview: "",
+                      poster_path: item.posterPath,
+                      backdrop_path: null,
+                      release_date: item.releaseDate ?? "",
+                      popularity: 0,
+                      vote_average: item.voteAverage ?? 0,
+                      vote_count: 0,
+                    }}
+                  />
+                )
               ))}
             </div>
             <div className="bg-[var(--surface)] rounded-lg p-3 space-y-2">

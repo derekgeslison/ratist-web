@@ -17,7 +17,7 @@ export interface CollectionFilters {
   yearTo: number | null;
   minRating: number | null;
   textQuery: string | null;
-  excludeSeen: boolean;
+  seenFilter: "any" | "unseen" | "seen_only";
   limit: number;
   suggestedName: string;
 }
@@ -54,10 +54,13 @@ ONLY use textQuery for truly niche concepts that are NOT captured by any main ge
 
 ### Other
 - "rated above X" / "higher than X" / "over X stars" → minRating: X (0-10 scale, community vote average).
-- "haven't seen" / "new to me" / "unseen" → excludeSeen: true. Default excludeSeen to true unless the user explicitly wants all titles.
+- seenFilter has three values:
+  - "unseen" — user wants titles they HAVEN'T seen ("haven't seen", "new to me", "unseen", "I might have missed"). This is the DEFAULT.
+  - "seen_only" — user wants titles they HAVE seen ("already seen", "rewatch", "rewatchable", "movies I've watched", "from my list", "best of what I've seen").
+  - "any" — user explicitly wants the full catalog regardless of seen status.
 - Don't over-stuff genres — pick the 1-3 most clearly implied.
 - Limit defaults to 10, cap at 25.
-- suggestedName: a short, friendly title for the collection (e.g. "Classic Gangster Movies", "Unseen 80s Sci-Fi").
+- suggestedName: a short, friendly title for the collection (e.g. "Classic Gangster Movies", "Rewatchable Sci-Fi Favorites").
 
 Be conservative. Leave fields null/empty if not clearly implied.`;
 
@@ -85,11 +88,15 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
         type: ["string", "null"],
         description: "Free-text search for niche sub-genres not in the main genre list (e.g. 'gangster', 'heist'). null if unused.",
       },
-      excludeSeen: { type: "boolean", description: "Exclude titles the user has already marked as seen. Default true." },
+      seenFilter: {
+        type: "string",
+        enum: ["any", "unseen", "seen_only"],
+        description: "Default 'unseen'. Use 'seen_only' when the user wants titles they've already watched (rewatch, rewatchable, already seen). Use 'any' only when the user explicitly says they want the full catalog.",
+      },
       limit: { type: "integer", minimum: 5, maximum: 25, description: "Number of titles to include (default 10)." },
       suggestedName: { type: "string", description: "Short friendly name for the collection." },
     },
-    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "excludeSeen", "limit", "suggestedName"],
+    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "limit", "suggestedName"],
     additionalProperties: false,
   },
 };
@@ -119,7 +126,7 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     yearTo: typeof raw.yearTo === "number" && raw.yearTo > 1800 ? Math.floor(raw.yearTo) : null,
     minRating: typeof raw.minRating === "number" && raw.minRating >= 0 && raw.minRating <= 10 ? raw.minRating : null,
     textQuery: typeof raw.textQuery === "string" && raw.textQuery.trim().length > 0 ? raw.textQuery.trim() : null,
-    excludeSeen: raw.excludeSeen !== false,
+    seenFilter: raw.seenFilter === "seen_only" || raw.seenFilter === "any" ? raw.seenFilter : "unseen",
     limit: typeof raw.limit === "number" ? Math.max(5, Math.min(25, Math.floor(raw.limit))) : 10,
     suggestedName: typeof raw.suggestedName === "string" && raw.suggestedName.trim().length > 0 ? raw.suggestedName.trim().slice(0, 80) : "Custom Collection",
   };
