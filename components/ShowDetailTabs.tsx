@@ -26,6 +26,7 @@ import ReviewCard from "./ReviewCard";
 import RatingBadge from "./RatingBadge";
 import type { AwardBodyGroup } from "@/lib/awards";
 import DiscussionRow from "./DiscussionRow";
+import ReviewDigest from "./ReviewDigest";
 
 interface Discussion {
   id: string;
@@ -812,6 +813,7 @@ export default function ShowDetailTabs({
             </div>
 
             <RatingDistribution tmdbId={show.id} mediaType="tv" />
+            <ReviewDigest mediaType="tv" tmdbId={show.id} />
 
             {/* Scope filter */}
             <div className="flex flex-wrap gap-2">

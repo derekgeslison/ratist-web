@@ -6,7 +6,7 @@ export default function TermsOfServicePage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold text-white mb-2">Terms of Service</h1>
-      <p className="text-sm text-[var(--foreground-muted)] mb-8">Last updated: April 5, 2025</p>
+      <p className="text-sm text-[var(--foreground-muted)] mb-8">Last updated: April 20, 2026</p>
 
       <div className="prose prose-invert max-w-none space-y-6 text-[var(--foreground-muted)] text-sm leading-relaxed">
         <section>
@@ -104,7 +104,28 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white mb-2">10. Disclaimers</h2>
+          <h2 className="text-lg font-semibold text-white mb-2">10. AI-Powered Features</h2>
+          <p>
+            The Service includes optional AI-powered features (such as natural-language recommendations,
+            AI-generated collections, and AI-summarized community reviews). These features rely on
+            third-party large language models and incur per-call costs to The Ratist.
+          </p>
+          <p className="mt-2">
+            AI features are subject to rate limits and daily usage caps. The Ratist reserves the right,
+            at its sole discretion, to further limit, throttle, suspend, or permanently revoke your
+            access to AI features — including for Backstage Pass subscribers — if your usage appears
+            automated, abusive, disproportionate to normal use, or intentionally designed to consume
+            service resources. We may apply these restrictions without prior notice.
+          </p>
+          <p className="mt-2">
+            AI outputs may contain errors, omissions, or outdated information. They are provided for
+            convenience only and should not be relied upon as definitive. Individual reviews and
+            ratings remain the authoritative source of community opinion on the Service.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-2">11. Disclaimers</h2>
           <p>
             The Service is provided &quot;as is&quot; without warranties of any kind, either express or implied.
             The Ratist does not guarantee the accuracy, completeness, or reliability of any ratings,
@@ -113,7 +134,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white mb-2">11. Limitation of Liability</h2>
+          <h2 className="text-lg font-semibold text-white mb-2">12. Limitation of Liability</h2>
           <p>
             To the maximum extent permitted by law, The Ratist shall not be liable for any indirect,
             incidental, special, consequential, or punitive damages arising from your use of the Service.
@@ -121,7 +142,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white mb-2">12. Changes to Terms</h2>
+          <h2 className="text-lg font-semibold text-white mb-2">13. Changes to Terms</h2>
           <p>
             We reserve the right to update these Terms of Service at any time. We will notify users
             of significant changes through the Service. Continued use of the Service after changes
@@ -130,7 +151,7 @@ export default function TermsOfServicePage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white mb-2">13. Contact</h2>
+          <h2 className="text-lg font-semibold text-white mb-2">14. Contact</h2>
           <p>
             If you have questions about these Terms of Service, please contact us through the platform.
           </p>

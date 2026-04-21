@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, KeyRound, ScrollText, Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb } from "lucide-react";
+import { FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, KeyRound, ScrollText, Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb, Cpu } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -66,6 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             { href: "/admin/subscriptions", label: "Subscriptions", icon: Ticket },
             { href: "/admin/news", label: "News", icon: Newspaper },
             { href: "/admin/feedback", label: "Feedback", icon: MessageCircle },
+            { href: "/admin/ai-usage", label: "AI Usage", icon: Cpu },
             { href: "/admin/fraud", label: "Fraud", icon: ShieldAlert },
           ].map(({ href, label, icon: Icon }) => (
             <Link

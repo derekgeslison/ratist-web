@@ -24,6 +24,7 @@ model User {
   inviteCode  String   @unique @map("invite_code")
   isAdmin     Boolean  @default(false) @map("is_admin")
   isOwner     Boolean  @default(false) @map("is_owner")
+  aiDisabled  Boolean  @default(false) @map("ai_disabled") // admin-set: blocks all AI features for this user
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   onboardedAt DateTime? @map("onboarded_at")
@@ -110,6 +111,7 @@ model User {
   ideasSubmitted    PostIdea[] @relation("ideasSubmitted")
   ideasReviewed     PostIdea[] @relation("ideasReviewed")
   aiUsageLogs       AiUsageLog[]
+  customCollections CustomCollection[]
   adminLogs        AdminLog[] @relation("adminLogs")
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
@@ -1666,6 +1668,58 @@ model PostIdea {
 
   @@index([type, status])
   @@map("post_ideas")
+}
+
+// User-saved AI-generated collections. The items array is a frozen snapshot
+// so we can render saved collections without re-hitting TMDB for metadata.
+model CustomCollection {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?  @db.Text
+  prompt      String   @db.Text
+  mediaType   String   @default("movie") @map("media_type") // "movie" | "tv" | "any"
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CustomCollectionItem[]
+
+  @@index([userId, createdAt])
+  @@map("custom_collections")
+}
+
+model CustomCollectionItem {
+  id           String  @id @default(cuid())
+  collectionId String  @map("collection_id")
+  mediaType    String  @map("media_type") // "movie" | "tv"
+  tmdbId       Int     @map("tmdb_id")
+  title        String
+  posterPath   String? @map("poster_path")
+  releaseDate  String? @map("release_date")
+  voteAverage  Float?  @map("vote_average")
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  collection CustomCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, mediaType, tmdbId])
+  @@index([collectionId, sortOrder])
+  @@map("custom_collection_items")
+}
+
+// Cached AI-generated community review summaries, keyed by TMDB id + media type.
+// Regenerated when the review count has grown meaningfully since last generation.
+model ReviewDigest {
+  id          String   @id @default(cuid())
+  mediaType   String   @map("media_type") // "movie" | "tv"
+  tmdbId      Int      @map("tmdb_id")
+  digest      String   @db.Text
+  reviewCount Int      @map("review_count") // review count at generation time
+  model       String   @default("claude-haiku-4-5")
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  @@unique([mediaType, tmdbId])
+  @@map("review_digests")
 }
 
 // Tracks AI feature usage for rate limiting. Paid (Backstage Pass) and admin

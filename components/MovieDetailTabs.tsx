@@ -16,6 +16,7 @@ import PosterOverlay from "./PosterOverlay";
 import AwardsTab from "./AwardsTab";
 import type { AwardBodyGroup } from "@/lib/awards";
 import DiscussionRow from "./DiscussionRow";
+import ReviewDigest from "./ReviewDigest";
 
 interface Review {
   id: string;
@@ -267,6 +268,7 @@ export default function MovieDetailTabs({
             </div>
           </div>
           <RatingDistribution tmdbId={movie.id} mediaType="movie" />
+          <ReviewDigest mediaType="movie" tmdbId={movie.id} />
           {reviews.length > 0 ? (
             <div className="space-y-4">
               {reviews.slice(0, 10).map((r) => (

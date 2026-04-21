@@ -8,6 +8,7 @@ import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp, AlertCir
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
+import CustomCollectionsSection from "@/components/CustomCollectionsSection";
 
 interface CollectionMovie {
   id: string;
@@ -150,6 +151,8 @@ export default function CollectionsPage() {
         <h1 className="text-2xl font-bold text-white">Collections</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-4">Personalized movie recommendations based on your taste, ratings, and watch history.</p>
+
+      <CustomCollectionsSection />
 
       {ratistReviewCount != null && ratistReviewCount < 10 && (
         <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
