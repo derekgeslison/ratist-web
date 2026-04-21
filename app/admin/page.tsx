@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import {
   FileText, Map, Edit, Eye, EyeOff, Trash2, Users, Star, Film, BookOpen, Shield,
-  Ticket, Lightbulb, Flag, MessageCircle, ShieldAlert, Newspaper, Cpu, AlertCircle,
+  Ticket, Lightbulb, Flag, MessageCircle, ShieldAlert, Cpu, AlertCircle,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -31,7 +31,6 @@ interface SiteStats {
     reports: number;
     feedback: number;
     fraud: number;
-    news: number;
     aiFlagged: number;
   };
 }
@@ -123,7 +122,6 @@ export default function AdminDashboard() {
           { key: "aiFlagged", label: "Flagged AI users", count: stats.queues.aiFlagged, href: "/admin/ai-usage", icon: Cpu, tone: "warn" as const },
           { key: "ideas", label: "New idea submissions", count: stats.queues.ideas, href: "/admin/ideas", icon: Lightbulb, tone: "info" as const },
           { key: "feedback", label: "Open feedback", count: stats.queues.feedback, href: "/admin/feedback", icon: MessageCircle, tone: "info" as const },
-          { key: "news", label: "RSS headlines to triage", count: stats.queues.news, href: "/admin/news", icon: Newspaper, tone: "info" as const },
         ] as Alert[]
       ).filter((a) => a.count > 0)
     : [];

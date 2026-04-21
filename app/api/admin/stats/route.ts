@@ -44,7 +44,6 @@ export async function GET(req: NextRequest) {
     pendingReports,
     openFeedback,
     openFraud,
-    pendingRssHeadlines,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { createdAt: { gte: dayAgo } } }),
@@ -82,7 +81,6 @@ export async function GET(req: NextRequest) {
     prisma.report.count({ where: { status: "pending" } }),
     prisma.feedback.count({ where: { status: { in: ["open", "in_progress"] } } }),
     prisma.fraudFlag.count({ where: { status: "open" } }),
-    prisma.rssHeadline.count({ where: { dismissed: false, usedInPost: null } }),
   ]);
 
   // AI heat flag: count distinct users who have hit their daily cap on 4+
@@ -102,7 +100,6 @@ export async function GET(req: NextRequest) {
       reports: pendingReports,
       feedback: openFeedback,
       fraud: openFraud,
-      news: pendingRssHeadlines,
       aiFlagged: aiFlaggedUsers,
     },
   });

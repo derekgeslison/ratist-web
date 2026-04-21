@@ -33,7 +33,6 @@ interface StatsQueues {
   reports?: number;
   feedback?: number;
   fraud?: number;
-  news?: number;
   aiFlagged?: number;
 }
 
@@ -51,7 +50,7 @@ const TOP_TABS: TopTab[] = [
 const SUB_TABS: Record<string, SubTab[]> = {
   posts: [
     { label: "Blog", icon: FileText, href: "/admin/posts?type=BLOG", pathPrefix: "/admin/posts", typeValue: "BLOG" },
-    { label: "News", icon: Newspaper, href: "/admin/news", pathPrefix: "/admin/news", countKey: "news" },
+    { label: "News", icon: Newspaper, href: "/admin/news", pathPrefix: "/admin/news" },
     { label: "Two Thumbs", icon: TwoThumbsIcon, href: "/admin/posts?type=PUNCH_AND_JUDY", pathPrefix: "/admin/posts", typeValue: "PUNCH_AND_JUDY" },
     { label: "Movie Maps", icon: Map, href: "/admin/posts?type=MOVIE_MAP", pathPrefix: "/admin/posts", typeValue: "MOVIE_MAP" },
     { label: "Ideas", icon: Lightbulb, href: "/admin/ideas", pathPrefix: "/admin/ideas", countKey: "ideas" },
