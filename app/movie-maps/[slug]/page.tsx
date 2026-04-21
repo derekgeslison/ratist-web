@@ -70,9 +70,20 @@ export default async function MovieMapPostPage({ params }: Props) {
     },
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.theratist.com" },
+      { "@type": "ListItem", position: 2, name: "Movie Maps", item: "https://www.theratist.com/movie-maps" },
+      { "@type": "ListItem", position: 3, name: post.title, item: `https://www.theratist.com/movie-maps/${slug}` },
+    ],
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <Link href="/movie-maps" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Movie Maps
       </Link>

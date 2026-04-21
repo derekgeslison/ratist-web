@@ -268,9 +268,20 @@ export default async function MovieDetailPage({ params }: Props) {
     url: `https://www.theratist.com/movies/${movie.id}`,
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.theratist.com" },
+      { "@type": "ListItem", position: 2, name: "Movies", item: "https://www.theratist.com/movies" },
+      { "@type": "ListItem", position: 3, name: movie.title, item: `https://www.theratist.com/movies/${movie.id}` },
+    ],
+  };
+
   return (
     <div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       {/* Backdrop hero */}
       <div className="relative w-full h-[30vh] min-h-[200px] max-h-[340px] overflow-hidden">
         <Image

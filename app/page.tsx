@@ -168,7 +168,7 @@ export default async function HomePage() {
                   }}
                 >
                   {s.imageUrl && (
-                    <Image src={s.imageUrl} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover shrink-0" />
+                    <Image src={s.imageUrl} alt={s.title} width={80} height={80} className="w-20 h-20 rounded-lg object-cover shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: accent }}>
@@ -269,10 +269,10 @@ export default async function HomePage() {
                   >
                     <div className="relative aspect-video bg-[var(--surface-2)] overflow-hidden">
                       {item.coverImage ? (
-                        <img src={item.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <img src={item.coverImage} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : item.posterPath ? (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Image src={`https://image.tmdb.org/t/p/w300${item.posterPath}`} alt="" width={120} height={180} className="rounded" />
+                          <Image src={`https://image.tmdb.org/t/p/w300${item.posterPath}`} alt={item.title} width={120} height={180} className="rounded" />
                         </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">

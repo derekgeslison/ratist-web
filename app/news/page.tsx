@@ -90,11 +90,11 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                   {item.coverImage ? (
                     <div className="relative w-32 sm:w-40 aspect-video rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.coverImage} alt="" className="w-full h-full object-cover" />
+                      <img src={item.coverImage} alt={item.title} className="w-full h-full object-cover" />
                     </div>
                   ) : item.posterPath ? (
                     <div className="relative w-16 aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0">
-                      <Image src={`https://image.tmdb.org/t/p/w154${item.posterPath}`} alt="" fill sizes="64px" className="object-cover" />
+                      <Image src={`https://image.tmdb.org/t/p/w154${item.posterPath}`} alt={item.title} fill sizes="64px" className="object-cover" />
                     </div>
                   ) : null}
                   <div className="flex-1 min-w-0">

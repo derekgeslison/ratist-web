@@ -74,9 +74,20 @@ export default async function NewsArticlePage({ params }: Props) {
     },
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.theratist.com" },
+      { "@type": "ListItem", position: 2, name: "News", item: "https://www.theratist.com/news" },
+      { "@type": "ListItem", position: 3, name: item.title, item: `https://www.theratist.com/news/${slug}` },
+    ],
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(newsSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <Link href="/news" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to News
       </Link>
@@ -85,7 +96,7 @@ export default async function NewsArticlePage({ params }: Props) {
       {item.coverImage && (
         <div className="relative aspect-video rounded-xl overflow-hidden mb-6 bg-[var(--surface-2)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.coverImage} alt="" className="w-full h-full object-cover" />
+          <img src={item.coverImage} alt={item.title} className="w-full h-full object-cover" />
         </div>
       )}
 

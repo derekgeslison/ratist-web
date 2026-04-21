@@ -294,6 +294,16 @@ export default async function ShowDetailPage({ params }: Props) {
     url: `https://www.theratist.com/shows/${show.id}`,
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.theratist.com" },
+      { "@type": "ListItem", position: 2, name: "TV Shows", item: "https://www.theratist.com/movies?type=tv" },
+      { "@type": "ListItem", position: 3, name: show.name, item: `https://www.theratist.com/shows/${show.id}` },
+    ],
+  };
+
   // Compute episode runtime display
   const avgRuntime = show.episode_run_time?.length
     ? Math.round(show.episode_run_time.reduce((a, b) => a + b, 0) / show.episode_run_time.length)
@@ -313,6 +323,7 @@ export default async function ShowDetailPage({ params }: Props) {
   return (
     <div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       {/* Backdrop hero */}
       <div className="relative w-full h-[30vh] min-h-[200px] max-h-[340px] overflow-hidden">
         <Image
