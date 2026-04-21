@@ -183,8 +183,9 @@ export async function POST(req: NextRequest) {
       return p;
     }
 
-    // When 2+ genres are selected, movies matching ALL of them should surface
-    // first, with OR-matching titles filling in afterwards.
+    // With 2+ genres, surface all-genre matches first, then OR-matching titles
+    // sorted by *how many* of the selected genres they hit. With 4 genres a
+    // movie matching 3 beats one matching only 2, which beats one matching 1.
     async function tmdbGetGenreAware(endpoint: string, params: Record<string, string>) {
       if (genreIds.length === 0) {
         return tmdbGet(endpoint, params);
@@ -202,6 +203,18 @@ export async function POST(req: NextRequest) {
       const orResults = (orRes?.results ?? []) as Record<string, unknown>[];
       const andIds = new Set(andResults.map((r) => r.id));
       const orUnique = orResults.filter((r) => !andIds.has(r.id));
+
+      // For 3+ genres, stable-sort OR-unique remainder by match count descending.
+      if (genreIds.length >= 3) {
+        const selected = new Set(genreIds.map(Number));
+        const matchCount = (r: Record<string, unknown>) =>
+          ((r.genre_ids as number[] | undefined) ?? []).filter((g) => selected.has(g)).length;
+        const decorated = orUnique.map((r, i) => ({ r, i, m: matchCount(r) }));
+        decorated.sort((a, b) => b.m - a.m || a.i - b.i);
+        orUnique.length = 0;
+        for (const d of decorated) orUnique.push(d.r);
+      }
+
       return {
         results: [...andResults, ...orUnique],
         total_pages: Math.max(andRes?.total_pages ?? 1, orRes?.total_pages ?? 1),
