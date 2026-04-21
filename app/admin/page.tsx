@@ -278,7 +278,7 @@ export default function AdminDashboard() {
           <h2 className="text-base font-semibold text-white mb-4">Forum Activity</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatTile icon={MessageCircle} color="text-cyan-400" label="Threads" value={stats.forum.threads} sub={`+${stats.forum.threadsWeek} this week`} />
-            <StatTile icon={MessageSquare} color="text-sky-400" label="Posts" value={stats.forum.posts} sub={`+${stats.forum.postsWeek} this week`} />
+            <StatTile icon={MessageSquare} color="text-sky-400" label="Comments" value={stats.forum.posts} sub={`+${stats.forum.postsWeek} this week`} />
             <StatTile icon={Heart} color="text-pink-400" label="Reactions" value={stats.forum.reactions} sub="All-time" />
             <StatTile icon={EyeIcon} color="text-indigo-400" label="Thread Views" value={stats.forum.views} sub="All-time" />
           </div>
