@@ -10,6 +10,7 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import OnboardingGuard from "@/components/OnboardingGuard";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 const geist = Geist({
   variable: "--font-geist-sans",
@@ -49,6 +50,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             crossOrigin="anonymous"
             strategy="afterInteractive"
           />
+        )}
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga-init" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_ID}');`}
+            </Script>
+          </>
         )}
         <script
           type="application/ld+json"
