@@ -41,12 +41,13 @@ export default async function ForumThreadLayout({ children, params }: Props) {
         createdAt: true,
         updatedAt: true,
         viewCount: true,
-        author: { select: { name: true } },
+        author: { select: { name: true, firebaseUid: true } },
+        media: { select: { posterPath: true }, take: 1 },
         posts: {
           select: {
             content: true,
             createdAt: true,
-            author: { select: { name: true } },
+            author: { select: { name: true, firebaseUid: true } },
           },
           orderBy: { createdAt: "asc" },
           take: 10,
@@ -57,6 +58,12 @@ export default async function ForumThreadLayout({ children, params }: Props) {
     if (thread) {
       const opening = thread.posts[0];
       const replies = thread.posts.slice(1);
+      // Prefer a linked movie/show poster as the thread image; fall back to
+      // the Ratist logo so Google always has an image URL.
+      const firstPoster = thread.media[0]?.posterPath;
+      const image = firstPoster
+        ? `https://image.tmdb.org/t/p/w500${firstPoster}`
+        : "https://www.theratist.com/icon-512.png";
       schema = {
         "@context": "https://schema.org",
         "@type": "DiscussionForumPosting",
@@ -64,7 +71,12 @@ export default async function ForumThreadLayout({ children, params }: Props) {
         url: `https://www.theratist.com/forum/t/${slug}`,
         datePublished: thread.createdAt.toISOString(),
         dateModified: thread.updatedAt.toISOString(),
-        author: { "@type": "Person", name: thread.author.name },
+        image,
+        author: {
+          "@type": "Person",
+          name: thread.author.name,
+          ...(thread.author.firebaseUid ? { url: `https://www.theratist.com/profile/${thread.author.firebaseUid}` } : {}),
+        },
         interactionStatistic: [
           {
             "@type": "InteractionCounter",
@@ -83,7 +95,11 @@ export default async function ForumThreadLayout({ children, params }: Props) {
               comment: replies.map((p) => ({
                 "@type": "Comment",
                 text: p.content.slice(0, 500),
-                author: { "@type": "Person", name: p.author.name },
+                author: {
+                  "@type": "Person",
+                  name: p.author.name,
+                  ...(p.author.firebaseUid ? { url: `https://www.theratist.com/profile/${p.author.firebaseUid}` } : {}),
+                },
                 datePublished: p.createdAt.toISOString(),
               })),
             }

@@ -62,11 +62,20 @@ export default async function SingleReviewPage({ params }: Props) {
     where: { id: reviewId },
     include: {
       user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-      movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true } },
+      movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } },
     },
   });
 
   if (!rating) notFound();
+
+  // Top director(s) for the reviewed movie, for the Movie schema nested
+  // inside the Review. Optional field but satisfies Google's rich-result
+  // requirements fully.
+  const directors = await prisma.movieCast.findMany({
+    where: { movieId: rating.movie.id, creditType: "crew", job: "Director" },
+    select: { celebrity: { select: { name: true } } },
+    take: 3,
+  }).catch(() => []);
 
   const ratingObj = rating as unknown as Record<string, number | null>;
   const fieldComments = (rating.fieldComments ?? {}) as Record<string, string>;
@@ -84,6 +93,9 @@ export default async function SingleReviewPage({ params }: Props) {
       url: `https://www.theratist.com/movies/${rating.movie.tmdbId}`,
       ...(rating.movie.posterPath ? { image: posterUrl(rating.movie.posterPath, "w500") } : {}),
       ...(rating.movie.releaseDate ? { datePublished: rating.movie.releaseDate } : {}),
+      ...(directors.length > 0
+        ? { director: directors.map((d) => ({ "@type": "Person", name: d.celebrity.name })) }
+        : {}),
     },
     reviewRating: {
       "@type": "Rating",
@@ -91,7 +103,11 @@ export default async function SingleReviewPage({ params }: Props) {
       bestRating: "10",
       worstRating: "1",
     },
-    author: { "@type": "Person", name: rating.user.name },
+    author: {
+      "@type": "Person",
+      name: rating.user.name,
+      ...(rating.user.firebaseUid ? { url: `https://www.theratist.com/profile/${rating.user.firebaseUid}` } : {}),
+    },
     datePublished: rating.createdAt.toISOString(),
     ...(rating.reviewText ? { reviewBody: rating.reviewText.slice(0, 1000) } : {}),
     url: `https://www.theratist.com/movies/${id}/reviews/${reviewId}`,

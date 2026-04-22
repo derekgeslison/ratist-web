@@ -47,7 +47,7 @@ export default async function TwoThumbsPostPage({ params }: Props) {
   const post = await prisma.blogPost.findUnique({
     where: { slug, published: true, type: "PUNCH_AND_JUDY" },
     include: {
-      author: { select: { name: true, avatarUrl: true } },
+      author: { select: { name: true, avatarUrl: true, firebaseUid: true } },
       media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
       people: { select: { tmdbId: true, name: true, profilePath: true } },
     },
@@ -63,7 +63,11 @@ export default async function TwoThumbsPostPage({ params }: Props) {
     dateModified: post.updatedAt.toISOString(),
     ...(post.excerpt ? { description: post.excerpt } : {}),
     ...(post.coverImage ? { image: [post.coverImage] } : {}),
-    author: { "@type": "Person", name: post.author.name },
+    author: {
+      "@type": "Person",
+      name: post.author.name,
+      ...(post.author.firebaseUid ? { url: `https://www.theratist.com/profile/${post.author.firebaseUid}` } : {}),
+    },
     publisher: {
       "@type": "Organization",
       name: "The Ratist",

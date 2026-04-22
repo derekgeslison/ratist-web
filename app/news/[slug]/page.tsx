@@ -47,7 +47,7 @@ export default async function NewsArticlePage({ params }: Props) {
   const item = await prisma.newsItem.findUnique({
     where: { slug, published: true },
     include: {
-      author: { select: { id: true, name: true, avatarUrl: true } },
+      author: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } },
       media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
       people: { select: { tmdbId: true, name: true, profilePath: true } },
     },
@@ -65,7 +65,13 @@ export default async function NewsArticlePage({ params }: Props) {
     ...(item.excerpt ? { description: item.excerpt } : {}),
     ...(item.coverImage ? { image: [item.coverImage] } : {}),
     ...(item.showAuthor !== false && item.author
-      ? { author: { "@type": "Person", name: item.author.name } }
+      ? {
+          author: {
+            "@type": "Person",
+            name: item.author.name,
+            ...(item.author.firebaseUid ? { url: `https://www.theratist.com/profile/${item.author.firebaseUid}` } : {}),
+          },
+        }
       : { author: { "@type": "Organization", name: "The Ratist" } }),
     publisher: {
       "@type": "Organization",
