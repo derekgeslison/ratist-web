@@ -220,39 +220,46 @@ function serialize(v: VisibleAfter): { seconds?: number; season?: number; episod
 }
 
 async function deleteSeasonSpecificContent(companionId: string, season: number) {
-  // Postgres JSON path filter: visibleAfter->>'season' = '<season>'
-  // Prisma doesn't have a type-safe way to do this, so we raw-delete.
+  // Delete rows that either (a) explicitly match this season OR (b) have a
+  // visible_after with NO season key at all. Case (b) catches legacy rows
+  // from earlier generations where the season tag was omitted, which would
+  // otherwise survive regeneration and produce duplicate character cards.
+  //
+  // We only clear "season-less" content when regenerating a SEASON. If the
+  // stray content genuinely belonged to a different season, the regenerator
+  // will emit it again; if it was bogus (Haiku output without a tag) it gets
+  // correctly retired.
   const seasonStr = String(season);
+  const matchesSeason = `(visible_after->>'season' = $2 OR NOT (visible_after ? 'season'))`;
+
   await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_timeline_events WHERE companion_id = $1 AND visible_after->>'season' = $2`,
+    `DELETE FROM companion_timeline_events WHERE companion_id = $1 AND ${matchesSeason}`,
     companionId,
     seasonStr,
   );
   await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_relationships WHERE companion_id = $1 AND visible_after->>'season' = $2`,
+    `DELETE FROM companion_relationships WHERE companion_id = $1 AND ${matchesSeason}`,
     companionId,
     seasonStr,
   );
   await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_glossary_terms WHERE companion_id = $1 AND visible_after->>'season' = $2`,
+    `DELETE FROM companion_glossary_terms WHERE companion_id = $1 AND ${matchesSeason}`,
     companionId,
     seasonStr,
   );
-  // Characters: remove only ones that FIRST appeared in this season. Earlier-
-  // season characters stay; their facts for this season get removed below.
   await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_characters WHERE companion_id = $1 AND visible_after->>'season' = $2`,
+    `DELETE FROM companion_characters WHERE companion_id = $1 AND ${matchesSeason}`,
     companionId,
     seasonStr,
   );
-  // Facts: remove facts tagged for this season regardless of which character
-  // (Prisma cascade already removed facts for deleted characters above).
+  // Facts: match on fact.visible_after with the same rule (Prisma cascade
+  // already removed facts for characters deleted above).
   await prisma.$executeRawUnsafe(
     `DELETE FROM companion_facts f
      USING companion_characters c
      WHERE f.character_id = c.id
        AND c.companion_id = $1
-       AND f.visible_after->>'season' = $2`,
+       AND (f.visible_after->>'season' = $2 OR NOT (f.visible_after ? 'season'))`,
     companionId,
     seasonStr,
   );
