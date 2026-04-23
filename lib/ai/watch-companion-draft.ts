@@ -145,14 +145,15 @@ For uncle/aunt/nephew/niece/cousin, the gender CAN stay as-is — those terms ar
 
 ## Timeline events
 
-- 5–15 major plot beats per season / movie. NOT an exhaustive recap — only the beats a viewer might forget or want to reference.
+- **MANDATORY: 8–20 major plot beats per season of TV, 6–12 per movie.** Do NOT return an empty or 2-item timeline — the whole point of this section is that a viewer who pulls up the companion mid-show can remember "what was the thing that happened with X". Each episode of a serialized show has at least one memorable beat worth capturing.
+- NOT an exhaustive recap, but also not sparse. Capture what a viewer would bring up in conversation: cliffhangers, deaths, betrayals, alliance shifts, major arguments, plot-turning decisions, big reveals.
 - Each event references characters by name via characterNames.
 - importance: 1 (minor reference) to 5 (saga-defining beat).
 - Skip beats that would spoil things; tag visibleAfter at the point the event has clearly happened.
 
 ## Glossary
 
-- Aim for **10–25 terms** for any show or film with non-trivial worldbuilding — err on the side of MORE. It's fine to skip only when there's genuinely nothing specialized (most sitcoms, simple romantic comedies). Succession alone has easily 15–20 worthy entries: proxy battle, tender offer, PGM, ATN, GoJo, Waystar, Eastnet, parliamentary proxy, brass ring, Vaulter, Pierce, AAAAH!, NRPI, bear hug, poison pill, stock buy-back, etc.
+- **MANDATORY: emit 10–25 terms** for any show or film with non-trivial worldbuilding — err on the side of MORE. Empty or near-empty glossary arrays are a failure mode for this section. Only return a near-empty glossary if the media is genuinely plain-vocabulary (most sitcoms, a simple romantic comedy). Succession alone has easily 15–20 worthy entries: proxy battle, tender offer, PGM, ATN, GoJo, Waystar, Eastnet, parliamentary proxy, brass ring, Vaulter, Pierce, AAAAH!, NRPI, bear hug, poison pill, stock buy-back, etc. Suits has comparable density with legal jargon: junior partner, senior partner, managing partner, of counsel, disbarment, conflict of interest, privileged, retainer, etc.
 - DON'T skip mid-obscurity terms ("IPO", "board of directors") just because they're real-world concepts — if a viewer might ask "what does this mean in THIS story", include it.
 - Things that deserve entries: in-universe acronyms, proper nouns (companies, factions, places), business / legal / political jargon, recurring catchphrases, named objects or rituals, specialized verbs the characters use.
 - **Sort the array with the MOST OBSCURE terms first, MOST COMMON last.** A reader scanning from the top should hit the things they're most likely confused about before the merely-adjacent ones. A proper noun like "Bene Gesserit" sorts above "melange" sorts above "heir".
@@ -360,11 +361,16 @@ export async function draftWatchCompanion(input: GenerateDraftInput): Promise<Co
   const userMessage = buildUserMessage(input.grounding, input.season);
 
   const response = await client.messages.create({
-    // Sonnet instead of Haiku for accuracy — this endpoint is admin-only and
-    // the generated companion is cached forever, so spending more tokens
-    // up-front to get fewer hallucinations is the right trade.
+    // Sonnet 4.6 for accuracy. A companion is generated once and cached
+    // forever, so the extra tokens per call are worth far fewer
+    // hallucinations. Applies to every generator call regardless of who
+    // triggers it (today admin-only; opens to users at phase 2).
     model: "claude-sonnet-4-6",
-    max_tokens: 8192,
+    // Bumped from 8192 — a full-season companion with 15 characters,
+    // 30 relationships, 15 timeline beats, and 20 glossary terms comfortably
+    // needs ~5–7k output tokens; 16k gives headroom so Sonnet doesn't truncate
+    // the glossary or timeline to fit.
+    max_tokens: 16384,
     system: [{ type: "text", text: buildSystemPrompt(), cache_control: { type: "ephemeral" } }],
     tools: [COMPANION_TOOL],
     tool_choice: { type: "tool", name: "draft_watch_companion" },

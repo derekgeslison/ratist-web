@@ -521,10 +521,14 @@ function groupConnectionsForCard(
 ): GroupedConnection[] {
   const map = new Map<string, GroupedConnection>();
   for (const { rel, direction } of connections) {
-    const otherId = direction === "out" ? rel.toCharacterId : rel.fromCharacterId;
-    // Safety net: skip self-loops. The normalizer also filters these but
-    // legacy rows from earlier generations might still slip through.
-    if (otherId === selfId) continue;
+    // Pick the "other" party by elimination: whichever endpoint isn't self.
+    // Using direction to derive otherId was wrong for symmetric relationships
+    // where this character is the `to` end — direction was "out" but
+    // rel.toCharacterId was self, so the old code produced self and got
+    // skipped by the self-loop safety net. That silently killed every
+    // sibling/spouse pill whenever the current card was the second party.
+    const otherId = rel.fromCharacterId === selfId ? rel.toCharacterId : rel.fromCharacterId;
+    if (otherId === selfId) continue; // genuine self-loop — drop it
     const key = `${rel.relationshipType}|${rel.label}|${direction}`;
     const existing = map.get(key);
     if (existing) {
