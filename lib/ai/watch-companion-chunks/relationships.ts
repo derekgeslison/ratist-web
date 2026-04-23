@@ -40,9 +40,12 @@ Good short labels (2–3 words when that's enough): "mentor of", "ex-spouse", "p
 
 Good longer labels (keep when every word adds info):
 - "senior communications aide to" — "senior" signals seniority, "communications" is the specific function. Both earn their keep.
-- "Chief Operating Officer of" — title is specific.
 - "adopted parent of" — "adopted" is a material fact about the relationship.
 - "step-sibling of" — "step-" is material.
+
+**Universally-known acronyms are fine** — use them. "CEO of", "CFO of", "COO of", "CTO of", "CMO of", "VP of", "SVP of", "HR head of", "PM of", "MD of" all read cleanly. Don't write "Chief Operating Officer of" when "COO of" works. Other generally-understood ones: FBI, CIA, DA, AG, NYPD, DOJ, CEO, IPO, R&D.
+
+But **show-specific acronyms stay spelled out** in labels — "PGM", "ATN", "GoJo" (Succession), "SAMCRO" (Sons of Anarchy), "KISS" the band. These belong in the glossary; a viewer who doesn't know the acronym yet shouldn't have to guess from a relationship pill.
 
 Verbose labels that ARE writing prose (compress these):
 - ❌ "mentor to during management training" → ✅ "mentor of" — the when/context belongs in a character fact.

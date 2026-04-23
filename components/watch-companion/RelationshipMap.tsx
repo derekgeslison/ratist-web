@@ -322,13 +322,23 @@ export default function RelationshipMap({ characters, relationships, groupColors
                     <button
                       type="button"
                       onClick={() => setSelectedEdge({ label: rel.label, type: rel.relationshipType })}
-                      className="w-full flex items-center gap-1.5 text-left text-[11px] px-2 py-1 rounded hover:bg-[var(--surface-2)] transition-colors"
+                      className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-[var(--surface-2)] transition-colors flex items-start gap-1.5"
                     >
-                      <Icon className="w-3 h-3 shrink-0" style={{ color }} />
-                      <span className={`truncate ${fromIsSelected ? "text-white font-semibold" : "text-[var(--foreground-muted)]"}`}>{fromName}</span>
-                      <span className="text-[var(--foreground-muted)] italic shrink-0">{rel.label}</span>
-                      <span className={`truncate ${!fromIsSelected ? "text-white font-semibold" : "text-[var(--foreground-muted)]"}`}>{toName}</span>
-                      <span className="ml-auto text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]/70 capitalize shrink-0">{rel.relationshipType}</span>
+                      <Icon className="w-3 h-3 shrink-0 mt-0.5" style={{ color }} />
+                      {/* Inline text flow — wraps to the next line when long
+                         instead of truncating. Since tapping a character
+                         usually only surfaces a handful of connections,
+                         letting rows occupy two lines each is a fine
+                         trade for readability. */}
+                      <span className="flex-1 leading-snug">
+                        <span className={fromIsSelected ? "text-white font-semibold" : "text-[var(--foreground-muted)]"}>{fromName}</span>
+                        {" "}
+                        <span className="text-[var(--foreground-muted)] italic">{rel.label}</span>
+                        {" "}
+                        <span className={!fromIsSelected ? "text-white font-semibold" : "text-[var(--foreground-muted)]"}>{toName}</span>
+                        {" "}
+                        <span className="text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]/70 capitalize">· {rel.relationshipType}</span>
+                      </span>
                     </button>
                   </li>
                 );
