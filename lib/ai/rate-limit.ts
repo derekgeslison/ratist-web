@@ -30,7 +30,35 @@ export const FEATURE_CAPS: Record<string, AiLimits> = {
   // so both caps stay at 0 as defense-in-depth: if requireAdmin is ever
   // removed, non-admins still get hard-blocked at the rate-limit layer.
   movie_map_draft: { freeDaily: 0, paidDaily: 0 },
+  // Watch Companion generation is gated weekly (not daily) — see
+  // checkWatchCompanionRateLimit. The daily caps here stay at 0 so the
+  // shared checker doesn't accidentally let non-admins through.
+  watch_companion_generate: { freeDaily: 0, paidDaily: 0 },
 };
+
+/**
+ * Weekly rate limit for Watch Companion generation. Admins bypass. Free users
+ * get 2/week, Backstage Pass users get 5/week. Cost is only incurred the
+ * first time someone generates a companion for a given (tmdbId, mediaType,
+ * season) — cached views are free for everyone.
+ */
+export async function checkWatchCompanionRateLimit(user: UserForRateLimit): Promise<string | null> {
+  if (user.aiDisabled) {
+    return "AI features have been disabled for your account. Contact support if you believe this is a mistake.";
+  }
+  if (user.isAdmin) return null;
+
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const count = await prisma.aiUsageLog.count({
+    where: { userId: user.id, feature: "watch_companion_generate", createdAt: { gte: weekAgo } },
+  });
+
+  const cap = isSubscriptionActive(user) ? 5 : 2;
+  if (count >= cap) {
+    return `You've reached the weekly Watch Companion generation limit (${cap} per week). You can still view any companion that's already been generated. ${isSubscriptionActive(user) ? "" : "Upgrade to Backstage Pass for a higher cap."}`.trim();
+  }
+  return null;
+}
 
 /**
  * Check AI usage caps. Order of checks:

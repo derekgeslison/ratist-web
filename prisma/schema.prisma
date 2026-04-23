@@ -116,6 +116,10 @@ model User {
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
   userBadges       UserBadge[]
+  companionsGenerated  WatchCompanion[]          @relation("companionGenerator")
+  companionSuggestions CompanionSuggestion[]     @relation("suggestionAuthor")
+  companionSuggestionVotes CompanionSuggestionVote[]
+  companionSuggestionResolutions CompanionSuggestion[] @relation("suggestionResolver")
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -1995,4 +1999,189 @@ model FraudFlag {
 
   @@index([status, type])
   @@map("fraud_flags")
+}
+
+// ─── Watch Companion ──────────────────────────────────────────────────────────
+// AI+community-generated viewing-guide data for a movie or TV show. One record
+// per (tmdbId, mediaType). For shows, seasons are generated incrementally into
+// the same companion record; seasonsGenerated tracks which are populated.
+
+model WatchCompanion {
+  id             String   @id @default(cuid())
+  tmdbId         Int      @map("tmdb_id")
+  mediaType      String   @map("media_type") // "movie" | "tv"
+  title          String   // snapshot of movie/show title at generation time
+  runtimeSeconds Int?     @map("runtime_seconds") // for movies — spoiler-slider max
+  seasonsGenerated Int[]  @default([]) @map("seasons_generated") // for tv — which seasons have been populated
+
+  // Published/draft workflow. Drafts exist only for admin review; published
+  // companions render publicly on the show/movie page.
+  status         String   @default("draft") // "draft" | "published"
+  generatedBy    String?  @map("generated_by") // userId who triggered the first generation
+  lastGeneratedAt DateTime? @map("last_generated_at")
+  publishedAt    DateTime? @map("published_at")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  generator   User? @relation("companionGenerator", fields: [generatedBy], references: [id], onDelete: SetNull)
+  characters  CompanionCharacter[]
+  relationships CompanionRelationship[]
+  timeline    CompanionTimelineEvent[]
+  glossary    CompanionGlossaryTerm[]
+  suggestions CompanionSuggestion[]
+
+  @@unique([tmdbId, mediaType])
+  @@index([status])
+  @@map("watch_companions")
+}
+
+// A character in a companion. baseDescription is always visible (spoiler-safe
+// intro — "The Roy family patriarch" for Logan). Evolving facts (role changes,
+// arcs, deaths) live in CompanionFact with per-moment visibleAfter.
+
+model CompanionCharacter {
+  id           String @id @default(cuid())
+  companionId  String @map("companion_id")
+  name         String
+  actorName    String? @map("actor_name")
+  actorTmdbId  Int?    @map("actor_tmdb_id")
+  baseDescription String @db.Text @map("base_description")
+
+  // When the character first appears. For movies: seconds into runtime.
+  // For shows: { season, episode, seconds? }.
+  visibleAfter Json   @map("visible_after") // { seconds?, season?, episode? }
+
+  // Optional primary faction / group (for coloring in diagrams — "Waystar",
+  // "House Stark", etc.)
+  group        String?
+  imageUrl     String? @map("image_url") // headshot; usually TMDB profile path
+
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  companion    WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  facts        CompanionFact[]
+  fromRelationships CompanionRelationship[] @relation("relFrom")
+  toRelationships   CompanionRelationship[] @relation("relTo")
+
+  @@index([companionId])
+  @@map("companion_characters")
+}
+
+// A fact about a character that unlocks as the viewer progresses. "Becomes
+// acting CEO in S3E5." "Dies in the S4 premiere." Separate row per fact so
+// community suggestions can target a specific fact.
+
+model CompanionFact {
+  id          String @id @default(cuid())
+  characterId String @map("character_id")
+  fact        String @db.Text
+  factType    String @map("fact_type") // "role_change" | "relationship_change" | "arc" | "death" | "reveal" | "other"
+  visibleAfter Json  @map("visible_after")
+
+  character   CompanionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+  @@map("companion_facts")
+}
+
+model CompanionRelationship {
+  id          String @id @default(cuid())
+  companionId String @map("companion_id")
+  fromCharacterId String @map("from_character_id")
+  toCharacterId   String @map("to_character_id")
+  relationshipType String @map("relationship_type") // "family" | "romantic" | "business" | "rivalry" | "alliance" | "mentor" | "other"
+  label       String // human-readable: "father of", "ex-wife", "reports to", "rival"
+  visibleAfter Json @map("visible_after")
+  directed    Boolean @default(true) // false for symmetric (siblings, allies)
+
+  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  from        CompanionCharacter @relation("relFrom", fields: [fromCharacterId], references: [id], onDelete: Cascade)
+  to          CompanionCharacter @relation("relTo", fields: [toCharacterId], references: [id], onDelete: Cascade)
+
+  @@index([companionId])
+  @@map("companion_relationships")
+}
+
+model CompanionTimelineEvent {
+  id          String @id @default(cuid())
+  companionId String @map("companion_id")
+  description String @db.Text
+  visibleAfter Json  @map("visible_after")
+  characterIds String[] @default([]) @map("character_ids") // which characters are involved
+  importance  Int     @default(3) // 1-5 — drives filtering ("show only major beats")
+
+  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@index([companionId])
+  @@map("companion_timeline_events")
+}
+
+model CompanionGlossaryTerm {
+  id          String @id @default(cuid())
+  companionId String @map("companion_id")
+  term        String
+  definition  String @db.Text
+  visibleAfter Json @map("visible_after")
+  category    String? // "world" | "faction" | "jargon" | "concept"
+
+  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@index([companionId])
+  @@map("companion_glossary_terms")
+}
+
+// Community-submitted edits. Can be a new item, a correction to an existing
+// item, or a deletion request. Payload shape depends on type.
+
+model CompanionSuggestion {
+  id          String @id @default(cuid())
+  companionId String @map("companion_id")
+  submitterId String @map("submitter_id")
+
+  // What kind of change
+  action      String // "add" | "edit" | "remove"
+  targetType  String @map("target_type") // "character" | "fact" | "relationship" | "timeline" | "glossary" | "baseDescription"
+  targetId    String? @map("target_id") // null for "add"; otherwise references the existing row
+
+  // Free-text rationale + structured payload describing the proposed change
+  rationale   String? @db.Text
+  payload     Json // shape depends on targetType
+
+  // Voting + moderation
+  status      String @default("pending") // "pending" | "approved" | "dismissed"
+  upvoteScore Int    @default(0) @map("upvote_score") // sum of weighted votes (cached)
+  voteCount   Int    @default(0) @map("vote_count")
+
+  // Resolution
+  resolvedById String? @map("resolved_by_id")
+  resolvedAt   DateTime? @map("resolved_at")
+  resolutionNote String? @db.Text @map("resolution_note")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  submitter   User @relation("suggestionAuthor", fields: [submitterId], references: [id], onDelete: Cascade)
+  resolver    User? @relation("suggestionResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  votes       CompanionSuggestionVote[]
+
+  @@index([companionId, status])
+  @@index([status, createdAt])
+  @@map("companion_suggestions")
+}
+
+model CompanionSuggestionVote {
+  id           String @id @default(cuid())
+  suggestionId String @map("suggestion_id")
+  voterId      String @map("voter_id")
+  vote         Int    // +1 or -1
+  weight       Int    @default(1) // 1 for regular, 3 for critic (snapshot at vote time)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  suggestion   CompanionSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  voter        User @relation(fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([suggestionId, voterId])
+  @@map("companion_suggestion_votes")
 }
