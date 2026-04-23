@@ -12,6 +12,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in to suggest an edit" }, { status: 401 });
 
+  // Admin-set troll block. We fetch the flag here rather than in getAuthedUser
+  // since it's companion-specific and most routes don't care.
+  const userRecord = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { companionSuggestionsBlocked: true },
+  });
+  if (userRecord?.companionSuggestionsBlocked) {
+    return NextResponse.json({ error: "Your suggestion submissions have been paused by moderators." }, { status: 403 });
+  }
+
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null) as {
     action?: unknown; targetType?: unknown; targetId?: unknown;

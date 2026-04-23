@@ -3,9 +3,10 @@
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles } from "lucide-react";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
+import RelationshipMap from "./RelationshipMap";
 
 interface VisibleAfter {
   seconds?: number | null;
@@ -170,7 +171,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
   const [selectedSeason, setSelectedSeason] = useState<number>(defaultSeason);
   const [hydrated, setHydrated] = useState(false);
-  const [activeTab, setActiveTab] = useState<"cast" | "timeline" | "glossary">("cast");
+  const [activeTab, setActiveTab] = useState<"cast" | "map" | "timeline" | "glossary">("cast");
   const [glossaryCategoryFilter, setGlossaryCategoryFilter] = useState<string | "all">("all");
 
   // Episode slots for the CURRENTLY SELECTED season only. The season picker is
@@ -412,6 +413,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           <nav className="flex gap-1 border-b border-[var(--border)] overflow-x-auto mt-2 -mb-2">
             {([
               { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
+              { key: "map", label: "Map", icon: Network, count: visibleRelationships.length },
               { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
               { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
             ] as const).map(({ key, label, icon: Icon, count }) => (
@@ -537,23 +539,77 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     </div>
                   )}
 
-                  {visibleFacts.length > 0 && (
-                    <ul className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-1">
-                      {visibleFacts.map((f) => (
-                        <li key={f.id} className="text-xs text-[var(--foreground-muted)] flex items-start gap-2">
-                          <span className="text-[9px] uppercase tracking-wider font-semibold shrink-0 mt-0.5" style={{ color }}>
-                            {f.factType.replace(/_/g, " ")}
-                          </span>
-                          <span className="flex-1">{f.fact}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {/* Role-tenure ladder: shows how this character's role
+                     evolved across the story. Only appears when there are
+                     2+ role_change facts unlocked (one change = not a
+                     ladder). Rendered before the general facts list since
+                     it's usually the most at-a-glance useful info. */}
+                  {(() => {
+                    const roleChanges = visibleFacts
+                      .filter((f) => f.factType === "role_change")
+                      .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+                    if (roleChanges.length < 2) return null;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-[var(--border)]/40">
+                        <p className="text-[9px] uppercase tracking-wider font-semibold mb-1.5" style={{ color }}>Role history</p>
+                        <ol className="space-y-1">
+                          {roleChanges.map((f, i) => (
+                            <li key={f.id} className="flex items-start gap-2 text-xs">
+                              <span className="mt-1 shrink-0" aria-hidden>
+                                <span className="block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                {i < roleChanges.length - 1 && (
+                                  <span className="block w-px h-3 mx-auto" style={{ backgroundColor: color, opacity: 0.4 }} />
+                                )}
+                              </span>
+                              <span className="text-[var(--foreground-muted)] flex-1 leading-snug">{f.fact}</span>
+                              <span className="text-[9px] text-[var(--foreground-muted)]/70 uppercase tracking-wider shrink-0 mt-0.5">
+                                {formatVisibleAfter(f.visibleAfter, mediaType)}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Facts list — skips role_changes ONLY when the ladder
+                     above is rendered (2+ role_changes). With 0–1
+                     role_changes the ladder doesn't render and we fall back
+                     to showing the single role_change as a normal fact. */}
+                  {(() => {
+                    const roleCount = visibleFacts.filter((f) => f.factType === "role_change").length;
+                    const ladderShown = roleCount >= 2;
+                    const displayFacts = ladderShown
+                      ? visibleFacts.filter((f) => f.factType !== "role_change")
+                      : visibleFacts;
+                    if (displayFacts.length === 0) return null;
+                    return (
+                      <ul className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-1">
+                        {displayFacts.map((f) => (
+                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] flex items-start gap-2">
+                            <span className="text-[9px] uppercase tracking-wider font-semibold shrink-0 mt-0.5" style={{ color }}>
+                              {f.factType.replace(/_/g, " ")}
+                            </span>
+                            <span className="flex-1">{f.fact}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
               );
             })}
           </div>
         </Section>
+      )}
+
+      {/* Relationship map */}
+      {activeTab === "map" && (
+        <RelationshipMap
+          characters={visibleCharacters.map((c) => ({ id: c.id, name: c.name, group: c.group }))}
+          relationships={visibleRelationships}
+          groupColors={groupColors}
+        />
       )}
 
       {/* Timeline */}

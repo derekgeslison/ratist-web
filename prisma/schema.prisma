@@ -25,6 +25,10 @@ model User {
   isAdmin     Boolean  @default(false) @map("is_admin")
   isOwner     Boolean  @default(false) @map("is_owner")
   aiDisabled  Boolean  @default(false) @map("ai_disabled") // admin-set: blocks all AI features for this user
+  // Admin-set: blocks this user from submitting Watch Companion suggestions.
+  // Used to shut down troll/low-signal submitters without hard-banning them
+  // from the rest of the site.
+  companionSuggestionsBlocked Boolean @default(false) @map("companion_suggestions_blocked")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   onboardedAt DateTime? @map("onboarded_at")
