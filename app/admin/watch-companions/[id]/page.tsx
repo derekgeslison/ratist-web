@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X } from "lucide-react";
 
 interface VisibleAfter { seconds?: number; season?: number; episode?: number }
 
@@ -46,6 +46,16 @@ function fmtVisible(v: VisibleAfter, mediaType: "movie" | "tv"): string {
   return `S${s}E${e}`;
 }
 
+type EditableType = "character" | "fact" | "timeline" | "glossary";
+type ItemType = EditableType | "relationship";
+
+interface EditingState {
+  type: EditableType;
+  id: string;
+  field: "baseDescription" | "fact" | "description" | "definition";
+  value: string;
+}
+
 export default function ReviewCompanionPage() {
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
@@ -54,6 +64,75 @@ export default function ReviewCompanionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState<EditingState | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  async function deleteItem(type: ItemType, itemId: string) {
+    if (!user || !confirm("Delete this item? This can't be undone from here.")) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/admin/watch-companion/item/${type}/${itemId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    setCompanion((prev) => {
+      if (!prev) return prev;
+      switch (type) {
+        case "character":
+          return { ...prev, characters: prev.characters.filter((c) => c.id !== itemId) };
+        case "fact":
+          return {
+            ...prev,
+            characters: prev.characters.map((c) => ({ ...c, facts: c.facts.filter((f) => f.id !== itemId) })),
+          };
+        case "relationship":
+          return { ...prev, relationships: prev.relationships.filter((r) => r.id !== itemId) };
+        case "timeline":
+          return { ...prev, timeline: prev.timeline.filter((t) => t.id !== itemId) };
+        case "glossary":
+          return { ...prev, glossary: prev.glossary.filter((g) => g.id !== itemId) };
+      }
+    });
+  }
+
+  async function saveEdit() {
+    if (!editing || !user) return;
+    setEditSaving(true);
+    const token = await user.getIdToken();
+    const body: Record<string, unknown> = { [editing.field]: editing.value };
+    const res = await fetch(`/api/admin/watch-companion/item/${editing.type}/${editing.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { setEditSaving(false); return; }
+    setCompanion((prev) => {
+      if (!prev) return prev;
+      const { type, id, field, value } = editing;
+      switch (type) {
+        case "character":
+          return { ...prev, characters: prev.characters.map((c) => c.id === id ? { ...c, baseDescription: value } : c) };
+        case "fact":
+          return {
+            ...prev,
+            characters: prev.characters.map((c) => ({
+              ...c,
+              facts: c.facts.map((f) => f.id === id ? { ...f, fact: value } : f),
+            })),
+          };
+        case "timeline":
+          return { ...prev, timeline: prev.timeline.map((t) => t.id === id ? { ...t, description: value } : t) };
+        case "glossary":
+          return { ...prev, glossary: prev.glossary.map((g) => g.id === id ? { ...g, [field]: value } : g) };
+      }
+    });
+    setEditing(null);
+    setEditSaving(false);
+  }
+
+  function startEdit(type: EditableType, itemId: string, field: EditingState["field"], value: string) {
+    setEditing({ type, id: itemId, field, value });
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -155,7 +234,9 @@ export default function ReviewCompanionPage() {
               <h3 className="text-sm font-semibold text-white">Characters ({companion.characters.length})</h3>
             </div>
             <div className="divide-y divide-[var(--border)]/40">
-              {companion.characters.map((c) => (
+              {companion.characters.map((c) => {
+                const descEditing = editing?.type === "character" && editing.id === c.id;
+                return (
                 <div key={c.id} className="px-5 py-3">
                   <div className="flex items-start justify-between gap-3 mb-1">
                     <div>
@@ -165,22 +246,78 @@ export default function ReviewCompanionPage() {
                     <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] shrink-0">
                       {c.group && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-2)]">{c.group}</span>}
                       <span>appears {fmtVisible(c.visibleAfter, companion.mediaType)}</span>
+                      <button
+                        onClick={() => startEdit("character", c.id, "baseDescription", c.baseDescription)}
+                        className="p-1 rounded hover:text-white hover:bg-[var(--surface-2)] transition-colors"
+                        title="Edit description"
+                      ><Pencil className="w-3 h-3" /></button>
+                      <button
+                        onClick={() => deleteItem("character", c.id)}
+                        className="p-1 rounded hover:text-red-400 hover:bg-[var(--surface-2)] transition-colors"
+                        title="Delete character"
+                      ><Trash2 className="w-3 h-3" /></button>
                     </div>
                   </div>
-                  <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{c.baseDescription}</p>
+                  {descEditing ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        value={editing.value}
+                        onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                        rows={3}
+                        className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={saveEdit} disabled={editSaving} className="flex items-center gap-1 px-2 py-1 bg-[var(--ratist-red)] text-white rounded text-xs font-semibold hover:bg-[var(--ratist-red)]/80 disabled:opacity-50">
+                          <Check className="w-3 h-3" /> Save
+                        </button>
+                        <button onClick={() => setEditing(null)} className="flex items-center gap-1 px-2 py-1 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-xs">
+                          <X className="w-3 h-3" /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">{c.baseDescription}</p>
+                  )}
                   {c.facts.length > 0 && (
                     <ul className="mt-2 space-y-1">
-                      {c.facts.map((f) => (
-                        <li key={f.id} className="text-xs text-[var(--foreground-muted)] flex items-start gap-2">
-                          <span className="text-[10px] uppercase tracking-wider text-[var(--ratist-red)] font-semibold shrink-0 mt-0.5">{f.factType.replace(/_/g, " ")}</span>
-                          <span>{f.fact}</span>
-                          <span className="ml-auto shrink-0">{fmtVisible(f.visibleAfter, companion.mediaType)}</span>
-                        </li>
-                      ))}
+                      {c.facts.map((f) => {
+                        const factEditing = editing?.type === "fact" && editing.id === f.id;
+                        return (
+                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] flex items-start gap-2">
+                            <span className="text-[10px] uppercase tracking-wider text-[var(--ratist-red)] font-semibold shrink-0 mt-0.5">{f.factType.replace(/_/g, " ")}</span>
+                            {factEditing ? (
+                              <div className="flex-1 space-y-1">
+                                <textarea
+                                  value={editing.value}
+                                  onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                                  rows={2}
+                                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+                                />
+                                <div className="flex gap-1">
+                                  <button onClick={saveEdit} disabled={editSaving} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--ratist-red)] text-white rounded text-[10px] disabled:opacity-50">
+                                    <Check className="w-2.5 h-2.5" /> Save
+                                  </button>
+                                  <button onClick={() => setEditing(null)} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-[10px]">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="flex-1">{f.fact}</span>
+                                <span className="shrink-0">{fmtVisible(f.visibleAfter, companion.mediaType)}</span>
+                                <button onClick={() => startEdit("fact", f.id, "fact", f.fact)} className="p-0.5 rounded hover:text-white" title="Edit"><Pencil className="w-2.5 h-2.5" /></button>
+                                <button onClick={() => deleteItem("fact", f.id)} className="p-0.5 rounded hover:text-red-400" title="Delete"><Trash2 className="w-2.5 h-2.5" /></button>
+                              </>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </section>
 
@@ -198,6 +335,7 @@ export default function ReviewCompanionPage() {
                     <span className="text-[var(--foreground-muted)] italic text-xs">{r.label}</span>
                     <span className="font-medium">{charName(r.toCharacterId)}</span>
                     <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(r.visibleAfter, companion.mediaType)} · {r.relationshipType}</span>
+                    <button onClick={() => deleteItem("relationship", r.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
                   </li>
                 ))}
               </ul>
@@ -212,13 +350,39 @@ export default function ReviewCompanionPage() {
                 <h3 className="text-sm font-semibold text-white">Timeline events ({companion.timeline.length})</h3>
               </div>
               <ul className="divide-y divide-[var(--border)]/40">
-                {companion.timeline.map((t) => (
-                  <li key={t.id} className="px-5 py-2 text-sm text-white flex items-start gap-3">
-                    <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider shrink-0 mt-0.5 w-12">{fmtVisible(t.visibleAfter, companion.mediaType)}</span>
-                    <span className="flex-1">{t.description}</span>
-                    <span className="text-[10px] text-[var(--foreground-muted)] shrink-0 mt-0.5">★{t.importance}</span>
-                  </li>
-                ))}
+                {companion.timeline.map((t) => {
+                  const isEditing = editing?.type === "timeline" && editing.id === t.id;
+                  return (
+                    <li key={t.id} className="px-5 py-2 text-sm text-white flex items-start gap-3">
+                      <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider shrink-0 mt-0.5 w-12">{fmtVisible(t.visibleAfter, companion.mediaType)}</span>
+                      {isEditing ? (
+                        <div className="flex-1 space-y-1">
+                          <textarea
+                            value={editing.value}
+                            onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                            rows={2}
+                            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+                          />
+                          <div className="flex gap-1">
+                            <button onClick={saveEdit} disabled={editSaving} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--ratist-red)] text-white rounded text-[10px] disabled:opacity-50">
+                              <Check className="w-2.5 h-2.5" /> Save
+                            </button>
+                            <button onClick={() => setEditing(null)} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-[10px]">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="flex-1">{t.description}</span>
+                          <span className="text-[10px] text-[var(--foreground-muted)] shrink-0 mt-0.5">★{t.importance}</span>
+                          <button onClick={() => startEdit("timeline", t.id, "description", t.description)} className="p-0.5 text-[var(--foreground-muted)] hover:text-white" title="Edit"><Pencil className="w-3 h-3" /></button>
+                          <button onClick={() => deleteItem("timeline", t.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}
@@ -231,16 +395,40 @@ export default function ReviewCompanionPage() {
                 <h3 className="text-sm font-semibold text-white">Glossary ({companion.glossary.length})</h3>
               </div>
               <ul className="divide-y divide-[var(--border)]/40">
-                {companion.glossary.map((g) => (
-                  <li key={g.id} className="px-5 py-2 text-sm">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-semibold text-white">{g.term}</span>
-                      {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
-                      <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(g.visibleAfter, companion.mediaType)}</span>
-                    </div>
-                    <p className="text-[var(--foreground-muted)] mt-0.5">{g.definition}</p>
-                  </li>
-                ))}
+                {companion.glossary.map((g) => {
+                  const isEditing = editing?.type === "glossary" && editing.id === g.id;
+                  return (
+                    <li key={g.id} className="px-5 py-2 text-sm">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-semibold text-white">{g.term}</span>
+                        {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
+                        <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(g.visibleAfter, companion.mediaType)}</span>
+                        <button onClick={() => startEdit("glossary", g.id, "definition", g.definition)} className="p-0.5 text-[var(--foreground-muted)] hover:text-white" title="Edit definition"><Pencil className="w-3 h-3" /></button>
+                        <button onClick={() => deleteItem("glossary", g.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
+                      </div>
+                      {isEditing ? (
+                        <div className="mt-1 space-y-1">
+                          <textarea
+                            value={editing.value}
+                            onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                            rows={2}
+                            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+                          />
+                          <div className="flex gap-1">
+                            <button onClick={saveEdit} disabled={editSaving} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--ratist-red)] text-white rounded text-[10px] disabled:opacity-50">
+                              <Check className="w-2.5 h-2.5" /> Save
+                            </button>
+                            <button onClick={() => setEditing(null)} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-[10px]">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[var(--foreground-muted)] mt-0.5">{g.definition}</p>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}
