@@ -2124,6 +2124,7 @@ model CompanionGlossaryTerm {
   definition  String @db.Text
   visibleAfter Json @map("visible_after")
   category    String? // "world" | "faction" | "jargon" | "concept"
+  sortOrder   Int    @default(0) @map("sort_order") // Claude orders most-obscure-first; preserved at write time
 
   companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
 

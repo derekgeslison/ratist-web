@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       },
       relationships: true,
       timeline: true,
-      glossary: true,
+      glossary: { orderBy: { sortOrder: "asc" } },
     },
   });
 

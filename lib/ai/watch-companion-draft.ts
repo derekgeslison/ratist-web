@@ -118,9 +118,11 @@ NEVER output a fact tagged earlier than when it's established. If you're unsure,
 
 ## Glossary
 
-- ONLY for shows/movies with meaningful worldbuilding jargon. Succession has "proxy battle", "Congressional PAC". Dune has "Bene Gesserit", "Kwisatz Haderach". Seinfeld has none. Skip this section if the show has no specialized vocabulary.
-- 0–15 terms.
-- category: "world" (setting elements), "faction" (houses/organizations), "jargon" (in-universe terminology), "concept" (themes / recurring ideas).
+- Aim for **10–25 terms** for any show or film with non-trivial worldbuilding — err on the side of MORE. It's fine to skip only when there's genuinely nothing specialized (most sitcoms, simple romantic comedies). Succession alone has easily 15–20 worthy entries: proxy battle, tender offer, PGM, ATN, GoJo, Waystar, Eastnet, parliamentary proxy, brass ring, Vaulter, Pierce, AAAAH!, NRPI, bear hug, poison pill, stock buy-back, etc.
+- DON'T skip mid-obscurity terms ("IPO", "board of directors") just because they're real-world concepts — if a viewer might ask "what does this mean in THIS story", include it.
+- Things that deserve entries: in-universe acronyms, proper nouns (companies, factions, places), business / legal / political jargon, recurring catchphrases, named objects or rituals, specialized verbs the characters use.
+- **Sort the array with the MOST OBSCURE terms first, MOST COMMON last.** A reader scanning from the top should hit the things they're most likely confused about before the merely-adjacent ones. A proper noun like "Bene Gesserit" sorts above "melange" sorts above "heir".
+- category: "world" (setting elements), "faction" (houses/organizations), "jargon" (in-universe terminology or specialized real-world terms), "concept" (themes / recurring ideas).
 
 ## Quality bar
 

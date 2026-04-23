@@ -182,16 +182,17 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     timelineAdded = events.length;
   }
 
-  // Glossary
+  // Glossary — preserve Claude's most-obscure-first ordering via sortOrder
   let glossaryAdded = 0;
   if (draft.glossary.length > 0) {
     await prisma.companionGlossaryTerm.createMany({
-      data: draft.glossary.map((g) => ({
+      data: draft.glossary.map((g, idx) => ({
         companionId: companion.id,
         term: g.term,
         definition: g.definition,
         category: g.category,
         visibleAfter: serialize(g.visibleAfter),
+        sortOrder: idx,
       })),
     });
     glossaryAdded = draft.glossary.length;

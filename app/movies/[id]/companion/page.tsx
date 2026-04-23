@@ -38,7 +38,7 @@ export default async function MovieCompanionPage({ params }: Props) {
       characters: { include: { facts: true }, orderBy: { sortOrder: "asc" } },
       relationships: true,
       timeline: true,
-      glossary: true,
+      glossary: { orderBy: { sortOrder: "asc" } },
     },
   });
 

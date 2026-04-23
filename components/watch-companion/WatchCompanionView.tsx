@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2 } from "lucide-react";
+import Link from "next/link";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
 
@@ -211,6 +212,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      {/* Disclaimer — small, non-intrusive */}
+      <p className="text-[11px] text-[var(--foreground-muted)] flex items-center gap-1.5 leading-relaxed">
+        <Sparkles className="w-3 h-3 shrink-0 text-[var(--ratist-red)]/70" />
+        AI-drafted and community-refined — accuracy improves as users contribute corrections.
+      </p>
+
       {/* Spoiler slider */}
       <div className="sticky top-2 z-20 bg-[var(--background)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl p-4 shadow-lg">
         <div className="flex items-center justify-between mb-3">
@@ -285,7 +292,19 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   style={{ borderLeftWidth: 3, borderLeftColor: color }}
                 >
                   <div className="flex items-start gap-3">
-                    {c.imageUrl ? (
+                    {c.actorTmdbId ? (
+                      <Link href={`/celebrities/${c.actorTmdbId}`} className="shrink-0" aria-label={c.actorName ?? c.name}>
+                        {c.imageUrl ? (
+                          <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[var(--surface-2)] hover:ring-2 hover:ring-[var(--ratist-red)] transition-all">
+                            <Image src={c.imageUrl} alt={c.name} fill sizes="48px" className="object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-white font-bold hover:ring-2 hover:ring-[var(--ratist-red)] transition-all">
+                            {c.name[0]?.toUpperCase() ?? "?"}
+                          </div>
+                        )}
+                      </Link>
+                    ) : c.imageUrl ? (
                       <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
                         <Image src={c.imageUrl} alt={c.name} fill sizes="48px" className="object-cover" />
                       </div>
@@ -296,7 +315,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white">{c.name}</p>
-                      {c.actorName && <p className="text-[11px] text-[var(--foreground-muted)]">played by {c.actorName}</p>}
+                      {c.actorName && (
+                        c.actorTmdbId ? (
+                          <Link href={`/celebrities/${c.actorTmdbId}`} className="text-[11px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
+                            played by {c.actorName}
+                          </Link>
+                        ) : (
+                          <p className="text-[11px] text-[var(--foreground-muted)]">played by {c.actorName}</p>
+                        )
+                      )}
                       {c.group && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>}
                     </div>
                   </div>
