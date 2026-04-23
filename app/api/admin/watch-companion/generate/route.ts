@@ -1,14 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { generateCompanion } from "@/lib/ai/watch-companion-generate";
+import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-companion-generate";
 import { logAiUsage } from "@/lib/ai/rate-limit";
 
 export const dynamic = "force-dynamic";
-// Sonnet 4.6 + 12k max_tokens + Wikipedia fetch + TMDB season detail + Prisma
-// writes can run 90–180s for a full season. 300s is Vercel Pro's default
-// serverless limit; the Hobby plan caps lower so this is the ceiling for us.
+// Five sequential Sonnet calls + TMDB + Wikipedia + Prisma writes can still
+// run 2–4 minutes on a full season. 300s is Vercel Pro's ceiling.
 export const maxDuration = 300;
 
 async function requireAdmin(req: NextRequest) {
@@ -21,39 +20,74 @@ async function requireAdmin(req: NextRequest) {
   return user;
 }
 
+function sseLine(evt: ProgressEvent): string {
+  return `data: ${JSON.stringify(evt)}\n\n`;
+}
+
 export async function POST(req: NextRequest) {
   const user = await requireAdmin(req);
-  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
 
   const body = await req.json().catch(() => null) as { tmdbId?: unknown; mediaType?: unknown; season?: unknown } | null;
   const tmdbId = typeof body?.tmdbId === "number" && body.tmdbId > 0 ? body.tmdbId : null;
   const mediaType = body?.mediaType === "movie" || body?.mediaType === "tv" ? body.mediaType : null;
   const season = typeof body?.season === "number" && body.season > 0 ? body.season : null;
 
-  if (!tmdbId) return NextResponse.json({ error: "tmdbId required" }, { status: 400 });
-  if (!mediaType) return NextResponse.json({ error: "mediaType must be 'movie' or 'tv'" }, { status: 400 });
-  if (mediaType === "tv" && season === null) return NextResponse.json({ error: "season required for tv" }, { status: 400 });
+  if (!tmdbId) return new Response(JSON.stringify({ error: "tmdbId required" }), { status: 400 });
+  if (!mediaType) return new Response(JSON.stringify({ error: "mediaType must be 'movie' or 'tv'" }), { status: 400 });
+  if (mediaType === "tv" && season === null) return new Response(JSON.stringify({ error: "season required for tv" }), { status: 400 });
 
-  try {
-    const result = await generateCompanion({
-      tmdbId,
-      mediaType,
-      season: mediaType === "tv" ? season! : undefined,
-      generatedByUserId: user.id,
-    });
-    await logAiUsage(user.id, "watch_companion_generate");
-    return NextResponse.json({ result });
-  } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      console.error("Watch Companion — Anthropic auth failed:", err.message);
-      return NextResponse.json({ error: "AI service isn't configured — check ANTHROPIC_API_KEY." }, { status: 500 });
-    }
-    if (err instanceof Anthropic.APIError) {
-      console.error(`Watch Companion — Anthropic API error ${err.status}:`, err.message);
-      return NextResponse.json({ error: `AI error (${err.status}): ${err.message}` }, { status: 500 });
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("Watch Companion — unexpected error:", message, err);
-    return NextResponse.json({ error: `Generation failed: ${message}` }, { status: 500 });
-  }
+  const userId = user.id;
+
+  // Stream the generator as Server-Sent Events. The admin UI parses each
+  // `data: {json}\n\n` line to drive the 5-step progress checklist.
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const send = (evt: ProgressEvent) => {
+        controller.enqueue(encoder.encode(sseLine(evt)));
+      };
+
+      try {
+        for await (const evt of generateCompanionStream({
+          tmdbId,
+          mediaType,
+          season: mediaType === "tv" ? season! : undefined,
+          generatedByUserId: userId,
+        })) {
+          send(evt);
+          if (evt.kind === "error") {
+            controller.close();
+            return;
+          }
+          if (evt.kind === "complete") {
+            // Log usage AFTER success; match the old route's behavior.
+            try { await logAiUsage(userId, "watch_companion_generate"); } catch { /* non-fatal */ }
+            controller.close();
+            return;
+          }
+        }
+        controller.close();
+      } catch (err) {
+        const message = err instanceof Anthropic.APIError
+          ? `AI error (${err.status}): ${err.message}`
+          : err instanceof Error
+          ? err.message
+          : String(err);
+        console.error("Watch Companion — generation stream error:", err);
+        try { send({ kind: "error", message }); } catch { /* already closed */ }
+        try { controller.close(); } catch { /* already closed */ }
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      // Disable buffering so events arrive in real time on Vercel + nginx.
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+      Connection: "keep-alive",
+    },
+  });
 }

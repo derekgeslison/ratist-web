@@ -66,6 +66,7 @@ export default function ReviewCompanionPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [regenStep, setRegenStep] = useState<string>("");
 
   async function deleteItem(type: ItemType, itemId: string) {
     if (!user || !confirm("Delete this item? This can't be undone from here.")) return;
@@ -174,22 +175,87 @@ export default function ReviewCompanionPage() {
     if (companion.mediaType === "tv" && (!Number.isFinite(season!) || season! < 1)) return;
 
     setSaving(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/admin/watch-companion/generate`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tmdbId: companion.tmdbId,
-        mediaType: companion.mediaType,
-        ...(companion.mediaType === "tv" ? { season } : {}),
-      }),
-    });
-    if (res.ok) {
-      window.location.reload();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      alert(`Regeneration failed: ${data.error ?? res.status}`);
+    setRegenStep("Starting…");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/admin/watch-companion/generate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdbId: companion.tmdbId,
+          mediaType: companion.mediaType,
+          ...(companion.mediaType === "tv" ? { season } : {}),
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        alert(`Regeneration failed: ${data.error ?? res.status}`);
+        setSaving(false);
+        setRegenStep("");
+        return;
+      }
+
+      // Consume the SSE stream; reload only after a "complete" event.
+      // Without this the page reloads instantly because an SSE response
+      // has status 200 from the first byte.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = false;
+      let errorMsg: string | null = null;
+
+      const stepLabels: Record<string, string> = {
+        grounding: "Fetching grounding…",
+        characters: "Drafting characters…",
+        facts: "Drafting facts…",
+        relationships: "Drafting relationships…",
+        timeline: "Drafting timeline…",
+        glossary: "Drafting glossary…",
+        persist: "Saving…",
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const raw of events) {
+          const trimmed = raw.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const evt = JSON.parse(payload);
+            if (evt.kind === "step" && evt.status === "running" && stepLabels[evt.step]) {
+              setRegenStep(stepLabels[evt.step]);
+            } else if (evt.kind === "complete") {
+              completed = true;
+            } else if (evt.kind === "error") {
+              errorMsg = evt.message ?? "Generation failed";
+            }
+          } catch { /* ignore malformed */ }
+        }
+      }
+
+      if (errorMsg) {
+        alert(`Regeneration failed: ${errorMsg}`);
+        setSaving(false);
+        setRegenStep("");
+        return;
+      }
+      if (completed) {
+        window.location.reload();
+      } else {
+        alert("Regeneration ended without completing — please try again.");
+        setSaving(false);
+        setRegenStep("");
+      }
+    } catch (err) {
+      alert(`Regeneration failed: ${err instanceof Error ? err.message : "Network error"}`);
       setSaving(false);
+      setRegenStep("");
     }
   }
 
@@ -472,6 +538,9 @@ export default function ReviewCompanionPage() {
               {saving ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
               Regenerate{companion.mediaType === "tv" ? " season" : ""}
             </button>
+            {saving && regenStep && (
+              <p className="text-[11px] text-[var(--foreground-muted)] italic text-center">{regenStep}</p>
+            )}
             <button
               onClick={deleteCompanion}
               disabled={saving}

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, Sparkles, RefreshCcw, AlertCircle, Film, Tv } from "lucide-react";
+import { ArrowLeft, Sparkles, RefreshCcw, AlertCircle, Film, Tv, Check, Loader2, Circle } from "lucide-react";
 import MediaLinker from "@/components/forum/MediaLinker";
 
 interface MediaItem {
@@ -12,6 +12,28 @@ interface MediaItem {
   mediaType: "movie" | "tv";
   title: string;
   posterPath: string | null;
+}
+
+type StepKey = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "persist";
+type StepState = "pending" | "running" | "done";
+
+const STEPS: Array<{ key: StepKey; label: string }> = [
+  { key: "grounding", label: "Fetch grounding (TMDB + Wikipedia)" },
+  { key: "characters", label: "Draft characters" },
+  { key: "facts", label: "Draft character facts" },
+  { key: "relationships", label: "Draft relationships" },
+  { key: "timeline", label: "Draft timeline" },
+  { key: "glossary", label: "Draft glossary" },
+  { key: "persist", label: "Save to database" },
+];
+
+interface ProgressEvent {
+  kind: "step" | "complete" | "error";
+  step?: StepKey;
+  status?: "running" | "done";
+  count?: number;
+  result?: { companionId: string };
+  message?: string;
 }
 
 export default function NewCompanionPage() {
@@ -22,12 +44,19 @@ export default function NewCompanionPage() {
   const [numberOfSeasons, setNumberOfSeasons] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState("");
+  const [stepStates, setStepStates] = useState<Record<StepKey, StepState>>({
+    grounding: "pending",
+    characters: "pending",
+    facts: "pending",
+    relationships: "pending",
+    timeline: "pending",
+    glossary: "pending",
+    persist: "pending",
+  });
+  const [stepCounts, setStepCounts] = useState<Partial<Record<StepKey, number>>>({});
 
   const picked = selected[0] ?? null;
 
-  // When a TV show is picked, fetch the season count so the dropdown shows
-  // real options instead of a free-text number that can be bogus.
   useEffect(() => {
     if (picked?.mediaType !== "tv") {
       setNumberOfSeasons(null);
@@ -48,6 +77,19 @@ export default function NewCompanionPage() {
     return () => { cancelled = true; };
   }, [picked]);
 
+  function resetSteps() {
+    setStepStates({
+      grounding: "pending",
+      characters: "pending",
+      facts: "pending",
+      relationships: "pending",
+      timeline: "pending",
+      glossary: "pending",
+      persist: "pending",
+    });
+    setStepCounts({});
+  }
+
   async function generate() {
     if (!user || !picked) return;
     const seasonNum = season;
@@ -58,7 +100,7 @@ export default function NewCompanionPage() {
 
     setError("");
     setLoading(true);
-    setProgress("Fetching TMDB + Wikipedia grounding and calling Claude…");
+    resetSteps();
 
     try {
       const token = await user.getIdToken();
@@ -71,13 +113,53 @@ export default function NewCompanionPage() {
           ...(picked.mediaType === "tv" ? { season: seasonNum } : {}),
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error ?? `Generation failed (${res.status})`);
+
+      if (!res.ok || !res.body) {
+        const errJson = await res.json().catch(() => ({}));
+        setError(errJson.error ?? `Generation failed (${res.status})`);
         setLoading(false);
         return;
       }
-      router.push(`/admin/watch-companions/${data.result.companionId}`);
+
+      // Parse SSE stream: each event is `data: {json}\n\n`. Buffer across
+      // chunk boundaries since a single event may arrive split.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let companionId: string | null = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const raw of events) {
+          const trimmed = raw.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const evt: ProgressEvent = JSON.parse(payload);
+            if (evt.kind === "step" && evt.step && evt.status) {
+              setStepStates((s) => ({ ...s, [evt.step!]: evt.status === "running" ? "running" : "done" }));
+              if (evt.status === "done" && typeof evt.count === "number") {
+                setStepCounts((c) => ({ ...c, [evt.step!]: evt.count }));
+              }
+            } else if (evt.kind === "complete" && evt.result?.companionId) {
+              companionId = evt.result.companionId;
+            } else if (evt.kind === "error") {
+              setError(evt.message ?? "Generation failed");
+            }
+          } catch { /* ignore malformed lines */ }
+        }
+      }
+
+      if (companionId) {
+        router.push(`/admin/watch-companions/${companionId}`);
+      } else {
+        setLoading(false);
+      }
     } catch {
       setError("Network error — please try again.");
       setLoading(false);
@@ -95,8 +177,8 @@ export default function NewCompanionPage() {
 
       <div className="max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-5">
         <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-          Search for a movie or show. For shows, pick the season you want to generate — additional seasons can be added later and will accumulate into the same companion.
-          Generation takes 30–60s.
+          Search for a movie or show. For shows, pick the season — additional seasons can be added later and accumulate into the same companion.
+          Generation takes 2–4 minutes (5 sequential Claude calls).
         </p>
 
         <div>
@@ -145,8 +227,30 @@ export default function NewCompanionPage() {
           </div>
         )}
 
-        {loading && progress && (
-          <p className="text-xs text-[var(--foreground-muted)] italic">{progress}</p>
+        {loading && (
+          <div className="space-y-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-3">
+            {STEPS.map((step) => {
+              const state = stepStates[step.key];
+              const count = stepCounts[step.key];
+              return (
+                <div key={step.key} className="flex items-center gap-2 text-sm">
+                  {state === "done" ? (
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : state === "running" ? (
+                    <Loader2 className="w-4 h-4 text-[var(--ratist-red)] shrink-0 animate-spin" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-[var(--foreground-muted)]/40 shrink-0" />
+                  )}
+                  <span className={state === "pending" ? "text-[var(--foreground-muted)]" : "text-white"}>
+                    {step.label}
+                  </span>
+                  {typeof count === "number" && (
+                    <span className="text-[11px] text-[var(--foreground-muted)] ml-auto">{count} emitted</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
 
         <button
@@ -155,7 +259,7 @@ export default function NewCompanionPage() {
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--ratist-red)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--ratist-red)]/80 transition-colors disabled:opacity-50"
         >
           {loading ? (
-            <><RefreshCcw className="w-4 h-4 animate-spin" /> Generating (30–60s)…</>
+            <><RefreshCcw className="w-4 h-4 animate-spin" /> Generating…</>
           ) : (
             <><Sparkles className="w-4 h-4" /> Generate</>
           )}

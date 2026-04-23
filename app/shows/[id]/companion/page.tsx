@@ -5,6 +5,9 @@ import { ArrowLeft, MonitorPlay } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getShowDetails, posterUrl } from "@/lib/tmdb";
 import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
+import ShareButton from "@/components/ShareButton";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.theratist.com";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +105,11 @@ export default async function ShowCompanionPage({ params }: Props) {
               {companion.seasonsGenerated.length > 0 && <span className="text-[var(--foreground-muted)] font-normal"> · S{companion.seasonsGenerated.join(", S")}</span>}
             </p>
           </div>
+          <ShareButton
+            text={`Watch Companion for ${companion.title} — a spoiler-safe viewing guide on The Ratist.`}
+            url={`${SITE_URL}/shows/${id}/companion`}
+            label="Share"
+          />
         </div>
       </header>
       <WatchCompanionView data={data} />

@@ -19,29 +19,35 @@ export async function GET(req: NextRequest) {
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const companions = await prisma.watchCompanion.findMany({
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      tmdbId: true,
-      mediaType: true,
-      title: true,
-      status: true,
-      seasonsGenerated: true,
-      lastGeneratedAt: true,
-      publishedAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          characters: true,
-          relationships: true,
-          timeline: true,
-          glossary: true,
-          suggestions: { where: { status: "pending" } },
+  try {
+    const companions = await prisma.watchCompanion.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        tmdbId: true,
+        mediaType: true,
+        title: true,
+        status: true,
+        seasonsGenerated: true,
+        lastGeneratedAt: true,
+        publishedAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            characters: true,
+            relationships: true,
+            timeline: true,
+            glossary: true,
+            suggestions: { where: { status: "pending" } },
+          },
         },
       },
-    },
-  });
+    });
 
-  return NextResponse.json({ companions });
+    return NextResponse.json({ companions });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Watch Companion list error:", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

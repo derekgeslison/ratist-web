@@ -1,6 +1,20 @@
 import { prisma } from "@/lib/prisma";
-import { loadGroundingForMovie, loadGroundingForShow } from "./watch-companion-grounding";
-import { draftWatchCompanion, type CompanionDraft, type VisibleAfter } from "./watch-companion-draft";
+import { getAnthropic } from "./client";
+import { loadGroundingForMovie, loadGroundingForShow, type CompanionGroundingData } from "./watch-companion-grounding";
+import { draftCharacters } from "./watch-companion-chunks/characters";
+import { draftFacts } from "./watch-companion-chunks/facts";
+import { draftRelationships } from "./watch-companion-chunks/relationships";
+import { draftTimeline } from "./watch-companion-chunks/timeline";
+import { draftGlossary } from "./watch-companion-chunks/glossary";
+import type {
+  CompanionDraft,
+  DraftCharacter,
+  DraftFact,
+  DraftRelationship,
+  DraftTimelineEvent,
+  DraftGlossaryTerm,
+  VisibleAfter,
+} from "./watch-companion-chunks/shared";
 
 export interface GenerateInput {
   tmdbId: number;
@@ -19,37 +33,138 @@ export interface GenerateResult {
   glossaryAdded: number;
 }
 
+// ── Progress events streamed from the orchestrator ────────────────────────
+// Each step yields a "start" (status: running) then a "done" (status: done)
+// with the counts. The final "complete" event carries the GenerateResult.
+
+export type GenerationStep = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "persist";
+
+export type ProgressEvent =
+  | { kind: "step"; step: GenerationStep; status: "running" }
+  | { kind: "step"; step: GenerationStep; status: "done"; count?: number }
+  | { kind: "complete"; result: GenerateResult }
+  | { kind: "error"; message: string };
+
 /**
- * End-to-end companion generation: pulls grounding data, calls Claude, and
- * writes the draft rows into the DB. Upserts the top-level WatchCompanion
- * record so subsequent seasons of a show append rather than replace.
+ * Streaming, chunked companion generation. Drives 5 sequential Claude calls
+ * (characters → facts → relationships → timeline → glossary) and persists at
+ * the end. Yields ProgressEvents suitable for SSE relay.
  *
- * Generated content lands in status="draft" — an admin publishes after review.
+ * Why chunked: a single 12k-token prompt covering all 5 sections kept producing
+ * empty timelines / thin glossaries / missed multi-relationships — Sonnet can
+ * follow one focused instruction set much better than five stacked. Each
+ * chunk is its own ~4k call with focused guidance.
  */
-export async function generateCompanion(input: GenerateInput): Promise<GenerateResult> {
+export async function* generateCompanionStream(input: GenerateInput): AsyncGenerator<ProgressEvent> {
   const { tmdbId, mediaType, season, generatedByUserId } = input;
   if (mediaType === "tv" && (season === undefined || season === null || season < 1)) {
-    throw new Error("season (>= 1) is required for tv companions");
+    yield { kind: "error", message: "season (>= 1) is required for tv companions" };
+    return;
   }
 
-  // 1. Pull grounding
-  const grounding = mediaType === "movie"
-    ? await loadGroundingForMovie(tmdbId)
-    : await loadGroundingForShow(tmdbId, season!);
+  const client = getAnthropic();
+  let grounding: CompanionGroundingData;
 
-  // 2. Claude draft
-  const draft = await draftWatchCompanion({ grounding, season: mediaType === "tv" ? season! : null });
+  // 1. Grounding
+  yield { kind: "step", step: "grounding", status: "running" };
+  try {
+    grounding = mediaType === "movie"
+      ? await loadGroundingForMovie(tmdbId)
+      : await loadGroundingForShow(tmdbId, season!);
+  } catch (err) {
+    yield { kind: "error", message: `Grounding failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+  yield { kind: "step", step: "grounding", status: "done" };
 
-  // 3. Persist
-  return persistDraft({
-    tmdbId,
-    mediaType,
-    season: mediaType === "tv" ? season! : null,
-    title: grounding.title,
-    runtimeSeconds: grounding.runtimeSeconds,
-    draft,
-    generatedByUserId,
-  });
+  const seasonArg = mediaType === "tv" ? season! : null;
+
+  // 2. Characters
+  yield { kind: "step", step: "characters", status: "running" };
+  let characters: DraftCharacter[];
+  try {
+    characters = await draftCharacters(client, grounding, seasonArg);
+  } catch (err) {
+    yield { kind: "error", message: `Characters draft failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+  yield { kind: "step", step: "characters", status: "done", count: characters.length };
+
+  // 3. Facts
+  yield { kind: "step", step: "facts", status: "running" };
+  let facts: DraftFact[];
+  try {
+    facts = await draftFacts(client, grounding, seasonArg, characters);
+  } catch (err) {
+    yield { kind: "error", message: `Facts draft failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+  yield { kind: "step", step: "facts", status: "done", count: facts.length };
+
+  // 4. Relationships
+  yield { kind: "step", step: "relationships", status: "running" };
+  let relationships: DraftRelationship[];
+  try {
+    relationships = await draftRelationships(client, grounding, seasonArg, characters);
+  } catch (err) {
+    yield { kind: "error", message: `Relationships draft failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+  yield { kind: "step", step: "relationships", status: "done", count: relationships.length };
+
+  // 5. Timeline
+  yield { kind: "step", step: "timeline", status: "running" };
+  let timelineEvents: DraftTimelineEvent[];
+  try {
+    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters);
+  } catch (err) {
+    yield { kind: "error", message: `Timeline draft failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+  yield { kind: "step", step: "timeline", status: "done", count: timelineEvents.length };
+
+  // 6. Glossary
+  yield { kind: "step", step: "glossary", status: "running" };
+  let glossary: DraftGlossaryTerm[];
+  try {
+    glossary = await draftGlossary(client, grounding, seasonArg);
+  } catch (err) {
+    yield { kind: "error", message: `Glossary draft failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+  yield { kind: "step", step: "glossary", status: "done", count: glossary.length };
+
+  // 7. Persist
+  yield { kind: "step", step: "persist", status: "running" };
+  try {
+    const draft: CompanionDraft = { characters, facts, relationships, timelineEvents, glossary };
+    const result = await persistDraft({
+      tmdbId,
+      mediaType,
+      season: seasonArg,
+      title: grounding.title,
+      runtimeSeconds: grounding.runtimeSeconds,
+      draft,
+      generatedByUserId,
+    });
+    yield { kind: "step", step: "persist", status: "done" };
+    yield { kind: "complete", result };
+  } catch (err) {
+    yield { kind: "error", message: `Persist failed: ${err instanceof Error ? err.message : String(err)}` };
+    return;
+  }
+}
+
+/**
+ * Non-streaming wrapper for callers that just want the final result
+ * (kept so anything that still hits `generateCompanion` keeps working).
+ */
+export async function generateCompanion(input: GenerateInput): Promise<GenerateResult> {
+  for await (const evt of generateCompanionStream(input)) {
+    if (evt.kind === "error") throw new Error(evt.message);
+    if (evt.kind === "complete") return evt.result;
+  }
+  throw new Error("Generation finished without a complete event");
 }
 
 interface PersistInput {
@@ -65,7 +180,6 @@ interface PersistInput {
 async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   const { tmdbId, mediaType, season, title, runtimeSeconds, draft, generatedByUserId } = input;
 
-  // Upsert the top-level companion
   const existing = await prisma.watchCompanion.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType } },
   });
@@ -90,23 +204,16 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       lastGeneratedAt: new Date(),
     },
     update: {
-      title, // refresh in case it changed
+      title,
       runtimeSeconds: runtimeSeconds ?? existing?.runtimeSeconds ?? null,
       seasonsGenerated: newSeasonsGenerated,
       lastGeneratedAt: new Date(),
     },
   });
 
-  // Regeneration always wipes ALL content for the companion. Earlier attempts
-  // at partial (per-season) deletion kept producing duplicate character cards
-  // because legacy rows were surviving the JSON-path filters for reasons we
-  // couldn't diagnose reliably. Nuclear wipe is boring but works every time.
-  //
-  // Trade-off: a companion with multiple seasons generated loses the others.
-  // For now we also reset seasonsGenerated to just [season] so the list stays
-  // truthful. Users with multi-season setups will need to re-add the other
-  // seasons after regeneration — still the least-bad outcome until we move to
-  // chunked generation with a proper content-by-content diff.
+  // Nuclear wipe on regen — partial deletes kept leaking duplicate character
+  // cards. See earlier comment in the pre-chunked version for the full
+  // context.
   if (!isNew) {
     await Promise.all([
       prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
@@ -122,10 +229,9 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     }
   }
 
-  // Insert characters first so we have IDs to map names → IDs
+  // Characters first so we have name → id for facts / relationships / timeline.
   const nameToId = new Map<string, string>();
   let charactersAdded = 0;
-  let factsAdded = 0;
 
   for (const [idx, c] of draft.characters.entries()) {
     const char = await prisma.companionCharacter.create({
@@ -142,21 +248,28 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     });
     nameToId.set(c.name, char.id);
     charactersAdded++;
-
-    if (c.facts.length > 0) {
-      await prisma.companionFact.createMany({
-        data: c.facts.map((f) => ({
-          characterId: char.id,
-          fact: f.fact,
-          factType: f.factType,
-          visibleAfter: serialize(f.visibleAfter),
-        })),
-      });
-      factsAdded += c.facts.length;
-    }
   }
 
-  // Relationships — resolve character names to IDs, skip any that don't match
+  // Facts — separate chunk in the new pipeline, resolved to character IDs.
+  let factsAdded = 0;
+  const factRows = draft.facts
+    .map((f) => {
+      const characterId = nameToId.get(f.characterName);
+      if (!characterId) return null;
+      return {
+        characterId,
+        fact: f.fact,
+        factType: f.factType,
+        visibleAfter: serialize(f.visibleAfter),
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+  if (factRows.length > 0) {
+    await prisma.companionFact.createMany({ data: factRows });
+    factsAdded = factRows.length;
+  }
+
+  // Relationships
   let relationshipsAdded = 0;
   for (const r of draft.relationships) {
     const fromId = nameToId.get(r.fromName);
@@ -190,7 +303,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     timelineAdded = events.length;
   }
 
-  // Glossary — preserve Claude's most-obscure-first ordering via sortOrder
+  // Glossary — preserve most-obscure-first ordering.
   let glossaryAdded = 0;
   if (draft.glossary.length > 0) {
     await prisma.companionGlossaryTerm.createMany({
@@ -217,58 +330,10 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   };
 }
 
-// Prisma's Json columns accept plain objects; no transformation needed beyond
-// stripping nulls-we-don't-want so the stored shape is clean.
 function serialize(v: VisibleAfter): { seconds?: number; season?: number; episode?: number } {
   const out: { seconds?: number; season?: number; episode?: number } = {};
   if (typeof v.seconds === "number") out.seconds = v.seconds;
   if (typeof v.season === "number") out.season = v.season;
   if (typeof v.episode === "number") out.episode = v.episode;
   return out;
-}
-
-async function deleteSeasonSpecificContent(companionId: string, season: number) {
-  // Delete rows that either (a) explicitly match this season OR (b) have a
-  // visible_after with NO season key at all. Case (b) catches legacy rows
-  // from earlier generations where the season tag was omitted, which would
-  // otherwise survive regeneration and produce duplicate character cards.
-  //
-  // We only clear "season-less" content when regenerating a SEASON. If the
-  // stray content genuinely belonged to a different season, the regenerator
-  // will emit it again; if it was bogus (Haiku output without a tag) it gets
-  // correctly retired.
-  const seasonStr = String(season);
-  const matchesSeason = `(visible_after->>'season' = $2 OR NOT (visible_after ? 'season'))`;
-
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_timeline_events WHERE companion_id = $1 AND ${matchesSeason}`,
-    companionId,
-    seasonStr,
-  );
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_relationships WHERE companion_id = $1 AND ${matchesSeason}`,
-    companionId,
-    seasonStr,
-  );
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_glossary_terms WHERE companion_id = $1 AND ${matchesSeason}`,
-    companionId,
-    seasonStr,
-  );
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_characters WHERE companion_id = $1 AND ${matchesSeason}`,
-    companionId,
-    seasonStr,
-  );
-  // Facts: match on fact.visible_after with the same rule (Prisma cascade
-  // already removed facts for characters deleted above).
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM companion_facts f
-     USING companion_characters c
-     WHERE f.character_id = c.id
-       AND c.companion_id = $1
-       AND (f.visible_after->>'season' = $2 OR NOT (f.visible_after ? 'season'))`,
-    companionId,
-    seasonStr,
-  );
 }

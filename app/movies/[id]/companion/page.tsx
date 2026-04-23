@@ -5,6 +5,9 @@ import { ArrowLeft, MonitorPlay } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getMovieDetails, posterUrl } from "@/lib/tmdb";
 import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
+import ShareButton from "@/components/ShareButton";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.theratist.com";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +83,11 @@ export default async function MovieCompanionPage({ params }: Props) {
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Watch Companion</p>
             <p className="text-sm font-semibold text-white truncate">{companion.title}</p>
           </div>
+          <ShareButton
+            text={`Watch Companion for ${companion.title} — a spoiler-safe viewing guide on The Ratist.`}
+            url={`${SITE_URL}/movies/${id}/companion`}
+            label="Share"
+          />
         </div>
       </header>
       <WatchCompanionView data={data} />

@@ -302,6 +302,16 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             />
           </>
         ) : null}
+        {/* Spoiler slider explainer — helps first-time users understand that
+           they need to move the slider themselves as they watch. Without
+           this hint the UI feels frozen at S1E1. */}
+        <p className="text-[10px] text-[var(--foreground-muted)] leading-relaxed mt-2 flex items-start gap-1.5">
+          <Lock className="w-3 h-3 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold text-white">Slide as you watch.</span>{" "}
+            Characters, relationships, timeline beats and glossary terms unlock as you move the slider forward so nothing gets spoiled.
+          </span>
+        </p>
       </div>
 
         {/* Tabs — part of the sticky cluster so they stay visible too */}
