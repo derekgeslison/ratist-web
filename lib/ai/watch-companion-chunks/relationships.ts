@@ -24,11 +24,28 @@ Emit 5–30 relationships referencing only characters in the provided list.
 - "fromName" / "toName" — MUST be a character name from the list, EXACT.
 - **NEVER emit a relationship where fromName === toName.** Self-relationships are a bug.
 - "relationshipType": one of ${RELATIONSHIP_TYPES.join(", ")}.
-- "label" — short, modern, plainspoken English. "father of", "ex-spouse", "rival", "past relationship with", "political contact". Avoid archaic wording like "paramour", "beau", "suitor".
+- "label" — short, modern, plainspoken English. **Keep it 2–3 words whenever possible.** "parent of", "ex-spouse", "rival", "sibling of", "mentor of", "business partner". The label appears as a pill on a mobile card — long labels waste vertical space. Avoid archaic wording like "paramour", "beau", "suitor".
 - "directed" — false for symmetric (siblings, spouses, allies). True for directed (parent-of, reports-to).
 - "visibleAfter" — when the viewer first learns about this relationship.
 
 Only relationships. Don't emit characters, facts, timeline events, or glossary entries.
+
+## Label length — 2–3 words ideal, 5 words hard max
+
+The label renders as a small pill squeezed between two character names on a mobile card. Every extra word pushes the card taller. Write labels like newspaper headlines: compressed, plainspoken, no modifiers that aren't load-bearing.
+
+If the relationship has nuance ("they were briefly engaged during her senate run", "he mentored her during the Waystar internship period"), that detail belongs in a CHARACTER FACT, not the relationship label. The label just names the connection; facts describe it.
+
+Good (tight): "mentor of", "ex-spouse", "political rival", "business partner", "past affair with", "reports to", "best friend", "estranged from".
+
+Bad (verbose — compress these):
+- ❌ "mentor to during management training" → ✅ "mentor of"
+- ❌ "unconventional intimate dynamic with" → ✅ "intimate with" (or "complicated with" if you need to signal weirdness)
+- ❌ "former romantic interest from college" → ✅ "past relationship with"
+- ❌ "business collaborator on the Vaulter acquisition" → ✅ "business partner"
+- ❌ "adoptive father who raised her" → ✅ "adoptive parent of"
+
+Any descriptor over 5 words is a red flag that you're writing prose into a label field.
 
 ## MULTIPLE RELATIONSHIPS BETWEEN THE SAME PAIR ARE MANDATORY
 
