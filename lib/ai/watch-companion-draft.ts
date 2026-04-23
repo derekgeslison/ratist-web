@@ -366,11 +366,11 @@ export async function draftWatchCompanion(input: GenerateDraftInput): Promise<Co
     // hallucinations. Applies to every generator call regardless of who
     // triggers it (today admin-only; opens to users at phase 2).
     model: "claude-sonnet-4-6",
-    // Bumped from 8192 — a full-season companion with 15 characters,
-    // 30 relationships, 15 timeline beats, and 20 glossary terms comfortably
-    // needs ~5–7k output tokens; 16k gives headroom so Sonnet doesn't truncate
-    // the glossary or timeline to fit.
-    max_tokens: 16384,
+    // Sized to cover a full season: 15 characters × 3 facts + 30 relationships
+    // + 15 timeline beats + 20 glossary terms ≈ 6–8k output tokens. 12k is
+    // enough headroom to avoid truncation without pushing the total
+    // generation time past Vercel's 300s ceiling.
+    max_tokens: 12288,
     system: [{ type: "text", text: buildSystemPrompt(), cache_control: { type: "ephemeral" } }],
     tools: [COMPANION_TOOL],
     tool_choice: { type: "tool", name: "draft_watch_companion" },

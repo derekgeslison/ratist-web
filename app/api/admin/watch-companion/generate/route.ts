@@ -6,9 +6,10 @@ import { generateCompanion } from "@/lib/ai/watch-companion-generate";
 import { logAiUsage } from "@/lib/ai/rate-limit";
 
 export const dynamic = "force-dynamic";
-// Generation can take 30–60s for a full season (grounding fetches + Claude
-// call + DB writes). Bump the route's time budget accordingly.
-export const maxDuration = 120;
+// Sonnet 4.6 + 12k max_tokens + Wikipedia fetch + TMDB season detail + Prisma
+// writes can run 90–180s for a full season. 300s is Vercel Pro's default
+// serverless limit; the Hobby plan caps lower so this is the ceiling for us.
+export const maxDuration = 300;
 
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization");
