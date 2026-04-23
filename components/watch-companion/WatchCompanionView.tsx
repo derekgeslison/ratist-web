@@ -115,6 +115,27 @@ function buildEpisodeSlots(seasonsGenerated: number[], seasonEpisodeCounts: Reco
   return slots;
 }
 
+// Small toggle pill used for the glossary category quick-filter row.
+function FilterPill({ active, onClick, children }: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize border transition-colors ${
+        active
+          ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+          : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]/50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 // Collapsible section wrapper with optional inline suggest button
 function Section({
   title, children, suggestButton,
@@ -150,6 +171,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   const [selectedSeason, setSelectedSeason] = useState<number>(defaultSeason);
   const [hydrated, setHydrated] = useState(false);
   const [activeTab, setActiveTab] = useState<"cast" | "timeline" | "glossary">("cast");
+  const [glossaryCategoryFilter, setGlossaryCategoryFilter] = useState<string | "all">("all");
 
   // Episode slots for the CURRENTLY SELECTED season only. The season picker is
   // the "which season am I watching?" control; the slider scrubs within it.
@@ -289,12 +311,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         </span>
       </p>
 
-      {/* Sticky cluster: season picker + slider + tabs ride together just
-         below the site navbar (72px tall). All three panes stay visible
-         when scrolling. */}
-      <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
+      {/* Season picker — non-sticky, lives above the sticky cluster so it
+         scrolls away on mobile rather than eating vertical space. */}
       {mediaType === "tv" && sortedSeasons.length > 1 && (
-        <div className="mb-2 flex items-center gap-2">
+        <div className="flex items-center gap-2 -mt-3">
           <label htmlFor="season-picker" className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">
             Season
           </label>
@@ -319,6 +339,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           </select>
         </div>
       )}
+
+      {/* Sticky cluster: slider + tabs ride together just below the site
+         navbar (72px tall). Both panes stay visible when scrolling. */}
+      <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
         {mediaType === "movie" && runtimeSeconds ? (
           <>
@@ -558,30 +582,66 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Glossary */}
-      {activeTab === "glossary" && (
-        visibleGlossary.length > 0 ? (
-        <Section
-          icon={BookOpen}
-          title="Glossary"
-          count={visibleGlossary.length}
-          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact />}
-        >
-          <dl className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
-            {visibleGlossary.map((g) => (
-              <div key={g.id} className="px-3 py-2">
-                <dt className="text-sm font-semibold text-white flex items-baseline gap-2">
-                  {g.term}
-                  {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
-                </dt>
-                <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
+      {activeTab === "glossary" && (() => {
+        if (visibleGlossary.length === 0) {
+          return <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No glossary entries unlocked yet.</p>;
+        }
+        // Only show category pills that are actually represented in the
+        // currently-visible glossary. No point offering "faction" if there
+        // aren't any faction terms unlocked yet.
+        const availableCategories = Array.from(new Set(
+          visibleGlossary.map((g) => g.category).filter((c): c is string => !!c)
+        )).sort();
+        const filteredGlossary = glossaryCategoryFilter === "all"
+          ? visibleGlossary
+          : visibleGlossary.filter((g) => g.category === glossaryCategoryFilter);
+        return (
+          <Section
+            icon={BookOpen}
+            title="Glossary"
+            count={filteredGlossary.length}
+            suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact />}
+          >
+            {availableCategories.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                <FilterPill
+                  active={glossaryCategoryFilter === "all"}
+                  onClick={() => setGlossaryCategoryFilter("all")}
+                >
+                  All ({visibleGlossary.length})
+                </FilterPill>
+                {availableCategories.map((cat) => {
+                  const count = visibleGlossary.filter((g) => g.category === cat).length;
+                  return (
+                    <FilterPill
+                      key={cat}
+                      active={glossaryCategoryFilter === cat}
+                      onClick={() => setGlossaryCategoryFilter(cat)}
+                    >
+                      {cat} ({count})
+                    </FilterPill>
+                  );
+                })}
               </div>
-            ))}
-          </dl>
-        </Section>
-        ) : (
-          <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No glossary entries unlocked yet.</p>
-        )
-      )}
+            )}
+            {filteredGlossary.length > 0 ? (
+              <dl className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
+                {filteredGlossary.map((g) => (
+                  <div key={g.id} className="px-3 py-2">
+                    <dt className="text-sm font-semibold text-white flex items-baseline gap-2">
+                      {g.term}
+                      {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
+                    </dt>
+                    <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="text-sm text-[var(--foreground-muted)] italic text-center py-4">No terms in this category yet.</p>
+            )}
+          </Section>
+        );
+      })()}
 
       <CommunitySuggestions companionId={data.id} />
 
