@@ -247,9 +247,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         AI-drafted and community-refined — accuracy improves as users contribute corrections.
       </p>
 
-      {/* Spoiler slider — inline labels so values stay visible even when the
-         nav covers the header. */}
-      <div className="sticky top-2 z-20 bg-[var(--background)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
+      {/* Sticky cluster: slider + tabs ride together just below the site
+         navbar (72px tall). Both panes stay visible when scrolling. */}
+      <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
         {mediaType === "movie" && runtimeSeconds ? (
           <>
             <div className="flex items-baseline justify-between mb-1">
@@ -313,36 +314,37 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         ) : null}
       </div>
 
+        {/* Tabs — part of the sticky cluster so they stay visible too */}
+        {visibleCharacters.length > 0 && (
+          <nav className="flex gap-1 border-b border-[var(--border)] overflow-x-auto mt-2 -mb-2">
+            {([
+              { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
+              { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
+              { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
+            ] as const).map(({ key, label, icon: Icon, count }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === key
+                    ? "border-[var(--ratist-red)] text-white"
+                    : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+                {count > 0 && <span className="text-xs text-[var(--foreground-muted)]">({count})</span>}
+              </button>
+            ))}
+          </nav>
+        )}
+      </div>
+
       {visibleCharacters.length === 0 && (
         <div className="flex items-start gap-2 text-sm text-[var(--foreground-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>Move the slider forward to see characters and events as they appear in the story.</span>
         </div>
-      )}
-
-      {/* Tabs */}
-      {visibleCharacters.length > 0 && (
-        <nav className="flex gap-1 border-b border-[var(--border)] overflow-x-auto">
-          {([
-            { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
-            { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
-            { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
-          ] as const).map(({ key, label, icon: Icon, count }) => (
-            <button
-              key={key}
-              onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === key
-                  ? "border-[var(--ratist-red)] text-white"
-                  : "border-transparent text-[var(--foreground-muted)] hover:text-white"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-              {count > 0 && <span className="text-xs text-[var(--foreground-muted)]">({count})</span>}
-            </button>
-          ))}
-        </nav>
       )}
 
       {/* Cast with embedded relationships */}
