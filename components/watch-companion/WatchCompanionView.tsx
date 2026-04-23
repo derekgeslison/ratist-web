@@ -237,6 +237,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         AI-drafted and community-refined — accuracy improves as users contribute corrections.
       </p>
 
+      {/* Spoiler slider hint — lives ABOVE the sticky cluster on purpose so it
+         shows on first load but scrolls away, keeping the sticky header
+         compact on mobile. */}
+      <p className="text-[11px] text-[var(--foreground-muted)] leading-relaxed flex items-start gap-1.5 -mt-3">
+        <Lock className="w-3 h-3 shrink-0 mt-0.5" />
+        <span>
+          <span className="font-semibold text-white">Slide as you watch.</span>{" "}
+          Characters, relationships, timeline beats and glossary terms unlock as you move the slider forward so nothing gets spoiled.
+        </span>
+      </p>
+
       {/* Sticky cluster: slider + tabs ride together just below the site
          navbar (72px tall). Both panes stay visible when scrolling. */}
       <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
@@ -302,16 +313,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             />
           </>
         ) : null}
-        {/* Spoiler slider explainer — helps first-time users understand that
-           they need to move the slider themselves as they watch. Without
-           this hint the UI feels frozen at S1E1. */}
-        <p className="text-[10px] text-[var(--foreground-muted)] leading-relaxed mt-2 flex items-start gap-1.5">
-          <Lock className="w-3 h-3 shrink-0 mt-0.5" />
-          <span>
-            <span className="font-semibold text-white">Slide as you watch.</span>{" "}
-            Characters, relationships, timeline beats and glossary terms unlock as you move the slider forward so nothing gets spoiled.
-          </span>
-        </p>
       </div>
 
         {/* Tabs — part of the sticky cluster so they stay visible too */}
