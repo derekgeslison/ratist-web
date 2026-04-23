@@ -24,6 +24,7 @@ interface SearchResult {
   name?: string;
   posterPath: string | null;
   releaseDate?: string;
+  popularity?: number;
 }
 
 export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
@@ -47,8 +48,10 @@ export default function MediaLinker({ selected, onChange, max = 4 }: Props) {
       ]);
       const movies = (movieRes.results ?? []).map((r: SearchResult) => ({ ...r, mediaType: "movie" as const }));
       const shows = (tvRes.results ?? []).map((r: SearchResult) => ({ ...r, mediaType: "tv" as const }));
-      const newResults = [...movies, ...shows];
-      setResults(p === 1 ? newResults : (prev) => [...prev, ...newResults]);
+      // Merge movies + shows by TMDB popularity so results rank by relevance
+      // instead of the old "all movies first, then all TV shows" bucketing.
+      const newResults = [...movies, ...shows].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
+      setResults(p === 1 ? newResults : (prev) => [...prev, ...newResults].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)));
       setPage(p);
       setHasMore(p < (movieRes.totalPages ?? 1) || p < (tvRes.totalPages ?? 1));
     } catch {

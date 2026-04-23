@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -18,16 +18,39 @@ export default function NewCompanionPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [selected, setSelected] = useState<MediaItem[]>([]);
-  const [season, setSeason] = useState("1");
+  const [season, setSeason] = useState(1);
+  const [numberOfSeasons, setNumberOfSeasons] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
 
   const picked = selected[0] ?? null;
 
+  // When a TV show is picked, fetch the season count so the dropdown shows
+  // real options instead of a free-text number that can be bogus.
+  useEffect(() => {
+    if (picked?.mediaType !== "tv") {
+      setNumberOfSeasons(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/tmdb/tv/${picked.tmdbId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && typeof data.number_of_seasons === "number") {
+          setNumberOfSeasons(data.number_of_seasons);
+          setSeason(1);
+        }
+      } catch { /* leave null */ }
+    })();
+    return () => { cancelled = true; };
+  }, [picked]);
+
   async function generate() {
     if (!user || !picked) return;
-    const seasonNum = parseInt(season, 10);
+    const seasonNum = season;
     if (picked.mediaType === "tv" && (!Number.isFinite(seasonNum) || seasonNum < 1)) {
       setError("Enter a valid season number (1+).");
       return;
@@ -96,12 +119,19 @@ export default function NewCompanionPage() {
         {picked?.mediaType === "tv" && (
           <div>
             <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1 block">Season to generate</label>
-            <input
-              value={season}
-              onChange={(e) => setSeason(e.target.value)}
-              inputMode="numeric"
-              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
-            />
+            {numberOfSeasons === null ? (
+              <p className="text-xs text-[var(--foreground-muted)] italic py-2">Loading season list…</p>
+            ) : (
+              <select
+                value={season}
+                onChange={(e) => setSeason(parseInt(e.target.value, 10))}
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+              >
+                {Array.from({ length: numberOfSeasons }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>Season {n}</option>
+                ))}
+              </select>
+            )}
             <p className="text-[10px] text-[var(--foreground-muted)] mt-1">
               Generates one season at a time. Come back later to add the next season — earlier content stays intact.
             </p>

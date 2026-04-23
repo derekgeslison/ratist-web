@@ -19,11 +19,13 @@ export async function GET(req: NextRequest) {
     name: string;
     poster_path: string | null;
     first_air_date: string;
+    popularity?: number;
   }) => ({
     id: s.id,
     title: s.name,
     posterPath: s.poster_path,
     releaseDate: s.first_air_date,
+    popularity: s.popularity ?? 0,
   }));
 
   return NextResponse.json({ results, totalPages: data.total_pages ?? 1 });

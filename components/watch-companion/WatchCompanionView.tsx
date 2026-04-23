@@ -305,20 +305,25 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   {connections.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-[var(--border)]/40 flex flex-wrap gap-1.5">
                       {connections.map(({ rel, direction }) => {
-                        const otherId = direction === "out" ? rel.toCharacterId : rel.fromCharacterId;
                         const RelIcon = RELATIONSHIP_ICONS[rel.relationshipType] ?? Link2;
                         const relColor = RELATIONSHIP_COLORS[rel.relationshipType] ?? RELATIONSHIP_COLORS.other;
-                        const arrow = !rel.directed ? "↔" : direction === "out" ? "→" : "←";
+                        // Render the relationship as a full "FromName label
+                        // ToName" sentence. The OTHER party is highlighted so
+                        // the viewer knows who this card's character is in
+                        // relation to. Avoids the "Kendall is father of Logan"
+                        // inversion bug that flipping arrow direction caused.
+                        const fromIsSelf = direction === "out";
+                        const fromClass = fromIsSelf ? "text-[var(--foreground-muted)]" : "text-white font-semibold";
+                        const toClass = fromIsSelf ? "text-white font-semibold" : "text-[var(--foreground-muted)]";
                         return (
                           <span
                             key={rel.id + direction}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border bg-[var(--surface-2)]/50 text-[10px] ${relColor}`}
-                            title={`${nameOf(rel.fromCharacterId)} ${rel.label} ${nameOf(rel.toCharacterId)}`}
                           >
-                            <RelIcon className="w-3 h-3" />
-                            <span>{arrow}</span>
-                            <span className="text-white font-medium">{nameOf(otherId)}</span>
+                            <RelIcon className="w-3 h-3 shrink-0" />
+                            <span className={fromClass}>{nameOf(rel.fromCharacterId)}</span>
                             <span className="italic">{rel.label}</span>
+                            <span className={toClass}>{nameOf(rel.toCharacterId)}</span>
                           </span>
                         );
                       })}
