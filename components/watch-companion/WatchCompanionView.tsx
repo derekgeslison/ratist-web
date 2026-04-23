@@ -3,6 +3,8 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import { Clock, Users, Link2, BookOpen, Lock, AlertCircle } from "lucide-react";
+import SuggestEditButton from "./SuggestEditButton";
+import CommunitySuggestions from "./CommunitySuggestions";
 
 interface VisibleAfter {
   seconds?: number | null;
@@ -322,6 +324,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           </dl>
         </section>
       )}
+
+      {/* Community suggestions — only pending ones surface here */}
+      <CommunitySuggestions companionId={data.id} />
+
+      {/* Suggest edit */}
+      <div className="pt-4 border-t border-[var(--border)]/40">
+        <p className="text-xs text-[var(--foreground-muted)] text-center mb-3 leading-relaxed">
+          Something wrong? This companion is AI-drafted and community-refined — your correction helps.
+        </p>
+        <SuggestEditButton companionId={data.id} />
+      </div>
     </div>
   );
 }
