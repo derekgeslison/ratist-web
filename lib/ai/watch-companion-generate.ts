@@ -97,20 +97,28 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     },
   });
 
-  // If regenerating the same season of a show, wipe the prior rows for that
-  // season so we don't duplicate. Movies regenerate wholesale.
+  // Regeneration always wipes ALL content for the companion. Earlier attempts
+  // at partial (per-season) deletion kept producing duplicate character cards
+  // because legacy rows were surviving the JSON-path filters for reasons we
+  // couldn't diagnose reliably. Nuclear wipe is boring but works every time.
+  //
+  // Trade-off: a companion with multiple seasons generated loses the others.
+  // For now we also reset seasonsGenerated to just [season] so the list stays
+  // truthful. Users with multi-season setups will need to re-add the other
+  // seasons after regeneration — still the least-bad outcome until we move to
+  // chunked generation with a proper content-by-content diff.
   if (!isNew) {
-    if (mediaType === "movie") {
-      await Promise.all([
-        prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
-        prisma.companionRelationship.deleteMany({ where: { companionId: companion.id } }),
-        prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id } }),
-        prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id } }),
-      ]);
-    } else {
-      // For shows: remove only content tagged for this season. Keep earlier-
-      // season content intact.
-      await deleteSeasonSpecificContent(companion.id, season!);
+    await Promise.all([
+      prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
+      prisma.companionRelationship.deleteMany({ where: { companionId: companion.id } }),
+      prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id } }),
+      prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id } }),
+    ]);
+    if (mediaType === "tv" && season !== null) {
+      await prisma.watchCompanion.update({
+        where: { id: companion.id },
+        data: { seasonsGenerated: [season] },
+      });
     }
   }
 

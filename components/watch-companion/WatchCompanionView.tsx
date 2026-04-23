@@ -156,6 +156,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   const [slotIndex, setSlotIndex] = useState<number>(0);
   const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
   const [hydrated, setHydrated] = useState(false);
+  const [activeTab, setActiveTab] = useState<"cast" | "timeline" | "glossary">("cast");
 
   // Restore on mount (client only; avoids hydration mismatch by deferring)
   useEffect(() => {
@@ -246,38 +247,39 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         AI-drafted and community-refined — accuracy improves as users contribute corrections.
       </p>
 
-      {/* Spoiler slider */}
-      <div className="sticky top-2 z-20 bg-[var(--background)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl p-4 shadow-lg">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">Where are you?</p>
-            <p className="text-sm text-white mt-0.5">
-              {mediaType === "movie"
-                ? `${formatMovieTime(seconds)} of ${runtimeSeconds ? formatMovieTime(runtimeSeconds) : "?"}`
-                : `Season ${currentSlot.season}, Episode ${currentSlot.episode}${episodeSeconds > 0 ? ` · ${formatMovieTime(episodeSeconds)}${data.defaultEpisodeRuntimeSeconds ? ` of ${formatMovieTime(data.defaultEpisodeRuntimeSeconds)}` : ""}` : ""}`}
-            </p>
-          </div>
-          {hiddenCount > 0 && (
-            <span className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]">
-              <Lock className="w-3.5 h-3.5" /> {hiddenCount} hidden
-            </span>
-          )}
-        </div>
-
+      {/* Spoiler slider — inline labels so values stay visible even when the
+         nav covers the header. */}
+      <div className="sticky top-2 z-20 bg-[var(--background)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
         {mediaType === "movie" && runtimeSeconds ? (
-          <input
-            type="range"
-            min={0}
-            max={runtimeSeconds}
-            step={30}
-            value={seconds}
-            onChange={(e) => setSeconds(parseInt(e.target.value, 10))}
-            className="w-full accent-[var(--ratist-red)]"
-            aria-label="Movie position"
-          />
+          <>
+            <div className="flex items-baseline justify-between mb-1">
+              <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">Position</label>
+              <span className="text-sm text-white font-medium tabular-nums">
+                {formatMovieTime(seconds)} <span className="text-[var(--foreground-muted)]">of {formatMovieTime(runtimeSeconds)}</span>
+                {hiddenCount > 0 && <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-[var(--foreground-muted)]"><Lock className="w-3 h-3" /> {hiddenCount}</span>}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={runtimeSeconds}
+              step={30}
+              value={seconds}
+              onChange={(e) => setSeconds(parseInt(e.target.value, 10))}
+              className="w-full accent-[var(--ratist-red)]"
+              aria-label="Movie position"
+            />
+          </>
         ) : mediaType === "tv" && episodeSlots.length > 0 ? (
           <>
-            <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold block mb-1">Episode</label>
+            <div className="flex items-baseline justify-between mb-1">
+              <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">
+                Episode <span className="text-white font-semibold normal-case tracking-normal">S{currentSlot.season}·E{currentSlot.episode}</span>
+              </label>
+              {hiddenCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--foreground-muted)]"><Lock className="w-3 h-3" /> {hiddenCount} hidden</span>
+              )}
+            </div>
             <input
               type="range"
               min={0}
@@ -288,7 +290,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               className="w-full accent-[var(--ratist-red)]"
               aria-label="Episode position"
             />
-            <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold block mt-2 mb-1">Position in episode</label>
+            <div className="flex items-baseline justify-between mt-2 mb-1">
+              <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">
+                Position in episode{" "}
+                <span className="text-white font-semibold normal-case tracking-normal tabular-nums">
+                  {formatMovieTime(episodeSeconds)}
+                  {data.defaultEpisodeRuntimeSeconds && <span className="text-[var(--foreground-muted)] font-normal"> / {formatMovieTime(data.defaultEpisodeRuntimeSeconds)}</span>}
+                </span>
+              </label>
+            </div>
             <input
               type="range"
               min={0}
@@ -301,12 +311,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             />
           </>
         ) : null}
-
-        <p className="text-[10px] text-[var(--foreground-muted)] mt-2 leading-relaxed">
-          {mediaType === "tv"
-            ? "Drag the top slider to the episode you're on, then the second slider to roughly where you are in that episode."
-            : "Drag the slider as you watch. Spoilers past your position stay hidden."}
-        </p>
       </div>
 
       {visibleCharacters.length === 0 && (
@@ -316,8 +320,33 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         </div>
       )}
 
-      {/* Cast with embedded relationships */}
+      {/* Tabs */}
       {visibleCharacters.length > 0 && (
+        <nav className="flex gap-1 border-b border-[var(--border)] overflow-x-auto">
+          {([
+            { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
+            { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
+            { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
+          ] as const).map(({ key, label, icon: Icon, count }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === key
+                  ? "border-[var(--ratist-red)] text-white"
+                  : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+              {count > 0 && <span className="text-xs text-[var(--foreground-muted)]">({count})</span>}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {/* Cast with embedded relationships */}
+      {activeTab === "cast" && visibleCharacters.length > 0 && (
         <Section
           icon={Users}
           title="Cast"
@@ -433,7 +462,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Timeline */}
-      {visibleTimeline.length > 0 && (
+      {activeTab === "timeline" && (
+        visibleTimeline.length > 0 ? (
         <Section
           icon={Clock}
           title="Plot timeline"
@@ -451,10 +481,14 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             ))}
           </ol>
         </Section>
+        ) : (
+          <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No timeline events unlocked at your current position yet.</p>
+        )
       )}
 
-      {/* Glossary — collapsed by default since it's supplementary */}
-      {visibleGlossary.length > 0 && (
+      {/* Glossary */}
+      {activeTab === "glossary" && (
+        visibleGlossary.length > 0 ? (
         <Section
           icon={BookOpen}
           title="Glossary"
@@ -473,6 +507,9 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             ))}
           </dl>
         </Section>
+        ) : (
+          <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No glossary entries unlocked yet.</p>
+        )
       )}
 
       <CommunitySuggestions companionId={data.id} />
