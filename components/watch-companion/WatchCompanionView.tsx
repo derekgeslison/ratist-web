@@ -70,9 +70,11 @@ function isVisible(visibleAfter: VisibleAfter, position: WatchPosition, mediaTyp
 }
 
 function formatMovieTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 const GROUP_COLORS = ["#e53e3e", "#3182ce", "#38a169", "#d69e2e", "#805ad5", "#dd6b20", "#319795", "#d53f8c"];
@@ -111,32 +113,20 @@ function buildEpisodeSlots(seasonsGenerated: number[], seasonEpisodeCounts: Reco
 
 // Collapsible section wrapper with optional inline suggest button
 function Section({
-  icon: Icon, title, count, defaultOpen = true, children, suggestButton,
+  title, children, suggestButton,
 }: {
-  icon: typeof Users; title: string; count?: number; defaultOpen?: boolean;
+  // Icon/count/defaultOpen kept as accepted props for call-site continuity
+  // but no longer rendered — tabs make section-level collapse redundant.
+  icon?: typeof Users; title: string; count?: number; defaultOpen?: boolean;
   children: React.ReactNode; suggestButton?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
     <section>
-      <div className="flex items-center gap-2 mb-3">
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 flex-1 text-left group"
-          aria-expanded={open}
-        >
-          <Icon className="w-4 h-4 text-[var(--ratist-red)]" />
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          {count !== undefined && <span className="text-xs text-[var(--foreground-muted)]">({count})</span>}
-          <ChevronDown className={`w-4 h-4 text-[var(--foreground-muted)] transition-transform ml-auto group-hover:text-white ${open ? "rotate-180" : ""}`} />
-        </button>
+      <div className="sr-only">{title}</div>
+      <div className="space-y-3">
+        {children}
+        {suggestButton && <div className="flex justify-end pt-1">{suggestButton}</div>}
       </div>
-      {open && (
-        <div className="space-y-3">
-          {children}
-          {suggestButton && <div className="flex justify-end pt-1">{suggestButton}</div>}
-        </div>
-      )}
     </section>
   );
 }
