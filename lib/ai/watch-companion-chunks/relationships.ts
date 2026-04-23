@@ -24,39 +24,54 @@ Emit 5–30 relationships referencing only characters in the provided list.
 - "fromName" / "toName" — MUST be a character name from the list, EXACT.
 - **NEVER emit a relationship where fromName === toName.** Self-relationships are a bug.
 - "relationshipType": one of ${RELATIONSHIP_TYPES.join(", ")}.
-- "label" — short, modern, plainspoken English. **Keep it 2–3 words whenever possible.** "parent of", "ex-spouse", "rival", "sibling of", "mentor of", "business partner". The label appears as a pill on a mobile card — long labels waste vertical space. Avoid archaic wording like "paramour", "beau", "suitor".
+- "label" — short, modern, plainspoken English. "parent of", "ex-spouse", "rival", "sibling of", "mentor of", "business partner". The label appears as a pill on a mobile card — keep it as short as it can be while staying accurate. Avoid archaic wording like "paramour", "beau", "suitor".
 - "directed" — false for symmetric (siblings, spouses, allies). True for directed (parent-of, reports-to).
 - "visibleAfter" — when the viewer first learns about this relationship.
 
 Only relationships. Don't emit characters, facts, timeline events, or glossary entries.
 
-## Label length — 2–3 words ideal, 5 words hard max
+## Label length — use exactly as many words as needed, no more
 
-The label renders as a small pill squeezed between two character names on a mobile card. Every extra word pushes the card taller. Write labels like newspaper headlines: compressed, plainspoken, no modifiers that aren't load-bearing.
+The label renders as a small pill on a mobile card, so short is better when short is accurate. But don't over-compress: sometimes every word is load-bearing and cutting them loses information a viewer actually needs.
 
-If the relationship has nuance ("they were briefly engaged during her senate run", "he mentored her during the Waystar internship period"), that detail belongs in a CHARACTER FACT, not the relationship label. The label just names the connection; facts describe it.
+**Cut words that are filler, not signal.** If the label would still mean the same thing with a word removed, remove it. If removing it changes the meaning, keep it.
 
-Good (tight): "mentor of", "ex-spouse", "political rival", "business partner", "past affair with", "reports to", "best friend", "estranged from".
+Good short labels (2–3 words when that's enough): "mentor of", "ex-spouse", "political rival", "business partner", "past affair with", "reports to", "best friend", "estranged from".
 
-Bad (verbose — compress these):
-- ❌ "mentor to during management training" → ✅ "mentor of"
-- ❌ "unconventional intimate dynamic with" → ✅ "intimate with" (or "complicated with" if you need to signal weirdness)
-- ❌ "former romantic interest from college" → ✅ "past relationship with"
-- ❌ "business collaborator on the Vaulter acquisition" → ✅ "business partner"
-- ❌ "adoptive father who raised her" → ✅ "adoptive parent of"
+Good longer labels (keep when every word adds info):
+- "senior communications aide to" — "senior" signals seniority, "communications" is the specific function. Both earn their keep.
+- "Chief Operating Officer of" — title is specific.
+- "adopted parent of" — "adopted" is a material fact about the relationship.
+- "step-sibling of" — "step-" is material.
 
-Any descriptor over 5 words is a red flag that you're writing prose into a label field.
+Verbose labels that ARE writing prose (compress these):
+- ❌ "mentor to during management training" → ✅ "mentor of" — the when/context belongs in a character fact.
+- ❌ "unconventional intimate dynamic with" → ✅ "intimate with" or just "complicated with".
+- ❌ "former romantic interest from college" → ✅ "past relationship with" — the college part is a fact.
+- ❌ "business collaborator on the Vaulter acquisition" → ✅ "business partner" — Vaulter detail is a fact.
+- ❌ "adoptive father who raised her" → ✅ "adoptive parent of" — the "raised her" is implied by adoption.
 
-## MULTIPLE RELATIONSHIPS BETWEEN THE SAME PAIR ARE MANDATORY
+Rule of thumb: if the extra words are describing WHEN or HOW or WHY the relationship exists, drop them from the label and move them to a character fact if they matter. If the extra words are describing WHAT the relationship IS (role, title, kind), keep them.
 
-When two characters' connection spans different types, split into separate entries. Never combine with a slash.
+## When to split into multiple pills vs combine with a slash
 
-✅ CORRECT (two entries):
+Two different relationshipTypes between the same pair → TWO separate entries. A slash can't bridge type boundaries (they color-code differently and reveal at different times).
+
+✅ SPLIT (two entries, different types):
 - { fromName: "Shiv Roy", toName: "Nate Sofrelli", relationshipType: "romantic", label: "past relationship with", directed: false, visibleAfter: { season: 1, episode: 4, ... } }
 - { fromName: "Shiv Roy", toName: "Nate Sofrelli", relationshipType: "business", label: "political contact", directed: false, visibleAfter: { season: 1, episode: 1, ... } }
 
-❌ WRONG:
+❌ WRONG (collapsing two TYPES with a slash):
 - { relationshipType: "romantic", label: "former romantic interest / political contact" }
+
+But — if two labels describe the **same connection through different lenses** (same relationshipType, same direction, same reveal point), a slash IS the right move. It keeps the pill count small and reads naturally.
+
+✅ SLASH (synonymous / overlapping labels, one entry):
+- { relationshipType: "alliance", label: "friend/confidant of" } — one bond, two lenses.
+- { relationshipType: "mentor", label: "advisor/mentor of" } — same role, two words for it.
+- { relationshipType: "business", label: "CFO/right hand" } — overlapping job and metaphor.
+
+Rule of thumb: if you'd need two separate visibleAfter tags or two different relationshipTypes to capture it, split. If it's ONE bond you're just groping for the right word for, slash it and keep going.
 
 ## Gender-agnostic vocabulary
 
