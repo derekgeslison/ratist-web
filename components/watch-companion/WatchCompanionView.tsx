@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
-import { Clock, Users, Link2, BookOpen, Lock, AlertCircle } from "lucide-react";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2 } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
 
@@ -47,14 +47,12 @@ export interface WatchCompanionData {
   relationships: Relationship[];
   timeline: TimelineEvent[];
   glossary: GlossaryTerm[];
-  seasonEpisodeCounts?: Record<number, number>; // s1 → 10 episodes, etc. Optional — if absent we show a generous range.
+  seasonEpisodeCounts?: Record<number, number>;
 }
 
 function isVisible(visibleAfter: VisibleAfter, position: WatchPosition, mediaType: "movie" | "tv"): boolean {
   if (mediaType === "movie") {
-    const threshold = visibleAfter.seconds ?? 0;
-    const current = position.seconds ?? 0;
-    return current >= threshold;
+    return (position.seconds ?? 0) >= (visibleAfter.seconds ?? 0);
   }
   const thSeason = visibleAfter.season ?? 1;
   const thEpisode = visibleAfter.episode ?? 1;
@@ -75,27 +73,91 @@ function formatMovieTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-const GROUP_COLORS = [
-  "#e53e3e", "#3182ce", "#38a169", "#d69e2e", "#805ad5",
-  "#dd6b20", "#319795", "#d53f8c",
-];
+const GROUP_COLORS = ["#e53e3e", "#3182ce", "#38a169", "#d69e2e", "#805ad5", "#dd6b20", "#319795", "#d53f8c"];
+
+const RELATIONSHIP_ICONS: Record<string, typeof Heart> = {
+  romantic: Heart,
+  business: Briefcase,
+  rivalry: Swords,
+  alliance: Handshake,
+  mentor: GraduationCap,
+  family: Users,
+  other: Link2,
+};
+
+const RELATIONSHIP_COLORS: Record<string, string> = {
+  romantic: "text-pink-400 border-pink-500/40",
+  business: "text-blue-400 border-blue-500/40",
+  rivalry: "text-red-400 border-red-500/40",
+  alliance: "text-green-400 border-green-500/40",
+  mentor: "text-purple-400 border-purple-500/40",
+  family: "text-amber-400 border-amber-500/40",
+  other: "text-[var(--foreground-muted)] border-[var(--border)]",
+};
+
+// Build a linear episode index so TV shows get a real slider
+interface EpisodeSlot { season: number; episode: number }
+
+function buildEpisodeSlots(seasonsGenerated: number[], seasonEpisodeCounts: Record<number, number>): EpisodeSlot[] {
+  const slots: EpisodeSlot[] = [];
+  for (const s of seasonsGenerated) {
+    const count = seasonEpisodeCounts[s] ?? 12;
+    for (let e = 1; e <= count; e++) slots.push({ season: s, episode: e });
+  }
+  return slots;
+}
+
+// Collapsible section wrapper with optional inline suggest button
+function Section({
+  icon: Icon, title, count, defaultOpen = true, children, suggestButton,
+}: {
+  icon: typeof Users; title: string; count?: number; defaultOpen?: boolean;
+  children: React.ReactNode; suggestButton?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 flex-1 text-left group"
+          aria-expanded={open}
+        >
+          <Icon className="w-4 h-4 text-[var(--ratist-red)]" />
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          {count !== undefined && <span className="text-xs text-[var(--foreground-muted)]">({count})</span>}
+          <ChevronDown className={`w-4 h-4 text-[var(--foreground-muted)] transition-transform ml-auto group-hover:text-white ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+      {open && (
+        <div className="space-y-3">
+          {children}
+          {suggestButton && <div className="flex justify-end pt-1">{suggestButton}</div>}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function WatchCompanionView({ data }: { data: WatchCompanionData }) {
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
 
-  // Slider state — start at the very beginning so viewers opt into reveals.
+  const episodeSlots = useMemo(
+    () => mediaType === "tv" ? buildEpisodeSlots(seasonsGenerated, data.seasonEpisodeCounts ?? {}) : [],
+    [mediaType, seasonsGenerated, data.seasonEpisodeCounts],
+  );
+
   const [seconds, setSeconds] = useState<number>(0);
-  const [season, setSeason] = useState<number>(seasonsGenerated[0] ?? 1);
-  const [episode, setEpisode] = useState<number>(1);
+  const [slotIndex, setSlotIndex] = useState<number>(0);
+  const currentSlot = episodeSlots[slotIndex] ?? { season: seasonsGenerated[0] ?? 1, episode: 1 };
 
   const position: WatchPosition = useMemo(
     () => mediaType === "movie"
       ? { seconds }
-      : { season, episode, seconds: Number.MAX_SAFE_INTEGER },
-    [mediaType, seconds, season, episode],
+      : { season: currentSlot.season, episode: currentSlot.episode, seconds: Number.MAX_SAFE_INTEGER },
+    [mediaType, seconds, currentSlot],
   );
 
-  // Stable color-per-group assignment
   const groupColors = useMemo(() => {
     const groups = Array.from(new Set(data.characters.map((c) => c.group).filter((g): g is string => !!g)));
     const map = new Map<string, string>();
@@ -103,7 +165,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     return map;
   }, [data.characters]);
 
-  // Filter everything by current position
   const visibleCharacters = useMemo(
     () => data.characters.filter((c) => isVisible(c.visibleAfter, position, mediaType)),
     [data.characters, position, mediaType],
@@ -117,7 +178,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     [data.relationships, position, mediaType, visibleCharIds],
   );
   const visibleTimeline = useMemo(
-    () => data.timeline.filter((t) => isVisible(t.visibleAfter, position, mediaType)).sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType)),
+    () => data.timeline.filter((t) => isVisible(t.visibleAfter, position, mediaType))
+      .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType)),
     [data.timeline, position, mediaType],
   );
   const visibleGlossary = useMemo(
@@ -125,17 +187,31 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     [data.glossary, position, mediaType],
   );
 
+  // Relationships embedded per-character (both ends of each relationship)
+  const relationshipsByCharacter = useMemo(() => {
+    const map = new Map<string, Array<{ rel: Relationship; direction: "out" | "in" }>>();
+    for (const r of visibleRelationships) {
+      const outList = map.get(r.fromCharacterId) ?? [];
+      outList.push({ rel: r, direction: "out" });
+      map.set(r.fromCharacterId, outList);
+      const inList = map.get(r.toCharacterId) ?? [];
+      inList.push({ rel: r, direction: r.directed ? "in" : "out" });
+      map.set(r.toCharacterId, inList);
+    }
+    return map;
+  }, [visibleRelationships]);
+
   const nameOf = (id: string) => data.characters.find((c) => c.id === id)?.name ?? "(unknown)";
 
-  // Count hidden items so users know more is there
-  const hiddenCount = (data.characters.length - visibleCharacters.length)
-    + (data.relationships.length - visibleRelationships.length)
-    + (data.timeline.length - visibleTimeline.length)
-    + (data.glossary.length - visibleGlossary.length);
+  const hiddenCount =
+    (data.characters.length - visibleCharacters.length) +
+    (data.relationships.length - visibleRelationships.length) +
+    (data.timeline.length - visibleTimeline.length) +
+    (data.glossary.length - visibleGlossary.length);
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-      {/* Spoiler slider — sticky on mobile so it's always reachable */}
+      {/* Spoiler slider */}
       <div className="sticky top-2 z-20 bg-[var(--background)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl p-4 shadow-lg">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -143,7 +219,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             <p className="text-sm text-white mt-0.5">
               {mediaType === "movie"
                 ? `${formatMovieTime(seconds)} of ${runtimeSeconds ? formatMovieTime(runtimeSeconds) : "?"}`
-                : `Season ${season}, Episode ${episode}`}
+                : `Season ${currentSlot.season}, Episode ${currentSlot.episode}`}
             </p>
           </div>
           {hiddenCount > 0 && (
@@ -164,37 +240,24 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             className="w-full accent-[var(--ratist-red)]"
             aria-label="Movie position"
           />
-        ) : mediaType === "tv" ? (
-          <div className="flex items-center gap-2">
-            <select
-              value={season}
-              onChange={(e) => { setSeason(parseInt(e.target.value, 10)); setEpisode(1); }}
-              className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
-              aria-label="Season"
-            >
-              {seasonsGenerated.length > 0
-                ? seasonsGenerated.map((s) => <option key={s} value={s}>Season {s}</option>)
-                : <option value={1}>Season 1</option>}
-            </select>
-            <select
-              value={episode}
-              onChange={(e) => setEpisode(parseInt(e.target.value, 10))}
-              className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
-              aria-label="Episode"
-            >
-              {Array.from({ length: data.seasonEpisodeCounts?.[season] ?? 24 }, (_, i) => i + 1).map((e) => (
-                <option key={e} value={e}>Episode {e}</option>
-              ))}
-            </select>
-          </div>
+        ) : mediaType === "tv" && episodeSlots.length > 0 ? (
+          <input
+            type="range"
+            min={0}
+            max={episodeSlots.length - 1}
+            step={1}
+            value={slotIndex}
+            onChange={(e) => setSlotIndex(parseInt(e.target.value, 10))}
+            className="w-full accent-[var(--ratist-red)]"
+            aria-label="Episode position"
+          />
         ) : null}
 
         <p className="text-[10px] text-[var(--foreground-muted)] mt-2 leading-relaxed">
-          Drag the slider {mediaType === "tv" ? "or pick a later episode" : ""} as you watch. Spoilers ahead are hidden until you get there.
+          Drag the slider as you watch. Spoilers past your position stay hidden.
         </p>
       </div>
 
-      {/* Warning if nothing is visible yet */}
       {visibleCharacters.length === 0 && (
         <div className="flex items-start gap-2 text-sm text-[var(--foreground-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -202,18 +265,19 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         </div>
       )}
 
-      {/* Cast */}
+      {/* Cast with embedded relationships */}
       {visibleCharacters.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="w-4 h-4 text-[var(--ratist-red)]" />
-            <h2 className="text-base font-semibold text-white">Cast</h2>
-            <span className="text-xs text-[var(--foreground-muted)]">({visibleCharacters.length})</span>
-          </div>
+        <Section
+          icon={Users}
+          title="Cast"
+          count={visibleCharacters.length}
+          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="character" label="Suggest a character edit" compact />}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {visibleCharacters.map((c) => {
               const color = c.group ? groupColors.get(c.group) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
+              const connections = relationshipsByCharacter.get(c.id) ?? [];
               return (
                 <div
                   key={c.id}
@@ -232,15 +296,35 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white">{c.name}</p>
-                      {c.actorName && (
-                        <p className="text-[11px] text-[var(--foreground-muted)]">played by {c.actorName}</p>
-                      )}
-                      {c.group && (
-                        <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>
-                      )}
+                      {c.actorName && <p className="text-[11px] text-[var(--foreground-muted)]">played by {c.actorName}</p>}
+                      {c.group && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>}
                     </div>
                   </div>
                   <p className="text-sm text-[var(--foreground-muted)] mt-2 leading-relaxed">{c.baseDescription}</p>
+
+                  {connections.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-[var(--border)]/40 flex flex-wrap gap-1.5">
+                      {connections.map(({ rel, direction }) => {
+                        const otherId = direction === "out" ? rel.toCharacterId : rel.fromCharacterId;
+                        const RelIcon = RELATIONSHIP_ICONS[rel.relationshipType] ?? Link2;
+                        const relColor = RELATIONSHIP_COLORS[rel.relationshipType] ?? RELATIONSHIP_COLORS.other;
+                        const arrow = !rel.directed ? "↔" : direction === "out" ? "→" : "←";
+                        return (
+                          <span
+                            key={rel.id + direction}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border bg-[var(--surface-2)]/50 text-[10px] ${relColor}`}
+                            title={`${nameOf(rel.fromCharacterId)} ${rel.label} ${nameOf(rel.toCharacterId)}`}
+                          >
+                            <RelIcon className="w-3 h-3" />
+                            <span>{arrow}</span>
+                            <span className="text-white font-medium">{nameOf(otherId)}</span>
+                            <span className="italic">{rel.label}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {visibleFacts.length > 0 && (
                     <ul className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-1">
                       {visibleFacts.map((f) => (
@@ -257,39 +341,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               );
             })}
           </div>
-        </section>
-      )}
-
-      {/* Relationships */}
-      {visibleRelationships.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Link2 className="w-4 h-4 text-[var(--ratist-red)]" />
-            <h2 className="text-base font-semibold text-white">Relationships</h2>
-            <span className="text-xs text-[var(--foreground-muted)]">({visibleRelationships.length})</span>
-          </div>
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
-            {visibleRelationships.map((r) => (
-              <div key={r.id} className="px-3 py-2 text-sm flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="font-medium text-white">{nameOf(r.fromCharacterId)}</span>
-                <span className="text-[var(--foreground-muted)] italic text-xs">
-                  {r.directed ? "→" : "↔"} {r.label}
-                </span>
-                <span className="font-medium text-white">{nameOf(r.toCharacterId)}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+        </Section>
       )}
 
       {/* Timeline */}
       {visibleTimeline.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-4 h-4 text-[var(--ratist-red)]" />
-            <h2 className="text-base font-semibold text-white">Plot timeline</h2>
-            <span className="text-xs text-[var(--foreground-muted)]">({visibleTimeline.length})</span>
-          </div>
+        <Section
+          icon={Clock}
+          title="Plot timeline"
+          count={visibleTimeline.length}
+          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="timeline" label="Suggest a timeline edit" compact />}
+        >
           <ol className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
             {visibleTimeline.map((t) => (
               <li key={t.id} className="px-3 py-2 text-sm flex items-start gap-3">
@@ -300,17 +362,18 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               </li>
             ))}
           </ol>
-        </section>
+        </Section>
       )}
 
-      {/* Glossary */}
+      {/* Glossary — collapsed by default since it's supplementary */}
       {visibleGlossary.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <BookOpen className="w-4 h-4 text-[var(--ratist-red)]" />
-            <h2 className="text-base font-semibold text-white">Glossary</h2>
-            <span className="text-xs text-[var(--foreground-muted)]">({visibleGlossary.length})</span>
-          </div>
+        <Section
+          icon={BookOpen}
+          title="Glossary"
+          count={visibleGlossary.length}
+          defaultOpen={false}
+          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact />}
+        >
           <dl className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
             {visibleGlossary.map((g) => (
               <div key={g.id} className="px-3 py-2">
@@ -322,27 +385,24 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               </div>
             ))}
           </dl>
-        </section>
+        </Section>
       )}
 
-      {/* Community suggestions — only pending ones surface here */}
       <CommunitySuggestions companionId={data.id} />
 
-      {/* Suggest edit */}
+      {/* Global catch-all for adding brand-new items (relationships, etc.) */}
       <div className="pt-4 border-t border-[var(--border)]/40">
         <p className="text-xs text-[var(--foreground-muted)] text-center mb-3 leading-relaxed">
-          Something wrong? This companion is AI-drafted and community-refined — your correction helps.
+          Got a correction or addition? This companion is AI-drafted and community-refined — your input helps.
         </p>
-        <SuggestEditButton companionId={data.id} />
+        <SuggestEditButton companionId={data.id} defaultTargetType="character" />
       </div>
     </div>
   );
 }
 
 function formatVisibleAfter(va: VisibleAfter, mediaType: "movie" | "tv"): string {
-  if (mediaType === "movie") {
-    return typeof va.seconds === "number" ? formatMovieTime(va.seconds) : "start";
-  }
+  if (mediaType === "movie") return typeof va.seconds === "number" ? formatMovieTime(va.seconds) : "start";
   const s = va.season ?? 1;
   const e = va.episode ?? 1;
   return `S${s}E${e}`;

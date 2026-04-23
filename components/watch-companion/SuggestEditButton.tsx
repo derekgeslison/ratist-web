@@ -14,10 +14,17 @@ const TARGET_TYPES = [
   { value: "baseDescription", label: "A character's description" },
 ] as const;
 
-export default function SuggestEditButton({ companionId }: { companionId: string }) {
+interface Props {
+  companionId: string;
+  defaultTargetType?: string;
+  label?: string;
+  compact?: boolean;
+}
+
+export default function SuggestEditButton({ companionId, defaultTargetType = "character", label, compact = false }: Props) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [targetType, setTargetType] = useState<string>("character");
+  const [targetType, setTargetType] = useState<string>(defaultTargetType);
   const [action, setAction] = useState<"add" | "edit" | "remove">("add");
   const [rationale, setRationale] = useState("");
   const [payloadText, setPayloadText] = useState("");
@@ -74,12 +81,21 @@ export default function SuggestEditButton({ companionId }: { companionId: string
   return (
     <div>
       {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] rounded-lg text-sm font-semibold transition-colors"
-        >
-          <Pencil className="w-3.5 h-3.5" /> Suggest a correction
-        </button>
+        compact ? (
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+          >
+            <Pencil className="w-3 h-3" /> {label ?? "Suggest edit"}
+          </button>
+        ) : (
+          <button
+            onClick={() => setOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] rounded-lg text-sm font-semibold transition-colors"
+          >
+            <Pencil className="w-3.5 h-3.5" /> {label ?? "Suggest a correction"}
+          </button>
+        )
       ) : (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
