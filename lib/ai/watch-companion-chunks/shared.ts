@@ -93,16 +93,35 @@ export function normVisibleAfter(raw: unknown): VisibleAfter {
 }
 
 // Rewrite gendered family/relationship terms to neutral equivalents so pills
-// group cleanly and the UI stays gender-agnostic.
-const LABEL_NORMALIZATIONS: Array<[RegExp, string]> = [
+// group cleanly and the UI stays gender-agnostic. "Nibling" = gender-neutral
+// niece/nephew; lets a patriarch's 3 nephews + 2 nieces show as one pill
+// instead of two split pills.
+//
+// ORDER MATTERS: compound/modifier forms (great-nephew, grand-niece) must
+// match BEFORE the plain forms or the plain pattern eats the family word and
+// leaves the prefix dangling ("great-" by itself).
+type LabelReplacer = string | ((match: string, ...groups: string[]) => string);
+const LABEL_NORMALIZATIONS: Array<[RegExp, LabelReplacer]> = [
+  // Siblings
   [/\b(half[ -]?)(brothers?|sisters?)\b/gi, "$1siblings"],
   [/\bbrothers?\s+of\b/gi, "sibling of"],
   [/\bsisters?\s+of\b/gi, "sibling of"],
   [/\bbrothers?\b/gi, "siblings"],
   [/\bsisters?\b/gi, "siblings"],
+  // Niblings (niece/nephew) — compound modifiers first, then plain.
+  // Always output with a hyphen between modifier and "nibling" regardless of
+  // whether the input had a space, hyphen, or neither.
+  [/\b(great|grand)[ -]?(niece|nephew)\s+of\b/gi, (_m, prefix: string) => `${prefix.toLowerCase()}-nibling of`],
+  [/\b(great|grand)[ -]?(nieces|nephews)\b/gi, (_m, prefix: string) => `${prefix.toLowerCase()}-niblings`],
+  [/\b(great|grand)[ -]?(niece|nephew)\b/gi, (_m, prefix: string) => `${prefix.toLowerCase()}-nibling`],
+  [/\b(niece|nephew)\s+of\b/gi, "nibling of"],
+  [/\b(nieces|nephews)\b/gi, "niblings"],
+  [/\b(niece|nephew)\b/gi, "nibling"],
+  // Parents / children — preserve "of" suffix
   [/\bfathers?\s+of\b/gi, "parent of"],
   [/\bmothers?\s+of\b/gi, "parent of"],
   [/\b(sons?|daughters?)\s+of\b/gi, "child of"],
+  // Spouses / partners
   [/\bex[ -]?(husbands?|wives?)\b/gi, "ex-spouse"],
   [/\b(husbands?|wives?)\b/gi, "spouse"],
   [/\bex[ -]?(boyfriends?|girlfriends?)\b/gi, "ex-partner"],
@@ -113,7 +132,11 @@ export function normalizeLabel(label: string): string {
   let out = label.trim();
   out = out.replace(/\bhalf[ ]?(siblings?|brothers?|sisters?)\b/gi, (_m, tail: string) => `half-${tail.toLowerCase()}`);
   for (const [re, replacement] of LABEL_NORMALIZATIONS) {
-    out = out.replace(re, replacement);
+    // String.prototype.replace accepts either overload; the cast lets us
+    // pass a mixed array of string and function replacements.
+    out = typeof replacement === "string"
+      ? out.replace(re, replacement)
+      : out.replace(re, replacement);
   }
   return out.replace(/\s+/g, " ").trim();
 }

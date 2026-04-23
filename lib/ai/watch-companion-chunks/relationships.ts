@@ -48,8 +48,9 @@ Use neutral terms unless gender is genuinely load-bearing:
 - **Parents / children:** "parent of" / "child of" (not "father of" / "son of").
 - **Spouses:** "spouse of" / "ex-spouse of" (not "husband" / "wife").
 - **Partners:** "partner of" / "ex-partner of" (not "boyfriend" / "girlfriend").
+- **Niblings (nieces/nephews):** "nibling of" / "niblings" (not "niece" / "nephew"). Compound forms keep the modifier hyphenated: "great-nibling of" / "grand-nibling of". Example: Greg Hirsch is "great-nibling of Logan Roy", NOT "great-nephew of". This is a real, gender-neutral term — use it.
 
-Uncle/aunt/nephew/niece/cousin can stay gendered — they're more distinct.
+Uncle/aunt/cousin can stay gendered — they're more distinct and not asked to consolidate.
 
 ${VISIBLE_AFTER_GUIDANCE}
 

@@ -130,19 +130,27 @@ export default function RelationshipMap({ characters, relationships, groupColors
     return ids;
   }, [selectedCharId, relationships]);
 
-  // Connections involving the selected character, with the "other party"
-  // resolved and displayed from the selected char's perspective. Used for
-  // the auto-list that appears below the map when a character is tapped.
+  // Connections involving the selected character, with names resolved and
+  // ordered so the row reads the way the LABEL was written. For directed
+  // relationships the label assumes "from <label> to" ("Logan parent of
+  // Shiv") — so we always show fromName first, then label, then toName,
+  // regardless of whether the user tapped Shiv or Logan. Flipping this
+  // around from the tapped character's POV was producing "Shiv parent of
+  // Logan" which reads as Shiv-is-the-parent, the wrong direction.
   const selectedCharConnections = useMemo(() => {
     if (!selectedCharId) return null;
     return relationships
       .filter((r) => r.fromCharacterId === selectedCharId || r.toCharacterId === selectedCharId)
       .map((r) => {
-        const otherId = r.fromCharacterId === selectedCharId ? r.toCharacterId : r.fromCharacterId;
-        const other = characters.find((c) => c.id === otherId);
-        return { rel: r, otherName: other?.name ?? "(unknown)" };
+        const fromChar = characters.find((c) => c.id === r.fromCharacterId);
+        const toChar = characters.find((c) => c.id === r.toCharacterId);
+        return {
+          rel: r,
+          fromName: fromChar?.name ?? "(unknown)",
+          toName: toChar?.name ?? "(unknown)",
+        };
       })
-      .filter((c) => c.otherName !== "(unknown)");
+      .filter((c) => c.fromName !== "(unknown)" && c.toName !== "(unknown)");
   }, [selectedCharId, relationships, characters]);
 
   const presentRelTypes = useMemo(() => {
@@ -305,19 +313,21 @@ export default function RelationshipMap({ characters, relationships, groupColors
             <p className="text-[11px] text-[var(--foreground-muted)] italic">No relationships revealed for this character yet.</p>
           ) : (
             <ul className="space-y-1">
-              {selectedCharConnections.map(({ rel, otherName }) => {
+              {selectedCharConnections.map(({ rel, fromName, toName }) => {
                 const Icon = REL_ICONS[rel.relationshipType] ?? Link2;
                 const color = REL_COLOR[rel.relationshipType] ?? REL_COLOR.other;
+                const fromIsSelected = rel.fromCharacterId === selectedCharId;
                 return (
                   <li key={rel.id}>
                     <button
                       type="button"
                       onClick={() => setSelectedEdge({ label: rel.label, type: rel.relationshipType })}
-                      className="w-full flex items-center gap-2 text-left text-[11px] px-2 py-1 rounded hover:bg-[var(--surface-2)] transition-colors"
+                      className="w-full flex items-center gap-1.5 text-left text-[11px] px-2 py-1 rounded hover:bg-[var(--surface-2)] transition-colors"
                     >
                       <Icon className="w-3 h-3 shrink-0" style={{ color }} />
-                      <span className="text-[var(--foreground-muted)] italic">{rel.label}</span>
-                      <span className="text-white font-semibold truncate">{otherName}</span>
+                      <span className={`truncate ${fromIsSelected ? "text-white font-semibold" : "text-[var(--foreground-muted)]"}`}>{fromName}</span>
+                      <span className="text-[var(--foreground-muted)] italic shrink-0">{rel.label}</span>
+                      <span className={`truncate ${!fromIsSelected ? "text-white font-semibold" : "text-[var(--foreground-muted)]"}`}>{toName}</span>
                       <span className="ml-auto text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]/70 capitalize shrink-0">{rel.relationshipType}</span>
                     </button>
                   </li>
