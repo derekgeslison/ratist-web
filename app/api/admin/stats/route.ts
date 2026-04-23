@@ -122,6 +122,29 @@ export async function GET(req: NextRequest) {
   // logic shown on /admin/ai-usage.
   const aiFlaggedUsers = await countAiFlaggedUsers(weekAgo);
 
+  // Watch Companion metrics — a separate Promise.all so we don't bloat the
+  // outer array. These drive the companion panel on the admin dashboard.
+  const [
+    companionsPublished,
+    companionsDraft,
+    companionGensWeek,
+    pendingRequests,
+    pendingSuggestions,
+    mostViewedCompanions,
+  ] = await Promise.all([
+    prisma.watchCompanion.count({ where: { status: "published" } }),
+    prisma.watchCompanion.count({ where: { status: "draft" } }),
+    prisma.aiUsageLog.count({ where: { feature: "watch_companion_generate", createdAt: { gte: weekAgo } } }),
+    prisma.companionGenerationRequest.count({ where: { status: "pending" } }),
+    prisma.companionSuggestion.count({ where: { status: "pending" } }),
+    prisma.watchCompanion.findMany({
+      where: { status: "published" },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+      select: { id: true, title: true, mediaType: true, tmdbId: true, seasonsGenerated: true, _count: { select: { characters: true } } },
+    }),
+  ]);
+
   return NextResponse.json({
     users: { total: totalUsers, day: newUsersDay, week: newUsersWeek, month: newUsersMonth },
     ratings: { total: totalRatings, day: newRatingsDay, week: newRatingsWeek, reviews: totalReviews },
@@ -163,6 +186,21 @@ export async function GET(req: NextRequest) {
       oscarVotes: oscarVotesTotal,
       collections: collectionsTotal,
       rankingLists: rankingListsTotal,
+    },
+    watchCompanion: {
+      published: companionsPublished,
+      draft: companionsDraft,
+      gensThisWeek: companionGensWeek,
+      pendingRequests,
+      pendingSuggestions,
+      recent: mostViewedCompanions.map((c) => ({
+        id: c.id,
+        title: c.title,
+        mediaType: c.mediaType,
+        tmdbId: c.tmdbId,
+        seasons: c.seasonsGenerated,
+        characters: c._count.characters,
+      })),
     },
   });
 }

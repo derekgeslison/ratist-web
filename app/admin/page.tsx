@@ -63,6 +63,21 @@ interface SiteStats {
     collections: number;
     rankingLists: number;
   };
+  watchCompanion: {
+    published: number;
+    draft: number;
+    gensThisWeek: number;
+    pendingRequests: number;
+    pendingSuggestions: number;
+    recent: Array<{
+      id: string;
+      title: string;
+      mediaType: "movie" | "tv";
+      tmdbId: number;
+      seasons: number[];
+      characters: number;
+    }>;
+  };
 }
 
 const TYPE_META = {
@@ -186,6 +201,8 @@ export default function AdminDashboard() {
           { key: "reports", label: "Pending reports", count: stats.queues.reports, href: "/admin/moderation", icon: Flag, tone: "danger" as const },
           { key: "fraud", label: "Open fraud flags", count: stats.queues.fraud, href: "/admin/fraud", icon: ShieldAlert, tone: "danger" as const },
           { key: "aiFlagged", label: "Flagged AI users", count: stats.queues.aiFlagged, href: "/admin/ai-usage", icon: Cpu, tone: "warn" as const },
+          { key: "companionRequests", label: "Companion requests", count: stats.watchCompanion?.pendingRequests ?? 0, href: "/admin/watch-companions/requests", icon: Clapperboard, tone: "info" as const },
+          { key: "companionSuggestions", label: "Companion suggestions", count: stats.watchCompanion?.pendingSuggestions ?? 0, href: "/admin/watch-companions/suggestions", icon: MessageSquare, tone: "info" as const },
           { key: "ideas", label: "New idea submissions", count: stats.queues.ideas, href: "/admin/ideas", icon: Lightbulb, tone: "info" as const },
           { key: "feedback", label: "Open feedback", count: stats.queues.feedback, href: "/admin/feedback", icon: MessageCircle, tone: "info" as const },
         ] as Alert[]
@@ -296,6 +313,40 @@ export default function AdminDashboard() {
             <StatTile icon={BookMarked} color="text-blue-400" label="AI Collections" value={stats.tools.collections} sub="Saved by users" />
             <StatTile icon={BarChart3} color="text-rose-400" label="Rankings Lists" value={stats.tools.rankingLists} sub="Created by users" />
           </div>
+        </section>
+      )}
+
+      {/* Watch Companion */}
+      {stats?.watchCompanion && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-white">Watch Companion</h2>
+            <Link href="/admin/watch-companions" className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">View all →</Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+            <StatTile icon={Clapperboard} color="text-[var(--ratist-red)]" label="Published" value={stats.watchCompanion.published} sub={stats.watchCompanion.draft > 0 ? `+${stats.watchCompanion.draft} draft` : "All published"} />
+            <StatTile icon={Cpu} color="text-blue-400" label="Gens this week" value={stats.watchCompanion.gensThisWeek} sub="User + admin" />
+            <StatTile icon={Lightbulb} color="text-yellow-400" label="Pending requests" value={stats.watchCompanion.pendingRequests} sub="Awaiting approval" />
+            <StatTile icon={MessageSquare} color="text-purple-400" label="Pending suggestions" value={stats.watchCompanion.pendingSuggestions} sub="Awaiting review" />
+          </div>
+          {stats.watchCompanion.recent.length > 0 && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-2 font-semibold">Recently updated</p>
+              <ul className="space-y-1.5">
+                {stats.watchCompanion.recent.map((c) => (
+                  <li key={c.id} className="flex items-center gap-2 text-sm">
+                    <Link href={`/admin/watch-companions/${c.id}`} className="text-white hover:text-[var(--ratist-red)] transition-colors font-medium">
+                      {c.title}
+                    </Link>
+                    <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">
+                      {c.mediaType === "tv" ? `TV · S${c.seasons.join(", S")}` : "Movie"}
+                    </span>
+                    <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{c.characters} characters</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 

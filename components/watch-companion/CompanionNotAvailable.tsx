@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, MonitorPlay, Sparkles, RefreshCcw, Check, Loader2, Circle, AlertCircle, Clock, Hourglass } from "lucide-react";
+import { track } from "@/lib/analytics";
 
 interface Props {
   tmdbId: number;
@@ -117,6 +118,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
     setError("");
     setGenerating(true);
     resetSteps();
+    track("companion_generate_start", { tmdb_id: tmdbId, media_type: mediaType, season: seasonForApi ?? null });
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/watch-companion/generate", {
@@ -161,6 +163,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
         }
       }
       if (completed) {
+        track("companion_generate_complete", { tmdb_id: tmdbId, media_type: mediaType, season: seasonForApi ?? null });
         // Reload the current URL — the companion now exists and the server
         // component will render the full viewer instead of this fallback.
         router.refresh();
@@ -168,6 +171,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
         setGenerating(false);
       }
     } catch (err) {
+      track("companion_generate_error", { tmdb_id: tmdbId, media_type: mediaType });
       setError(err instanceof Error ? err.message : "Network error");
       setGenerating(false);
     }
@@ -177,6 +181,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
     if (!user) return;
     setRequesting(true);
     setError("");
+    track("companion_request_submit", { tmdb_id: tmdbId, media_type: mediaType, season: seasonForApi ?? null });
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/watch-companion/request", {

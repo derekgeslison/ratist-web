@@ -8,6 +8,7 @@ import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
 import RelationshipMap from "./RelationshipMap";
 import AdUnit from "@/components/AdUnit";
+import { track } from "@/lib/analytics";
 
 const COMPANION_AD_SLOT = process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMPANION ?? "";
 
@@ -208,6 +209,18 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       localStorage.setItem(storageKey, JSON.stringify({ seconds, slotIndex, episodeSeconds, selectedSeason }));
     } catch { /* storage full or disabled — ignore */ }
   }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds, selectedSeason]);
+
+  // Fire the companion_view event once per mount. Put this after hydration
+  // so session storage is respected for season pick.
+  useEffect(() => {
+    track("companion_view", {
+      companion_id: data.id,
+      media_type: mediaType,
+      title: data.title,
+    });
+    // run-once per mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const currentSlot = episodeSlots[slotIndex] ?? { season: selectedSeason, episode: 1 };
 
   const position: WatchPosition = useMemo(
@@ -333,6 +346,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               // in S1.
               setSlotIndex(0);
               setEpisodeSeconds(0);
+              track("companion_season_change", { companion_id: data.id, season: next });
             }}
             className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
             aria-label="Which season are you watching?"
@@ -422,7 +436,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             ] as const).map(({ key, label, icon: Icon, count }) => (
               <button
                 key={key}
-                onClick={() => setActiveTab(key)}
+                onClick={() => {
+                  setActiveTab(key);
+                  track("companion_tab_switch", { companion_id: data.id, tab: key });
+                }}
                 className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
                   activeTab === key
                     ? "border-[var(--ratist-red)] text-white"
