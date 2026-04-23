@@ -157,6 +157,16 @@ export default function RelationshipMap({ characters, relationships, groupColors
     return Array.from(new Set(relationships.map((r) => r.relationshipType))).sort();
   }, [relationships]);
 
+  // Groups actually represented by the currently-visible characters. We pair
+  // them with their assigned node color so viewers can read "red circle =
+  // Bene Gesserit" without hunting through cards.
+  const presentGroups = useMemo(() => {
+    const groups = Array.from(new Set(
+      characters.map((c) => c.group).filter((g): g is string => !!g)
+    )).sort();
+    return groups.map((g) => ({ name: g, color: groupColors.get(g) ?? "#6b7280" }));
+  }, [characters, groupColors]);
+
   if (characters.length === 0) {
     return <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No characters to map yet — slide forward.</p>;
   }
@@ -166,8 +176,26 @@ export default function RelationshipMap({ characters, relationships, groupColors
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 space-y-3">
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2">
+      {/* Group legend — only shown when there are actual groups assigned.
+         Sits above the relationship-type legend because character-color
+         decoding is usually the viewer's first question ("what's red?"). */}
+      {presentGroups.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {presentGroups.map((g) => (
+            <span key={g.name} className="inline-flex items-center gap-1.5 text-[10px] text-[var(--foreground-muted)]">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: g.color }}
+                aria-hidden="true"
+              />
+              <span>{g.name}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Relationship-type legend */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
         {presentRelTypes.map((t) => {
           const Icon = REL_ICONS[t] ?? Link2;
           const color = REL_COLOR[t] ?? REL_COLOR.other;
