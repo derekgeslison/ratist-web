@@ -205,7 +205,7 @@ export default function NewCompanionPage() {
       <div className="max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 space-y-5">
         <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
           Search for a movie or show. For shows, pick the season — additional seasons can be added later and accumulate into the same companion.
-          Generation takes 2–4 minutes (5 sequential Claude calls).
+          Generation takes 2–4 minutes (5 sequential AI calls).
         </p>
 
         <div>

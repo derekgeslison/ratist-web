@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-companion-generate";
 import { checkWatchCompanionRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { notifyCompanionRequesters } from "@/lib/watch-companion-notify";
+import { isCompanionEligible } from "@/lib/companion-eligibility";
 
 export const dynamic = "force-dynamic";
 // Same ceiling as the admin route — Vercel Pro max.
@@ -47,6 +48,14 @@ export async function POST(req: NextRequest) {
   if (!tmdbId) return new Response(JSON.stringify({ error: "tmdbId required" }), { status: 400 });
   if (!mediaType) return new Response(JSON.stringify({ error: "mediaType must be 'movie' or 'tv'" }), { status: 400 });
   if (mediaType === "tv" && season === null) return new Response(JSON.stringify({ error: "season required for tv" }), { status: 400 });
+
+  // Block unreleased / still-theatrical movies. Admins bypass.
+  if (!userRecord.isAdmin) {
+    const eligibility = await isCompanionEligible(mediaType, tmdbId);
+    if (!eligibility.eligible) {
+      return new Response(JSON.stringify({ error: eligibility.reason ?? "Not eligible" }), { status: 403 });
+    }
+  }
 
   const userId = userRecord.id;
 

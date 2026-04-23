@@ -44,6 +44,11 @@ interface RequestRow {
   season: number | null;
 }
 
+interface Eligibility {
+  eligible: boolean;
+  reason?: string;
+}
+
 /**
  * "Companion not available yet" UX. Three possible user states:
  *  1. Signed out → CTA to sign in.
@@ -58,6 +63,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
   const [credits, setCredits] = useState<CreditsInfo | null>(null);
   const [existingRequest, setExistingRequest] = useState<RequestRow | null>(null);
   const [queueLength, setQueueLength] = useState(0);
+  const [eligibility, setEligibility] = useState<Eligibility | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -100,6 +106,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
         setCredits(data.credits);
         setExistingRequest(data.request);
         setQueueLength(data.queueLength ?? 0);
+        setEligibility(data.eligibility ?? null);
       } catch { /* leave state alone */ }
     })();
     return () => { cancelled = true; };
@@ -219,7 +226,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
           <h1 className="text-lg font-bold text-white">Generating companion for {title}…</h1>
         </div>
         <p className="text-sm text-[var(--foreground-muted)] mb-4">
-          Five sequential Claude calls — takes 2–4 minutes. Keep this tab open.
+          Our AI drafts the companion in five focused passes — usually takes 2–4 minutes. Keep this tab open.
         </p>
         <div className="space-y-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           {STEPS.map((step) => {
@@ -290,6 +297,15 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
           >
             Sign in
           </Link>
+        </div>
+      ) : eligibility && !eligibility.eligible ? (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm text-white font-semibold">
+            <AlertCircle className="w-4 h-4 text-[var(--ratist-red)]" /> Not eligible yet
+          </div>
+          <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
+            {eligibility.reason ?? "This title isn't eligible for a Watch Companion yet."}
+          </p>
         </div>
       ) : existingRequest ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-2">

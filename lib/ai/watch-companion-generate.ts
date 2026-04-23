@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getAnthropic } from "./client";
+import { getMovieDetails, getCollectionDetails } from "@/lib/tmdb";
 import { loadGroundingForMovie, loadGroundingForShow, type CompanionGroundingData } from "./watch-companion-grounding";
 import { draftCharacters } from "./watch-companion-chunks/characters";
 import { draftFacts } from "./watch-companion-chunks/facts";
@@ -80,12 +81,15 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
 
   const seasonArg = mediaType === "tv" ? season! : null;
 
-  // Load prior-season canon for TV. This is the "iterate on top of S1"
-  // mechanism — it's what keeps Greg labeled as "great-nephew" instead of
-  // regressing to "grandchild of Logan's sibling" in S2.
+  // Load prior canon — either prior seasons (TV) or prior entries in the
+  // same franchise/collection (movies like Dune 2 inheriting from Dune).
+  // This is the "iterate on top of earlier content" mechanism that keeps
+  // labels and wording consistent across a franchise.
   let priorCanon: PriorSeasonCanon | null = null;
   if (mediaType === "tv" && seasonArg !== null && seasonArg > 1) {
     priorCanon = await loadPriorSeasonCanon(tmdbId, seasonArg);
+  } else if (mediaType === "movie") {
+    priorCanon = await loadFranchiseCanon(tmdbId);
   }
 
   // 2. Characters
@@ -423,4 +427,101 @@ async function loadPriorSeasonCanon(tmdbId: number, currentSeason: number): Prom
   }
 
   return { characters: charCanon, relationships: relCanon, glossary: glossCanon };
+}
+
+/**
+ * Franchise equivalent of loadPriorSeasonCanon: for a movie that belongs to a
+ * TMDB collection (Dune → Dune 2 → Dune: Part Three…), pull canon from any
+ * earlier franchise entries that already have published companions.
+ *
+ * "Earlier" = released before this movie. A sequel generated before the
+ * prequel exists will return null canon for the sequel run, which is fine —
+ * the prequel's generator will see the sequel's canon if/when it runs later,
+ * but that's an edge case outside our usual ordering.
+ *
+ * Returns null if the movie has no collection or no earlier entries have
+ * published companions yet.
+ */
+async function loadFranchiseCanon(tmdbId: number): Promise<PriorSeasonCanon | null> {
+  try {
+    const movie = await getMovieDetails(tmdbId);
+    const collectionId = movie.belongs_to_collection?.id;
+    if (!collectionId) return null;
+
+    const collection = await getCollectionDetails(collectionId);
+    const targetDate = movie.release_date ? new Date(movie.release_date) : null;
+    // Earlier parts only — avoid pulling future sequels into a prequel gen.
+    const earlierParts = collection.parts
+      .filter((p) => p.id !== tmdbId)
+      .filter((p) => {
+        if (!targetDate || !p.release_date) return true; // be lenient
+        return new Date(p.release_date) < targetDate;
+      });
+    if (earlierParts.length === 0) return null;
+
+    const priorCompanions = await prisma.watchCompanion.findMany({
+      where: {
+        mediaType: "movie",
+        status: "published",
+        tmdbId: { in: earlierParts.map((p) => p.id) },
+      },
+      select: { id: true },
+    });
+    if (priorCompanions.length === 0) return null;
+    const ids = priorCompanions.map((c) => c.id);
+
+    const [characters, relationships, glossary] = await Promise.all([
+      prisma.companionCharacter.findMany({
+        where: { companionId: { in: ids } },
+        orderBy: { sortOrder: "asc" },
+        select: { name: true, baseDescription: true, group: true },
+      }),
+      prisma.companionRelationship.findMany({
+        where: { companionId: { in: ids } },
+        include: { from: { select: { name: true } }, to: { select: { name: true } } },
+      }),
+      prisma.companionGlossaryTerm.findMany({
+        where: { companionId: { in: ids } },
+        orderBy: { sortOrder: "asc" },
+        select: { term: true, definition: true },
+      }),
+    ]);
+
+    // Same dedup logic as the TV variant — earliest version of a name/term
+    // wins so we don't shove spoilery later-movie descriptions into the new
+    // gen's prompt.
+    const seenChar = new Set<string>();
+    const charCanon: PriorSeasonCanon["characters"] = [];
+    for (const c of characters) {
+      if (seenChar.has(c.name)) continue;
+      seenChar.add(c.name);
+      charCanon.push({ name: c.name, baseDescription: c.baseDescription, group: c.group });
+    }
+
+    const seenRel = new Set<string>();
+    const relCanon: PriorSeasonCanon["relationships"] = [];
+    for (const r of relationships) {
+      const fromName = r.from?.name ?? "";
+      const toName = r.to?.name ?? "";
+      if (!fromName || !toName) continue;
+      const key = `${fromName}|${toName}|${r.label}|${r.relationshipType}`;
+      if (seenRel.has(key)) continue;
+      seenRel.add(key);
+      relCanon.push({ fromName, toName, label: r.label, relationshipType: r.relationshipType });
+    }
+
+    const seenTerm = new Set<string>();
+    const glossCanon: PriorSeasonCanon["glossary"] = [];
+    for (const g of glossary) {
+      if (seenTerm.has(g.term)) continue;
+      seenTerm.add(g.term);
+      glossCanon.push({ term: g.term, definition: g.definition });
+    }
+
+    if (charCanon.length === 0 && relCanon.length === 0 && glossCanon.length === 0) return null;
+    return { characters: charCanon, relationships: relCanon, glossary: glossCanon };
+  } catch (err) {
+    console.error("loadFranchiseCanon error (falling back to empty):", err);
+    return null;
+  }
 }

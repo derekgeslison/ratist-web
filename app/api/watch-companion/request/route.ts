@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
+import { isCompanionEligible } from "@/lib/companion-eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,13 @@ export async function POST(req: NextRequest) {
   if (!tmdbId) return NextResponse.json({ error: "tmdbId required" }, { status: 400 });
   if (!mediaType) return NextResponse.json({ error: "mediaType must be 'movie' or 'tv'" }, { status: 400 });
   if (mediaType === "tv" && season === null) return NextResponse.json({ error: "season required for tv" }, { status: 400 });
+
+  // Block requests for unreleased / still-theatrical movies too. No point
+  // queueing work on a title an admin will also reject.
+  const eligibility = await isCompanionEligible(mediaType, tmdbId);
+  if (!eligibility.eligible) {
+    return NextResponse.json({ error: eligibility.reason ?? "Not eligible" }, { status: 403 });
+  }
 
   // Dedupe against the same user's pending requests for this exact target.
   const existing = await prisma.companionGenerationRequest.findFirst({
@@ -84,9 +92,14 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Eligibility is cheap to include — saves a second round trip from the
+  // client before it can render the right state.
+  const eligibility = await isCompanionEligible(mediaType, tmdbId);
+
   return NextResponse.json({
     request: mine,
     queueLength,
+    eligibility,
     credits: {
       used,
       cap: Number.isFinite(cap) ? cap : null,
