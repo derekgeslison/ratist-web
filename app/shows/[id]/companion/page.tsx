@@ -46,15 +46,21 @@ export default async function ShowCompanionPage({ params }: Props) {
     return <CompanionNotAvailable tmdbId={tmdbId} />;
   }
 
-  // Episode counts per season for the dropdown. Pull from TMDB (already
-  // cached most likely) so the episode picker shows the right range.
+  // Episode counts per season for the dropdown + the show's typical per-
+  // episode runtime so the intra-episode slider's max matches actual length
+  // instead of a blanket 60min default.
   const seasonEpisodeCounts: Record<number, number> = {};
+  let defaultEpisodeRuntimeSeconds = 3600;
   try {
     const show = await getShowDetails(tmdbId);
     for (const s of show.seasons ?? []) {
       if (s.season_number > 0) {
         seasonEpisodeCounts[s.season_number] = s.episode_count ?? 0;
       }
+    }
+    if (Array.isArray(show.episode_run_time) && show.episode_run_time.length > 0) {
+      // Use the first reported runtime (most common) * 60s.
+      defaultEpisodeRuntimeSeconds = show.episode_run_time[0] * 60;
     }
   } catch { /* fall through — component has a sensible default */ }
 
@@ -78,6 +84,7 @@ export default async function ShowCompanionPage({ params }: Props) {
     timeline: companion.timeline.map((t) => ({ ...t, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
     glossary: companion.glossary.map((g) => ({ ...g, visibleAfter: g.visibleAfter as WatchCompanionData["glossary"][number]["visibleAfter"] })),
     seasonEpisodeCounts,
+    defaultEpisodeRuntimeSeconds,
   };
 
   return (

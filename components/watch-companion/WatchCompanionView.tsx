@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles } from "lucide-react";
@@ -49,6 +49,7 @@ export interface WatchCompanionData {
   timeline: TimelineEvent[];
   glossary: GlossaryTerm[];
   seasonEpisodeCounts?: Record<number, number>;
+  defaultEpisodeRuntimeSeconds?: number;
 }
 
 function isVisible(visibleAfter: VisibleAfter, position: WatchPosition, mediaType: "movie" | "tv"): boolean {
@@ -148,12 +149,35 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     [mediaType, seasonsGenerated, data.seasonEpisodeCounts],
   );
 
+  // Persist slider position per-companion in localStorage so tapping an actor
+  // and coming back doesn't snap the viewer to the start of episode 1.
+  const storageKey = `watchcompanion:${data.id}`;
   const [seconds, setSeconds] = useState<number>(0);
   const [slotIndex, setSlotIndex] = useState<number>(0);
-  // TV only: fine-grained position within the currently-selected episode.
-  // Defaults to 0 when the user moves to a new episode so jumping ahead doesn't
-  // reveal anything tagged mid-episode.
   const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore on mount (client only; avoids hydration mismatch by deferring)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as { seconds?: number; slotIndex?: number; episodeSeconds?: number };
+        if (typeof saved.seconds === "number") setSeconds(saved.seconds);
+        if (typeof saved.slotIndex === "number") setSlotIndex(saved.slotIndex);
+        if (typeof saved.episodeSeconds === "number") setEpisodeSeconds(saved.episodeSeconds);
+      }
+    } catch { /* ignore */ }
+    setHydrated(true);
+  }, [storageKey]);
+
+  // Persist on change (only after initial hydrate so we don't overwrite with defaults)
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ seconds, slotIndex, episodeSeconds }));
+    } catch { /* storage full or disabled — ignore */ }
+  }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds]);
   const currentSlot = episodeSlots[slotIndex] ?? { season: seasonsGenerated[0] ?? 1, episode: 1 };
 
   const position: WatchPosition = useMemo(
@@ -230,7 +254,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             <p className="text-sm text-white mt-0.5">
               {mediaType === "movie"
                 ? `${formatMovieTime(seconds)} of ${runtimeSeconds ? formatMovieTime(runtimeSeconds) : "?"}`
-                : `Season ${currentSlot.season}, Episode ${currentSlot.episode}${episodeSeconds > 0 ? ` · ${formatMovieTime(episodeSeconds)}` : ""}`}
+                : `Season ${currentSlot.season}, Episode ${currentSlot.episode}${episodeSeconds > 0 ? ` · ${formatMovieTime(episodeSeconds)}${data.defaultEpisodeRuntimeSeconds ? ` of ${formatMovieTime(data.defaultEpisodeRuntimeSeconds)}` : ""}` : ""}`}
             </p>
           </div>
           {hiddenCount > 0 && (
@@ -268,7 +292,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             <input
               type="range"
               min={0}
-              max={3600}
+              max={data.defaultEpisodeRuntimeSeconds ?? 3600}
               step={60}
               value={episodeSeconds}
               onChange={(e) => setEpisodeSeconds(parseInt(e.target.value, 10))}
@@ -435,7 +459,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           icon={BookOpen}
           title="Glossary"
           count={visibleGlossary.length}
-          defaultOpen={false}
           suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact />}
         >
           <dl className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
