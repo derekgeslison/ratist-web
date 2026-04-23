@@ -2,12 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { CompanionGroundingData } from "../watch-companion-grounding";
 import {
   type DraftGlossaryTerm,
+  type PriorSeasonCanon,
   GLOSSARY_CATEGORIES,
   type GlossaryCategory,
   VISIBLE_AFTER_SCHEMA,
   VISIBLE_AFTER_GUIDANCE,
   normVisibleAfter,
   formatGroundingContext,
+  formatPriorSeasonCanon,
   callTool,
 } from "./shared";
 
@@ -66,8 +68,10 @@ export async function draftGlossary(
   client: Anthropic,
   grounding: CompanionGroundingData,
   season: number | null,
+  priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftGlossaryTerm[]> {
   const userMessage = formatGroundingContext(grounding, season, { includeCast: false })
+    + formatPriorSeasonCanon(priorCanon)
     + `\n\nEmit the glossary now. Sort most-obscure-first. Aim for 10–25 terms for prestige / worldbuilding-heavy media.`;
 
   const result = await callTool<{ terms: unknown[] }>({

@@ -12,16 +12,20 @@ interface Fact { id: string; fact: string; factType: string; visibleAfter: Visib
 interface Character {
   id: string; name: string; actorName: string | null; baseDescription: string;
   group: string | null; visibleAfter: VisibleAfter; facts: Fact[];
+  seasonNumber: number | null;
 }
 interface Relationship {
   id: string; relationshipType: string; label: string; directed: boolean;
   fromCharacterId: string; toCharacterId: string; visibleAfter: VisibleAfter;
+  seasonNumber: number | null;
 }
 interface TimelineEvent {
   id: string; description: string; importance: number; characterIds: string[]; visibleAfter: VisibleAfter;
+  seasonNumber: number | null;
 }
 interface GlossaryTerm {
   id: string; term: string; definition: string; category: string | null; visibleAfter: VisibleAfter;
+  seasonNumber: number | null;
 }
 interface Companion {
   id: string; tmdbId: number; mediaType: "movie" | "tv";
@@ -67,6 +71,8 @@ export default function ReviewCompanionPage() {
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [regenStep, setRegenStep] = useState<string>("");
+  // "all" = show every season's rows; number = filter to that season.
+  const [seasonFilter, setSeasonFilter] = useState<number | "all">("all");
 
   async function deleteItem(type: ItemType, itemId: string) {
     if (!user || !confirm("Delete this item? This can't be undone from here.")) return;
@@ -169,8 +175,14 @@ export default function ReviewCompanionPage() {
 
   async function regenerate() {
     if (!user || !companion) return;
+    // Default to the currently filtered season if the admin has one picked —
+    // makes it obvious which season they're about to overwrite. Falls back to
+    // the latest generated season.
+    const defaultSeason = seasonFilter !== "all"
+      ? seasonFilter
+      : companion.seasonsGenerated[companion.seasonsGenerated.length - 1] ?? 1;
     const season = companion.mediaType === "tv"
-      ? parseInt(prompt("Season to regenerate?", String(companion.seasonsGenerated[companion.seasonsGenerated.length - 1] ?? 1)) ?? "", 10)
+      ? parseInt(prompt("Season to regenerate?", String(defaultSeason)) ?? "", 10)
       : null;
     if (companion.mediaType === "tv" && (!Number.isFinite(season!) || season! < 1)) return;
 
@@ -278,6 +290,16 @@ export default function ReviewCompanionPage() {
 
   const charName = (cid: string) => companion.characters.find((c) => c.id === cid)?.name ?? "(unknown)";
 
+  // Apply the admin's season filter. Movies have seasonNumber: null on every
+  // row and the filter stays as "all" implicitly.
+  const matchesSeason = <T extends { seasonNumber: number | null }>(row: T) =>
+    seasonFilter === "all" || row.seasonNumber === seasonFilter;
+  const filteredCharacters = companion.characters.filter(matchesSeason);
+  const filteredRelationships = companion.relationships.filter(matchesSeason);
+  const filteredTimeline = companion.timeline.filter(matchesSeason);
+  const filteredGlossary = companion.glossary.filter(matchesSeason);
+  const sortedSeasons = [...companion.seasonsGenerated].sort((a, b) => a - b);
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
@@ -289,6 +311,24 @@ export default function ReviewCompanionPage() {
           {companion.mediaType === "tv" ? "TV" : "Movie"} · TMDB {companion.tmdbId}
           {companion.mediaType === "tv" && companion.seasonsGenerated.length > 0 && ` · S${companion.seasonsGenerated.join(", S")}`}
         </span>
+        {companion.mediaType === "tv" && sortedSeasons.length > 1 && (
+          <label className="ml-auto flex items-center gap-2 text-[11px] text-[var(--foreground-muted)]">
+            Filter:
+            <select
+              value={String(seasonFilter)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSeasonFilter(v === "all" ? "all" : parseInt(v, 10));
+              }}
+              className="bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+            >
+              <option value="all">All seasons</option>
+              {sortedSeasons.map((n) => (
+                <option key={n} value={n}>Season {n}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -297,10 +337,10 @@ export default function ReviewCompanionPage() {
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
               <Users className="w-4 h-4 text-[var(--ratist-red)]" />
-              <h3 className="text-sm font-semibold text-white">Characters ({companion.characters.length})</h3>
+              <h3 className="text-sm font-semibold text-white">Characters ({filteredCharacters.length}{seasonFilter !== "all" && ` of ${companion.characters.length}`})</h3>
             </div>
             <div className="divide-y divide-[var(--border)]/40">
-              {companion.characters.map((c) => {
+              {filteredCharacters.map((c) => {
                 const descEditing = editing?.type === "character" && editing.id === c.id;
                 return (
                 <div key={c.id} className="px-5 py-3">
@@ -388,14 +428,14 @@ export default function ReviewCompanionPage() {
           </section>
 
           {/* Relationships */}
-          {companion.relationships.length > 0 && (
+          {filteredRelationships.length > 0 && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
                 <Link2 className="w-4 h-4 text-[var(--ratist-red)]" />
-                <h3 className="text-sm font-semibold text-white">Relationships ({companion.relationships.length})</h3>
+                <h3 className="text-sm font-semibold text-white">Relationships ({filteredRelationships.length}{seasonFilter !== "all" && ` of ${companion.relationships.length}`})</h3>
               </div>
               <ul className="divide-y divide-[var(--border)]/40">
-                {companion.relationships.map((r) => (
+                {filteredRelationships.map((r) => (
                   <li key={r.id} className="px-5 py-2 text-sm text-white flex items-center gap-2">
                     <span className="font-medium">{charName(r.fromCharacterId)}</span>
                     <span className="text-[var(--foreground-muted)] italic text-xs">{r.label}</span>
@@ -409,14 +449,14 @@ export default function ReviewCompanionPage() {
           )}
 
           {/* Timeline */}
-          {companion.timeline.length > 0 && (
+          {filteredTimeline.length > 0 && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[var(--ratist-red)]" />
-                <h3 className="text-sm font-semibold text-white">Timeline events ({companion.timeline.length})</h3>
+                <h3 className="text-sm font-semibold text-white">Timeline events ({filteredTimeline.length}{seasonFilter !== "all" && ` of ${companion.timeline.length}`})</h3>
               </div>
               <ul className="divide-y divide-[var(--border)]/40">
-                {companion.timeline.map((t) => {
+                {filteredTimeline.map((t) => {
                   const isEditing = editing?.type === "timeline" && editing.id === t.id;
                   return (
                     <li key={t.id} className="px-5 py-2 text-sm text-white flex items-start gap-3">
@@ -454,14 +494,14 @@ export default function ReviewCompanionPage() {
           )}
 
           {/* Glossary */}
-          {companion.glossary.length > 0 && (
+          {filteredGlossary.length > 0 && (
             <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-[var(--ratist-red)]" />
-                <h3 className="text-sm font-semibold text-white">Glossary ({companion.glossary.length})</h3>
+                <h3 className="text-sm font-semibold text-white">Glossary ({filteredGlossary.length}{seasonFilter !== "all" && ` of ${companion.glossary.length}`})</h3>
               </div>
               <ul className="divide-y divide-[var(--border)]/40">
-                {companion.glossary.map((g) => {
+                {filteredGlossary.map((g) => {
                   const isEditing = editing?.type === "glossary" && editing.id === g.id;
                   return (
                     <li key={g.id} className="px-5 py-2 text-sm">

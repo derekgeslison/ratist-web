@@ -23,19 +23,23 @@ interface Fact { id: string; fact: string; factType: string; visibleAfter: Visib
 interface Character {
   id: string; name: string; actorName: string | null; actorTmdbId: number | null;
   baseDescription: string; group: string | null; imageUrl: string | null;
+  seasonNumber: number | null;
   visibleAfter: VisibleAfter; facts: Fact[];
 }
 interface Relationship {
   id: string; relationshipType: string; label: string; directed: boolean;
   fromCharacterId: string; toCharacterId: string; visibleAfter: VisibleAfter;
+  seasonNumber: number | null;
 }
 interface TimelineEvent {
   id: string; description: string; importance: number;
   characterIds: string[]; visibleAfter: VisibleAfter;
+  seasonNumber: number | null;
 }
 interface GlossaryTerm {
   id: string; term: string; definition: string;
   category: string | null; visibleAfter: VisibleAfter;
+  seasonNumber: number | null;
 }
 
 export interface WatchCompanionData {
@@ -133,43 +137,52 @@ function Section({
 
 export default function WatchCompanionView({ data }: { data: WatchCompanionData }) {
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
+  const sortedSeasons = useMemo(() => [...seasonsGenerated].sort((a, b) => a - b), [seasonsGenerated]);
+  const defaultSeason = sortedSeasons[0] ?? 1;
 
-  const episodeSlots = useMemo(
-    () => mediaType === "tv" ? buildEpisodeSlots(seasonsGenerated, data.seasonEpisodeCounts ?? {}) : [],
-    [mediaType, seasonsGenerated, data.seasonEpisodeCounts],
-  );
-
-  // Persist slider position per-companion in localStorage so tapping an actor
-  // and coming back doesn't snap the viewer to the start of episode 1.
+  // Persist slider position + selected season per-companion in localStorage so
+  // tapping an actor and coming back doesn't snap the viewer to the start of
+  // S1E1.
   const storageKey = `watchcompanion:${data.id}`;
   const [seconds, setSeconds] = useState<number>(0);
   const [slotIndex, setSlotIndex] = useState<number>(0);
   const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
+  const [selectedSeason, setSelectedSeason] = useState<number>(defaultSeason);
   const [hydrated, setHydrated] = useState(false);
   const [activeTab, setActiveTab] = useState<"cast" | "timeline" | "glossary">("cast");
+
+  // Episode slots for the CURRENTLY SELECTED season only. The season picker is
+  // the "which season am I watching?" control; the slider scrubs within it.
+  const episodeSlots = useMemo(
+    () => mediaType === "tv" ? buildEpisodeSlots([selectedSeason], data.seasonEpisodeCounts ?? {}) : [],
+    [mediaType, selectedSeason, data.seasonEpisodeCounts],
+  );
 
   // Restore on mount (client only; avoids hydration mismatch by deferring)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
-        const saved = JSON.parse(raw) as { seconds?: number; slotIndex?: number; episodeSeconds?: number };
+        const saved = JSON.parse(raw) as { seconds?: number; slotIndex?: number; episodeSeconds?: number; selectedSeason?: number };
         if (typeof saved.seconds === "number") setSeconds(saved.seconds);
         if (typeof saved.slotIndex === "number") setSlotIndex(saved.slotIndex);
         if (typeof saved.episodeSeconds === "number") setEpisodeSeconds(saved.episodeSeconds);
+        if (typeof saved.selectedSeason === "number" && sortedSeasons.includes(saved.selectedSeason)) {
+          setSelectedSeason(saved.selectedSeason);
+        }
       }
     } catch { /* ignore */ }
     setHydrated(true);
-  }, [storageKey]);
+  }, [storageKey, sortedSeasons]);
 
   // Persist on change (only after initial hydrate so we don't overwrite with defaults)
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ seconds, slotIndex, episodeSeconds }));
+      localStorage.setItem(storageKey, JSON.stringify({ seconds, slotIndex, episodeSeconds, selectedSeason }));
     } catch { /* storage full or disabled — ignore */ }
-  }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds]);
-  const currentSlot = episodeSlots[slotIndex] ?? { season: seasonsGenerated[0] ?? 1, episode: 1 };
+  }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds, selectedSeason]);
+  const currentSlot = episodeSlots[slotIndex] ?? { season: selectedSeason, episode: 1 };
 
   const position: WatchPosition = useMemo(
     () => mediaType === "movie"
@@ -178,33 +191,61 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     [mediaType, seconds, currentSlot, episodeSeconds],
   );
 
+  // Filter all content down to the selected season first, then apply the
+  // spoiler-slider visibility check. For movies, seasonNumber is null and
+  // the filter is a no-op.
+  const seasonCharacters = useMemo(
+    () => mediaType === "movie"
+      ? data.characters
+      : data.characters.filter((c) => c.seasonNumber === selectedSeason),
+    [data.characters, mediaType, selectedSeason],
+  );
+  const seasonRelationships = useMemo(
+    () => mediaType === "movie"
+      ? data.relationships
+      : data.relationships.filter((r) => r.seasonNumber === selectedSeason),
+    [data.relationships, mediaType, selectedSeason],
+  );
+  const seasonTimeline = useMemo(
+    () => mediaType === "movie"
+      ? data.timeline
+      : data.timeline.filter((t) => t.seasonNumber === selectedSeason),
+    [data.timeline, mediaType, selectedSeason],
+  );
+  const seasonGlossary = useMemo(
+    () => mediaType === "movie"
+      ? data.glossary
+      : data.glossary.filter((g) => g.seasonNumber === selectedSeason),
+    [data.glossary, mediaType, selectedSeason],
+  );
+
   const groupColors = useMemo(() => {
-    const groups = Array.from(new Set(data.characters.map((c) => c.group).filter((g): g is string => !!g)));
+    const groups = Array.from(new Set(seasonCharacters.map((c) => c.group).filter((g): g is string => !!g)));
     const map = new Map<string, string>();
     groups.forEach((g, i) => map.set(g, GROUP_COLORS[i % GROUP_COLORS.length]));
     return map;
-  }, [data.characters]);
+  }, [seasonCharacters]);
 
   const visibleCharacters = useMemo(
-    () => data.characters.filter((c) => isVisible(c.visibleAfter, position, mediaType)),
-    [data.characters, position, mediaType],
+    () => seasonCharacters.filter((c) => isVisible(c.visibleAfter, position, mediaType)),
+    [seasonCharacters, position, mediaType],
   );
   const visibleCharIds = useMemo(() => new Set(visibleCharacters.map((c) => c.id)), [visibleCharacters]);
   const visibleRelationships = useMemo(
-    () => data.relationships.filter((r) =>
+    () => seasonRelationships.filter((r) =>
       isVisible(r.visibleAfter, position, mediaType) &&
       visibleCharIds.has(r.fromCharacterId) && visibleCharIds.has(r.toCharacterId)
     ),
-    [data.relationships, position, mediaType, visibleCharIds],
+    [seasonRelationships, position, mediaType, visibleCharIds],
   );
   const visibleTimeline = useMemo(
-    () => data.timeline.filter((t) => isVisible(t.visibleAfter, position, mediaType))
+    () => seasonTimeline.filter((t) => isVisible(t.visibleAfter, position, mediaType))
       .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType)),
-    [data.timeline, position, mediaType],
+    [seasonTimeline, position, mediaType],
   );
   const visibleGlossary = useMemo(
-    () => data.glossary.filter((g) => isVisible(g.visibleAfter, position, mediaType)),
-    [data.glossary, position, mediaType],
+    () => seasonGlossary.filter((g) => isVisible(g.visibleAfter, position, mediaType)),
+    [seasonGlossary, position, mediaType],
   );
 
   // Relationships embedded per-character (both ends of each relationship)
@@ -224,10 +265,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   const nameOf = (id: string) => data.characters.find((c) => c.id === id)?.name ?? "(unknown)";
 
   const hiddenCount =
-    (data.characters.length - visibleCharacters.length) +
-    (data.relationships.length - visibleRelationships.length) +
-    (data.timeline.length - visibleTimeline.length) +
-    (data.glossary.length - visibleGlossary.length);
+    (seasonCharacters.length - visibleCharacters.length) +
+    (seasonRelationships.length - visibleRelationships.length) +
+    (seasonTimeline.length - visibleTimeline.length) +
+    (seasonGlossary.length - visibleGlossary.length);
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -248,9 +289,36 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         </span>
       </p>
 
-      {/* Sticky cluster: slider + tabs ride together just below the site
-         navbar (72px tall). Both panes stay visible when scrolling. */}
+      {/* Sticky cluster: season picker + slider + tabs ride together just
+         below the site navbar (72px tall). All three panes stay visible
+         when scrolling. */}
       <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
+      {mediaType === "tv" && sortedSeasons.length > 1 && (
+        <div className="mb-2 flex items-center gap-2">
+          <label htmlFor="season-picker" className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">
+            Season
+          </label>
+          <select
+            id="season-picker"
+            value={selectedSeason}
+            onChange={(e) => {
+              const next = parseInt(e.target.value, 10);
+              setSelectedSeason(next);
+              // Reset the within-season slider when swapping seasons so you
+              // don't land on ep 8 of S2 just because that's where you were
+              // in S1.
+              setSlotIndex(0);
+              setEpisodeSeconds(0);
+            }}
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+            aria-label="Which season are you watching?"
+          >
+            {sortedSeasons.map((n) => (
+              <option key={n} value={n}>Season {n}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
         {mediaType === "movie" && runtimeSeconds ? (
           <>

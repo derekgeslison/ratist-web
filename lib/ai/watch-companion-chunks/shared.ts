@@ -202,6 +202,43 @@ export function formatGroundingContext(grounding: CompanionGroundingData, season
   return sections.join("\n");
 }
 
+// ── Prior-season canon (for continuity when generating S2+) ────────────────
+// When we draft season N>1, we pass what's already been canonicalized from
+// earlier seasons into each chunk's user message. This keeps character
+// wording, relationship labels, and glossary phrasing consistent across
+// seasons — and typically reduces hallucination because Sonnet anchors on
+// the established names instead of re-deriving them.
+
+export interface PriorSeasonCanon {
+  characters: Array<{ name: string; baseDescription: string; group: string | null }>;
+  relationships: Array<{ fromName: string; toName: string; label: string; relationshipType: string }>;
+  glossary: Array<{ term: string; definition: string }>;
+}
+
+export function formatPriorSeasonCanon(canon: PriorSeasonCanon | null): string {
+  if (!canon) return "";
+  if (canon.characters.length === 0 && canon.relationships.length === 0 && canon.glossary.length === 0) return "";
+
+  const parts: string[] = [];
+  parts.push("\n## CANON FROM PRIOR SEASONS — reuse these exact names, labels, and wording for continuity\n");
+  parts.push("The following content was drafted + admin-reviewed for earlier seasons of this show. For any character, relationship, or glossary term that persists into the season you're drafting now, REUSE THE EXACT NAME AND LABEL shown here. Do not paraphrase or relabel. Only introduce new content or evolutions.\n");
+
+  if (canon.characters.length > 0) {
+    const lines = canon.characters.map((c) => `- ${c.name}${c.group ? ` [${c.group}]` : ""}: ${c.baseDescription}`).join("\n");
+    parts.push(`\n### Established characters\n${lines}`);
+  }
+  if (canon.relationships.length > 0) {
+    const lines = canon.relationships.map((r) => `- ${r.fromName} — ${r.label} — ${r.toName} (${r.relationshipType})`).join("\n");
+    parts.push(`\n### Established relationships (keep these labels word-for-word if the relationship still applies)\n${lines}`);
+  }
+  if (canon.glossary.length > 0) {
+    const lines = canon.glossary.map((g) => `- ${g.term}: ${g.definition}`).join("\n");
+    parts.push(`\n### Established glossary terms\n${lines}`);
+  }
+
+  return parts.join("\n");
+}
+
 // ── Shared visibleAfter guidance (inserted into each chunk's prompt) ───────
 
 export const VISIBLE_AFTER_GUIDANCE = `

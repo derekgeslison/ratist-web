@@ -14,6 +14,7 @@ import type {
   DraftTimelineEvent,
   DraftGlossaryTerm,
   VisibleAfter,
+  PriorSeasonCanon,
 } from "./watch-companion-chunks/shared";
 
 export interface GenerateInput {
@@ -79,11 +80,19 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
 
   const seasonArg = mediaType === "tv" ? season! : null;
 
+  // Load prior-season canon for TV. This is the "iterate on top of S1"
+  // mechanism — it's what keeps Greg labeled as "great-nephew" instead of
+  // regressing to "grandchild of Logan's sibling" in S2.
+  let priorCanon: PriorSeasonCanon | null = null;
+  if (mediaType === "tv" && seasonArg !== null && seasonArg > 1) {
+    priorCanon = await loadPriorSeasonCanon(tmdbId, seasonArg);
+  }
+
   // 2. Characters
   yield { kind: "step", step: "characters", status: "running" };
   let characters: DraftCharacter[];
   try {
-    characters = await draftCharacters(client, grounding, seasonArg);
+    characters = await draftCharacters(client, grounding, seasonArg, priorCanon);
   } catch (err) {
     yield { kind: "error", message: `Characters draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -94,7 +103,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "facts", status: "running" };
   let facts: DraftFact[];
   try {
-    facts = await draftFacts(client, grounding, seasonArg, characters);
+    facts = await draftFacts(client, grounding, seasonArg, characters, priorCanon);
   } catch (err) {
     yield { kind: "error", message: `Facts draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -105,7 +114,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "relationships", status: "running" };
   let relationships: DraftRelationship[];
   try {
-    relationships = await draftRelationships(client, grounding, seasonArg, characters);
+    relationships = await draftRelationships(client, grounding, seasonArg, characters, priorCanon);
   } catch (err) {
     yield { kind: "error", message: `Relationships draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -116,7 +125,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "timeline", status: "running" };
   let timelineEvents: DraftTimelineEvent[];
   try {
-    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters);
+    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters, priorCanon);
   } catch (err) {
     yield { kind: "error", message: `Timeline draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -127,7 +136,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "glossary", status: "running" };
   let glossary: DraftGlossaryTerm[];
   try {
-    glossary = await draftGlossary(client, grounding, seasonArg);
+    glossary = await draftGlossary(client, grounding, seasonArg, priorCanon);
   } catch (err) {
     yield { kind: "error", message: `Glossary draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -211,25 +220,32 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     },
   });
 
-  // Nuclear wipe on regen — partial deletes kept leaking duplicate character
-  // cards. See earlier comment in the pre-chunked version for the full
-  // context.
+  // Scoped wipe — only the season being generated. Each content row carries
+  // a seasonNumber so we can target it reliably. For movies (season === null)
+  // the wipe is a simple nuclear-by-companion since there's only ever one
+  // generation. The prior implementation's nuclear wipe is what killed
+  // Succession S1 when S2 got generated — don't bring it back.
   if (!isNew) {
-    await Promise.all([
-      prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
-      prisma.companionRelationship.deleteMany({ where: { companionId: companion.id } }),
-      prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id } }),
-      prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id } }),
-    ]);
-    if (mediaType === "tv" && season !== null) {
-      await prisma.watchCompanion.update({
-        where: { id: companion.id },
-        data: { seasonsGenerated: [season] },
-      });
+    if (mediaType === "movie") {
+      await Promise.all([
+        prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
+        prisma.companionRelationship.deleteMany({ where: { companionId: companion.id } }),
+        prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id } }),
+        prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id } }),
+      ]);
+    } else if (season !== null) {
+      await Promise.all([
+        prisma.companionCharacter.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+        prisma.companionRelationship.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+        prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+        prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+      ]);
     }
   }
 
   // Characters first so we have name → id for facts / relationships / timeline.
+  // Every content row gets stamped with the seasonNumber being generated (or
+  // null for movies) so regeneration can scope correctly later.
   const nameToId = new Map<string, string>();
   let charactersAdded = 0;
 
@@ -237,6 +253,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     const char = await prisma.companionCharacter.create({
       data: {
         companionId: companion.id,
+        seasonNumber: season,
         name: c.name,
         actorName: c.actorName,
         actorTmdbId: c.actorTmdbId,
@@ -278,6 +295,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     await prisma.companionRelationship.create({
       data: {
         companionId: companion.id,
+        seasonNumber: season,
         fromCharacterId: fromId,
         toCharacterId: toId,
         relationshipType: r.relationshipType,
@@ -294,6 +312,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   if (draft.timelineEvents.length > 0) {
     const events = draft.timelineEvents.map((e) => ({
       companionId: companion.id,
+      seasonNumber: season,
       description: e.description,
       characterIds: e.characterNames.map((n) => nameToId.get(n)).filter((id): id is string => !!id),
       importance: e.importance,
@@ -309,6 +328,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     await prisma.companionGlossaryTerm.createMany({
       data: draft.glossary.map((g, idx) => ({
         companionId: companion.id,
+        seasonNumber: season,
         term: g.term,
         definition: g.definition,
         category: g.category,
@@ -336,4 +356,71 @@ function serialize(v: VisibleAfter): { seconds?: number; season?: number; episod
   if (typeof v.season === "number") out.season = v.season;
   if (typeof v.episode === "number") out.episode = v.episode;
   return out;
+}
+
+/**
+ * Pulls a compact summary of all content that was canonicalized in seasons
+ * before the one being generated. Used to keep wording consistent across
+ * seasons (relationship labels especially — this is what stops Greg from
+ * being relabeled "grandchild of Logan's sibling" in S2 after being a
+ * "great-nephew" in S1).
+ *
+ * We dedupe by name/term because characters typically appear in multiple
+ * prior seasons — the earliest version wins (the later-season row's
+ * baseDescription often includes spoilers for its own season).
+ */
+async function loadPriorSeasonCanon(tmdbId: number, currentSeason: number): Promise<PriorSeasonCanon | null> {
+  const companion = await prisma.watchCompanion.findUnique({
+    where: { tmdbId_mediaType: { tmdbId, mediaType: "tv" } },
+    select: { id: true },
+  });
+  if (!companion) return null;
+
+  const [characters, relationships, glossary] = await Promise.all([
+    prisma.companionCharacter.findMany({
+      where: { companionId: companion.id, seasonNumber: { lt: currentSeason } },
+      orderBy: [{ seasonNumber: "asc" }, { sortOrder: "asc" }],
+      select: { name: true, baseDescription: true, group: true },
+    }),
+    prisma.companionRelationship.findMany({
+      where: { companionId: companion.id, seasonNumber: { lt: currentSeason } },
+      orderBy: { seasonNumber: "asc" },
+      include: { from: { select: { name: true } }, to: { select: { name: true } } },
+    }),
+    prisma.companionGlossaryTerm.findMany({
+      where: { companionId: companion.id, seasonNumber: { lt: currentSeason } },
+      orderBy: [{ seasonNumber: "asc" }, { sortOrder: "asc" }],
+      select: { term: true, definition: true },
+    }),
+  ]);
+
+  const seenChar = new Set<string>();
+  const charCanon: PriorSeasonCanon["characters"] = [];
+  for (const c of characters) {
+    if (seenChar.has(c.name)) continue;
+    seenChar.add(c.name);
+    charCanon.push({ name: c.name, baseDescription: c.baseDescription, group: c.group });
+  }
+
+  const seenRel = new Set<string>();
+  const relCanon: PriorSeasonCanon["relationships"] = [];
+  for (const r of relationships) {
+    const fromName = r.from?.name ?? "";
+    const toName = r.to?.name ?? "";
+    if (!fromName || !toName) continue;
+    const key = `${fromName}|${toName}|${r.label}|${r.relationshipType}`;
+    if (seenRel.has(key)) continue;
+    seenRel.add(key);
+    relCanon.push({ fromName, toName, label: r.label, relationshipType: r.relationshipType });
+  }
+
+  const seenTerm = new Set<string>();
+  const glossCanon: PriorSeasonCanon["glossary"] = [];
+  for (const g of glossary) {
+    if (seenTerm.has(g.term)) continue;
+    seenTerm.add(g.term);
+    glossCanon.push({ term: g.term, definition: g.definition });
+  }
+
+  return { characters: charCanon, relationships: relCanon, glossary: glossCanon };
 }

@@ -2043,6 +2043,11 @@ model WatchCompanion {
 model CompanionCharacter {
   id           String @id @default(cuid())
   companionId  String @map("companion_id")
+  // Per-season ownership for TV companions. Null for movies. A character who
+  // appears in S1 and S2 exists as TWO rows (one per season) so the
+  // regeneration of S2 leaves S1 untouched and each season's row can carry
+  // a different baseDescription / facts / imageUrl snapshot.
+  seasonNumber Int?   @map("season_number")
   name         String
   actorName    String? @map("actor_name")
   actorTmdbId  Int?    @map("actor_tmdb_id")
@@ -2065,6 +2070,7 @@ model CompanionCharacter {
   toRelationships   CompanionRelationship[] @relation("relTo")
 
   @@index([companionId])
+  @@index([companionId, seasonNumber])
   @@map("companion_characters")
 }
 
@@ -2088,6 +2094,7 @@ model CompanionFact {
 model CompanionRelationship {
   id          String @id @default(cuid())
   companionId String @map("companion_id")
+  seasonNumber Int?  @map("season_number") // null for movies; required for TV
   fromCharacterId String @map("from_character_id")
   toCharacterId   String @map("to_character_id")
   relationshipType String @map("relationship_type") // "family" | "romantic" | "business" | "rivalry" | "alliance" | "mentor" | "other"
@@ -2100,12 +2107,14 @@ model CompanionRelationship {
   to          CompanionCharacter @relation("relTo", fields: [toCharacterId], references: [id], onDelete: Cascade)
 
   @@index([companionId])
+  @@index([companionId, seasonNumber])
   @@map("companion_relationships")
 }
 
 model CompanionTimelineEvent {
   id          String @id @default(cuid())
   companionId String @map("companion_id")
+  seasonNumber Int?  @map("season_number") // null for movies; required for TV
   description String @db.Text
   visibleAfter Json  @map("visible_after")
   characterIds String[] @default([]) @map("character_ids") // which characters are involved
@@ -2114,12 +2123,14 @@ model CompanionTimelineEvent {
   companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
 
   @@index([companionId])
+  @@index([companionId, seasonNumber])
   @@map("companion_timeline_events")
 }
 
 model CompanionGlossaryTerm {
   id          String @id @default(cuid())
   companionId String @map("companion_id")
+  seasonNumber Int?  @map("season_number") // null for movies; required for TV
   term        String
   definition  String @db.Text
   visibleAfter Json @map("visible_after")
@@ -2129,6 +2140,7 @@ model CompanionGlossaryTerm {
   companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
 
   @@index([companionId])
+  @@index([companionId, seasonNumber])
   @@map("companion_glossary_terms")
 }
 

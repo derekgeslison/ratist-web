@@ -3,6 +3,7 @@ import type { CompanionGroundingData } from "../watch-companion-grounding";
 import {
   type DraftCharacter,
   type DraftRelationship,
+  type PriorSeasonCanon,
   RELATIONSHIP_TYPES,
   type RelationshipType,
   VISIBLE_AFTER_SCHEMA,
@@ -10,6 +11,7 @@ import {
   normVisibleAfter,
   normalizeLabel,
   formatGroundingContext,
+  formatPriorSeasonCanon,
   callTool,
 } from "./shared";
 
@@ -90,9 +92,11 @@ export async function draftRelationships(
   grounding: CompanionGroundingData,
   season: number | null,
   characters: DraftCharacter[],
+  priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftRelationship[]> {
   const charList = characters.map((c) => `- ${c.name}`).join("\n");
   const userMessage = formatGroundingContext(grounding, season, { includeCast: false })
+    + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference these EXACTLY by name)\n\n${charList}`
     + `\n\nEmit the relationships now. Every fromName and toName must match one of the names above exactly.`;
 

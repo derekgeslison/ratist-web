@@ -3,10 +3,12 @@ import type { CompanionGroundingData } from "../watch-companion-grounding";
 import {
   type DraftCharacter,
   type DraftTimelineEvent,
+  type PriorSeasonCanon,
   VISIBLE_AFTER_SCHEMA,
   VISIBLE_AFTER_GUIDANCE,
   normVisibleAfter,
   formatGroundingContext,
+  formatPriorSeasonCanon,
   callTool,
 } from "./shared";
 
@@ -70,9 +72,11 @@ export async function draftTimeline(
   grounding: CompanionGroundingData,
   season: number | null,
   characters: DraftCharacter[],
+  priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftTimelineEvent[]> {
   const charList = characters.map((c) => `- ${c.name}`).join("\n");
   const userMessage = formatGroundingContext(grounding, season, { includeCast: false })
+    + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference by exact name in characterNames)\n\n${charList}`
     + `\n\nEmit the timeline now. Minimum 8 beats for a season, 6 for a movie.`;
 

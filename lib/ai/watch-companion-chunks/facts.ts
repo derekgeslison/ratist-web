@@ -3,12 +3,14 @@ import type { CompanionGroundingData } from "../watch-companion-grounding";
 import {
   type DraftCharacter,
   type DraftFact,
+  type PriorSeasonCanon,
   FACT_TYPES,
   type FactType,
   VISIBLE_AFTER_SCHEMA,
   VISIBLE_AFTER_GUIDANCE,
   normVisibleAfter,
   formatGroundingContext,
+  formatPriorSeasonCanon,
   callTool,
 } from "./shared";
 
@@ -65,9 +67,11 @@ export async function draftFacts(
   grounding: CompanionGroundingData,
   season: number | null,
   characters: DraftCharacter[],
+  priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftFact[]> {
   const charList = characters.map((c) => `- ${c.name}${c.actorName ? ` (played by ${c.actorName})` : ""}: ${c.baseDescription}`).join("\n");
   const userMessage = formatGroundingContext(grounding, season)
+    + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference these EXACTLY by name)\n\n${charList}`
     + `\n\nEmit the facts now. 0–8 per character. Every characterName must match one of the names above exactly.`;
 

@@ -55,6 +55,7 @@ export default async function MovieCompanionPage({ params }: Props) {
   const characters = companion.characters.map((c) => ({
     ...c,
     imageUrl: c.actorTmdbId ? imageMap.get(c.actorTmdbId) ?? null : null,
+    seasonNumber: c.seasonNumber,
     visibleAfter: c.visibleAfter as WatchCompanionData["characters"][number]["visibleAfter"],
     facts: c.facts.map((f) => ({ ...f, visibleAfter: f.visibleAfter as WatchCompanionData["characters"][number]["facts"][number]["visibleAfter"] })),
   }));
@@ -66,9 +67,9 @@ export default async function MovieCompanionPage({ params }: Props) {
     runtimeSeconds: companion.runtimeSeconds,
     seasonsGenerated: companion.seasonsGenerated,
     characters,
-    relationships: companion.relationships.map((r) => ({ ...r, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),
-    timeline: companion.timeline.map((t) => ({ ...t, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
-    glossary: companion.glossary.map((g) => ({ ...g, visibleAfter: g.visibleAfter as WatchCompanionData["glossary"][number]["visibleAfter"] })),
+    relationships: companion.relationships.map((r) => ({ ...r, seasonNumber: r.seasonNumber, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),
+    timeline: companion.timeline.map((t) => ({ ...t, seasonNumber: t.seasonNumber, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
+    glossary: companion.glossary.map((g) => ({ ...g, seasonNumber: g.seasonNumber, visibleAfter: g.visibleAfter as WatchCompanionData["glossary"][number]["visibleAfter"] })),
   };
 
   return (

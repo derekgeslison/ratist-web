@@ -2,10 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { CompanionGroundingData } from "../watch-companion-grounding";
 import {
   type DraftCharacter,
+  type PriorSeasonCanon,
   VISIBLE_AFTER_SCHEMA,
   VISIBLE_AFTER_GUIDANCE,
   normVisibleAfter,
   formatGroundingContext,
+  formatPriorSeasonCanon,
   callTool,
 } from "./shared";
 
@@ -67,8 +69,10 @@ export async function draftCharacters(
   client: Anthropic,
   grounding: CompanionGroundingData,
   season: number | null,
+  priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftCharacter[]> {
   const userMessage = formatGroundingContext(grounding, season)
+    + formatPriorSeasonCanon(priorCanon)
     + `\n\nEmit the characters now. Each must cite an actorTmdbId from the cast list above and include a correct visibleAfter.`;
   const result = await callTool<{ characters: unknown[] }>({
     client,
