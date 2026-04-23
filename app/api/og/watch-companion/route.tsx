@@ -117,10 +117,38 @@ export async function GET(request: Request) {
       })
       .filter((e): e is NonNullable<typeof e> => e !== null);
 
-    // Poster
-    const posterPath = companion.mediaType === "movie"
-      ? (await prisma.movie.findUnique({ where: { tmdbId: companion.tmdbId }, select: { posterPath: true } }))?.posterPath ?? null
-      : (await prisma.tVShow.findUnique({ where: { tmdbId: companion.tmdbId }, select: { posterPath: true } }))?.posterPath ?? null;
+    // Poster + title-row meta (rating, runtime, genres). Pulling from the
+    // local DB instead of TMDB — these rows are kept warm by the main site
+    // traffic, and falling back to nulls is fine for the card.
+    let posterPath: string | null = null;
+    let metaPieces: string[] = [];
+    if (companion.mediaType === "movie") {
+      const movie = await prisma.movie.findUnique({
+        where: { tmdbId: companion.tmdbId },
+        select: {
+          posterPath: true, runtime: true, mpaaRating: true,
+          genres: { select: { genre: { select: { name: true } } }, take: 3 },
+        },
+      });
+      posterPath = movie?.posterPath ?? null;
+      if (movie?.mpaaRating) metaPieces.push(movie.mpaaRating);
+      if (movie?.runtime) metaPieces.push(`${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`);
+      const g = movie?.genres?.map((mg) => mg.genre.name).filter(Boolean) ?? [];
+      if (g.length > 0) metaPieces.push(g.slice(0, 2).join(" · "));
+    } else {
+      const show = await prisma.tVShow.findUnique({
+        where: { tmdbId: companion.tmdbId },
+        select: {
+          posterPath: true, episodeRunTime: true, contentRating: true, numberOfSeasons: true,
+          genres: { select: { genre: { select: { name: true } } }, take: 3 },
+        },
+      });
+      posterPath = show?.posterPath ?? null;
+      if (show?.contentRating) metaPieces.push(show.contentRating);
+      if (show?.episodeRunTime) metaPieces.push(`${show.episodeRunTime}m episodes`);
+      const g = show?.genres?.map((sg) => sg.genre.name).filter(Boolean) ?? [];
+      if (g.length > 0) metaPieces.push(g.slice(0, 2).join(" · "));
+    }
     const posterUrl = posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : null;
 
     const mapSvg = abstractMapSvg(characters, edges, 420);
@@ -135,30 +163,39 @@ export async function GET(request: Request) {
     return new ImageResponse(
       (
         <div style={{ display: "flex", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 48 }}>
-          <div style={{ display: "flex", flexDirection: "column", flex: 1, paddingRight: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <img src={logoSrc} width={36} height={36} style={{ borderRadius: 6 }} />
-              <span style={{ color: "white", fontWeight: 800, fontSize: 18, letterSpacing: 1 }}>THE RATIST · WATCH COMPANION</span>
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, paddingRight: 32, justifyContent: "space-between" }}>
+            {/* Top block: logo + poster + title + movie meta */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                <img src={logoSrc} width={36} height={36} style={{ borderRadius: 6 }} />
+                <span style={{ color: "white", fontWeight: 800, fontSize: 18, letterSpacing: 1 }}>THE RATIST · WATCH COMPANION</span>
+              </div>
 
-            <div style={{ display: "flex", gap: 20, marginBottom: 28 }}>
-              {posterUrl && (
-                <img src={posterUrl} width={120} height={180} style={{ borderRadius: 8, objectFit: "cover" }} />
-              )}
-              <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                <span style={{ color: "white", fontSize: 36, fontWeight: 800, lineHeight: 1.1 }}>{companion.title}</span>
-                {seasonLabel && (
-                  <span style={{ color: "#ef3b36", fontSize: 18, fontWeight: 700, marginTop: 6, textTransform: "uppercase", letterSpacing: 1 }}>
-                    {seasonLabel}
-                  </span>
+              <div style={{ display: "flex", gap: 20 }}>
+                {posterUrl && (
+                  <img src={posterUrl} width={140} height={210} style={{ borderRadius: 8, objectFit: "cover" }} />
                 )}
-                <span style={{ color: "#999", fontSize: 14, marginTop: 14, lineHeight: 1.4 }}>
-                  Spoiler-safe viewing guide — characters, relationships and plot beats unlock as you watch.
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                  <span style={{ color: "white", fontSize: 38, fontWeight: 800, lineHeight: 1.05 }}>{companion.title}</span>
+                  {seasonLabel && (
+                    <span style={{ color: "#ef3b36", fontSize: 18, fontWeight: 700, marginTop: 6, textTransform: "uppercase", letterSpacing: 1 }}>
+                      {seasonLabel}
+                    </span>
+                  )}
+                  {metaPieces.length > 0 && (
+                    <span style={{ color: "#999", fontSize: 14, marginTop: 12, lineHeight: 1.4 }}>
+                      {metaPieces.join("  ·  ")}
+                    </span>
+                  )}
+                  <span style={{ color: "#666", fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
+                    Spoiler-safe viewing guide — unlocks as you watch.
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 28 }}>
+            {/* Bottom block: big companion stats, fills the lower-left space */}
+            <div style={{ display: "flex", gap: 36, marginTop: 24 }}>
               {[
                 { label: "Characters", value: String(companion._count.characters) },
                 { label: "Connections", value: String(companion._count.relationships) },
@@ -166,8 +203,8 @@ export async function GET(request: Request) {
                 { label: "Terms", value: String(companion._count.glossary) },
               ].map((stat) => (
                 <div key={stat.label} style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ color: "white", fontSize: 28, fontWeight: 800 }}>{stat.value}</span>
-                  <span style={{ color: "#666", fontSize: 10, textTransform: "uppercase", letterSpacing: 1 }}>{stat.label}</span>
+                  <span style={{ color: "white", fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{stat.value}</span>
+                  <span style={{ color: "#999", fontSize: 12, textTransform: "uppercase", letterSpacing: 1.5, marginTop: 4 }}>{stat.label}</span>
                 </div>
               ))}
             </div>
