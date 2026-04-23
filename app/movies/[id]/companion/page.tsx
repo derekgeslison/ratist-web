@@ -20,10 +20,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tmdbId = Number(id);
   try {
     const movie = await getMovieDetails(tmdbId);
+    // Look up the companion id so we can wire the OG image. If there's no
+    // companion yet the og route just returns 404 and the social card
+    // falls back to the site default.
+    const companion = await prisma.watchCompanion.findUnique({
+      where: { tmdbId_mediaType: { tmdbId, mediaType: "movie" } },
+      select: { id: true },
+    });
+    const ogUrl = companion ? `${SITE_URL}/api/og/watch-companion?id=${companion.id}` : undefined;
     return {
       title: `${movie.title} — Watch Companion`,
       description: `Spoiler-safe reference guide for ${movie.title}: characters, relationships, and plot points as you watch.`,
       alternates: { canonical: `/movies/${id}/companion` },
+      openGraph: ogUrl ? { images: [{ url: ogUrl, width: 1200, height: 630 }] } : undefined,
+      twitter: ogUrl ? { card: "summary_large_image", images: [ogUrl] } : undefined,
     };
   } catch {
     return { title: "Watch Companion" };
@@ -88,6 +98,7 @@ export default async function MovieCompanionPage({ params }: Props) {
             text={`Watch Companion for ${companion.title} — a spoiler-safe viewing guide on The Ratist.`}
             url={`${SITE_URL}/movies/${id}/companion`}
             label="Share"
+            cardImageUrl={`${SITE_URL}/api/og/watch-companion?id=${companion.id}`}
           />
         </div>
       </header>

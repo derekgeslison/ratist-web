@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
 import RelationshipMap from "./RelationshipMap";
+import AdUnit from "@/components/AdUnit";
+
+const COMPANION_AD_SLOT = process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMPANION ?? "";
 
 interface VisibleAfter {
   seconds?: number | null;
@@ -451,13 +454,21 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="character" label="Suggest a character edit" compact />}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {visibleCharacters.map((c) => {
+            {visibleCharacters.map((c, idx) => {
               const color = c.group ? groupColors.get(c.group) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
               const connections = relationshipsByCharacter.get(c.id) ?? [];
               return (
+                <React.Fragment key={c.id}>
+                  {/* Mid-cast ad unit, spans both columns. Only renders at
+                     index 6 (i.e. after 6 cards) so short casts don't show
+                     it. Paid users skip it automatically via AdUnit. */}
+                  {idx === 6 && COMPANION_AD_SLOT && (
+                    <div className="sm:col-span-2 my-1">
+                      <AdUnit slot={COMPANION_AD_SLOT} format="auto" />
+                    </div>
+                  )}
                 <div
-                  key={c.id}
                   className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3"
                   style={{ borderLeftWidth: 3, borderLeftColor: color }}
                 >
@@ -600,6 +611,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     );
                   })()}
                 </div>
+                </React.Fragment>
               );
             })}
           </div>
@@ -634,6 +646,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               </li>
             ))}
           </ol>
+          {COMPANION_AD_SLOT && <AdUnit slot={COMPANION_AD_SLOT} format="auto" className="mt-4" />}
         </Section>
         ) : (
           <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No timeline events unlocked at your current position yet.</p>
@@ -698,6 +711,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             ) : (
               <p className="text-sm text-[var(--foreground-muted)] italic text-center py-4">No terms in this category yet.</p>
             )}
+            {COMPANION_AD_SLOT && <AdUnit slot={COMPANION_AD_SLOT} format="auto" className="mt-4" />}
           </Section>
         );
       })()}
