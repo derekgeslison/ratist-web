@@ -45,11 +45,23 @@ const REL_ICONS: Record<string, typeof Heart> = {
 };
 
 // Radial layout params. Tuned for 8-20 characters on a mobile-first card.
-const VIEWBOX = 400;
+// The viewBox is oversized relative to the ring radius on purpose — it leaves
+// ~90px of padding on each side so two-line names ("Logan" / "Roy") don't
+// clip at the edges.
+const VIEWBOX = 480;
 const CENTER = VIEWBOX / 2;
 const RADIUS = 150;
 const NODE_RADIUS = 22;
 const LABEL_OFFSET = 36; // how far outside the ring we put the name label
+
+// Split a full name into up to two lines for the radial label (first word
+// on line 1, remainder on line 2). "Siobhan 'Shiv' Roy" -> ["Siobhan",
+// "'Shiv' Roy"]. Single-word names stay one line.
+function splitNameLines(name: string): string[] {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length <= 1) return [name];
+  return [parts[0], parts.slice(1).join(" ")];
+}
 
 /**
  * Pure-SVG radial relationship map. Characters are placed around a circle,
@@ -117,6 +129,21 @@ export default function RelationshipMap({ characters, relationships, groupColors
     }
     return ids;
   }, [selectedCharId, relationships]);
+
+  // Connections involving the selected character, with the "other party"
+  // resolved and displayed from the selected char's perspective. Used for
+  // the auto-list that appears below the map when a character is tapped.
+  const selectedCharConnections = useMemo(() => {
+    if (!selectedCharId) return null;
+    return relationships
+      .filter((r) => r.fromCharacterId === selectedCharId || r.toCharacterId === selectedCharId)
+      .map((r) => {
+        const otherId = r.fromCharacterId === selectedCharId ? r.toCharacterId : r.fromCharacterId;
+        const other = characters.find((c) => c.id === otherId);
+        return { rel: r, otherName: other?.name ?? "(unknown)" };
+      })
+      .filter((c) => c.otherName !== "(unknown)");
+  }, [selectedCharId, relationships, characters]);
 
   const presentRelTypes = useMemo(() => {
     return Array.from(new Set(relationships.map((r) => r.relationshipType))).sort();
@@ -224,18 +251,36 @@ export default function RelationshipMap({ characters, relationships, groupColors
               >
                 {initial}
               </text>
-              <text
-                x={labelX}
-                y={labelY}
-                textAnchor={anchor}
-                dominantBaseline="central"
-                fontSize={11}
-                fill="currentColor"
-                className="text-[var(--foreground-muted)]"
-                pointerEvents="none"
-              >
-                {c.name.length > 18 ? c.name.slice(0, 17) + "…" : c.name}
-              </text>
+              {/* Name label — splits into up to two lines so full names fit
+                 without horizontal clipping. The first tspan positions itself
+                 via dy so both lines sit centered on labelY. */}
+              {(() => {
+                const lines = splitNameLines(c.name);
+                const lineHeight = 12;
+                const startDy = lines.length === 1 ? 0 : -((lines.length - 1) * lineHeight) / 2;
+                return (
+                  <text
+                    x={labelX}
+                    y={labelY}
+                    textAnchor={anchor}
+                    dominantBaseline="central"
+                    fontSize={11}
+                    fill="currentColor"
+                    className="text-[var(--foreground-muted)]"
+                    pointerEvents="none"
+                  >
+                    {lines.map((line, i) => (
+                      <tspan
+                        key={i}
+                        x={labelX}
+                        dy={i === 0 ? startDy : lineHeight}
+                      >
+                        {line.length > 18 ? line.slice(0, 17) + "…" : line}
+                      </tspan>
+                    ))}
+                  </text>
+                );
+              })()}
             </g>
           );
         })}
@@ -247,18 +292,43 @@ export default function RelationshipMap({ characters, relationships, groupColors
           <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: REL_COLOR[selectedEdge.type] ?? REL_COLOR.other }} />
           <span className="text-white italic">{selectedEdge.label}</span>
           <span className="text-[var(--foreground-muted)] capitalize">· {selectedEdge.type}</span>
-          <button onClick={() => setSelectedEdge(null)} className="ml-auto text-[var(--foreground-muted)] hover:text-white">×</button>
+          <button onClick={() => setSelectedEdge(null)} className="ml-auto text-[var(--foreground-muted)] hover:text-white" aria-label="Clear edge selection">×</button>
         </div>
       )}
-      {selectedCharId && !selectedEdge && (
-        <p className="text-[10px] text-[var(--foreground-muted)] text-center">
-          Showing connections for <span className="text-white font-semibold">{characters.find((c) => c.id === selectedCharId)?.name}</span>
-          {" · "}
-          <button onClick={() => setSelectedCharId(null)} className="underline hover:text-white">reset</button>
-        </p>
+      {selectedCharId && selectedCharConnections && (
+        <div className="bg-[var(--surface-2)]/50 border border-[var(--border)] rounded-lg p-2 space-y-1.5">
+          <p className="text-[10px] text-[var(--foreground-muted)] flex items-center gap-2">
+            Connections for <span className="text-white font-semibold">{characters.find((c) => c.id === selectedCharId)?.name}</span>
+            <button onClick={() => setSelectedCharId(null)} className="ml-auto underline hover:text-white">clear</button>
+          </p>
+          {selectedCharConnections.length === 0 ? (
+            <p className="text-[11px] text-[var(--foreground-muted)] italic">No relationships revealed for this character yet.</p>
+          ) : (
+            <ul className="space-y-1">
+              {selectedCharConnections.map(({ rel, otherName }) => {
+                const Icon = REL_ICONS[rel.relationshipType] ?? Link2;
+                const color = REL_COLOR[rel.relationshipType] ?? REL_COLOR.other;
+                return (
+                  <li key={rel.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEdge({ label: rel.label, type: rel.relationshipType })}
+                      className="w-full flex items-center gap-2 text-left text-[11px] px-2 py-1 rounded hover:bg-[var(--surface-2)] transition-colors"
+                    >
+                      <Icon className="w-3 h-3 shrink-0" style={{ color }} />
+                      <span className="text-[var(--foreground-muted)] italic">{rel.label}</span>
+                      <span className="text-white font-semibold truncate">{otherName}</span>
+                      <span className="ml-auto text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]/70 capitalize shrink-0">{rel.relationshipType}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       )}
       {!selectedCharId && !selectedEdge && (
-        <p className="text-[10px] text-[var(--foreground-muted)] text-center">Tap a character to isolate their connections · tap an edge to read the label</p>
+        <p className="text-[10px] text-[var(--foreground-muted)] text-center">Tap a character to see their connections · tap an edge on the map to isolate it</p>
       )}
     </div>
   );

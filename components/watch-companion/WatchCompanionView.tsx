@@ -414,8 +414,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             {([
               { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
               { key: "map", label: "Map", icon: Network, count: visibleRelationships.length },
-              { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
               { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
+              { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
             ] as const).map(({ key, label, icon: Icon, count }) => (
               <button
                 key={key}
@@ -584,13 +584,16 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       : visibleFacts;
                     if (displayFacts.length === 0) return null;
                     return (
-                      <ul className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-1">
+                      <ul className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-1.5">
                         {displayFacts.map((f) => (
-                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] flex items-start gap-2">
-                            <span className="text-[9px] uppercase tracking-wider font-semibold shrink-0 mt-0.5" style={{ color }}>
+                          /* Inline label — fact text flows after it and
+                             wraps UNDER the label on line 2+, saving vertical
+                             space vs the old two-column layout. */
+                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] leading-relaxed">
+                            <span className="text-[9px] uppercase tracking-wider font-semibold mr-1.5" style={{ color }}>
                               {f.factType.replace(/_/g, " ")}
                             </span>
-                            <span className="flex-1">{f.fact}</span>
+                            {f.fact}
                           </li>
                         ))}
                       </ul>
