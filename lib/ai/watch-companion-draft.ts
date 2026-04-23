@@ -85,29 +85,38 @@ For MOVIES, visibleAfter is:
 - Err on the side of AFTER the reveal. Being too late is never a problem; being too early is.
 
 For TV SHOWS, visibleAfter is:
-- { season: S, episode: E } — the first episode in which the information is clearly established.
-- Omit "seconds" for shows; per-episode granularity is enough.
-- A character who appears in S1E1 gets { season: 1, episode: 1 }. A twist revealed in the S3 finale gets { season: 3, episode: [finale episode number] }.
+- { season: S, episode: E, seconds?: number } — the first episode AND (when confidently estimable) the approximate number of seconds into that episode when the information is revealed.
+- Prefer emitting seconds at **act boundaries**: ~0 for cold-open reveals, ~600 (10 min) for mid-early, ~1200 (20 min) for act 2 turn, ~1800 (30 min) for end-act-2, ~2400 (40 min) for act 3 for hour-long episodes. For half-hour comedies halve these. A mid-season finale cliffhanger sits at near the episode's runtime.
+- If unsure, tag with just season + episode (no seconds) — the viewer's intra-episode slider will treat that as "start of episode" so they see it as soon as the episode begins.
+- A character introduction usually belongs at their first scene — tag { season: 1, episode: 1, seconds: 0 } if they're in the cold open, higher if they show up later.
+- A twist revealed in the last scene of the S3 finale gets { season: 3, episode: [finale], seconds: [near runtime] }.
 
 NEVER output a fact tagged earlier than when it's established. If you're unsure, tag it later.
 
 ## Characters
 
 - 8–20 characters, focused on recurring + named roles. Skip one-scene cameos unless essential.
-- "baseDescription" is the SPOILER-SAFE intro — what a viewer knows about the character from their introduction. "The patriarch of the Roy family, founder of Waystar Royco." NOT "The CEO whose death kicks off the succession war" (that's a reveal, which belongs in a Fact).
+- "baseDescription" describes the CHARACTER'S IDENTITY — who they are as a person in the story's world — NOT their title or current role. It should remain accurate for the entire run. Examples:
+  - GOOD: "A longtime Waystar executive and Logan's financial strategist. Loyal but increasingly cynical." — describes who Karl IS, stays true whether he's CFO, COO, or ousted.
+  - BAD: "CFO of Waystar Royco" — this gets stale when the role changes in later seasons.
+  - GOOD: "The Roy family's outsider son-in-law. Pragmatic, self-serving, an anxious social climber." — Tom at any point in the series.
+  - BAD: "Shiv's husband and head of the news division" — both facts change.
+- Roles, titles, positions, and allegiances evolve — those go in **facts** with visibleAfter tags, NOT baseDescription.
 - "actorName" and "actorTmdbId" MUST match someone in the provided cast list exactly.
 - "group" is their faction / house / family / team — used for color-coding diagrams. Leave null if not applicable.
 - "visibleAfter" = when they first appear on-screen.
-- "facts" are EVOLVING traits that unlock as the story progresses. Role changes, deaths, reveals, major arc moments. 0–5 per character. Each fact has its own visibleAfter.
-  - factType: "role_change" (promotion/demotion/switch), "relationship_change" (new marriage, break-up, alliance shift), "arc" (major character evolution), "death" (permanent exit), "reveal" (something recontextualizes them), "other".
+- "facts" are EVOLVING traits that unlock as the story progresses. 0–8 per character — **be generous when a character's role or standing shifts multiple times**. Each fact has its own visibleAfter.
+  - factType: "role_change" (promotion/demotion/title switch — use liberally whenever someone's job or position changes), "relationship_change" (new marriage, break-up, alliance shift), "arc" (major character evolution), "death" (permanent exit), "reveal" (something recontextualizes them), "other".
+  - For a character whose title changes 3 times across a season, emit 3 separate role_change facts tagged at each switch point. Don't collapse them into the baseDescription.
 
 ## Relationships
 
 - Directed (A → B) or symmetric (siblings, spouses, allies).
-- 5–25 total. Skip obvious ones (child of obvious parent). Surface non-obvious ones (ex-spouse, mentor, business rival).
-- "label" is short human-readable: "father of", "ex-wife", "reports to", "rival", "best friend".
+- 5–30 total. Skip obvious ones (child of obvious parent). Surface non-obvious ones (ex-spouse, mentor, business rival).
+- "label" is short, modern, plainspoken human-readable English: "father of", "ex-wife", "reports to", "rival", "best friend", "past affair with", "business contact", "former lover". **Avoid archaic wording** like "paramour", "beau", "suitor" — write the way a viewer would describe the relationship to a friend.
+- **Multiple relationships between the same two characters are fine and encouraged when warranted.** A character who is both a past lover AND a current political contact gets TWO relationship entries — one per relationshipType. Don't try to cram both into a single label like "past lover and political contact" — split them so each pill can be color-coded and filtered correctly.
 - fromName / toName MUST reference a character you declared in the characters array (by exact name).
-- "visibleAfter" = when the viewer first learns about the relationship.
+- "visibleAfter" = when the viewer first learns about the relationship. If a pair's romantic past is revealed in S3 but their business collaboration starts in S1, emit TWO relationships with different visibleAfter tags — each surfaces on the slider at the right moment.
 
 ## Timeline events
 

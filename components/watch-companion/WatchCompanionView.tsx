@@ -150,13 +150,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
 
   const [seconds, setSeconds] = useState<number>(0);
   const [slotIndex, setSlotIndex] = useState<number>(0);
+  // TV only: fine-grained position within the currently-selected episode.
+  // Defaults to 0 when the user moves to a new episode so jumping ahead doesn't
+  // reveal anything tagged mid-episode.
+  const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
   const currentSlot = episodeSlots[slotIndex] ?? { season: seasonsGenerated[0] ?? 1, episode: 1 };
 
   const position: WatchPosition = useMemo(
     () => mediaType === "movie"
       ? { seconds }
-      : { season: currentSlot.season, episode: currentSlot.episode, seconds: Number.MAX_SAFE_INTEGER },
-    [mediaType, seconds, currentSlot],
+      : { season: currentSlot.season, episode: currentSlot.episode, seconds: episodeSeconds },
+    [mediaType, seconds, currentSlot, episodeSeconds],
   );
 
   const groupColors = useMemo(() => {
@@ -226,7 +230,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             <p className="text-sm text-white mt-0.5">
               {mediaType === "movie"
                 ? `${formatMovieTime(seconds)} of ${runtimeSeconds ? formatMovieTime(runtimeSeconds) : "?"}`
-                : `Season ${currentSlot.season}, Episode ${currentSlot.episode}`}
+                : `Season ${currentSlot.season}, Episode ${currentSlot.episode}${episodeSeconds > 0 ? ` · ${formatMovieTime(episodeSeconds)}` : ""}`}
             </p>
           </div>
           {hiddenCount > 0 && (
@@ -248,20 +252,36 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             aria-label="Movie position"
           />
         ) : mediaType === "tv" && episodeSlots.length > 0 ? (
-          <input
-            type="range"
-            min={0}
-            max={episodeSlots.length - 1}
-            step={1}
-            value={slotIndex}
-            onChange={(e) => setSlotIndex(parseInt(e.target.value, 10))}
-            className="w-full accent-[var(--ratist-red)]"
-            aria-label="Episode position"
-          />
+          <>
+            <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold block mb-1">Episode</label>
+            <input
+              type="range"
+              min={0}
+              max={episodeSlots.length - 1}
+              step={1}
+              value={slotIndex}
+              onChange={(e) => { setSlotIndex(parseInt(e.target.value, 10)); setEpisodeSeconds(0); }}
+              className="w-full accent-[var(--ratist-red)]"
+              aria-label="Episode position"
+            />
+            <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold block mt-2 mb-1">Position in episode</label>
+            <input
+              type="range"
+              min={0}
+              max={3600}
+              step={60}
+              value={episodeSeconds}
+              onChange={(e) => setEpisodeSeconds(parseInt(e.target.value, 10))}
+              className="w-full accent-[var(--ratist-red)]"
+              aria-label="Position within episode"
+            />
+          </>
         ) : null}
 
         <p className="text-[10px] text-[var(--foreground-muted)] mt-2 leading-relaxed">
-          Drag the slider as you watch. Spoilers past your position stay hidden.
+          {mediaType === "tv"
+            ? "Drag the top slider to the episode you're on, then the second slider to roughly where you are in that episode."
+            : "Drag the slider as you watch. Spoilers past your position stay hidden."}
         </p>
       </div>
 
@@ -331,26 +351,38 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
 
                   {connections.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-[var(--border)]/40 flex flex-wrap gap-1.5">
-                      {connections.map(({ rel, direction }) => {
-                        const RelIcon = RELATIONSHIP_ICONS[rel.relationshipType] ?? Link2;
-                        const relColor = RELATIONSHIP_COLORS[rel.relationshipType] ?? RELATIONSHIP_COLORS.other;
-                        // Render the relationship as a full "FromName label
-                        // ToName" sentence. The OTHER party is highlighted so
-                        // the viewer knows who this card's character is in
-                        // relation to. Avoids the "Kendall is father of Logan"
-                        // inversion bug that flipping arrow direction caused.
-                        const fromIsSelf = direction === "out";
-                        const fromClass = fromIsSelf ? "text-[var(--foreground-muted)]" : "text-white font-semibold";
-                        const toClass = fromIsSelf ? "text-white font-semibold" : "text-[var(--foreground-muted)]";
+                      {groupConnectionsForCard(connections, c.id).map((group) => {
+                        const RelIcon = RELATIONSHIP_ICONS[group.relationshipType] ?? Link2;
+                        const relColor = RELATIONSHIP_COLORS[group.relationshipType] ?? RELATIONSHIP_COLORS.other;
+                        const otherNames = group.others.map((id) => nameOf(id));
+                        const joined = otherNames.length <= 1
+                          ? otherNames[0]
+                          : otherNames.length === 2
+                            ? otherNames.join(" and ")
+                            : otherNames.slice(0, -1).join(", ") + ", and " + otherNames[otherNames.length - 1];
+                        const selfName = nameOf(c.id);
+                        const fromSelf = group.direction === "out";
+                        const selfClass = "text-[var(--foreground-muted)]";
+                        const othersClass = "text-white font-semibold";
                         return (
                           <span
-                            key={rel.id + direction}
+                            key={group.key}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border bg-[var(--surface-2)]/50 text-[10px] ${relColor}`}
                           >
                             <RelIcon className="w-3 h-3 shrink-0" />
-                            <span className={fromClass}>{nameOf(rel.fromCharacterId)}</span>
-                            <span className="italic">{rel.label}</span>
-                            <span className={toClass}>{nameOf(rel.toCharacterId)}</span>
+                            {fromSelf ? (
+                              <>
+                                <span className={selfClass}>{selfName}</span>
+                                <span className="italic">{group.label}</span>
+                                <span className={othersClass}>{joined}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className={othersClass}>{joined}</span>
+                                <span className="italic">{group.label}</span>
+                                <span className={selfClass}>{selfName}</span>
+                              </>
+                            )}
                           </span>
                         );
                       })}
@@ -447,4 +479,41 @@ function compareVisibleAfter(a: VisibleAfter, b: VisibleAfter, mediaType: "movie
   const episodeDiff = (a.episode ?? 1) - (b.episode ?? 1);
   if (episodeDiff !== 0) return episodeDiff;
   return (a.seconds ?? 0) - (b.seconds ?? 0);
+}
+
+// Merge relationships that share (label, direction, type) so a character
+// with four "father of" relationships shows ONE pill naming all four kids
+// instead of four pills. Keeps pill count manageable for central characters.
+interface GroupedConnection {
+  key: string;
+  relationshipType: string;
+  label: string;
+  direction: "in" | "out";
+  others: string[]; // character IDs of the other parties
+}
+
+function groupConnectionsForCard(
+  connections: Array<{ rel: Relationship; direction: "in" | "out" }>,
+  selfId: string,
+): GroupedConnection[] {
+  const map = new Map<string, GroupedConnection>();
+  for (const { rel, direction } of connections) {
+    const otherId = direction === "out" ? rel.toCharacterId : rel.fromCharacterId;
+    const key = `${rel.relationshipType}|${rel.label}|${direction}`;
+    const existing = map.get(key);
+    if (existing) {
+      if (!existing.others.includes(otherId)) existing.others.push(otherId);
+    } else {
+      map.set(key, {
+        key,
+        relationshipType: rel.relationshipType,
+        label: rel.label,
+        direction,
+        others: [otherId],
+      });
+    }
+    // prevent unused warning; selfId is implicit in the card context
+    void selfId;
+  }
+  return Array.from(map.values());
 }
