@@ -2148,6 +2148,32 @@ model CompanionGlossaryTerm {
   @@map("companion_glossary_terms")
 }
 
+// User requests for an admin to generate a companion they don't have credits
+// for (free users cap at 2/week, Backstage Pass at 5/week). Requests resolve
+// in two ways: approved = admin triggers generation; denied = admin rejected
+// the ask. When the resulting companion ships to "published", any still-open
+// requests targeting that (tmdbId, mediaType, season) get notified.
+model CompanionGenerationRequest {
+  id             String   @id @default(cuid())
+  requesterId    String   @map("requester_id")
+  tmdbId         Int      @map("tmdb_id")
+  mediaType      String   @map("media_type") // "movie" | "tv"
+  season         Int?     // null for movies; required for tv
+  rationale      String?  @db.Text // optional user note ("why I want this")
+  status         String   @default("pending") // "pending" | "approved" | "denied" | "fulfilled"
+  resolvedById   String?  @map("resolved_by_id")
+  resolvedAt     DateTime? @map("resolved_at")
+  denyReason     String?  @db.Text @map("deny_reason")
+  companionId    String?  @map("companion_id") // set when published so notify step can link to it
+  notifiedAt     DateTime? @map("notified_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([tmdbId, mediaType, season])
+  @@index([requesterId])
+  @@map("companion_generation_requests")
+}
+
 // Community-submitted edits. Can be a new item, a correction to an existing
 // item, or a deletion request. Payload shape depends on type.
 

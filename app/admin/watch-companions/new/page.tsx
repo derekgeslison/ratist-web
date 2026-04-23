@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, Sparkles, RefreshCcw, AlertCircle, Film, Tv, Check, Loader2, Circle } from "lucide-react";
@@ -39,6 +39,7 @@ interface ProgressEvent {
 export default function NewCompanionPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selected, setSelected] = useState<MediaItem[]>([]);
   const [season, setSeason] = useState(1);
   const [numberOfSeasons, setNumberOfSeasons] = useState<number | null>(null);
@@ -56,6 +57,32 @@ export default function NewCompanionPage() {
   const [stepCounts, setStepCounts] = useState<Partial<Record<StepKey, number>>>({});
 
   const picked = selected[0] ?? null;
+
+  // Prefill from query params (?tmdbId=…&mediaType=…&season=…). Used when
+  // admin clicks "Approve + generate" on a pending request — saves them
+  // from retyping the title into MediaLinker.
+  useEffect(() => {
+    const tmdbIdStr = searchParams.get("tmdbId");
+    const mediaTypeStr = searchParams.get("mediaType");
+    const seasonStr = searchParams.get("season");
+    if (!tmdbIdStr || !mediaTypeStr) return;
+    const tmdbId = parseInt(tmdbIdStr, 10);
+    if (!Number.isFinite(tmdbId) || (mediaTypeStr !== "movie" && mediaTypeStr !== "tv")) return;
+    if (selected.length > 0) return; // don't overwrite a manual pick
+    (async () => {
+      try {
+        const res = await fetch(`/api/tmdb/${mediaTypeStr === "movie" ? "movie" : "tv"}/${tmdbId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const title = data.title ?? data.name ?? `TMDB ${tmdbId}`;
+        setSelected([{ tmdbId, mediaType: mediaTypeStr, title, posterPath: data.poster_path ?? null }]);
+        if (seasonStr) {
+          const s = parseInt(seasonStr, 10);
+          if (Number.isFinite(s) && s > 0) setSeason(s);
+        }
+      } catch { /* best-effort prefill */ }
+    })();
+  }, [searchParams, selected.length]);
 
   useEffect(() => {
     if (picked?.mediaType !== "tv") {

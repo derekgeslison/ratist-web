@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getShowDetails, posterUrl } from "@/lib/tmdb";
 import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
 import ShareButton from "@/components/ShareButton";
+import CompanionNotAvailable from "@/components/watch-companion/CompanionNotAvailable";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.theratist.com";
 
@@ -53,7 +54,18 @@ export default async function ShowCompanionPage({ params }: Props) {
   });
 
   if (!companion || companion.status !== "published") {
-    return <CompanionNotAvailable tmdbId={tmdbId} />;
+    // Fall back to the interactive generate/request UX, fetching the show
+    // name + season list so the user can pick which season they want.
+    let showName = "this show";
+    let seasons: number[] = [];
+    try {
+      const show = await getShowDetails(tmdbId);
+      showName = show.name;
+      seasons = (show.seasons ?? [])
+        .filter((s) => s.season_number > 0)
+        .map((s) => s.season_number);
+    } catch { /* best-effort */ }
+    return <CompanionNotAvailable tmdbId={tmdbId} mediaType="tv" title={showName} availableSeasons={seasons} />;
   }
 
   // Episode counts per season for the dropdown + the show's typical per-
@@ -139,20 +151,3 @@ async function getActorImageMap(actorIds: number[]): Promise<Map<number, string 
   return map;
 }
 
-function CompanionNotAvailable({ tmdbId }: { tmdbId: number }) {
-  return (
-    <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
-      <MonitorPlay className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
-      <h1 className="text-xl font-bold text-white mb-2">Watch Companion not available yet</h1>
-      <p className="text-sm text-[var(--foreground-muted)] mb-6 leading-relaxed">
-        No one has generated a spoiler-safe viewing guide for this show yet. Check back later, or head to the show page for ratings and reviews.
-      </p>
-      <Link
-        href={`/shows/${tmdbId}`}
-        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--ratist-red)] text-white rounded-full text-sm font-semibold hover:bg-[var(--ratist-red)]/80 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to show page
-      </Link>
-    </div>
-  );
-}

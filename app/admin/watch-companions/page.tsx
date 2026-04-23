@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Plus, MonitorPlay, Eye, EyeOff, Film, Tv, MessageSquare } from "lucide-react";
+import { Plus, MonitorPlay, Eye, EyeOff, Film, Tv, MessageSquare, Hourglass } from "lucide-react";
 
 interface CompanionRow {
   id: string;
@@ -53,6 +53,12 @@ export default function CompanionsListPage() {
           <h2 className="text-lg font-semibold text-white">Watch Companions</h2>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/admin/watch-companions/requests"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] text-white rounded-lg text-sm font-semibold hover:border-[var(--ratist-red)] transition-colors"
+          >
+            <Hourglass className="w-4 h-4" /> Requests
+          </Link>
           <Link
             href="/admin/watch-companions/suggestions"
             className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface)] border border-[var(--border)] text-white rounded-lg text-sm font-semibold hover:border-[var(--ratist-red)] transition-colors"

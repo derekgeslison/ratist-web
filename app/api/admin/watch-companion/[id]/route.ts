@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { notifyCompanionRequesters } from "@/lib/watch-companion-notify";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const status = body?.status === "published" || body?.status === "draft" ? body.status : null;
   if (!status) return NextResponse.json({ error: "status must be 'published' or 'draft'" }, { status: 400 });
 
+  const previous = await prisma.watchCompanion.findUnique({
+    where: { id },
+    select: { id: true, title: true, tmdbId: true, mediaType: true, seasonsGenerated: true, status: true },
+  });
+  if (!previous) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const updated = await prisma.watchCompanion.update({
     where: { id },
     data: {
@@ -54,6 +61,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       publishedAt: status === "published" ? new Date() : null,
     },
   });
+
+  if (status === "published" && previous.status !== "published") {
+    await notifyCompanionRequesters(updated.id, user.id);
+  }
+
   return NextResponse.json({ companion: updated });
 }
 
