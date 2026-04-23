@@ -522,6 +522,9 @@ function groupConnectionsForCard(
   const map = new Map<string, GroupedConnection>();
   for (const { rel, direction } of connections) {
     const otherId = direction === "out" ? rel.toCharacterId : rel.fromCharacterId;
+    // Safety net: skip self-loops. The normalizer also filters these but
+    // legacy rows from earlier generations might still slip through.
+    if (otherId === selfId) continue;
     const key = `${rel.relationshipType}|${rel.label}|${direction}`;
     const existing = map.get(key);
     if (existing) {
@@ -535,8 +538,6 @@ function groupConnectionsForCard(
         others: [otherId],
       });
     }
-    // prevent unused warning; selfId is implicit in the card context
-    void selfId;
   }
   return Array.from(map.values());
 }

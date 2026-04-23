@@ -86,9 +86,10 @@ For MOVIES, visibleAfter is:
 
 For TV SHOWS, visibleAfter is:
 - { season: S, episode: E, seconds?: number } — the first episode AND (when confidently estimable) the approximate number of seconds into that episode when the information is revealed.
-- Prefer emitting seconds at **act boundaries**: ~0 for cold-open reveals, ~600 (10 min) for mid-early, ~1200 (20 min) for act 2 turn, ~1800 (30 min) for end-act-2, ~2400 (40 min) for act 3 for hour-long episodes. For half-hour comedies halve these. A mid-season finale cliffhanger sits at near the episode's runtime.
-- If unsure, tag with just season + episode (no seconds) — the viewer's intra-episode slider will treat that as "start of episode" so they see it as soon as the episode begins.
-- A character introduction usually belongs at their first scene — tag { season: 1, episode: 1, seconds: 0 } if they're in the cold open, higher if they show up later.
+- **Character introduction timing — the most important rule:** a character's visibleAfter is the episode they FIRST appear on-screen, not S1E1 by default. A character who shows up in S1E3 gets { season: 1, episode: 3 }. A character introduced in season 2 gets { season: 2, episode: [first-appearance] }. **Err LATE.** If you're unsure when a character first appears, tag them later — the viewer can always slide forward; they can't unsee a character revealed before the show actually introduces them.
+- Do NOT default every main character to S1E1 just because they're in the opening credits. Succession's Gerri is in opening credits but her first scene is S1E2; tag her { season: 1, episode: 2 }.
+- Prefer emitting seconds at **act boundaries** when confidently knowable: ~0 for cold-open reveals, ~600 (10 min) for mid-early, ~1200 (20 min) for act 2 turn, ~1800 (30 min) for end-act-2, ~2400 (40 min) for act 3 for hour-long episodes. For half-hour comedies halve these. A mid-season finale cliffhanger sits at near the episode's runtime.
+- If unsure about seconds, omit them — the viewer's intra-episode slider will treat that as "start of episode" so the item reveals the moment the user drags into that episode.
 - A twist revealed in the last scene of the S3 finale gets { season: 3, episode: [finale], seconds: [near runtime] }.
 
 NEVER output a fact tagged earlier than when it's established. If you're unsure, tag it later.
@@ -114,9 +115,33 @@ NEVER output a fact tagged earlier than when it's established. If you're unsure,
 - Directed (A → B) or symmetric (siblings, spouses, allies).
 - 5–30 total. Skip obvious ones (child of obvious parent). Surface non-obvious ones (ex-spouse, mentor, business rival).
 - "label" is short, modern, plainspoken human-readable English: "father of", "ex-wife", "reports to", "rival", "best friend", "past affair with", "business contact", "former lover". **Avoid archaic wording** like "paramour", "beau", "suitor" — write the way a viewer would describe the relationship to a friend.
-- **Multiple relationships between the same two characters are fine and encouraged when warranted.** A character who is both a past lover AND a current political contact gets TWO relationship entries — one per relationshipType. Don't try to cram both into a single label like "past lover and political contact" — split them so each pill can be color-coded and filtered correctly.
-- fromName / toName MUST reference a character you declared in the characters array (by exact name).
+- **Multiple relationships between the same two characters are MANDATORY when the connection spans different types.** Never combine two types into a single label. Split them into separate entries so each can be color-coded and revealed at the right moment.
+
+  ✅ CORRECT (two entries):
+  \`\`\`
+  { fromName: "Siobhan 'Shiv' Roy", toName: "Nate Sofrelli", relationshipType: "romantic", label: "past relationship with", visibleAfter: { season: 1, episode: 4 }, directed: false }
+  { fromName: "Siobhan 'Shiv' Roy", toName: "Nate Sofrelli", relationshipType: "business", label: "political contact", visibleAfter: { season: 1, episode: 1 }, directed: false }
+  \`\`\`
+
+  ❌ WRONG (combined label, single entry):
+  \`\`\`
+  { fromName: "Siobhan 'Shiv' Roy", toName: "Nate Sofrelli", relationshipType: "romantic", label: "former romantic interest / political contact" }
+  \`\`\`
+
+- **NEVER emit a relationship where fromName === toName.** A character cannot have a relationship with themselves. If you would, omit the entry.
+- fromName / toName MUST reference a character you declared in the characters array by EXACT name (same string, same punctuation). If you've called a character "Siobhan 'Shiv' Roy" in the characters array, don't write "Shiv Roy" in a relationship's fromName.
 - "visibleAfter" = when the viewer first learns about the relationship. If a pair's romantic past is revealed in S3 but their business collaboration starts in S1, emit TWO relationships with different visibleAfter tags — each surfaces on the slider at the right moment.
+
+### Label vocabulary — use gender-agnostic terms
+
+To keep pills scannable and groupable, use these neutral terms unless gender is genuinely load-bearing to the story:
+
+- **Siblings:** "sibling of" / "siblings" (not "brother" / "sister"). "half-sibling of" / "half-siblings" for half-siblings.
+- **Parents / children:** "parent of" / "child of" (not "father of" / "son of"). Use gendered only when the specific character's gender is a plot point.
+- **Spouses:** "spouse of" / "ex-spouse of" (not "husband" / "wife").
+- **Partners:** "partner of" / "ex-partner of" (not "boyfriend" / "girlfriend").
+
+For uncle/aunt/nephew/niece/cousin, the gender CAN stay as-is — those terms are more distinct and less chunky when grouped.
 
 ## Timeline events
 
@@ -335,7 +360,10 @@ export async function draftWatchCompanion(input: GenerateDraftInput): Promise<Co
   const userMessage = buildUserMessage(input.grounding, input.season);
 
   const response = await client.messages.create({
-    model: "claude-haiku-4-5",
+    // Sonnet instead of Haiku for accuracy — this endpoint is admin-only and
+    // the generated companion is cached forever, so spending more tokens
+    // up-front to get fewer hallucinations is the right trade.
+    model: "claude-sonnet-4-6",
     max_tokens: 8192,
     system: [{ type: "text", text: buildSystemPrompt(), cache_control: { type: "ephemeral" } }],
     tools: [COMPANION_TOOL],
@@ -359,6 +387,40 @@ function normVisibleAfter(raw: unknown): VisibleAfter {
     season: typeof v.season === "number" && v.season > 0 ? Math.floor(v.season) : null,
     episode: typeof v.episode === "number" && v.episode > 0 ? Math.floor(v.episode) : null,
   };
+}
+
+// Rewrite gendered family/relationship terms to neutral equivalents so pills
+// group cleanly and the UI stays gender-agnostic for the common cases. Done
+// at persist time so community edits using either variant normalize too.
+const LABEL_NORMALIZATIONS: Array<[RegExp, string]> = [
+  // siblings
+  [/\b(half[ -]?)(brothers?|sisters?)\b/gi, "$1siblings"],
+  [/\bbrothers?\s+of\b/gi, "sibling of"],
+  [/\bsisters?\s+of\b/gi, "sibling of"],
+  [/\bbrothers?\b/gi, "siblings"],
+  [/\bsisters?\b/gi, "siblings"],
+  // parents / children — preserve "of" suffix
+  [/\bfathers?\s+of\b/gi, "parent of"],
+  [/\bmothers?\s+of\b/gi, "parent of"],
+  [/\b(sons?|daughters?)\s+of\b/gi, "child of"],
+  // spouses
+  [/\bex[ -]?(husbands?|wives?)\b/gi, "ex-spouse"],
+  [/\b(husbands?|wives?)\b/gi, "spouse"],
+  // partners (dating)
+  [/\bex[ -]?(boyfriends?|girlfriends?)\b/gi, "ex-partner"],
+  [/\b(boyfriends?|girlfriends?)\b/gi, "partner"],
+];
+
+function normalizeLabel(label: string): string {
+  let out = label.trim();
+  // First pass: fix the half- prefix (the regex above captures this; normalize
+  // the connecting punctuation to a hyphen).
+  out = out.replace(/\bhalf[ ]?(siblings?|brothers?|sisters?)\b/gi, (_m, tail: string) => `half-${tail.toLowerCase()}`);
+  for (const [re, replacement] of LABEL_NORMALIZATIONS) {
+    out = out.replace(re, replacement);
+  }
+  // Collapse duplicate whitespace the regex may have produced.
+  return out.replace(/\s+/g, " ").trim();
 }
 
 function normalizeDraft(raw: unknown): CompanionDraft {
@@ -397,11 +459,17 @@ function normalizeDraft(raw: unknown): CompanionDraft {
           fromName: typeof r.fromName === "string" ? r.fromName : "",
           toName: typeof r.toName === "string" ? r.toName : "",
           relationshipType: (RELATIONSHIP_TYPES as readonly string[]).includes(r.relationshipType) ? (r.relationshipType as RelationshipType) : "other",
-          label: typeof r.label === "string" && r.label.length > 0 ? r.label.slice(0, 80) : "related to",
+          label: normalizeLabel(typeof r.label === "string" && r.label.length > 0 ? r.label.slice(0, 80) : "related to"),
           visibleAfter: normVisibleAfter(r.visibleAfter),
           directed: r.directed !== false,
         }))
-        .filter((r) => charNames.has(r.fromName) && charNames.has(r.toName) && r.fromName !== r.toName)
+        // Filter self-loops and references to characters we didn't keep.
+        // Use trim+lowercase compare so minor whitespace/case differences
+        // don't slip a self-loop through.
+        .filter((r) => {
+          if (!charNames.has(r.fromName) || !charNames.has(r.toName)) return false;
+          return r.fromName.trim().toLowerCase() !== r.toName.trim().toLowerCase();
+        })
         .slice(0, 60)
     : [];
 
