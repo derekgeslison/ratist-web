@@ -52,6 +52,23 @@ Use neutral terms unless gender is genuinely load-bearing:
 
 Uncle/aunt/cousin can stay gendered — they're more distinct and not asked to consolidate.
 
+## Half-siblings MUST be distinguished from full siblings
+
+If a character shares only one parent with someone, they are a half-sibling, NOT a full sibling. This distinction is usually plot-important (different mother/father = different inheritance claim, different family dynamics) and collapsing it into "sibling of" is a factual error.
+
+Use "half-sibling of" whenever the grounding data indicates different parentage. Use "sibling of" ONLY for full siblings.
+
+✅ CORRECT (Succession):
+- { fromName: "Connor Roy", toName: "Kendall Roy", label: "half-sibling of", directed: false } — Connor is Logan's son from his first marriage; Kendall, Shiv, and Roman share a different mother.
+- { fromName: "Connor Roy", toName: "Siobhan 'Shiv' Roy", label: "half-sibling of", directed: false }
+- { fromName: "Connor Roy", toName: "Roman Roy", label: "half-sibling of", directed: false }
+- { fromName: "Kendall Roy", toName: "Siobhan 'Shiv' Roy", label: "sibling of", directed: false } — full siblings.
+
+❌ WRONG:
+- { fromName: "Connor Roy", toName: "Kendall Roy", label: "sibling of" } — loses the half-sibling fact.
+
+Also pay attention to step-siblings and adoptive siblings when the grounding data supports it — "step-sibling of" and "adopted sibling of" are the right labels, not "sibling of".
+
 ${VISIBLE_AFTER_GUIDANCE}
 
 ## Quality bar
