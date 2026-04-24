@@ -38,27 +38,39 @@ export function usePopoverPosition<T extends HTMLElement>(
       if (left + width > window.innerWidth - margin) {
         left = window.innerWidth - width - margin;
       }
-      // Default to opening downward; if the trigger is near the bottom of
-      // the viewport, flip and open upward instead. 320px is a generous
-      // estimate of popover height — the actual content is usually less,
-      // but err on the side of more clearance.
-      const estimatedHeight = 320;
+      // Prefer opening downward — that's where users instinctively look
+      // for a dropdown. Only flip up when there's clearly not enough room
+      // below AND there's more room above. The 200px threshold roughly
+      // covers a 2-item suggestion popover; tighter values caused the
+      // popover to spill off the bottom edge on mobile, looser values
+      // caused unnecessary up-flips on desktop.
+      const minSpaceBelow = 200;
       const spaceBelow = window.innerHeight - rect.bottom;
-      const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow;
-      const top = openUp
-        ? Math.max(margin, rect.top - estimatedHeight - 4)
-        : rect.bottom + 8;
-      const maxHeight = openUp
-        ? rect.top - margin - 4
-        : window.innerHeight - rect.bottom - margin - 8;
-      setStyle({
-        position: "fixed",
-        top,
-        left,
-        width,
-        maxHeight,
-        overflowY: "auto",
-      });
+      const spaceAbove = rect.top;
+      const openUp = spaceBelow < minSpaceBelow && spaceAbove > spaceBelow;
+      if (openUp) {
+        // Anchor the popover's BOTTOM to just above the trigger's TOP via
+        // the `bottom` style. Top-positioning by `rect.top - estimate`
+        // leaves a visible gap when the actual content is shorter than
+        // the estimate (the bug from the previous revision).
+        setStyle({
+          position: "fixed",
+          bottom: Math.max(margin, window.innerHeight - rect.top + 4),
+          left,
+          width,
+          maxHeight: spaceAbove - margin - 4,
+          overflowY: "auto",
+        });
+      } else {
+        setStyle({
+          position: "fixed",
+          top: rect.bottom + 8,
+          left,
+          width,
+          maxHeight: spaceBelow - margin - 8,
+          overflowY: "auto",
+        });
+      }
     }
 
     compute();
