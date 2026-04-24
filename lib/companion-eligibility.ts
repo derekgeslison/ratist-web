@@ -3,17 +3,27 @@ import { getWatchProviders, getMovieDetails } from "@/lib/tmdb";
 export interface EligibilityResult {
   eligible: boolean;
   reason?: string;
+  /** Optional non-blocking note to show the user when they're eligible but metadata is thin. */
+  warning?: string;
 }
+
+// How many days after release we still treat a no-provider film as likely
+// still in its theatrical window. 45 days covers the typical modern
+// theatrical-to-PVOD window (usually 17–45 days now post-pandemic).
+const THEATRICAL_WINDOW_DAYS = 45;
 
 /**
  * Determines whether a movie is eligible for Watch Companion generation.
- * A movie is eligible when it's actually available for users to watch —
- * we don't want users burning generation credits on films that haven't
- * left theaters yet or haven't been released.
  *
- * Signal used: TMDB /watch/providers (US). If any flatrate, rent, or buy
- * provider exists, the film is available. Otherwise we check the release
- * date to disambiguate "upcoming" vs "theatrical-only".
+ * Signal:
+ *   1. If TMDB lists any US flatrate/rent/buy provider → eligible. Digital
+ *      availability proves the film is out.
+ *   2. Otherwise, only block when the film was released in the last
+ *      THEATRICAL_WINDOW_DAYS days (still probably in theaters). Older
+ *      films with no digital providers are very often DVD/Blu-ray-only
+ *      (Criterion, older foreign films, out-of-print indies) — blocking
+ *      those would hit exactly the audiences where a companion is most
+ *      useful. Let them through.
  *
  * Errors fall back to eligible — we'd rather let a generation through
  * than block incorrectly when TMDB has a hiccup.
@@ -33,15 +43,51 @@ export async function isMovieEligibleForCompanion(tmdbId: number): Promise<Eligi
         reason: "This movie hasn't been released yet. Watch Companions are generated once the film is out.",
       };
     }
-    // Released but no rent/stream providers yet — almost always means it's
-    // still running in theaters. Block until a rental/stream window opens.
-    return {
-      eligible: false,
-      reason: "This movie isn't available for rent or streaming yet. Check back once it lands on a streaming service or rental platform.",
-    };
+    const daysSinceRelease = (now.getTime() - release.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceRelease < THEATRICAL_WINDOW_DAYS) {
+      return {
+        eligible: false,
+        reason: "This movie is still in its theatrical window. Check back once it's available for rent, streaming, or home release.",
+      };
+    }
+    // Older film with no digital providers — assume DVD/Blu-ray availability
+    // (TMDB doesn't track physical media) and let it through.
+    return { eligible: true };
   } catch (err) {
     console.error("isMovieEligibleForCompanion error (allowing through):", err);
     return { eligible: true };
+  }
+}
+
+/**
+ * Soft metadata-quality check. Returns a warning string if grounding data
+ * looks thin — used to inform the user *before* they spend a credit, never
+ * to block them. Returns null if metadata looks fine.
+ */
+export async function assessCompanionDataQuality(
+  mediaType: "movie" | "tv",
+  tmdbId: number,
+): Promise<string | null> {
+  try {
+    // Cheap check: if the movie has an overview + some cast, quality is
+    // probably fine. Skip TV for now — shows almost always have rich
+    // metadata, and the extra TMDB call isn't worth the cost.
+    if (mediaType !== "movie") return null;
+    const movie = await getMovieDetails(tmdbId);
+    const m = movie as unknown as { overview?: string; credits?: { cast?: unknown[] } };
+    const hasOverview = !!(m.overview && m.overview.length > 60);
+    const castCount = Array.isArray(m.credits?.cast) ? m.credits.cast.length : 0;
+    const hasThinCast = castCount < 5;
+
+    if (!hasOverview && hasThinCast) {
+      return "Heads up: we have very little background info on this title. Your companion may be noticeably thinner than usual. You can still generate and help fill it in via suggestions.";
+    }
+    if (!hasOverview || hasThinCast) {
+      return "Heads up: limited background info available for this title — your companion may be less detailed than usual.";
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -49,6 +95,12 @@ export async function isCompanionEligible(
   mediaType: "movie" | "tv",
   tmdbId: number,
 ): Promise<EligibilityResult> {
-  if (mediaType === "tv") return { eligible: true };
-  return isMovieEligibleForCompanion(tmdbId);
+  if (mediaType === "tv") {
+    const warning = await assessCompanionDataQuality(mediaType, tmdbId);
+    return warning ? { eligible: true, warning } : { eligible: true };
+  }
+  const result = await isMovieEligibleForCompanion(tmdbId);
+  if (!result.eligible) return result;
+  const warning = await assessCompanionDataQuality(mediaType, tmdbId);
+  return warning ? { eligible: true, warning } : { eligible: true };
 }

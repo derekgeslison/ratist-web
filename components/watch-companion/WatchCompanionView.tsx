@@ -325,6 +325,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   // tabs. Movies don't have seasons so the check is TV-only.
   const seasonIsGenerated = mediaType === "movie" || generatedSet.has(selectedSeason);
 
+  // Thin-content detection for the "this companion is lightweight" banner.
+  // Thresholds match the Cine-Q-style floor: fewer than 5 characters or
+  // fewer than 3 timeline events = we couldn't assemble much, invite
+  // community refinement. Evaluated against the currently selected season
+  // so only the thin season flags, not a full show.
+  const isThinContent = seasonIsGenerated && (seasonCharacters.length < 5 || seasonTimeline.length < 3);
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* Disclaimer — small, non-intrusive */}
@@ -332,6 +339,20 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         <Sparkles className="w-3 h-3 shrink-0 text-[var(--ratist-red)]/70" />
         AI-drafted and community-refined — accuracy improves as users contribute corrections.
       </p>
+
+      {/* Thin-content banner — fires when the currently-viewed season has
+         fewer than 5 characters or fewer than 3 timeline beats. Indicates
+         the AI didn't have enough source info to assemble a full companion
+         and invites community fill-in. */}
+      {isThinContent && (
+        <div className="flex items-start gap-2 text-xs text-amber-300 bg-amber-500/5 border border-amber-500/30 rounded-lg p-3 leading-relaxed">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold text-white">This companion is a bit thin.</span>{" "}
+            We had limited background info for this title — you can help round it out using the suggestion buttons on each section below.
+          </span>
+        </div>
+      )}
 
       {/* Spoiler slider hint — lives ABOVE the sticky cluster on purpose so it
          shows on first load but scrolls away, keeping the sticky header

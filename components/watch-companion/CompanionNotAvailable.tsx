@@ -53,6 +53,7 @@ interface RequestRow {
 interface Eligibility {
   eligible: boolean;
   reason?: string;
+  warning?: string;
 }
 
 /**
@@ -349,6 +350,14 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
           <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
             Takes 2–4 minutes. The companion auto-publishes when done.
           </p>
+          {/* Soft-quality warning — non-blocking. Tells the user the
+             generation will likely be thin before they spend a credit. */}
+          {eligibility?.warning && (
+            <div className="flex items-start gap-2 text-xs text-amber-300 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 leading-relaxed">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{eligibility.warning}</span>
+            </div>
+          )}
           <button
             onClick={generate}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--ratist-red)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--ratist-red)]/80 transition-colors"
