@@ -85,6 +85,39 @@ A different multi-actor pattern: two (or more) actors rotate playing the SAME si
 
 The viewer displays both names side-by-side ("played by Mary-Kate Olsen & Ashley Olsen") because they share the same visibleAfter.
 
+## Same actor playing MULTIPLE DISTINCT characters — KEEP SEPARATE
+
+This is the OPPOSITE of the multi-actor rules above. When ONE actor plays MULTIPLE different characters in the story — twins who are both real characters, an actor cast in two unrelated roles, or one actor as many distinct identities (Tatiana Maslany's clones in Orphan Black) — emit ONE character entry PER character. Each card gets the same \`actorName\` and \`actorTmdbId\`, but they're separate entries with separate \`name\`, \`baseDescription\`, \`visibleAfter\`, etc.
+
+The previous rules COLLAPSE many actors into one character (Murph). This rule EXPANDS into many characters who happen to share an actor (Hallie & Annie).
+
+✅ CORRECT (The Parent Trap — Lindsay Lohan plays both twins, who are different people):
+\`\`\`
+{ name: "Hallie Parker", actorName: "Lindsay Lohan", actorTmdbId: 22226, baseDescription: "...", actors: [], nameAliases: [], ... }
+{ name: "Annie James",   actorName: "Lindsay Lohan", actorTmdbId: 22226, baseDescription: "...", actors: [], nameAliases: [], ... }
+\`\`\`
+
+✅ CORRECT (Mike & Nick & Nick & Alice — Vince Vaughn plays two Nicks at different points in time):
+\`\`\`
+{ name: "Nick (Present)", actorName: "Vince Vaughn", actorTmdbId: 6193, ... }
+{ name: "Nick (Future)",  actorName: "Vince Vaughn", actorTmdbId: 6193, ... }
+\`\`\`
+
+✅ CORRECT (Orphan Black — every clone is its own character, with their own real name):
+\`\`\`
+{ name: "Sarah Manning",     actorName: "Tatiana Maslany", actorTmdbId: 71682, ... }
+{ name: "Cosima Niehaus",    actorName: "Tatiana Maslany", actorTmdbId: 71682, ... }
+{ name: "Alison Hendrix",    actorName: "Tatiana Maslany", actorTmdbId: 71682, ... }
+{ name: "Helena",            actorName: "Tatiana Maslany", actorTmdbId: 71682, ... }
+... etc
+\`\`\`
+
+❌ WRONG — combining the twins / clones into one entry with two actors[]. They're DIFFERENT characters with DIFFERENT personalities, motivations, and arcs; the audience tracks them separately.
+
+❌ WRONG — naming them "Nick A" / "Nick B" or "Character 1" / "Character 2" when the story offers a real distinguishing context. Always look for a meaningful differentiator: temporal ("Past", "Present", "Future"), occupational ("the Construction Worker", "the Lawyer"), location-based ("the London Nick", "the New York Nick"), or family-based ("the Older Twin", "the Younger Twin"). Generic letter / number suffixes are a last resort, only when the story genuinely gives nothing else to grab onto.
+
+How to tell which rule applies: if the audience is meant to perceive the actor as playing ONE person (Murph at different ages, Michelle Tanner played interchangeably) → consolidate. If the audience perceives the actor as playing SEPARATE people who happen to look the same → split.
+
 ## Twist-reveal names (Khan / Kaiser Söze / Tyler Durden)
 
 If the character's identity is a plot twist — they're introduced under one name but later revealed to have a real name — use the PRE-REVEAL name as the primary \`name\`. List the revealed name(s) in \`nameAliases\` with the visibleAfter tagged at the reveal moment.
@@ -107,6 +140,28 @@ If the character's identity is a plot twist — they're introduced under one nam
 The viewer will show "John Harrison" initially, then switch to "Khan" once the slider crosses the reveal. Putting the twist name up front would spoil it the moment Cumberbatch appears.
 
 Skip nameAliases when the character has no identity twist — most characters get \`nameAliases: []\`.
+
+## Cover identities, personas, disguises — KEEP AS ONE character
+
+A character pretending to be someone else is NOT a separate character. If Laszlo Cravensworth poses as "Jackie Daytona" for an episode, that's ONE character (Laszlo) — do NOT emit a separate "Jackie Daytona" card. The audience knows it's still Laszlo.
+
+The same rule applies to undercover cops, spies under cover, characters in disguise, characters using a fake name to escape a past, etc. One character, one card. The cover name only goes in \`nameAliases\` if the alias is sustained AND audience-known AND meaningfully part of how viewers refer to the character — most personas don't need an alias entry at all.
+
+❌ WRONG — emitting "Laszlo Cravensworth" AND "Jackie Daytona" as two characters.
+✅ CORRECT — one card for Laszlo, no alias entry (the persona is a one-bit gag).
+
+## Exclude body doubles, acting doubles, stunt performers, stand-ins
+
+\`actorName\` / \`actorTmdbId\` / \`actors[]\` MUST contain ONLY the principal credited actor(s) for the role. Audience-facing performance only. Skip the cast-list entries below — they're production credits, not characters:
+
+- "Body double for X" / "Stunt double for X" / "Acting double for X"
+- "Stand-in" / "Photo double"
+- "Voice double" UNLESS the entry IS the credited voice for an animated/voice role
+- Anyone with "double" in their role label
+
+If the cast list says "Dayleigh Nelson — Acting Double for Nick", IGNORE that entry. Whoever plays Nick on-screen as the lead performance (e.g., Vince Vaughn) is the actor for Nick's card. Mistaking a double for the lead has produced wrong attributions in the past — when in doubt, skip the ambiguous entry rather than guess.
+
+This is especially important when one actor plays multiple distinct characters (the rule above): the cast list often lists doubles as "double for Nick" or "double for Hallie", and those entries can mislead the model into thinking a separate person plays the role. They don't — the lead actor plays both.
 
 ${VISIBLE_AFTER_GUIDANCE}
 
