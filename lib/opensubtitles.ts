@@ -66,15 +66,47 @@ interface SearchHit {
     feature_details?: { feature_type?: string; title?: string; season_number?: number; episode_number?: number };
     language?: string;
     download_count?: number;
+    ratings?: number;
+    votes?: number;
+    from_trusted?: boolean;
+    hearing_impaired?: boolean;
+    foreign_parts_only?: boolean;
+    ai_translated?: boolean;
+    machine_translated?: boolean;
+    release?: string;
+    comments?: string;
     files?: Array<{ file_id?: number; file_name?: string }>;
   };
 }
 
+// Release filename / uploader comment patterns that tell us the sub file is
+// not going to help companion generation. Catches commentary tracks,
+// karaoke/bonus material, and similar noise.
+const JUNK_PATTERNS = /\b(commentary|director'?s comment|behind.?the.?scenes|making.?of|deleted scene|bonus|extra|featurette|karaoke|sdh signs only)\b/i;
+
+function isJunkRelease(hit: SearchHit): boolean {
+  const joined = `${hit.attributes.release ?? ""} ${hit.attributes.comments ?? ""}`;
+  return JUNK_PATTERNS.test(joined);
+}
+
 /**
  * Search OpenSubtitles for English subs matching a TMDB id. For TV we pass
- * both the parent show id and the desired season+episode. Returns the first
- * file_id that looks promising (most downloaded English result), or null
- * when nothing usable comes back.
+ * both the parent show id and the desired season+episode.
+ *
+ * Filtering (applied in order):
+ *   - Foreign-parts-only subs (e.g. just the elvish in LOTR) — useless for
+ *     dialogue anchoring, dropped.
+ *   - Machine-translated / AI-translated — noisy, dropped.
+ *   - Commentary / behind-the-scenes / bonus-material releases — not
+ *     dialogue, dropped.
+ *
+ * Ranking (applied in order):
+ *   1. Trusted uploaders first — OpenSubtitles flags known-good accounts.
+ *   2. Higher user ratings (0–10 stars) — community quality signal.
+ *   3. Higher download count — tiebreaker, proxy for "most-picked".
+ *
+ * Returns the first usable file_id from the winning sub, or null if
+ * everything was filtered out / there were no matches at all.
  */
 async function searchForFileId(
   tmdbId: number,
@@ -98,11 +130,25 @@ async function searchForFileId(
   const hits = data.data ?? [];
   if (hits.length === 0) return null;
 
-  // Prefer the result with highest download count (most community-vetted).
-  // Tie-break on first-returned order.
-  const ranked = [...hits].sort((a, b) =>
-    (b.attributes.download_count ?? 0) - (a.attributes.download_count ?? 0),
-  );
+  const candidates = hits.filter((h) => {
+    const a = h.attributes;
+    if (a.foreign_parts_only) return false;
+    if (a.ai_translated || a.machine_translated) return false;
+    if (isJunkRelease(h)) return false;
+    return true;
+  });
+  if (candidates.length === 0) return null;
+
+  const ranked = [...candidates].sort((a, b) => {
+    // Trusted uploaders outrank everyone — hard bucket sort on this flag.
+    const trustDelta = Number(!!b.attributes.from_trusted) - Number(!!a.attributes.from_trusted);
+    if (trustDelta !== 0) return trustDelta;
+    // Then user rating (0–10). Missing rating counts as 0.
+    const ratingDelta = (b.attributes.ratings ?? 0) - (a.attributes.ratings ?? 0);
+    if (ratingDelta !== 0) return ratingDelta;
+    // Finally, download count as a popularity tiebreaker.
+    return (b.attributes.download_count ?? 0) - (a.attributes.download_count ?? 0);
+  });
   for (const hit of ranked) {
     const fileId = hit.attributes.files?.[0]?.file_id;
     if (fileId) return fileId;
