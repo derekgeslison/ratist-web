@@ -642,29 +642,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           title="Cast"
           count={visibleCharacters.length}
         >
-          {user && (
-            <button
-              onClick={() => setSuggestDraft({
-                type: "character",
-                // For "add character" we have no existing id; pass a sentinel
-                // empty string and let the modal render as add-mode. The
-                // suggestion endpoint writes it as action=add.
-                id: "",
-                data: {
-                  name: "",
-                  baseDescription: "",
-                  group: "",
-                  actorName: "",
-                  actorTmdbId: null,
-                  // Default to the user's current slider position so the
-                  // suggested character starts unlocked here. Editable in the
-                  // form for any user who actually knows the earlier debut.
-                  visibleAfter: position,
-                },
-              })}
-              className="mb-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-            ><Plus className="w-3.5 h-3.5" /> Suggest a new character</button>
-          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {visibleCharacters.map((c, idx) => {
               const color = c.group ? groupColors.get(c.group) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
@@ -1014,6 +991,29 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               />
             )}
           </div>
+          {user && (
+            <button
+              onClick={() => setSuggestDraft({
+                type: "character",
+                // For "add character" we have no existing id; pass a sentinel
+                // empty string and let the modal render as add-mode. The
+                // suggestion endpoint writes it as action=add.
+                id: "",
+                data: {
+                  name: "",
+                  baseDescription: "",
+                  group: "",
+                  actorName: "",
+                  actorTmdbId: null,
+                  // Default to the user's current slider position so the
+                  // suggested character starts unlocked here. Editable in the
+                  // form for any user who actually knows the earlier debut.
+                  visibleAfter: position,
+                },
+              })}
+              className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+            ><Plus className="w-3.5 h-3.5" /> Suggest a new character</button>
+          )}
         </Section>
       )}
 

@@ -278,6 +278,15 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       const baseDescription = str("baseDescription", 600);
       if (!name || !baseDescription) return null;
       const nameAliases = normNameAliases(payload.nameAliases) ?? [];
+      // Append at the end of the cast list (per season for TV) so
+      // community-added characters don't shove in at position two next to
+      // the lead. sortOrder is asc in the viewer; take max+1 within the
+      // scope we care about.
+      const last = await prisma.companionCharacter.findFirst({
+        where: { companionId, seasonNumber },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
       const created = await prisma.companionCharacter.create({
         data: {
           companionId,
@@ -289,6 +298,7 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           group: str("group", 80),
           visibleAfter,
           nameAliases: nameAliases.length > 0 ? nameAliases : undefined,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
         },
       });
       return created.id;
