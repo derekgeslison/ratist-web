@@ -4,8 +4,19 @@
 // fetcher returns nothing, the generator still proceeds with whatever it has.
 
 import { getMovieDetails, getShowDetails, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
-import { getSubtitleForTmdb } from "@/lib/opensubtitles";
+import { getSubtitleForTmdb, type SubtitleFailureReason } from "@/lib/opensubtitles";
 import { parseSrt, renderCuesForPrompt } from "@/lib/srt-parser";
+
+/**
+ * Surfaceable status of the subtitle-fetch step for one grounding call.
+ * `ok=true` always pairs with a usable excerpt; `ok=false` includes the
+ * reason and a human-readable message so the admin generation UI can
+ * tell the moderator why the AI is falling back to runtime-percentage
+ * estimates instead of dialogue-anchored timestamps.
+ */
+export type SubtitleStatus =
+  | { ok: true; remaining: number | null }
+  | { ok: false; reason: SubtitleFailureReason; message: string };
 
 interface WikipediaPage {
   title: string;
@@ -123,6 +134,7 @@ export interface CompanionGroundingData {
   cast: Array<{ tmdbId: number; name: string; character: string; order: number; profilePath: string | null }>;
   seasons?: Array<{ seasonNumber: number; episodeCount: number; overview: string | null; episodes: Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null }> }>;
   subtitleExcerpt?: SubtitleExcerpt | null;
+  subtitleStatus?: SubtitleStatus;
 }
 
 /**
@@ -142,7 +154,7 @@ export async function loadGroundingForMovie(tmdbId: number): Promise<CompanionGr
     order: c.order ?? 0,
     profilePath: c.profile_path ?? null,
   }));
-  const subtitleExcerpt = await fetchSubtitleExcerpt(tmdbId, "movie");
+  const { excerpt, status } = await fetchSubtitleExcerpt(tmdbId, "movie");
   return {
     source: "movie",
     title: tmdb.title,
@@ -153,7 +165,8 @@ export async function loadGroundingForMovie(tmdbId: number): Promise<CompanionGr
     wikipediaEpisodes: null,
     tmdb,
     cast,
-    subtitleExcerpt,
+    subtitleExcerpt: excerpt,
+    subtitleStatus: status,
   };
 }
 
@@ -186,7 +199,7 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     targetSeason.episodes = episodes;
   }
 
-  const subtitleExcerpt = await fetchSubtitleExcerpt(tmdbId, "tv", seasonNumber, 1);
+  const { excerpt, status } = await fetchSubtitleExcerpt(tmdbId, "tv", seasonNumber, 1);
 
   return {
     source: "tv",
@@ -199,7 +212,8 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     tmdb,
     cast,
     seasons,
-    subtitleExcerpt,
+    subtitleExcerpt: excerpt,
+    subtitleStatus: status,
   };
 }
 
@@ -218,21 +232,40 @@ async function fetchSubtitleExcerpt(
   mediaType: "movie" | "tv",
   season?: number,
   episode?: number,
-): Promise<SubtitleExcerpt | null> {
+): Promise<{ excerpt: SubtitleExcerpt | null; status: SubtitleStatus }> {
   try {
-    const srt = await getSubtitleForTmdb(tmdbId, mediaType, season, episode);
-    if (!srt) return null;
-    const cues = parseSrt(srt);
-    if (cues.length === 0) return null;
+    const result = await getSubtitleForTmdb(tmdbId, mediaType, season, episode);
+    if (!result.ok) {
+      return { excerpt: null, status: result };
+    }
+    const cues = parseSrt(result.srt);
+    if (cues.length === 0) {
+      return {
+        excerpt: null,
+        status: { ok: false, reason: "all_filtered", message: "Subtitle file downloaded but contained no parseable cues." },
+      };
+    }
     const rendered = renderCuesForPrompt(cues);
-    if (!rendered) return null;
+    if (!rendered) {
+      return {
+        excerpt: null,
+        status: { ok: false, reason: "all_filtered", message: "Subtitle cues parsed but rendered empty." },
+      };
+    }
     const label = mediaType === "movie"
       ? "Movie"
       : `S${season ?? "?"}E${episode ?? 1}`;
-    return { label, cues: rendered };
+    return {
+      excerpt: { label, cues: rendered },
+      status: { ok: true, remaining: result.remaining },
+    };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("fetchSubtitleExcerpt error (proceeding without):", err);
-    return null;
+    return {
+      excerpt: null,
+      status: { ok: false, reason: "network_error", message: `Subtitle fetch threw: ${message}` },
+    };
   }
 }
 

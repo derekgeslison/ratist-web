@@ -279,6 +279,12 @@ export default function ReviewCompanionPage() {
         persist: "Saving…",
       };
 
+      // Collect non-fatal warnings (e.g. subtitle quota exhausted) so the
+      // moderator sees them before the page reloads. Without this, a regen
+      // that fell back to runtime-percentage estimates would just look
+      // sloppier than the previous version with no explanation.
+      const collectedWarnings: Array<{ source: string; reason: string; message: string }> = [];
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -296,6 +302,12 @@ export default function ReviewCompanionPage() {
               setRegenStep(stepLabels[evt.step]);
             } else if (evt.kind === "complete") {
               completed = true;
+            } else if (evt.kind === "warning") {
+              collectedWarnings.push({
+                source: evt.source ?? "unknown",
+                reason: evt.reason ?? "unknown",
+                message: evt.message ?? "(no detail)",
+              });
             } else if (evt.kind === "error") {
               errorMsg = evt.message ?? "Generation failed";
             }
@@ -308,6 +320,15 @@ export default function ReviewCompanionPage() {
         setSaving(false);
         setRegenStep("");
         return;
+      }
+      if (collectedWarnings.length > 0) {
+        const lines = collectedWarnings.map((w) => `• [${w.source}/${w.reason}] ${w.message}`).join("\n");
+        alert(
+          `Regeneration finished with ${collectedWarnings.length} warning${collectedWarnings.length === 1 ? "" : "s"}:\n\n${lines}\n\n` +
+          (collectedWarnings.some((w) => w.source === "subtitles")
+            ? "Without subtitles the AI estimates timestamps from runtime percentages, so this regen will use coarser numbers. Wait for quota to reset (typically 24h) and regen again for dialogue-anchored timestamps."
+            : "")
+        );
       }
       if (completed) {
         window.location.reload();

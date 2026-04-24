@@ -45,6 +45,7 @@ export type ProgressEvent =
   | { kind: "step"; step: GenerationStep; status: "running" }
   | { kind: "step"; step: GenerationStep; status: "done"; count?: number }
   | { kind: "complete"; result: GenerateResult }
+  | { kind: "warning"; source: "subtitles"; reason: string; message: string }
   | { kind: "error"; message: string };
 
 /**
@@ -78,6 +79,19 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
     return;
   }
   yield { kind: "step", step: "grounding", status: "done" };
+
+  // Surface subtitle-fetch failures to the admin UI. Generation still
+  // proceeds without them, but timestamps fall back to runtime-percentage
+  // estimates ("~80% in") instead of dialogue-anchored ones ("81:42") —
+  // the moderator should know that's what they're getting and why.
+  if (grounding.subtitleStatus && !grounding.subtitleStatus.ok) {
+    yield {
+      kind: "warning",
+      source: "subtitles",
+      reason: grounding.subtitleStatus.reason,
+      message: grounding.subtitleStatus.message,
+    };
+  }
 
   const seasonArg = mediaType === "tv" ? season! : null;
 

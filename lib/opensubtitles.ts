@@ -90,79 +90,40 @@ function isJunkRelease(hit: SearchHit): boolean {
 }
 
 /**
- * Search OpenSubtitles for English subs matching a TMDB id. For TV we pass
- * both the parent show id and the desired season+episode.
+ * Discriminated result for getSubtitleForTmdb. Callers that only care about
+ * "did we get text or not" can check `result.ok`; callers that need to
+ * surface the failure to a user (admin generation UI) read `reason` and
+ * `message` for a human-readable summary.
  *
- * Filtering (applied in order):
- *   - Foreign-parts-only subs (e.g. just the elvish in LOTR) — useless for
- *     dialogue anchoring, dropped.
- *   - Machine-translated / AI-translated — noisy, dropped.
- *   - Commentary / behind-the-scenes / bonus-material releases — not
- *     dialogue, dropped.
- *
- * Ranking (applied in order):
- *   1. Trusted uploaders first — OpenSubtitles flags known-good accounts.
- *   2. Higher user ratings (0–10 stars) — community quality signal.
- *   3. Higher download count — tiebreaker, proxy for "most-picked".
- *
- * Returns the first usable file_id from the winning sub, or null if
- * everything was filtered out / there were no matches at all.
+ * `remaining` (when present) is the daily-download quota OpenSubtitles
+ * reports back on a successful /download mint. We pass it through so the
+ * admin can see live quota usage.
  */
-async function searchForFileId(
-  tmdbId: number,
-  mediaType: "movie" | "tv",
-  season?: number,
-  episode?: number,
-): Promise<number | null> {
-  const params = new URLSearchParams({ languages: "en" });
-  if (mediaType === "movie") {
-    params.set("tmdb_id", String(tmdbId));
-  } else {
-    // Movie tmdb_id for TV show = parent show id; filter by season/episode.
-    params.set("parent_tmdb_id", String(tmdbId));
-    if (season) params.set("season_number", String(season));
-    if (episode) params.set("episode_number", String(episode));
-  }
+export type SubtitleResult =
+  | { ok: true; srt: string; remaining: number | null }
+  | { ok: false; reason: SubtitleFailureReason; message: string };
 
-  const res = await fetch(`${BASE}/subtitles?${params.toString()}`, { headers: headers() });
-  if (!res.ok) return null;
-  const data = await res.json() as { data?: SearchHit[] };
-  const hits = data.data ?? [];
-  if (hits.length === 0) return null;
-
-  const candidates = hits.filter((h) => {
-    const a = h.attributes;
-    if (a.foreign_parts_only) return false;
-    if (a.ai_translated || a.machine_translated) return false;
-    if (isJunkRelease(h)) return false;
-    return true;
-  });
-  if (candidates.length === 0) return null;
-
-  const ranked = [...candidates].sort((a, b) => {
-    // Trusted uploaders outrank everyone — hard bucket sort on this flag.
-    const trustDelta = Number(!!b.attributes.from_trusted) - Number(!!a.attributes.from_trusted);
-    if (trustDelta !== 0) return trustDelta;
-    // Then user rating (0–10). Missing rating counts as 0.
-    const ratingDelta = (b.attributes.ratings ?? 0) - (a.attributes.ratings ?? 0);
-    if (ratingDelta !== 0) return ratingDelta;
-    // Finally, download count as a popularity tiebreaker.
-    return (b.attributes.download_count ?? 0) - (a.attributes.download_count ?? 0);
-  });
-  for (const hit of ranked) {
-    const fileId = hit.attributes.files?.[0]?.file_id;
-    if (fileId) return fileId;
-  }
-  return null;
-}
+export type SubtitleFailureReason =
+  | "no_api_key"        // OPENSUBTITLES_API_KEY env var missing
+  | "no_results"        // search returned zero hits
+  | "all_filtered"      // hits existed but every one was junk / MT / foreign-only
+  | "search_failed"     // /subtitles call returned non-2xx
+  | "quota_exceeded"    // /download returned 406/429 with a quota-style message
+  | "download_failed"   // /download returned a different error status
+  | "network_error";    // thrown exception during the call
 
 /**
  * Fetches the raw SRT text for a given file_id. Handles the two-step
  * download (POST /download mints a temporary URL, then we GET that URL
- * to pull the SRT bytes). Returns null on any failure — including
- * quota-exceeded responses.
+ * to pull the SRT bytes). Returns either the SRT text + remaining quota
+ * or a failure reason — quota_exceeded vs other download errors are
+ * distinguished so the admin UI can surface "you've hit your daily limit"
+ * specifically.
  */
-async function downloadSubtitle(fileId: number): Promise<string | null> {
+async function downloadSubtitle(fileId: number): Promise<
+  | { ok: true; srt: string; remaining: number | null }
+  | { ok: false; reason: "quota_exceeded" | "download_failed"; message: string }
+> {
   const token = await getAuthToken();
   // Only attach Authorization when we have a token. Anonymous downloads
   // depend on the API consumer being configured to allow them; the server
@@ -175,39 +136,138 @@ async function downloadSubtitle(fileId: number): Promise<string | null> {
     body: JSON.stringify({ file_id: fileId }),
   });
   if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    console.error(`OpenSubtitles download mint failed (${res.status}):`, msg.slice(0, 200));
-    return null;
+    const body = await res.text().catch(() => "");
+    console.error(`OpenSubtitles download mint failed (${res.status}):`, body.slice(0, 200));
+    // 406 = "Not Acceptable" is what OpenSubtitles returns for quota
+    // breaches (per their docs), and 429 is the standard rate-limit code.
+    // Either way, body usually contains a message like "You can't download
+    // more than X files per day". Treat anything mentioning download/limit
+    // /quota as quota_exceeded so the admin sees a clear "you hit the cap".
+    const isQuota =
+      res.status === 406 ||
+      res.status === 429 ||
+      /\b(download.*per.*day|limit|quota|exceeded)\b/i.test(body);
+    if (isQuota) {
+      return {
+        ok: false,
+        reason: "quota_exceeded",
+        message: extractMessage(body) ?? `OpenSubtitles daily download limit reached (HTTP ${res.status}).`,
+      };
+    }
+    return {
+      ok: false,
+      reason: "download_failed",
+      message: extractMessage(body) ?? `OpenSubtitles /download returned HTTP ${res.status}.`,
+    };
   }
   const data = await res.json() as { link?: string; remaining?: number };
-  if (!data.link) return null;
+  if (!data.link) {
+    return { ok: false, reason: "download_failed", message: "OpenSubtitles /download mint returned no link." };
+  }
 
   const srtRes = await fetch(data.link);
-  if (!srtRes.ok) return null;
-  return await srtRes.text();
+  if (!srtRes.ok) {
+    return { ok: false, reason: "download_failed", message: `Subtitle CDN returned HTTP ${srtRes.status}.` };
+  }
+  return { ok: true, srt: await srtRes.text(), remaining: typeof data.remaining === "number" ? data.remaining : null };
+}
+
+// Pull the human-readable `message` field out of a JSON-shaped error body
+// when present. Falls back to a trimmed prefix of the raw body otherwise.
+function extractMessage(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === "string" && parsed.message.length > 0) return parsed.message.slice(0, 200);
+  } catch { /* body wasn't JSON */ }
+  const trimmed = body.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 200) : null;
 }
 
 /**
- * High-level: pull the English subtitle text for a target. Returns null when
- * env vars are missing, when OpenSubtitles has no results, or when quota is
- * exhausted. Never throws — generation proceeds without subtitles if this
- * returns null.
+ * High-level: pull the English subtitle text for a target. Always returns
+ * a discriminated `SubtitleResult`. Never throws — generation proceeds
+ * without subtitles when ok=false; the caller surfaces the reason to the
+ * admin UI so quota issues stop being silent.
  */
 export async function getSubtitleForTmdb(
   tmdbId: number,
   mediaType: "movie" | "tv",
   season?: number,
   episode?: number,
-): Promise<string | null> {
+): Promise<SubtitleResult> {
   try {
-    // Only the API key is strictly required. Credentials are optional and
-    // only used when the API consumer doesn't allow anonymous downloads.
-    if (!process.env.OPENSUBTITLES_API_KEY) return null;
-    const fileId = await searchForFileId(tmdbId, mediaType, season, episode);
-    if (!fileId) return null;
-    return await downloadSubtitle(fileId);
+    if (!process.env.OPENSUBTITLES_API_KEY) {
+      return { ok: false, reason: "no_api_key", message: "OPENSUBTITLES_API_KEY env var is not set." };
+    }
+    const search = await searchForFileIdWithReason(tmdbId, mediaType, season, episode);
+    if (!search.ok) return search;
+    return await downloadSubtitle(search.fileId);
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("getSubtitleForTmdb error (proceeding without subs):", err);
-    return null;
+    return { ok: false, reason: "network_error", message: `OpenSubtitles network error: ${msg}` };
   }
+}
+
+/**
+ * Wraps searchForFileId so we can distinguish between "no hits at all" and
+ * "hits existed but every one was filtered out" (junk / MT / foreign-only)
+ * — useful signal because the second one means our filter is too strict
+ * for this title, not that OpenSubtitles is broken.
+ */
+async function searchForFileIdWithReason(
+  tmdbId: number,
+  mediaType: "movie" | "tv",
+  season?: number,
+  episode?: number,
+): Promise<
+  | { ok: true; fileId: number }
+  | { ok: false; reason: "no_results" | "all_filtered" | "search_failed"; message: string }
+> {
+  const params = new URLSearchParams({ languages: "en" });
+  if (mediaType === "movie") {
+    params.set("tmdb_id", String(tmdbId));
+  } else {
+    params.set("parent_tmdb_id", String(tmdbId));
+    if (season) params.set("season_number", String(season));
+    if (episode) params.set("episode_number", String(episode));
+  }
+
+  const res = await fetch(`${BASE}/subtitles?${params.toString()}`, { headers: headers() });
+  if (!res.ok) {
+    return { ok: false, reason: "search_failed", message: `OpenSubtitles /subtitles returned HTTP ${res.status}.` };
+  }
+  const data = await res.json() as { data?: SearchHit[] };
+  const hits = data.data ?? [];
+  if (hits.length === 0) {
+    return { ok: false, reason: "no_results", message: "OpenSubtitles has no English subs for this title." };
+  }
+
+  const candidates = hits.filter((h) => {
+    const a = h.attributes;
+    if (a.foreign_parts_only) return false;
+    if (a.ai_translated || a.machine_translated) return false;
+    if (isJunkRelease(h)) return false;
+    return true;
+  });
+  if (candidates.length === 0) {
+    return {
+      ok: false,
+      reason: "all_filtered",
+      message: `Found ${hits.length} subs but all were machine-translated, foreign-parts-only, or commentary tracks.`,
+    };
+  }
+
+  const ranked = [...candidates].sort((a, b) => {
+    const trustDelta = Number(!!b.attributes.from_trusted) - Number(!!a.attributes.from_trusted);
+    if (trustDelta !== 0) return trustDelta;
+    const ratingDelta = (b.attributes.ratings ?? 0) - (a.attributes.ratings ?? 0);
+    if (ratingDelta !== 0) return ratingDelta;
+    return (b.attributes.download_count ?? 0) - (a.attributes.download_count ?? 0);
+  });
+  for (const hit of ranked) {
+    const fileId = hit.attributes.files?.[0]?.file_id;
+    if (fileId) return { ok: true, fileId };
+  }
+  return { ok: false, reason: "all_filtered", message: "Top-ranked subs had no downloadable file_id." };
 }

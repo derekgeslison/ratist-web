@@ -73,6 +73,11 @@ export async function POST(req: NextRequest) {
           season: mediaType === "tv" ? season! : undefined,
           generatedByUserId: userId,
         })) {
+          // Warnings are admin-facing diagnostics (e.g., "OpenSubtitles
+          // quota exhausted, falling back to runtime estimates"). Regular
+          // users don't have the context to act on them, so we drop them
+          // from the public stream — the admin route still surfaces them.
+          if (evt.kind === "warning") continue;
           send(evt);
           if (evt.kind === "error") {
             controller.close();

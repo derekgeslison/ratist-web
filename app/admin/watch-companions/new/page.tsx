@@ -28,12 +28,17 @@ const STEPS: Array<{ key: StepKey; label: string }> = [
 ];
 
 interface ProgressEvent {
-  kind: "step" | "complete" | "error";
+  kind: "step" | "complete" | "warning" | "error";
   step?: StepKey;
   status?: "running" | "done";
   count?: number;
   result?: { companionId: string };
   message?: string;
+  // Warning-only fields. The server emits these for non-fatal issues like
+  // a subtitle-fetch failure; the admin UI surfaces them as a yellow
+  // banner so the moderator knows why timestamp accuracy may be degraded.
+  source?: "subtitles";
+  reason?: string;
 }
 
 export default function NewCompanionPage() {
@@ -55,6 +60,11 @@ export default function NewCompanionPage() {
     persist: "pending",
   });
   const [stepCounts, setStepCounts] = useState<Partial<Record<StepKey, number>>>({});
+  // Non-fatal warnings emitted during generation (subtitle quota exhausted,
+  // no English subs available for the title, etc.). Shown as a yellow
+  // banner so the moderator can correlate degraded timestamp accuracy
+  // with a known root cause instead of guessing.
+  const [warnings, setWarnings] = useState<Array<{ source: string; reason: string; message: string }>>([]);
 
   const picked = selected[0] ?? null;
 
@@ -126,6 +136,7 @@ export default function NewCompanionPage() {
     }
 
     setError("");
+    setWarnings([]);
     setLoading(true);
     resetSteps();
 
@@ -175,6 +186,12 @@ export default function NewCompanionPage() {
               }
             } else if (evt.kind === "complete" && evt.result?.companionId) {
               companionId = evt.result.companionId;
+            } else if (evt.kind === "warning") {
+              setWarnings((w) => [...w, {
+                source: evt.source ?? "unknown",
+                reason: evt.reason ?? "unknown",
+                message: evt.message ?? "(no detail)",
+              }]);
             } else if (evt.kind === "error") {
               setError(evt.message ?? "Generation failed");
             }
@@ -251,6 +268,30 @@ export default function NewCompanionPage() {
           <div className="flex items-start gap-2 text-sm text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg p-3">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-300">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              Generation finished with {warnings.length} warning{warnings.length === 1 ? "" : "s"}
+            </div>
+            <ul className="space-y-1.5">
+              {warnings.map((w, i) => (
+                <li key={i} className="text-xs text-amber-200/90 leading-relaxed pl-6">
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-amber-400 mr-1.5">
+                    {w.source} / {w.reason}
+                  </span>
+                  {w.message}
+                  {w.source === "subtitles" && (
+                    <span className="block text-[11px] text-amber-200/70 mt-0.5">
+                      Without subtitles the AI estimates timestamps from runtime percentages — the result will use coarser, rounder numbers (e.g. &ldquo;~80% in&rdquo;) instead of dialogue-anchored ones (e.g. &ldquo;81:42&rdquo;).
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
