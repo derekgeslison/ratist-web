@@ -62,6 +62,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ type: str
         const baseDescription = str("baseDescription", 600); if (baseDescription !== undefined) data.baseDescription = baseDescription;
         if ("group" in body) data.group = typeof body.group === "string" ? (body.group as string).slice(0, 80) : null;
         if ("actorName" in body) data.actorName = typeof body.actorName === "string" ? (body.actorName as string).slice(0, 120) : null;
+        // Move actorTmdbId in lockstep with actorName so the celebrity link
+        // doesn't drift to a stale id when the character's actor changes.
+        if ("actorTmdbId" in body) data.actorTmdbId = typeof body.actorTmdbId === "number" ? body.actorTmdbId : null;
         if (visibleAfter) data.visibleAfter = visibleAfter;
         if (Object.keys(data).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
         const updated = await prisma.companionCharacter.update({ where: { id }, data });

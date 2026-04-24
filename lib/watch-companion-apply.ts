@@ -198,6 +198,11 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       if (group !== undefined) data.group = group;
       const actorName = typeof payload.actorName === "string" ? (payload.actorName as string).slice(0, 120) : undefined;
       if (actorName !== undefined) data.actorName = actorName;
+      // Pair the tmdb id with actorName so an approved swap updates the
+      // celebrity-page deep link too. Accept null to clear an outdated id.
+      if (payload.actorTmdbId === null || typeof payload.actorTmdbId === "number") {
+        data.actorTmdbId = payload.actorTmdbId;
+      }
       if (visibleAfter) data.visibleAfter = visibleAfter;
       const season = normSeasonNumber(payload.seasonNumber);
       if (season !== undefined) data.seasonNumber = season;

@@ -66,6 +66,22 @@ export async function GET(req: NextRequest) {
     byUser.set(row.submitterId, cur);
   }
 
+  // Always surface currently-blocked submitters, even when their suggestion
+  // rows have been deleted (or, in companion-scope, when they never
+  // submitted on this companion). Otherwise admins lose the affordance to
+  // unblock or check the expiry once the queue is cleaned out — the user
+  // just disappears from the table. Empty stats are filled with zeros so
+  // the row still renders; sort still puts them sensibly.
+  const blockedUsers = await prisma.user.findMany({
+    where: { companionSuggestionsBlocked: true },
+    select: { id: true },
+  });
+  for (const u of blockedUsers) {
+    if (!byUser.has(u.id)) {
+      byUser.set(u.id, { pending: 0, approved: 0, dismissed: 0, lastAt: null });
+    }
+  }
+
   const ids = Array.from(byUser.keys());
   const users = ids.length === 0
     ? []
@@ -155,7 +171,9 @@ export async function PATCH(req: NextRequest) {
       // the same user in quick succession.
       targetId: `${userId}:${Date.now()}`,
       message: body,
-      link: "/watch-companion",
+      // No link — the notification renders as an admin-style message with
+      // an Acknowledge button, not a clickable row. Pointing it at
+      // /watch-companion just dropped users on a generic landing page.
     });
   }
 

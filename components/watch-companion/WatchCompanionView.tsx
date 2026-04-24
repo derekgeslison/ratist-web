@@ -3,8 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check } from "lucide-react";
-import SuggestEditButton from "./SuggestEditButton";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
 import RelationshipMap from "./RelationshipMap";
 import CompanionNotAvailable from "./CompanionNotAvailable";
 import AdUnit from "@/components/AdUnit";
@@ -175,21 +174,24 @@ function FilterPill({ active, onClick, children }: {
   );
 }
 
-// Collapsible section wrapper with optional inline suggest button
+// Section wrapper — title is sr-only since the tab nav already names the
+// section visually. No suggest-edit button: per-item pencil edits and
+// per-section "Suggest a new …" Plus buttons cover that surface; the
+// generic free-text suggestion form was removed because it produced
+// low-signal "comments" that weren't actionable.
 function Section({
-  title, children, suggestButton,
+  title, children,
 }: {
   // Icon/count/defaultOpen kept as accepted props for call-site continuity
   // but no longer rendered — tabs make section-level collapse redundant.
   icon?: typeof Users; title: string; count?: number; defaultOpen?: boolean;
-  children: React.ReactNode; suggestButton?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <section>
       <div className="sr-only">{title}</div>
       <div className="space-y-3">
         {children}
-        {suggestButton && <div className="flex justify-end pt-1">{suggestButton}</div>}
       </div>
     </section>
   );
@@ -639,19 +641,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           icon={Users}
           title="Cast"
           count={visibleCharacters.length}
-          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="character" label="Suggest a character edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
         >
-          {sectionAddSuggestions("character").length > 0 && (
-            <div className="flex items-center gap-2 bg-[var(--surface-2)]/40 border border-[var(--ratist-red)]/20 rounded-lg px-3 py-2 text-[11px] text-[var(--foreground-muted)]">
-              <span>Community-proposed characters awaiting votes:</span>
-              <ItemSuggestions
-                suggestions={sectionAddSuggestions("character")}
-                myVotes={myVotes}
-                mediaType={mediaType}
-                onChanged={onSuggestionChanged}
-              />
-            </div>
-          )}
           {user && (
             <button
               onClick={() => setSuggestDraft({
@@ -660,7 +650,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                 // empty string and let the modal render as add-mode. The
                 // suggestion endpoint writes it as action=add.
                 id: "",
-                data: { name: "", baseDescription: "", group: "", visibleAfter: mediaType === "tv" ? { season: selectedSeason, episode: 1 } : {} },
+                data: {
+                  name: "",
+                  baseDescription: "",
+                  group: "",
+                  actorName: "",
+                  actorTmdbId: null,
+                  // Default to the user's current slider position so the
+                  // suggested character starts unlocked here. Editable in the
+                  // form for any user who actually knows the earlier debut.
+                  visibleAfter: position,
+                },
               })}
               className="mb-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
             ><Plus className="w-3.5 h-3.5" /> Suggest a new character</button>
@@ -816,6 +816,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                               name: c.name,
                               baseDescription: c.baseDescription,
                               group: c.group ?? "",
+                              actorName: c.actorName ?? "",
+                              actorTmdbId: c.actorTmdbId,
                               visibleAfter: c.visibleAfter,
                             },
                           })}
@@ -969,7 +971,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                               type: "fact",
                               id: null,
                               characterId: c.id,
-                              data: { fact: "", factType: "other", visibleAfter: c.visibleAfter },
+                              // Default to the user's current slider position
+                              // (not the character's debut) so a viewer
+                              // logging "Gerri makes CFO" from S2E1 doesn't
+                              // accidentally tag it back at the character's
+                              // S1 introduction.
+                              data: { fact: "", factType: "other", visibleAfter: position },
                             })}
                             className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
                           >
@@ -992,6 +999,20 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                 </React.Fragment>
               );
             })}
+            {/* Pending "new character" suggestions tile — sits at the bottom
+               of the cast grid as a red placeholder card. Tap to expand the
+               full list of community-proposed characters with vote controls.
+               Once one of them clears the approve threshold it leaves the
+               group and renders as a real character card; the others stay
+               grouped here until they resolve. */}
+            {sectionAddSuggestions("character").length > 0 && (
+              <PendingCharacterAdds
+                suggestions={sectionAddSuggestions("character")}
+                myVotes={myVotes}
+                mediaType={mediaType}
+                onChanged={onSuggestionChanged}
+              />
+            )}
           </div>
         </Section>
       )}
@@ -1012,7 +1033,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           icon={Clock}
           title="Plot timeline"
           count={visibleTimeline.length}
-          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="timeline" label="Suggest a timeline edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
         >
           <ol className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
             {visibleTimeline.map((t) => (
@@ -1069,7 +1089,9 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                 id: null,
                 companionId: data.id,
                 seasonNumber: mediaType === "tv" ? selectedSeason : null,
-                data: { description: "", importance: 3, characterIds: [], visibleAfter: {} },
+                // Pre-fill with the user's current slider position so the
+                // proposed event lines up with where they are in the watch.
+                data: { description: "", importance: 3, characterIds: [], visibleAfter: position },
               })}
               className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
             ><Plus className="w-3.5 h-3.5" /> Suggest a new timeline event</button>
@@ -1100,7 +1122,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             icon={BookOpen}
             title="Glossary"
             count={filteredGlossary.length}
-            suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
           >
             {availableCategories.length > 1 && (
               <div className="flex flex-wrap gap-1.5">
@@ -1188,7 +1209,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   id: null,
                   companionId: data.id,
                   seasonNumber: mediaType === "tv" ? selectedSeason : null,
-                  data: { term: "", definition: "", category: "", visibleAfter: {} },
+                  // Default to current slider position so the term unlocks
+                  // for other viewers at the same beat the suggester first
+                  // encountered it.
+                  data: { term: "", definition: "", category: "", visibleAfter: position },
                 })}
                 className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
               ><Plus className="w-3.5 h-3.5" /> Suggest a new glossary term</button>
@@ -1220,14 +1244,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         mode="suggest"
         companionId={data.id}
       />
-
-      {/* Global catch-all for adding brand-new items (relationships, etc.) */}
-      <div className="pt-4 border-t border-[var(--border)]/40">
-        <p className="text-xs text-[var(--foreground-muted)] text-center mb-3 leading-relaxed">
-          Got a correction or addition? This companion is AI-drafted and community-refined — your input helps.
-        </p>
-        <SuggestEditButton companionId={data.id} defaultTargetType="character" season={mediaType === "tv" ? selectedSeason : null} />
-      </div>
     </div>
   );
 }
@@ -1288,4 +1304,148 @@ function groupConnectionsForCard(
     }
   }
   return Array.from(map.values());
+}
+
+/**
+ * Pending "new character" suggestions tile. Shaped like a character card so
+ * it sits naturally at the bottom of the cast grid, but with red theming
+ * to read as a placeholder. Tap to expand the full vote panel — one tile
+ * groups every pending add-character suggestion, mirroring how add-event /
+ * add-glossary suggestions stack into a single bubble per section.
+ *
+ * Once an individual suggestion clears the approve threshold it leaves the
+ * pending list (community-apply path) and renders as a real character card
+ * elsewhere; the others stay grouped here until they resolve.
+ */
+function PendingCharacterAdds({
+  suggestions, myVotes, mediaType, onChanged,
+}: {
+  suggestions: SuggestionRow[];
+  myVotes: Record<string, number>;
+  mediaType: "movie" | "tv";
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (suggestions.length === 0) return null;
+  return (
+    <div
+      className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-3"
+      style={{ borderLeftWidth: 3, borderLeftColor: "var(--ratist-red)" }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 text-left"
+        aria-expanded={open}
+      >
+        <div className="w-12 h-12 rounded-full bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40 flex items-center justify-center shrink-0">
+          <Plus className="w-5 h-5 text-[var(--ratist-red)]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[var(--ratist-red)]">
+            {suggestions.length} community-proposed character{suggestions.length === 1 ? "" : "s"}
+          </p>
+          <p className="text-[11px] text-[var(--foreground-muted)] mt-0.5">
+            Tap to vote — characters appear in the cast list once approved.
+          </p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-[var(--foreground-muted)] shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mt-3 pt-3 border-t border-[var(--border)]/40 space-y-2">
+          {suggestions.map((s) => (
+            <PendingCharacterRow
+              key={s.id}
+              suggestion={s}
+              myVote={myVotes[s.id] ?? 0}
+              mediaType={mediaType}
+              onChanged={onChanged}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One pending add-character suggestion rendered in expanded form. Mirrors
+// ItemSuggestions' SuggestionRowDisplay layout (vote stack on the right,
+// payload + rationale on the left) but trimmed to what's relevant for new
+// characters. Reused only by PendingCharacterAdds — kept inline here to
+// avoid plumbing extra props through ItemSuggestions.
+function PendingCharacterRow({
+  suggestion, myVote, mediaType, onChanged,
+}: {
+  suggestion: SuggestionRow;
+  myVote: number;
+  mediaType: "movie" | "tv";
+  onChanged: () => void;
+}) {
+  const { user } = useAuth();
+  const [voting, setVoting] = useState<null | 1 | -1 | 0>(null);
+  async function vote(next: 1 | -1) {
+    if (!user) return;
+    const target = myVote === next ? 0 : next;
+    setVoting(target);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/watch-companion/suggestions/${suggestion.id}/vote`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ vote: target }),
+      });
+      if (res.ok) onChanged();
+    } finally {
+      setVoting(null);
+    }
+  }
+  const p = (suggestion.payload ?? {}) as Record<string, unknown>;
+  const name = typeof p.name === "string" ? p.name : "(unnamed)";
+  const description = typeof p.baseDescription === "string" ? p.baseDescription : "";
+  const actorName = typeof p.actorName === "string" && p.actorName.length > 0 ? p.actorName : null;
+  const va = (p.visibleAfter ?? {}) as { seconds?: number; season?: number; episode?: number };
+  const visibleAt = mediaType === "movie"
+    ? (typeof va.seconds === "number" ? formatMovieTime(va.seconds) : null)
+    : (typeof va.season === "number" || typeof va.episode === "number" ? `S${va.season ?? "?"}E${va.episode ?? "?"}` : null);
+  return (
+    <div className="bg-[var(--surface-2)]/40 border border-[var(--border)]/60 rounded-lg p-2.5 flex items-start gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white">{name}</p>
+        {actorName && (
+          <p className="text-[11px] text-[var(--foreground-muted)]">played by <span className="text-white">{actorName}</span></p>
+        )}
+        {description && (
+          <p className="text-xs text-[var(--foreground-muted)] mt-1 leading-relaxed">{description}</p>
+        )}
+        {visibleAt && (
+          <p className="text-[10px] text-[var(--foreground-muted)]/70 uppercase tracking-wider mt-1">unlocks at {visibleAt}</p>
+        )}
+        {suggestion.rationale && (
+          <p className="text-[10px] text-[var(--foreground-muted)] italic mt-1">&ldquo;{suggestion.rationale}&rdquo;</p>
+        )}
+        <p className="text-[9px] text-[var(--foreground-muted)]/70 mt-1">by {suggestion.submitter.name}</p>
+      </div>
+      <div className="flex flex-col items-center gap-0.5 shrink-0">
+        <button
+          onClick={() => vote(1)}
+          disabled={!user || voting !== null}
+          className={`p-1 rounded transition-colors ${myVote === 1 ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"} disabled:opacity-30`}
+          aria-label="Upvote"
+        >
+          {voting === 1 ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3" />}
+        </button>
+        <span className={`text-[11px] font-bold tabular-nums ${suggestion.upvoteScore > 0 ? "text-green-400" : suggestion.upvoteScore < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+          {suggestion.upvoteScore > 0 ? "+" : ""}{suggestion.upvoteScore}
+        </span>
+        <button
+          onClick={() => vote(-1)}
+          disabled={!user || voting !== null}
+          className={`p-1 rounded transition-colors ${myVote === -1 ? "text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400"} disabled:opacity-30`}
+          aria-label="Downvote"
+        >
+          {voting === -1 ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3" />}
+        </button>
+      </div>
+    </div>
+  );
 }

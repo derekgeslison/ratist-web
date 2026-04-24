@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { X, Check, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
+import { X, Check, Loader2, Search } from "lucide-react";
 
 export type EditorType = "character" | "fact" | "relationship" | "timeline" | "glossary";
 
@@ -14,6 +15,12 @@ interface CharacterDraft {
   name: string;
   baseDescription: string;
   group: string;
+  // Actor link is optional. Suggesters pick from a TMDB search; the selected
+  // person's id is the source of truth (drives the celebrity-page deep
+  // link), with the name copied alongside so we can render the card before
+  // an admin loads the people-table row.
+  actorName: string;
+  actorTmdbId: number | null;
   visibleAfter: VisibleAfter;
 }
 interface FactDraft {
@@ -72,6 +79,13 @@ function draftToSuggestion(draft: EditorDraft): {
           name: draft.data.name,
           baseDescription: draft.data.baseDescription,
           group: draft.data.group.length > 0 ? draft.data.group : null,
+          // Only include actor fields when the suggester actually picked one
+          // (or the row already had one). Sending empty / null on edit would
+          // wipe the existing link, since editTarget reads any present
+          // actorName key as authoritative.
+          ...(draft.data.actorName.length > 0
+            ? { actorName: draft.data.actorName, actorTmdbId: draft.data.actorTmdbId }
+            : {}),
           visibleAfter: draft.data.visibleAfter,
         },
       };
@@ -230,6 +244,12 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
             name: working.data.name,
             baseDescription: working.data.baseDescription,
             group: working.data.group.length > 0 ? working.data.group : null,
+            // Same omission rule as the suggest path — only push actor
+            // fields when one is actually picked, so a blank field doesn't
+            // clear an existing link.
+            ...(working.data.actorName.length > 0
+              ? { actorName: working.data.actorName, actorTmdbId: working.data.actorTmdbId }
+              : {}),
             visibleAfter: working.data.visibleAfter,
           };
           break;
@@ -556,8 +576,112 @@ function CharacterFields({ data, mediaType, onChange }: { data: CharacterDraft; 
       <LabelledInput label="Name" value={data.name} onChange={(v) => onChange({ ...data, name: v })} />
       <LabelledTextarea label="Base description" value={data.baseDescription} onChange={(v) => onChange({ ...data, baseDescription: v })} rows={3} />
       <LabelledInput label="Faction / group" value={data.group} onChange={(v) => onChange({ ...data, group: v })} placeholder="(none)" />
+      <ActorPicker
+        actorName={data.actorName}
+        actorTmdbId={data.actorTmdbId}
+        onChange={(actorName, actorTmdbId) => onChange({ ...data, actorName, actorTmdbId })}
+      />
       <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
     </>
+  );
+}
+
+// Single-actor TMDB typeahead. Hits /api/tmdb/person (same endpoint the
+// blog person-linker uses), sorted by TMDB relevance — most-relevant
+// first. Optional: leaving the picker empty submits a character with no
+// actor link, which is fine for cameo/voice/unknown roles.
+function ActorPicker({ actorName, actorTmdbId, onChange }: {
+  actorName: string;
+  actorTmdbId: number | null;
+  onChange: (actorName: string, actorTmdbId: number | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Array<{ id: number; name: string; profilePath: string | null }>>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const search = useCallback(async (q: string) => {
+    if (q.length < 2) { setResults([]); return; }
+    try {
+      const res = await fetch(`/api/tmdb/person?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setResults((data.results ?? []).slice(0, 8));
+    } catch {
+      setResults([]);
+    }
+  }, []);
+
+  function handleInput(q: string) {
+    setQuery(q);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(q), 300);
+  }
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setShowDropdown(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const selected = actorName.length > 0;
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">
+        Actor / actress <span className="opacity-60 normal-case tracking-normal">(optional)</span>
+      </label>
+      {selected ? (
+        <div className="flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2">
+          <div className="w-7 h-7 rounded-full bg-[var(--surface)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+            {actorName[0]?.toUpperCase() ?? "?"}
+          </div>
+          <span className="text-sm text-white flex-1 truncate">{actorName}</span>
+          <button
+            type="button"
+            onClick={() => onChange("", null)}
+            className="text-[var(--foreground-muted)] hover:text-white"
+            aria-label="Clear actor"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => { handleInput(e.target.value); setShowDropdown(true); }}
+            onFocus={() => results.length > 0 && setShowDropdown(true)}
+            placeholder="Search actors or actresses…"
+            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+        </div>
+      )}
+      {!selected && showDropdown && results.length > 0 && (
+        <div className="absolute z-30 w-full mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {results.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => { onChange(p.name, p.id); setQuery(""); setResults([]); setShowDropdown(false); }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[var(--surface-2)] transition-colors"
+            >
+              {p.profilePath ? (
+                <div className="relative w-7 h-7 rounded-full overflow-hidden shrink-0">
+                  <Image src={`https://image.tmdb.org/t/p/w45${p.profilePath}`} alt="" fill sizes="28px" className="object-cover" />
+                </div>
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[10px] font-bold text-white shrink-0">{p.name[0]}</div>
+              )}
+              <span className="text-sm text-white">{p.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

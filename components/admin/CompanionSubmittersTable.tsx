@@ -106,19 +106,20 @@ export default function CompanionSubmittersTable({ companionId }: Props) {
             {rows.map((s) => {
               const pct = Math.round(s.dismissalRate * 100);
               const worrying = pct >= 50 && s.dismissed + s.approved >= 3;
-              const untilLabel = s.suggestionsBlockedUntil
-                ? `until ${new Date(s.suggestionsBlockedUntil).toLocaleDateString()}`
-                : "permanent";
+              // Block-expiry copy lives next to the Unblock button so the
+              // moderator sees both pieces of state in one glance — current
+              // status (action affordance) and when the block lifts on its
+              // own. Permanent blocks omit the date label.
+              const untilLabel = s.suggestionsBlocked
+                ? (s.suggestionsBlockedUntil
+                    ? `until ${new Date(s.suggestionsBlockedUntil).toLocaleDateString()}`
+                    : "permanent")
+                : null;
               return (
                 <tr key={s.userId} className="border-b border-[var(--border)]/40">
                   <td className="px-4 py-2">
                     <div className="flex flex-col">
-                      <span className="text-white font-medium">
-                        {s.name}
-                        {s.suggestionsBlocked && (
-                          <span className="ml-2 text-[10px] text-red-400 uppercase tracking-wider">blocked ({untilLabel})</span>
-                        )}
-                      </span>
+                      <span className="text-white font-medium">{s.name}</span>
                       <span className="text-[10px] text-[var(--foreground-muted)]">{s.email}</span>
                     </div>
                   </td>
@@ -132,17 +133,22 @@ export default function CompanionSubmittersTable({ companionId }: Props) {
                     {s.lastSubmittedAt ? new Date(s.lastSubmittedAt).toLocaleDateString() : "—"}
                   </td>
                   <td className="px-2 py-2 text-right">
-                    <button
-                      onClick={() => s.suggestionsBlocked ? unblock(s.userId) : setBlockTarget(s)}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
-                        s.suggestionsBlocked
-                          ? "bg-[var(--surface-2)] border border-[var(--border)] text-white hover:border-green-500/50"
-                          : "bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-red-400 hover:border-red-500/50"
-                      }`}
-                      title={s.suggestionsBlocked ? "Unblock submissions" : "Block submissions"}
-                    >
-                      {s.suggestionsBlocked ? <><UserX className="w-3 h-3" /> Unblock</> : <><Ban className="w-3 h-3" /> Block</>}
-                    </button>
+                    <div className="inline-flex items-center gap-2 justify-end">
+                      <button
+                        onClick={() => s.suggestionsBlocked ? unblock(s.userId) : setBlockTarget(s)}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
+                          s.suggestionsBlocked
+                            ? "bg-[var(--surface-2)] border border-[var(--border)] text-white hover:border-green-500/50"
+                            : "bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-red-400 hover:border-red-500/50"
+                        }`}
+                        title={s.suggestionsBlocked ? "Unblock submissions" : "Block submissions"}
+                      >
+                        {s.suggestionsBlocked ? <><UserX className="w-3 h-3" /> Unblock</> : <><Ban className="w-3 h-3" /> Block</>}
+                      </button>
+                      {untilLabel && (
+                        <span className="text-[10px] text-red-400 uppercase tracking-wider whitespace-nowrap">{untilLabel}</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

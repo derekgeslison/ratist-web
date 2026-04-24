@@ -482,6 +482,8 @@ export default function ReviewCompanionPage() {
                             name: c.name,
                             baseDescription: c.baseDescription,
                             group: c.group ?? "",
+                            actorName: c.actorName ?? "",
+                            actorTmdbId: c.actors?.[0]?.actorTmdbId ?? null,
                             visibleAfter: c.visibleAfter,
                           },
                         })}

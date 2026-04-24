@@ -79,8 +79,11 @@ export default function NotificationsPage() {
 
   async function handleClick(n: NotificationItem) {
     if (!user) return;
-    // Admin notifications open in a modal — only dismissed via "Acknowledge"
-    if (n.type === "admin") {
+    // Admin-style notifications open in a modal and are only dismissed via
+    // "Acknowledge". Companion-block notices ride this path too — they
+    // come from a moderator and have no useful destination page, so the
+    // viewer should read the message and tap to clear, not navigate away.
+    if (n.type === "admin" || n.type === "companion_block") {
       setAdminModal(n);
       return;
     }
@@ -189,7 +192,7 @@ export default function NotificationsPage() {
                 n.read ? "opacity-60" : "hover:bg-[var(--surface)]"
               } cursor-pointer`}
             >
-              {n.type === "admin" ? (
+              {(n.type === "admin" || n.type === "companion_block") ? (
                 <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)] flex items-center justify-center shrink-0">
                   <Shield className="w-4 h-4 text-white" />
                 </div>
@@ -205,7 +208,7 @@ export default function NotificationsPage() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                {n.type === "admin" && <p className="text-xs text-[var(--ratist-red)] font-semibold mb-0.5">Message from admins</p>}
+                {(n.type === "admin" || n.type === "companion_block") && <p className="text-xs text-[var(--ratist-red)] font-semibold mb-0.5">Message from admins</p>}
                 <p className="text-sm text-white line-clamp-2">{n.message}</p>
                 <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{timeAgo(n.createdAt)}</p>
               </div>
