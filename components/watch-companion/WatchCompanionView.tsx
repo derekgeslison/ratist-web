@@ -543,7 +543,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           icon={Users}
           title="Cast"
           count={visibleCharacters.length}
-          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="character" label="Suggest a character edit" compact />}
+          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="character" label="Suggest a character edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {visibleCharacters.map((c, idx) => {
@@ -798,7 +798,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           icon={Clock}
           title="Plot timeline"
           count={visibleTimeline.length}
-          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="timeline" label="Suggest a timeline edit" compact />}
+          suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="timeline" label="Suggest a timeline edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
         >
           <ol className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
             {visibleTimeline.map((t) => (
@@ -836,7 +836,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             icon={BookOpen}
             title="Glossary"
             count={filteredGlossary.length}
-            suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact />}
+            suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="glossary" label="Suggest a glossary edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
           >
             {availableCategories.length > 1 && (
               <div className="flex flex-wrap gap-1.5">
@@ -887,7 +887,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         <p className="text-xs text-[var(--foreground-muted)] text-center mb-3 leading-relaxed">
           Got a correction or addition? This companion is AI-drafted and community-refined — your input helps.
         </p>
-        <SuggestEditButton companionId={data.id} defaultTargetType="character" />
+        <SuggestEditButton companionId={data.id} defaultTargetType="character" season={mediaType === "tv" ? selectedSeason : null} />
       </div>
     </div>
   );

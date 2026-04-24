@@ -15,6 +15,32 @@ function isVisibleAfter(v: unknown): v is VisibleAfter {
   return ok("seconds") && ok("season") && ok("episode");
 }
 
+// Positive integer or null/undefined. Used when copying seasonNumber from
+// a suggestion payload — we never accept arbitrary strings or negatives.
+function normSeasonNumber(v: unknown): number | null | undefined {
+  if (v === null) return null;
+  if (typeof v === "number" && v > 0 && Number.isFinite(v)) return Math.floor(v);
+  return undefined; // leave the DB column alone
+}
+
+// Validates a nameAliases array on a character. Each entry must have a
+// non-empty string name and a well-formed visibleAfter. Cap at 4 entries
+// to match the generator's normalization.
+function normNameAliases(v: unknown): Array<{ name: string; visibleAfter: VisibleAfter }> | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: Array<{ name: string; visibleAfter: VisibleAfter }> = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const name = typeof e.name === "string" ? e.name.slice(0, 120) : "";
+    if (!name) continue;
+    const va = isVisibleAfter(e.visibleAfter) ? e.visibleAfter : {};
+    out.push({ name, visibleAfter: va });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 export async function applySuggestion(suggestionId: string): Promise<void> {
   const suggestion = await prisma.companionSuggestion.findUnique({
     where: { id: suggestionId },
@@ -77,6 +103,10 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       const actorName = typeof payload.actorName === "string" ? (payload.actorName as string).slice(0, 120) : undefined;
       if (actorName !== undefined) data.actorName = actorName;
       if (visibleAfter) data.visibleAfter = visibleAfter;
+      const season = normSeasonNumber(payload.seasonNumber);
+      if (season !== undefined) data.seasonNumber = season;
+      const aliases = normNameAliases(payload.nameAliases);
+      if (aliases !== undefined) data.nameAliases = aliases;
       if (Object.keys(data).length > 0) await prisma.companionCharacter.update({ where: { id: targetId }, data });
       return;
     }
@@ -86,6 +116,8 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       const fact = str("fact", 400); if (fact) data.fact = fact;
       const factType = str("factType", 40); if (factType) data.factType = factType;
       if (visibleAfter) data.visibleAfter = visibleAfter;
+      // No seasonNumber on facts directly — they inherit via their parent
+      // character, which admins edit via the character targetType.
       if (Object.keys(data).length > 0) await prisma.companionFact.update({ where: { id: targetId }, data });
       return;
     }
@@ -96,6 +128,8 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       const relationshipType = str("relationshipType", 40); if (relationshipType) data.relationshipType = relationshipType;
       if (typeof payload.directed === "boolean") data.directed = payload.directed;
       if (visibleAfter) data.visibleAfter = visibleAfter;
+      const season = normSeasonNumber(payload.seasonNumber);
+      if (season !== undefined) data.seasonNumber = season;
       if (Object.keys(data).length > 0) await prisma.companionRelationship.update({ where: { id: targetId }, data });
       return;
     }
@@ -107,6 +141,8 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
         data.importance = Math.floor(payload.importance);
       }
       if (visibleAfter) data.visibleAfter = visibleAfter;
+      const season = normSeasonNumber(payload.seasonNumber);
+      if (season !== undefined) data.seasonNumber = season;
       if (Object.keys(data).length > 0) await prisma.companionTimelineEvent.update({ where: { id: targetId }, data });
       return;
     }
@@ -118,6 +154,8 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       const category = typeof payload.category === "string" ? (payload.category as string).slice(0, 40) : payload.category === null ? null : undefined;
       if (category !== undefined) data.category = category;
       if (visibleAfter) data.visibleAfter = visibleAfter;
+      const season = normSeasonNumber(payload.seasonNumber);
+      if (season !== undefined) data.seasonNumber = season;
       if (Object.keys(data).length > 0) await prisma.companionGlossaryTerm.update({ where: { id: targetId }, data });
       return;
     }
@@ -127,21 +165,29 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
 async function addTarget(targetType: string, companionId: string, payload: Record<string, unknown>) {
   const str = (k: string, max: number) => typeof payload[k] === "string" ? (payload[k] as string).slice(0, max) : null;
   const visibleAfter = isVisibleAfter(payload.visibleAfter) ? payload.visibleAfter : {};
+  // seasonNumber comes from the payload when the suggesting user is on a
+  // TV companion with a season selected. Null for movies, and for TV
+  // suggestions that didn't specify (admin may need to correct).
+  const seasonNumberRaw = normSeasonNumber(payload.seasonNumber);
+  const seasonNumber = seasonNumberRaw === undefined ? null : seasonNumberRaw;
 
   switch (targetType) {
     case "character": {
       const name = str("name", 120);
       const baseDescription = str("baseDescription", 600);
       if (!name || !baseDescription) return;
+      const nameAliases = normNameAliases(payload.nameAliases) ?? [];
       await prisma.companionCharacter.create({
         data: {
           companionId,
+          seasonNumber,
           name,
           baseDescription,
           actorName: str("actorName", 120),
           actorTmdbId: typeof payload.actorTmdbId === "number" ? payload.actorTmdbId : null,
           group: str("group", 80),
           visibleAfter,
+          nameAliases: nameAliases.length > 0 ? nameAliases : undefined,
         },
       });
       return;
@@ -152,6 +198,11 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       const fact = str("fact", 400);
       const factType = str("factType", 40) ?? "other";
       if (!characterId || !fact) return;
+      // Facts aren't season-scoped on their own row — they inherit via the
+      // parent character. Just confirm the character exists so we don't
+      // orphan a fact.
+      const parent = await prisma.companionCharacter.findUnique({ where: { id: characterId }, select: { id: true } });
+      if (!parent) return;
       await prisma.companionFact.create({
         data: { characterId, fact, factType, visibleAfter },
       });
@@ -164,9 +215,11 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       const relationshipType = str("relationshipType", 40) ?? "other";
       const label = str("label", 80);
       if (!fromCharacterId || !toCharacterId || !label) return;
+      if (fromCharacterId === toCharacterId) return;
       await prisma.companionRelationship.create({
         data: {
-          companionId, fromCharacterId, toCharacterId, relationshipType, label,
+          companionId, seasonNumber,
+          fromCharacterId, toCharacterId, relationshipType, label,
           directed: payload.directed !== false,
           visibleAfter,
         },
@@ -179,7 +232,7 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       if (!description) return;
       await prisma.companionTimelineEvent.create({
         data: {
-          companionId,
+          companionId, seasonNumber,
           description,
           characterIds: Array.isArray(payload.characterIds) ? payload.characterIds.filter((id): id is string => typeof id === "string") : [],
           importance: typeof payload.importance === "number" ? Math.max(1, Math.min(5, Math.floor(payload.importance))) : 3,
@@ -193,11 +246,20 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       const term = str("term", 80);
       const definition = str("definition", 500);
       if (!term || !definition) return;
+      // Append at the end of the glossary list so user-added terms don't
+      // disrupt the AI's most-obscure-first ordering.
+      const last = await prisma.companionGlossaryTerm.findFirst({
+        where: { companionId },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
       await prisma.companionGlossaryTerm.create({
         data: {
-          companionId, term, definition,
+          companionId, seasonNumber,
+          term, definition,
           category: str("category", 40),
           visibleAfter,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
         },
       });
       return;

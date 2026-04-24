@@ -19,9 +19,13 @@ interface Props {
   defaultTargetType?: string;
   label?: string;
   compact?: boolean;
+  /** TV season context — auto-tagged on every "add" suggestion so new
+   *  items land on the right season when the admin approves. Movies pass
+   *  null / omit. */
+  season?: number | null;
 }
 
-export default function SuggestEditButton({ companionId, defaultTargetType = "character", label, compact = false }: Props) {
+export default function SuggestEditButton({ companionId, defaultTargetType = "character", label, compact = false, season = null }: Props) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [targetType, setTargetType] = useState<string>(defaultTargetType);
@@ -48,6 +52,13 @@ export default function SuggestEditButton({ companionId, defaultTargetType = "ch
         } catch {
           payload = { freeText: payloadText };
         }
+      }
+      // Auto-tag season context on "add" suggestions so the applied item
+      // lands in the right season bucket. User's payload wins if they set
+      // it themselves. Omitted on edit/remove — admin should keep the
+      // existing row's season unless they explicitly change it.
+      if (action === "add" && season != null && !("seasonNumber" in payload)) {
+        payload.seasonNumber = season;
       }
       const res = await fetch(`/api/watch-companion/${companionId}/suggestions`, {
         method: "POST",
