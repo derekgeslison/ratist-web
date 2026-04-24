@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, MonitorPlay, Sparkles, RefreshCcw, Check, Loader2, Circle, AlertCircle, Clock, Hourglass } from "lucide-react";
 import { track } from "@/lib/analytics";
+import FunFactsCarousel from "./FunFactsCarousel";
 
 interface Props {
   tmdbId: number;
@@ -19,15 +20,20 @@ interface Props {
 type StepKey = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "persist";
 type StepState = "pending" | "running" | "done";
 
-const STEPS: Array<{ key: StepKey; label: string }> = [
-  { key: "grounding", label: "Fetch grounding (TMDB + Wikipedia)" },
-  { key: "characters", label: "Draft characters" },
-  { key: "facts", label: "Draft character facts" },
-  { key: "relationships", label: "Draft relationships" },
-  { key: "timeline", label: "Draft timeline" },
-  { key: "glossary", label: "Draft glossary" },
-  { key: "persist", label: "Save + publish" },
-];
+// Step labels are templated on media type so users see "Fetching movie
+// information" instead of our internal "Fetch grounding (TMDB + Wikipedia)"
+// plumbing language.
+function buildSteps(mediaType: "movie" | "tv"): Array<{ key: StepKey; label: string }> {
+  return [
+    { key: "grounding", label: `Fetching ${mediaType === "movie" ? "movie" : "show"} information` },
+    { key: "characters", label: "Drafting characters" },
+    { key: "facts", label: "Drafting character facts" },
+    { key: "relationships", label: "Drafting relationships" },
+    { key: "timeline", label: "Drafting timeline" },
+    { key: "glossary", label: "Drafting glossary" },
+    { key: "persist", label: "Saving + publishing" },
+  ];
+}
 
 interface CreditsInfo {
   used: number;
@@ -229,7 +235,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
           Our AI drafts the companion in five focused passes — usually takes 2–4 minutes. Keep this tab open.
         </p>
         <div className="space-y-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-          {STEPS.map((step) => {
+          {buildSteps(mediaType).map((step) => {
             const state = stepStates[step.key];
             const count = stepCounts[step.key];
             return (
@@ -255,6 +261,13 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
             <span>{error}</span>
           </div>
         )}
+
+        {/* Fun facts carousel — keeps the user engaged during the ~2-4min
+           generation. Fetches TMDB details client-side; renders nothing
+           when no facts come back (unusual). */}
+        <div className="mt-4">
+          <FunFactsCarousel tmdbId={tmdbId} mediaType={mediaType} />
+        </div>
       </div>
     );
   }

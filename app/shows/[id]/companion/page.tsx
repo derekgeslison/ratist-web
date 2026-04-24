@@ -98,6 +98,7 @@ export default async function ShowCompanionPage({ params }: Props) {
 
   const data: WatchCompanionData = {
     id: companion.id,
+    tmdbId: companion.tmdbId,
     title: companion.title,
     mediaType: "tv",
     runtimeSeconds: null,

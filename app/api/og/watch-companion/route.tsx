@@ -117,38 +117,54 @@ export async function GET(request: Request) {
       })
       .filter((e): e is NonNullable<typeof e> => e !== null);
 
-    // Poster + title-row meta (rating, runtime, genres). Pulling from the
-    // local DB instead of TMDB — these rows are kept warm by the main site
-    // traffic, and falling back to nulls is fine for the card.
+    // Poster, year, and meta pills (rating + runtime + 1–2 genres). Pulled
+    // from the local DB — these rows are kept warm by site traffic. Each
+    // pill is rendered as a separate element so pills that would be blank
+    // (no MPAA rating, no runtime, etc.) simply don't appear.
     let posterPath: string | null = null;
-    let metaPieces: string[] = [];
+    let year: string | null = null;
+    const metaPills: string[] = [];
     if (companion.mediaType === "movie") {
       const movie = await prisma.movie.findUnique({
         where: { tmdbId: companion.tmdbId },
         select: {
-          posterPath: true, runtime: true, mpaaRating: true,
+          posterPath: true, runtime: true, mpaaRating: true, releaseDate: true,
           genres: { select: { genre: { select: { name: true } } }, take: 3 },
         },
       });
       posterPath = movie?.posterPath ?? null;
-      if (movie?.mpaaRating) metaPieces.push(movie.mpaaRating);
-      if (movie?.runtime) metaPieces.push(`${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`);
-      const g = movie?.genres?.map((mg) => mg.genre.name).filter(Boolean) ?? [];
-      if (g.length > 0) metaPieces.push(g.slice(0, 2).join(" · "));
+      if (movie?.releaseDate) year = movie.releaseDate.slice(0, 4);
+      if (movie?.mpaaRating) metaPills.push(movie.mpaaRating);
+      if (movie?.runtime) metaPills.push(`${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`);
+      for (const mg of movie?.genres ?? []) {
+        if (mg.genre?.name) metaPills.push(mg.genre.name);
+      }
     } else {
       const show = await prisma.tVShow.findUnique({
         where: { tmdbId: companion.tmdbId },
         select: {
           posterPath: true, episodeRunTime: true, contentRating: true, numberOfSeasons: true,
+          firstAirDate: true, lastAirDate: true, status: true,
           genres: { select: { genre: { select: { name: true } } }, take: 3 },
         },
       });
       posterPath = show?.posterPath ?? null;
-      if (show?.contentRating) metaPieces.push(show.contentRating);
-      if (show?.episodeRunTime) metaPieces.push(`${show.episodeRunTime}m episodes`);
-      const g = show?.genres?.map((sg) => sg.genre.name).filter(Boolean) ?? [];
-      if (g.length > 0) metaPieces.push(g.slice(0, 2).join(" · "));
+      if (show?.firstAirDate) {
+        const startYear = show.firstAirDate.slice(0, 4);
+        const endYear = show.lastAirDate && show.status === "Ended" ? show.lastAirDate.slice(0, 4) : null;
+        year = endYear && endYear !== startYear ? `${startYear}–${endYear}` : startYear;
+      }
+      if (show?.contentRating) metaPills.push(show.contentRating);
+      if (show?.episodeRunTime) metaPills.push(`~${show.episodeRunTime}m episodes`);
+      if (show?.numberOfSeasons && show.numberOfSeasons > 0) {
+        metaPills.push(`${show.numberOfSeasons} season${show.numberOfSeasons === 1 ? "" : "s"}`);
+      }
+      for (const sg of show?.genres ?? []) {
+        if (sg.genre?.name) metaPills.push(sg.genre.name);
+      }
     }
+    // Cap at 5 pills so we don't overflow the left column visually.
+    const pillsToShow = metaPills.slice(0, 5);
     const posterUrl = posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : null;
 
     const mapSvg = abstractMapSvg(characters, edges, 420);
@@ -164,7 +180,7 @@ export async function GET(request: Request) {
       (
         <div style={{ display: "flex", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 48 }}>
           <div style={{ display: "flex", flexDirection: "column", flex: 1, paddingRight: 32, justifyContent: "space-between" }}>
-            {/* Top block: logo + poster + title + movie meta */}
+            {/* Top block: logo + poster + title + meta pills + tagline */}
             <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
                 <img src={logoSrc} width={36} height={36} style={{ borderRadius: 6 }} />
@@ -176,22 +192,49 @@ export async function GET(request: Request) {
                   <img src={posterUrl} width={140} height={210} style={{ borderRadius: 8, objectFit: "cover" }} />
                 )}
                 <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                  <span style={{ color: "white", fontSize: 38, fontWeight: 800, lineHeight: 1.05 }}>{companion.title}</span>
+                  <span style={{ color: "white", fontSize: 40, fontWeight: 800, lineHeight: 1.05 }}>{companion.title}</span>
+                  {year && (
+                    <span style={{ color: "#bbb", fontSize: 22, fontWeight: 600, marginTop: 4 }}>{year}</span>
+                  )}
                   {seasonLabel && (
                     <span style={{ color: "#ef3b36", fontSize: 18, fontWeight: 700, marginTop: 6, textTransform: "uppercase", letterSpacing: 1 }}>
                       {seasonLabel}
                     </span>
                   )}
-                  {metaPieces.length > 0 && (
-                    <span style={{ color: "#999", fontSize: 14, marginTop: 12, lineHeight: 1.4 }}>
-                      {metaPieces.join("  ·  ")}
-                    </span>
-                  )}
-                  <span style={{ color: "#666", fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
-                    Spoiler-safe viewing guide — unlocks as you watch.
-                  </span>
                 </div>
               </div>
+
+              {/* Meta pills — rating, runtime, genres. Each is its own
+                 rounded chip so a missing MPAA rating just means one fewer
+                 pill instead of an awkward "null · 2h 15m" string. */}
+              {pillsToShow.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 20 }}>
+                  {pillsToShow.map((pill) => (
+                    <span
+                      key={pill}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        backgroundColor: "#1a1a1a",
+                        border: "1px solid #2a2a2a",
+                        color: "#ccc",
+                        fontSize: 16,
+                        fontWeight: 600,
+                        padding: "6px 14px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      {pill}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Bigger tagline since the user called out this as the card's
+                 narrative hook — what is a Watch Companion? */}
+              <span style={{ color: "white", fontSize: 22, fontWeight: 600, marginTop: 24, lineHeight: 1.35 }}>
+                Spoiler-safe viewing guide — characters, relationships, and plot beats unlock as you watch.
+              </span>
             </div>
 
             {/* Bottom block: big companion stats, fills the lower-left space */}

@@ -7,6 +7,7 @@ import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcas
 import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
 import RelationshipMap from "./RelationshipMap";
+import CompanionNotAvailable from "./CompanionNotAvailable";
 import AdUnit from "@/components/AdUnit";
 import { track } from "@/lib/analytics";
 
@@ -49,6 +50,7 @@ interface GlossaryTerm {
 
 export interface WatchCompanionData {
   id: string;
+  tmdbId: number; // needed for the inline generate-ungenerated-season flow
   title: string;
   mediaType: "movie" | "tv";
   runtimeSeconds: number | null;
@@ -163,8 +165,17 @@ function Section({
 
 export default function WatchCompanionView({ data }: { data: WatchCompanionData }) {
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
-  const sortedSeasons = useMemo(() => [...seasonsGenerated].sort((a, b) => a - b), [seasonsGenerated]);
-  const defaultSeason = sortedSeasons[0] ?? 1;
+  const generatedSet = useMemo(() => new Set(seasonsGenerated), [seasonsGenerated]);
+  // All seasons TMDB knows about for this show — the dropdown lists all of
+  // them so the user can pick an ungenerated season and trigger gen from
+  // inside the viewer. Falls back to just generated seasons for movies or
+  // when seasonEpisodeCounts wasn't passed.
+  const sortedSeasons = useMemo(() => {
+    const allFromTmdb = Object.keys(data.seasonEpisodeCounts ?? {}).map(Number).filter((n) => n > 0);
+    const combined = new Set<number>([...allFromTmdb, ...seasonsGenerated]);
+    return Array.from(combined).sort((a, b) => a - b);
+  }, [seasonsGenerated, data.seasonEpisodeCounts]);
+  const defaultSeason = seasonsGenerated[0] ?? sortedSeasons[0] ?? 1;
 
   // Persist slider position + selected season per-companion in localStorage so
   // tapping an actor and coming back doesn't snap the viewer to the start of
@@ -309,6 +320,11 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     (seasonTimeline.length - visibleTimeline.length) +
     (seasonGlossary.length - visibleGlossary.length);
 
+  // If the user selects a season TMDB knows about but we haven't generated
+  // yet, flip the body to the generate/request flow instead of showing empty
+  // tabs. Movies don't have seasons so the check is TV-only.
+  const seasonIsGenerated = mediaType === "movie" || generatedSet.has(selectedSeason);
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* Disclaimer — small, non-intrusive */}
@@ -352,7 +368,9 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             aria-label="Which season are you watching?"
           >
             {sortedSeasons.map((n) => (
-              <option key={n} value={n}>Season {n}</option>
+              <option key={n} value={n}>
+                Season {n}{generatedSet.has(n) ? "" : " — not generated"}
+              </option>
             ))}
           </select>
         </div>
@@ -361,6 +379,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       {/* Sticky cluster: slider + tabs ride together just below the site
          navbar (72px tall). Both panes stay visible when scrolling. */}
       <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
+      {seasonIsGenerated && (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
         {mediaType === "movie" && runtimeSeconds ? (
           <>
@@ -424,9 +443,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           </>
         ) : null}
       </div>
+      )}
 
-        {/* Tabs — part of the sticky cluster so they stay visible too */}
-        {visibleCharacters.length > 0 && (
+        {/* Tabs — part of the sticky cluster so they stay visible too.
+           Hide entirely on ungenerated seasons (the body below renders the
+           generate/request panel instead). */}
+        {seasonIsGenerated && visibleCharacters.length > 0 && (
           <nav className="flex gap-1 border-b border-[var(--border)] overflow-x-auto mt-2 -mb-2">
             {([
               { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
@@ -455,7 +477,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         )}
       </div>
 
-      {visibleCharacters.length === 0 && (
+      {!seasonIsGenerated && (
+        <CompanionNotAvailable
+          tmdbId={data.tmdbId}
+          mediaType="tv"
+          title={data.title}
+          season={selectedSeason}
+          availableSeasons={sortedSeasons}
+        />
+      )}
+
+      {seasonIsGenerated && visibleCharacters.length === 0 && (
         <div className="flex items-start gap-2 text-sm text-[var(--foreground-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>Move the slider forward to see characters and events as they appear in the story.</span>
@@ -463,7 +495,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Cast with embedded relationships */}
-      {activeTab === "cast" && visibleCharacters.length > 0 && (
+      {seasonIsGenerated && activeTab === "cast" && visibleCharacters.length > 0 && (
         <Section
           icon={Users}
           title="Cast"
@@ -636,7 +668,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Relationship map */}
-      {activeTab === "map" && (
+      {seasonIsGenerated && activeTab === "map" && (
         <RelationshipMap
           characters={visibleCharacters.map((c) => ({ id: c.id, name: c.name, group: c.group }))}
           relationships={visibleRelationships}
@@ -645,7 +677,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Timeline */}
-      {activeTab === "timeline" && (
+      {seasonIsGenerated && activeTab === "timeline" && (
         visibleTimeline.length > 0 ? (
         <Section
           icon={Clock}
@@ -671,7 +703,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Glossary */}
-      {activeTab === "glossary" && (() => {
+      {seasonIsGenerated && activeTab === "glossary" && (() => {
         if (visibleGlossary.length === 0) {
           return <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">No glossary entries unlocked yet.</p>;
         }
