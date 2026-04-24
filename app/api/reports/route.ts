@@ -3,7 +3,7 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 
 const VALID_REASONS = ["spam", "harassment", "inappropriate", "spoilers", "other"];
-const VALID_TYPES = ["review", "comment", "forumPost", "hotTake", "recast", "looksLike"];
+const VALID_TYPES = ["review", "comment", "forumPost", "hotTake", "recast", "looksLike", "companion_suggestion"];
 
 // POST /api/reports — submit a report
 export async function POST(req: NextRequest) {

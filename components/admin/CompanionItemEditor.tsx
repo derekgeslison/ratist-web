@@ -178,10 +178,8 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
 
   async function save() {
     if (!working) return;
-    if (mode === "suggest" && rationale.trim().length === 0) {
-      setError("Please explain what you're suggesting and why.");
-      return;
-    }
+    // Rationale is optional in suggest mode — users can just tweak the
+    // fields and hit save.
     setSaving(true);
     setError("");
     try {
@@ -323,13 +321,13 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
             <div className="bg-[var(--ratist-red)]/5 border border-[var(--ratist-red)]/30 rounded-lg p-3 space-y-2">
               <p className="text-[11px] uppercase tracking-wider text-[var(--ratist-red)] font-semibold">Community suggestion</p>
               <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-                Your edit will be reviewed by an admin before it goes live. Tell us what you noticed so the admin can understand the change.
+                Make your changes below. Once enough people vote it up, it goes live automatically.
               </p>
               <textarea
                 value={rationale}
                 onChange={(e) => setRationale(e.target.value)}
                 rows={2}
-                placeholder="e.g. The CFO is Gerri, not Karl — she takes over in S2E1."
+                placeholder="Optional — a quick note explaining the change (e.g. “Gerri takes over as CFO in S2E1”)."
                 className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)] resize-y"
                 maxLength={1000}
               />

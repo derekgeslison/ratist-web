@@ -5,11 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
-import CommunitySuggestions from "./CommunitySuggestions";
 import RelationshipMap from "./RelationshipMap";
 import CompanionNotAvailable from "./CompanionNotAvailable";
 import AdUnit from "@/components/AdUnit";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
+import ItemSuggestions, { type SuggestionRow } from "./ItemSuggestions";
 import { useAuth } from "@/context/AuthContext";
 import { track } from "@/lib/analytics";
 
@@ -182,8 +182,31 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   // same per-type fields admins use.
   const [suggestDraft, setSuggestDraft] = useState<EditorDraft | null>(null);
   const [suggestionJustSent, setSuggestionJustSent] = useState(false);
+  // All pending suggestions for this companion — fetched once, filtered
+  // per-item for the bubble indicators. Refetched after vote, submit, or
+  // auto-resolve.
+  const [pendingSuggestions, setPendingSuggestions] = useState<SuggestionRow[]>([]);
+  const [myVotes, setMyVotes] = useState<Record<string, number>>({});
   async function getSuggestToken() {
     return (await user?.getIdToken()) ?? "";
+  }
+  async function fetchSuggestions() {
+    try {
+      const headers: Record<string, string> = {};
+      if (user) headers.Authorization = `Bearer ${await user.getIdToken()}`;
+      const res = await fetch(`/api/watch-companion/${data.id}/suggestions?status=pending`, { headers });
+      if (!res.ok) return;
+      const json = await res.json();
+      setPendingSuggestions(json.suggestions ?? []);
+      setMyVotes(json.myVotes ?? {});
+    } catch { /* silent */ }
+  }
+  useEffect(() => { fetchSuggestions(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [data.id, user?.uid]);
+  function onSuggestionChanged() {
+    fetchSuggestions();
+  }
+  function suggestionsFor(targetType: string, targetId: string | null): SuggestionRow[] {
+    return pendingSuggestions.filter((s) => s.targetType === targetType && s.targetId === targetId);
   }
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
   const generatedSet = useMemo(() => new Set(seasonsGenerated), [seasonsGenerated]);
@@ -682,27 +705,36 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       )}
                       {c.group && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>}
                     </div>
-                    {/* Per-card suggest-edit icon. Signed-in users can file
-                       a structured edit against this specific character;
-                       admin approves/dismisses from the companion detail
-                       page. */}
-                    {user && (
-                      <button
-                        onClick={() => setSuggestDraft({
-                          type: "character",
-                          id: c.id,
-                          data: {
-                            name: c.name,
-                            baseDescription: c.baseDescription,
-                            group: c.group ?? "",
-                            visibleAfter: c.visibleAfter,
-                          },
-                        })}
-                        className="p-1 text-[var(--foreground-muted)]/60 hover:text-[var(--ratist-red)] transition-colors shrink-0"
-                        title="Suggest an edit to this character"
-                        aria-label="Suggest an edit to this character"
-                      ><Pencil className="w-3 h-3" /></button>
-                    )}
+                    {/* Per-card suggest-edit icon + community-suggestion
+                       bubble. Signed-in users can file a structured edit;
+                       the community votes inline — auto-applies on
+                       threshold, no admin gate. */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <ItemSuggestions
+                        suggestions={suggestionsFor("character", c.id)}
+                        myVotes={myVotes}
+                        mediaType={mediaType}
+                        onChanged={onSuggestionChanged}
+                        compact
+                      />
+                      {user && (
+                        <button
+                          onClick={() => setSuggestDraft({
+                            type: "character",
+                            id: c.id,
+                            data: {
+                              name: c.name,
+                              baseDescription: c.baseDescription,
+                              group: c.group ?? "",
+                              visibleAfter: c.visibleAfter,
+                            },
+                          })}
+                          className="p-1 text-[var(--foreground-muted)]/60 hover:text-[var(--ratist-red)] transition-colors"
+                          title="Suggest an edit to this character"
+                          aria-label="Suggest an edit to this character"
+                        ><Pencil className="w-3 h-3" /></button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm text-[var(--foreground-muted)] mt-2 leading-relaxed">{c.baseDescription}</p>
 
@@ -796,26 +828,35 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                           /* Inline label — fact text flows after it and
                              wraps UNDER the label on line 2+, saving vertical
                              space vs the old two-column layout. */
-                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] leading-relaxed flex items-start gap-1">
-                            <span className="flex-1">
-                              <span className="text-[9px] uppercase tracking-wider font-semibold mr-1.5" style={{ color }}>
-                                {f.factType.replace(/_/g, " ")}
+                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] leading-relaxed">
+                            <div className="flex items-start gap-1">
+                              <span className="flex-1">
+                                <span className="text-[9px] uppercase tracking-wider font-semibold mr-1.5" style={{ color }}>
+                                  {f.factType.replace(/_/g, " ")}
+                                </span>
+                                {f.fact}
                               </span>
-                              {f.fact}
-                            </span>
-                            {user && (
-                              <button
-                                onClick={() => setSuggestDraft({
-                                  type: "fact",
-                                  id: f.id,
-                                  characterId: c.id,
-                                  data: { fact: f.fact, factType: f.factType, visibleAfter: f.visibleAfter },
-                                })}
-                                className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition shrink-0 mt-0.5"
-                                title="Suggest an edit to this event"
-                                aria-label="Suggest an edit to this event"
-                              ><Pencil className="w-2.5 h-2.5" /></button>
-                            )}
+                              <ItemSuggestions
+                                suggestions={suggestionsFor("fact", f.id)}
+                                myVotes={myVotes}
+                                mediaType={mediaType}
+                                onChanged={onSuggestionChanged}
+                                compact
+                              />
+                              {user && (
+                                <button
+                                  onClick={() => setSuggestDraft({
+                                    type: "fact",
+                                    id: f.id,
+                                    characterId: c.id,
+                                    data: { fact: f.fact, factType: f.factType, visibleAfter: f.visibleAfter },
+                                  })}
+                                  className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition shrink-0 mt-0.5"
+                                  title="Suggest an edit to this event"
+                                  aria-label="Suggest an edit to this event"
+                                ><Pencil className="w-2.5 h-2.5" /></button>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -871,6 +912,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   {formatVisibleAfter(t.visibleAfter, mediaType)}
                 </span>
                 <span className="flex-1 text-white">{t.description}</span>
+                <ItemSuggestions
+                  suggestions={suggestionsFor("timeline", t.id)}
+                  myVotes={myVotes}
+                  mediaType={mediaType}
+                  onChanged={onSuggestionChanged}
+                  compact
+                />
                 {user && (
                   <button
                     onClick={() => setSuggestDraft({
@@ -966,25 +1014,34 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       </dt>
                       <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
                     </div>
-                    {user && (
-                      <button
-                        onClick={() => setSuggestDraft({
-                          type: "glossary",
-                          id: g.id,
-                          companionId: data.id,
-                          seasonNumber: g.seasonNumber,
-                          data: {
-                            term: g.term,
-                            definition: g.definition,
-                            category: g.category ?? "",
-                            visibleAfter: g.visibleAfter,
-                          },
-                        })}
-                        className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition shrink-0 mt-1"
-                        title="Suggest an edit to this glossary term"
-                        aria-label="Suggest an edit to this glossary term"
-                      ><Pencil className="w-3 h-3" /></button>
-                    )}
+                    <div className="flex items-start gap-1 shrink-0 mt-1">
+                      <ItemSuggestions
+                        suggestions={suggestionsFor("glossary", g.id)}
+                        myVotes={myVotes}
+                        mediaType={mediaType}
+                        onChanged={onSuggestionChanged}
+                        compact
+                      />
+                      {user && (
+                        <button
+                          onClick={() => setSuggestDraft({
+                            type: "glossary",
+                            id: g.id,
+                            companionId: data.id,
+                            seasonNumber: g.seasonNumber,
+                            data: {
+                              term: g.term,
+                              definition: g.definition,
+                              category: g.category ?? "",
+                              visibleAfter: g.visibleAfter,
+                            },
+                          })}
+                          className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition"
+                          title="Suggest an edit to this glossary term"
+                          aria-label="Suggest an edit to this glossary term"
+                        ><Pencil className="w-3 h-3" /></button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </dl>
@@ -1010,11 +1067,9 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
 
       {suggestionJustSent && (
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 text-xs text-green-300">
-          Thanks! Your suggestion was submitted and is now awaiting admin review.
+          Thanks! Your suggestion is live — the community can now vote on it.
         </div>
       )}
-
-      <CommunitySuggestions companionId={data.id} />
 
       {/* Shared editor, suggest-mode. Available only to signed-in users. */}
       <CompanionItemEditor
@@ -1026,6 +1081,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         onSaved={() => {
           setSuggestionJustSent(true);
           setTimeout(() => setSuggestionJustSent(false), 4000);
+          fetchSuggestions();
         }}
         getToken={getSuggestToken}
         mode="suggest"

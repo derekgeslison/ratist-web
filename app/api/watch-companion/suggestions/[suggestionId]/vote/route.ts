@@ -13,6 +13,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ suggestion
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in to vote" }, { status: 401 });
 
+  // Admin-set block also bars voting — same flag that gates submission.
+  // A blocked troll shouldn't be able to influence community votes either.
+  const userRecord = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { companionSuggestionsBlocked: true },
+  });
+  if (userRecord?.companionSuggestionsBlocked) {
+    return NextResponse.json({ error: "Your voting on community suggestions has been paused by moderators." }, { status: 403 });
+  }
+
   const { suggestionId } = await ctx.params;
   const body = await req.json().catch(() => null) as { vote?: unknown } | null;
   const voteValue = body?.vote === 1 || body?.vote === -1 || body?.vote === 0 ? body.vote : null;
