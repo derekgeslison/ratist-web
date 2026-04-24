@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { notify } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ interface SubmitterRow {
   email: string;
   avatarUrl: string | null;
   suggestionsBlocked: boolean;
+  suggestionsBlockedUntil: string | null;
   pending: number;
   approved: number;
   dismissed: number;
@@ -38,8 +40,15 @@ export async function GET(req: NextRequest) {
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  // Optional scope: when set, the stats only cover suggestions submitted
+  // on this companion — drives the per-companion Submitters tab on the
+  // admin detail page.
+  const { searchParams } = new URL(req.url);
+  const companionId = searchParams.get("companionId");
+
   const grouped = await prisma.companionSuggestion.groupBy({
     by: ["submitterId", "status"],
+    where: companionId ? { companionId } : undefined,
     _count: { _all: true },
     _max: { createdAt: true },
   });
@@ -62,7 +71,10 @@ export async function GET(req: NextRequest) {
     ? []
     : await prisma.user.findMany({
         where: { id: { in: ids } },
-        select: { id: true, name: true, email: true, avatarUrl: true, companionSuggestionsBlocked: true },
+        select: {
+          id: true, name: true, email: true, avatarUrl: true,
+          companionSuggestionsBlocked: true, companionSuggestionsBlockedUntil: true,
+        },
       });
 
   const rows: SubmitterRow[] = users.map((u) => {
@@ -75,6 +87,7 @@ export async function GET(req: NextRequest) {
       email: u.email,
       avatarUrl: u.avatarUrl,
       suggestionsBlocked: u.companionSuggestionsBlocked,
+      suggestionsBlockedUntil: u.companionSuggestionsBlockedUntil?.toISOString() ?? null,
       pending: s.pending,
       approved: s.approved,
       dismissed: s.dismissed,
@@ -91,19 +104,60 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ submitters: rows });
 }
 
-// Toggle a user's suggestion-block flag
+// Toggle a user's suggestion-block flag. When blocking, the admin can
+// optionally set an expiry timestamp and attach a message that gets
+// delivered as an in-app notification to the blocked user.
 export async function PATCH(req: NextRequest) {
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await req.json().catch(() => null) as { userId?: unknown; blocked?: unknown } | null;
+  const body = await req.json().catch(() => null) as {
+    userId?: unknown; blocked?: unknown;
+    blockedUntil?: unknown; message?: unknown;
+  } | null;
   const userId = typeof body?.userId === "string" && body.userId.length > 0 ? body.userId : null;
   const blocked = typeof body?.blocked === "boolean" ? body.blocked : null;
   if (!userId || blocked === null) return NextResponse.json({ error: "userId + blocked (boolean) required" }, { status: 400 });
 
+  let blockedUntil: Date | null = null;
+  if (blocked && typeof body?.blockedUntil === "string" && body.blockedUntil.length > 0) {
+    const parsed = new Date(body.blockedUntil);
+    if (isNaN(parsed.getTime())) return NextResponse.json({ error: "blockedUntil must be a valid ISO date" }, { status: 400 });
+    if (parsed <= new Date()) return NextResponse.json({ error: "blockedUntil must be in the future" }, { status: 400 });
+    blockedUntil = parsed;
+  }
+  const message = typeof body?.message === "string" ? body.message.trim().slice(0, 500) : "";
+
   await prisma.user.update({
     where: { id: userId },
-    data: { companionSuggestionsBlocked: blocked },
+    data: {
+      companionSuggestionsBlocked: blocked,
+      // Always clear the expiry when unblocking so a stale timestamp doesn't
+      // leak into a future block.
+      companionSuggestionsBlockedUntil: blocked ? blockedUntil : null,
+    },
   });
+
+  if (blocked) {
+    // Notify the blocked user so they know their submissions are paused and
+    // can see the admin's reasoning. Uses the shared notify() helper which
+    // handles pref-opt-outs and dedup cooldowns.
+    const untilLine = blockedUntil ? ` until ${blockedUntil.toLocaleDateString()}` : "";
+    const prefix = `Your Watch Companion submissions have been paused${untilLine}.`;
+    const body = message ? `${prefix} Moderator note: ${message}` : prefix;
+    await notify({
+      recipientId: userId,
+      actorId: user.id,
+      type: "companion_block",
+      targetType: "user",
+      // Unique targetId per block event keeps the cooldown dedup from
+      // swallowing the notification when an admin blocks → unblocks → blocks
+      // the same user in quick succession.
+      targetId: `${userId}:${Date.now()}`,
+      message: body,
+      link: "/watch-companion",
+    });
+  }
+
   return NextResponse.json({ ok: true });
 }

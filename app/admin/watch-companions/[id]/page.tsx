@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X, Plus, Tag, MessageSquare } from "lucide-react";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
+import CompanionSubmittersTable from "@/components/admin/CompanionSubmittersTable";
 
 interface VisibleAfter { seconds?: number; season?: number; episode?: number }
 
@@ -397,17 +398,18 @@ export default function ReviewCompanionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Pending community suggestions — show inline so admins can
-             triage while reviewing this companion, no separate nav. */}
-          {pendingSuggestions.length > 0 && (
-            <PendingSuggestionsPanel
-              suggestions={pendingSuggestions}
-              characters={companion.characters}
-              mediaType={companion.mediaType}
-              getToken={getToken}
-              onResolved={refetch}
-            />
-          )}
+          {/* Moderation — Queue + Submitters tabs, scoped to this
+             companion. Always shown so admins can review submitters
+             even when the queue is empty. */}
+          <ModerationPanel
+            companionId={companion.id}
+            pendingSuggestions={pendingSuggestions}
+            characters={companion.characters}
+            mediaType={companion.mediaType}
+            getToken={getToken}
+            onResolved={refetch}
+          />
+
 
           {/* Factions — quick bulk rename for all characters sharing a group */}
           <FactionEditor
@@ -915,6 +917,75 @@ function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: 
     </div>
   );
 }
+// ── ModerationPanel ─────────────────────────────────────────────────────
+// Per-companion moderation view mirroring the global suggestions page —
+// Queue tab shows pending suggestions ready to approve/dismiss, Submitters
+// tab shows everyone who's submitted anything on this companion so admins
+// can block repeat troll accounts without leaving the detail page.
+
+function ModerationPanel({
+  companionId, pendingSuggestions, characters, mediaType, getToken, onResolved,
+}: {
+  companionId: string;
+  pendingSuggestions: SuggestionRow[];
+  characters: Character[];
+  mediaType: "movie" | "tv";
+  getToken: () => Promise<string>;
+  onResolved: () => void;
+}) {
+  const [tab, setTab] = useState<"queue" | "submitters">("queue");
+
+  return (
+    <section className="bg-[var(--surface)] border border-[var(--ratist-red)]/40 rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-[var(--ratist-red)]" />
+        <h3 className="text-sm font-semibold text-white">Moderation</h3>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setTab("queue")}
+            className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+              tab === "queue"
+                ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
+                : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white"
+            }`}
+          >
+            Queue{pendingSuggestions.length > 0 ? ` (${pendingSuggestions.length})` : ""}
+          </button>
+          <button
+            onClick={() => setTab("submitters")}
+            className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+              tab === "submitters"
+                ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10 text-white"
+                : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white"
+            }`}
+          >
+            Submitters
+          </button>
+        </div>
+      </div>
+      {tab === "queue" ? (
+        pendingSuggestions.length === 0 ? (
+          <p className="px-5 py-6 text-xs text-[var(--foreground-muted)] italic text-center">
+            No pending community suggestions.
+          </p>
+        ) : (
+          <PendingSuggestionsList
+            suggestions={pendingSuggestions}
+            characters={characters}
+            mediaType={mediaType}
+            getToken={getToken}
+            onResolved={onResolved}
+          />
+        )
+      ) : (
+        <div className="p-4">
+          <CompanionSubmittersTable companionId={companionId} />
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── PendingSuggestionsPanel ─────────────────────────────────────────────
 // Admin-facing inline review of community suggestions for this companion.
 // Renders a readable preview of each suggestion's action + payload plus
@@ -937,7 +1008,7 @@ function payloadLines(payload: Record<string, unknown> | null): Array<{ label: s
   return out;
 }
 
-function PendingSuggestionsPanel({
+function PendingSuggestionsList({
   suggestions, characters, mediaType, getToken, onResolved,
 }: {
   suggestions: SuggestionRow[];
@@ -981,12 +1052,7 @@ function PendingSuggestionsPanel({
   const charName = (cid: string) => characters.find((c) => c.id === cid)?.name ?? "(unknown)";
 
   return (
-    <section className="bg-[var(--surface)] border border-[var(--ratist-red)]/40 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-[var(--ratist-red)]" />
-        <h3 className="text-sm font-semibold text-white">Pending community suggestions ({suggestions.length})</h3>
-      </div>
-      <ul className="divide-y divide-[var(--border)]/40">
+    <ul className="divide-y divide-[var(--border)]/40">
         {suggestions.map((s) => {
           const targetName = s.targetId
             ? (s.targetType === "character" ? charName(s.targetId) :
@@ -1053,7 +1119,6 @@ function PendingSuggestionsPanel({
           );
         })}
       </ul>
-    </section>
   );
 }
 

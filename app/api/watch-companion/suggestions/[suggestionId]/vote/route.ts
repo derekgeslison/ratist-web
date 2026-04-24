@@ -15,12 +15,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ suggestion
 
   // Admin-set block also bars voting — same flag that gates submission.
   // A blocked troll shouldn't be able to influence community votes either.
+  // Honors the optional expiry timestamp — auto-clears it when past.
   const userRecord = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { companionSuggestionsBlocked: true },
+    select: { companionSuggestionsBlocked: true, companionSuggestionsBlockedUntil: true },
   });
   if (userRecord?.companionSuggestionsBlocked) {
-    return NextResponse.json({ error: "Your voting on community suggestions has been paused by moderators." }, { status: 403 });
+    const expiry = userRecord.companionSuggestionsBlockedUntil;
+    if (!expiry || expiry > new Date()) {
+      return NextResponse.json({ error: "Your voting on community suggestions has been paused by moderators." }, { status: 403 });
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { companionSuggestionsBlocked: false, companionSuggestionsBlockedUntil: null },
+    });
   }
 
   const { suggestionId } = await ctx.params;

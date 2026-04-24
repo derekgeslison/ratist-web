@@ -13,13 +13,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!user) return NextResponse.json({ error: "Sign in to suggest an edit" }, { status: 401 });
 
   // Admin-set troll block. We fetch the flag here rather than in getAuthedUser
-  // since it's companion-specific and most routes don't care.
+  // since it's companion-specific and most routes don't care. The optional
+  // blockedUntil timestamp auto-lifts the block when the date passes.
   const userRecord = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { companionSuggestionsBlocked: true },
+    select: { companionSuggestionsBlocked: true, companionSuggestionsBlockedUntil: true },
   });
   if (userRecord?.companionSuggestionsBlocked) {
-    return NextResponse.json({ error: "Your suggestion submissions have been paused by moderators." }, { status: 403 });
+    const expiry = userRecord.companionSuggestionsBlockedUntil;
+    if (!expiry || expiry > new Date()) {
+      return NextResponse.json({ error: "Your suggestion submissions have been paused by moderators." }, { status: 403 });
+    }
+    // Expired — auto-clear the flag so future requests go fast-path.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { companionSuggestionsBlocked: false, companionSuggestionsBlockedUntil: null },
+    });
   }
 
   const { id } = await ctx.params;

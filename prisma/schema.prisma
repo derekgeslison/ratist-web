@@ -29,6 +29,9 @@ model User {
   // Used to shut down troll/low-signal submitters without hard-banning them
   // from the rest of the site.
   companionSuggestionsBlocked Boolean @default(false) @map("companion_suggestions_blocked")
+  // Optional expiry — when set, the block auto-lifts after this timestamp.
+  // Null means the block is permanent (until admin unblocks manually).
+  companionSuggestionsBlockedUntil DateTime? @map("companion_suggestions_blocked_until")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   onboardedAt DateTime? @map("onboarded_at")
