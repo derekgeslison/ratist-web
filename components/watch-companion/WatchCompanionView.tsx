@@ -286,10 +286,19 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     return map;
   }, [seasonCharacters]);
 
-  const visibleCharacters = useMemo(
-    () => seasonCharacters.filter((c) => isVisible(c.visibleAfter, position, mediaType)),
-    [seasonCharacters, position, mediaType],
-  );
+  const visibleCharacters = useMemo(() => {
+    const visible = seasonCharacters.filter((c) => isVisible(c.visibleAfter, position, mediaType));
+    if (visible.length > 0) return visible;
+    // Fallback so the cast list is never empty: when nothing is unlocked at
+    // the current position (typically because no character's visibleAfter
+    // is at 0/start), surface the EARLIEST-introduced character(s) anyway.
+    // Every character sharing the min visibleAfter comes through, so an
+    // ensemble opening doesn't lose half its debut cast.
+    if (seasonCharacters.length === 0) return [];
+    const sorted = [...seasonCharacters].sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+    const earliest = sorted[0].visibleAfter;
+    return sorted.filter((c) => compareVisibleAfter(c.visibleAfter, earliest, mediaType) === 0);
+  }, [seasonCharacters, position, mediaType]);
   const visibleCharIds = useMemo(() => new Set(visibleCharacters.map((c) => c.id)), [visibleCharacters]);
   const visibleRelationships = useMemo(
     () => seasonRelationships.filter((r) =>
@@ -519,9 +528,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {seasonIsGenerated && visibleCharacters.length === 0 && (
+        // Only reachable when no characters were generated at all — the
+        // fallback above guarantees at least the earliest-appearing
+        // characters surface whenever seasonCharacters has any entries.
         <div className="flex items-start gap-2 text-sm text-[var(--foreground-muted)] bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>Move the slider forward to see characters and events as they appear in the story.</span>
+          <span>No characters have been generated for this season yet.</span>
         </div>
       )}
 
