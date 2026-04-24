@@ -539,22 +539,33 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
               const connections = relationshipsByCharacter.get(c.id) ?? [];
 
-              // Resolve which actor is "current" at the user's slider
-              // position. If the side table has entries, pick the one with
-              // the latest visibleAfter that's still ≤ position. Otherwise
-              // fall back to the primary actor on the character row (handles
-              // pre-migration data cleanly).
+              // Resolve the "current" actor(s) at the user's slider position.
+              // Any actors sharing the LATEST unlocked visibleAfter are all
+              // current — this is how we handle twins / interchangeable
+              // co-stars playing one role (Olsen twins as Michelle Tanner).
+              // Earlier-unlocked actors land in pastActors. Falls back to
+              // the primary actor on the character row when the side-table
+              // is empty (pre-migration data).
               const unlockedActors = (c.actors ?? [])
                 .filter((a) => isVisible(a.visibleAfter, position, mediaType))
                 .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
-              const currentActor = unlockedActors[unlockedActors.length - 1] ?? (c.actorName ? {
+              const fallbackActor = c.actorName ? {
                 actorName: c.actorName,
                 actorTmdbId: c.actorTmdbId,
                 note: null as string | null,
                 visibleAfter: c.visibleAfter,
                 imageUrl: c.imageUrl,
-              } : null);
-              const pastActors = unlockedActors.slice(0, -1);
+              } : null;
+              const latestUnlocked = unlockedActors[unlockedActors.length - 1];
+              const currentActors = latestUnlocked
+                ? unlockedActors.filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) === 0)
+                : fallbackActor ? [fallbackActor] : [];
+              const pastActors = latestUnlocked
+                ? unlockedActors.filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) !== 0)
+                : [];
+              // Pick ONE "lead" actor for the portrait — twins look alike so
+              // either works. First-listed wins (stable sortOrder).
+              const currentActor = currentActors[0] ?? null;
 
               // Resolve the name to display — latest unlocked alias, falling
               // back to the base name. If we've crossed an alias reveal, add
@@ -610,17 +621,22 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                           </span>
                         )}
                       </p>
-                      {currentActor?.actorName && (
+                      {currentActors.length > 0 && (
                         <div className="text-[11px] text-[var(--foreground-muted)]">
                           played by{" "}
-                          {currentActor.actorTmdbId ? (
-                            <Link href={`/celebrities/${currentActor.actorTmdbId}`} className="text-white hover:text-[var(--ratist-red)] transition-colors font-semibold">
-                              {currentActor.actorName}
-                            </Link>
-                          ) : (
-                            <span className="text-white font-semibold">{currentActor.actorName}</span>
-                          )}
-                          {currentActor.note && <span className="text-[var(--foreground-muted)]/70"> ({currentActor.note})</span>}
+                          {currentActors.map((a, i) => (
+                            <span key={`${a.actorName}-${i}`}>
+                              {a.actorTmdbId ? (
+                                <Link href={`/celebrities/${a.actorTmdbId}`} className="text-white hover:text-[var(--ratist-red)] transition-colors font-semibold">
+                                  {a.actorName}
+                                </Link>
+                              ) : (
+                                <span className="text-white font-semibold">{a.actorName}</span>
+                              )}
+                              {a.note && <span className="text-[var(--foreground-muted)]/70"> ({a.note})</span>}
+                              {i < currentActors.length - 1 ? <span className="text-[var(--foreground-muted)]/70"> & </span> : null}
+                            </span>
+                          ))}
                         </div>
                       )}
                       {pastActors.length > 0 && (

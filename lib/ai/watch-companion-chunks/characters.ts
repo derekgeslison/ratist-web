@@ -61,7 +61,29 @@ Each actor entry:
 
 ❌ WRONG — three separate "Murph" entries clutter the card list and split relationships.
 
-Apply this rule for: Interstellar-style age variants, The Social Network's Winklevoss twins (two actors, one role — emit both with same visibleAfter), Dark's triple-casting, It (Pennywise / young-and-adult Losers Club), Titanic (Young Rose / Old Rose).
+Apply this rule for: Interstellar-style age variants, Dark's triple-casting, It (young-and-adult Losers Club), Titanic (Young Rose / Old Rose), and similar recast patterns.
+
+## Twins / interchangeable co-stars playing ONE role
+
+A different multi-actor pattern: two (or more) actors rotate playing the SAME single character throughout a show with no narrative switch point — Mary-Kate and Ashley Olsen both play Michelle Tanner in Full House from episode one onward, for example. Emit this as ONE character with BOTH actors in the \`actors\` array and the SAME \`visibleAfter\` (the character's first-appearance timestamp). Leave the \`note\` field null for each — there's no "young / adult" distinction to make.
+
+✅ CORRECT:
+\`\`\`
+{
+  name: "Michelle Tanner",
+  actorName: "Mary-Kate Olsen",
+  actorTmdbId: 73756,
+  baseDescription: "The youngest Tanner, a precocious toddler with an oversized personality.",
+  visibleAfter: { season: 1, episode: 1 },
+  actors: [
+    { actorName: "Mary-Kate Olsen", actorTmdbId: 73756, note: null, visibleAfter: { season: 1, episode: 1 } },
+    { actorName: "Ashley Olsen", actorTmdbId: 73755, note: null, visibleAfter: { season: 1, episode: 1 } }
+  ],
+  nameAliases: []
+}
+\`\`\`
+
+The viewer displays both names side-by-side ("played by Mary-Kate Olsen & Ashley Olsen") because they share the same visibleAfter.
 
 ## Twist-reveal names (Khan / Kaiser Söze / Tyler Durden)
 
@@ -156,12 +178,14 @@ export async function draftCharacters(
   season: number | null,
   priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftCharacter[]> {
-  // Skip subtitles for the characters chunk — identity/faction metadata comes
-  // from cast + overview, and the dialogue excerpt is better spent on
-  // chunks that need timestamp anchors (facts, relationships, timeline).
-  const userMessage = formatGroundingContext(grounding, season, { includeSubtitles: false })
+  // Include subtitles — even though baseDescription is identity-only, the
+  // actors[] visibleAfter and nameAliases[] visibleAfter fields both need
+  // accurate dialogue timestamps. Without subs, Sonnet was guessing reveal
+  // times (e.g., Khan's name reveal landed at 85:00 instead of the actual
+  // 68:00 in dialogue).
+  const userMessage = formatGroundingContext(grounding, season)
     + formatPriorSeasonCanon(priorCanon)
-    + `\n\nEmit the characters now. Each must cite an actorTmdbId from the cast list above and include a correct visibleAfter.`;
+    + `\n\nEmit the characters now. Each must cite an actorTmdbId from the cast list above and include a correct visibleAfter. For multi-actor characters and twist-reveal names, use the DIALOGUE EXCERPT timestamps as ground truth for when each actor/name becomes visible.`;
   const result = await callTool<{ characters: unknown[] }>({
     client,
     systemPrompt: SYSTEM_PROMPT,
