@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X, Plus, Tag } from "lucide-react";
+import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
 
 interface VisibleAfter { seconds?: number; season?: number; episode?: number }
 
@@ -84,6 +85,22 @@ export default function ReviewCompanionPage() {
   const [regenStep, setRegenStep] = useState<string>("");
   // "all" = show every season's rows; number = filter to that season.
   const [seasonFilter, setSeasonFilter] = useState<number | "all">("all");
+  // Modal editor state — null when closed.
+  const [editorDraft, setEditorDraft] = useState<EditorDraft | null>(null);
+
+  function refetch() {
+    if (!user) return;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/admin/watch-companion/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        setCompanion(data.companion);
+      } catch { /* swallow — dialog just won't refresh */ }
+    })();
+  }
+  async function getToken() { return (await user?.getIdToken()) ?? ""; }
 
   async function deleteItem(type: ItemType, itemId: string) {
     if (!user || !confirm("Delete this item? This can't be undone from here.")) return;
@@ -344,6 +361,14 @@ export default function ReviewCompanionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Factions — quick bulk rename for all characters sharing a group */}
+          <FactionEditor
+            characters={companion.characters}
+            companionId={companion.id}
+            getToken={getToken}
+            onRenamed={refetch}
+          />
+
           {/* Characters */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
             <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
@@ -394,10 +419,29 @@ export default function ReviewCompanionPage() {
                       {c.group && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-2)]">{c.group}</span>}
                       <span>appears {fmtVisible(c.visibleAfter, companion.mediaType)}</span>
                       <button
-                        onClick={() => startEdit("character", c.id, "baseDescription", c.baseDescription)}
+                        onClick={() => setEditorDraft({
+                          type: "character",
+                          id: c.id,
+                          data: {
+                            name: c.name,
+                            baseDescription: c.baseDescription,
+                            group: c.group ?? "",
+                            visibleAfter: c.visibleAfter,
+                          },
+                        })}
                         className="p-1 rounded hover:text-white hover:bg-[var(--surface-2)] transition-colors"
-                        title="Edit description"
+                        title="Edit character"
                       ><Pencil className="w-3 h-3" /></button>
+                      <button
+                        onClick={() => setEditorDraft({
+                          type: "fact",
+                          id: null,
+                          characterId: c.id,
+                          data: { fact: "", factType: "other", visibleAfter: c.visibleAfter },
+                        })}
+                        className="p-1 rounded hover:text-white hover:bg-[var(--surface-2)] transition-colors"
+                        title="Add event"
+                      ><Plus className="w-3 h-3" /></button>
                       <button
                         onClick={() => deleteItem("character", c.id)}
                         className="p-1 rounded hover:text-red-400 hover:bg-[var(--surface-2)] transition-colors"
@@ -453,7 +497,16 @@ export default function ReviewCompanionPage() {
                               <>
                                 <span className="flex-1">{f.fact}</span>
                                 <span className="shrink-0">{fmtVisible(f.visibleAfter, companion.mediaType)}</span>
-                                <button onClick={() => startEdit("fact", f.id, "fact", f.fact)} className="p-0.5 rounded hover:text-white" title="Edit"><Pencil className="w-2.5 h-2.5" /></button>
+                                <button
+                                  onClick={() => setEditorDraft({
+                                    type: "fact",
+                                    id: f.id,
+                                    characterId: c.id,
+                                    data: { fact: f.fact, factType: f.factType, visibleAfter: f.visibleAfter },
+                                  })}
+                                  className="p-0.5 rounded hover:text-white"
+                                  title="Edit event"
+                                ><Pencil className="w-2.5 h-2.5" /></button>
                                 <button onClick={() => deleteItem("fact", f.id)} className="p-0.5 rounded hover:text-red-400" title="Delete"><Trash2 className="w-2.5 h-2.5" /></button>
                               </>
                             )}
@@ -469,12 +522,25 @@ export default function ReviewCompanionPage() {
           </section>
 
           {/* Relationships */}
-          {filteredRelationships.length > 0 && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-[var(--ratist-red)]" />
-                <h3 className="text-sm font-semibold text-white">Relationships ({filteredRelationships.length}{seasonFilter !== "all" && ` of ${companion.relationships.length}`})</h3>
-              </div>
+          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-[var(--ratist-red)]" />
+              <h3 className="text-sm font-semibold text-white">Relationships ({filteredRelationships.length}{seasonFilter !== "all" && ` of ${companion.relationships.length}`})</h3>
+              <button
+                onClick={() => setEditorDraft({
+                  type: "relationship",
+                  id: null,
+                  companionId: companion.id,
+                  seasonNumber: seasonFilter === "all" ? null : seasonFilter,
+                  data: { fromCharacterId: "", toCharacterId: "", label: "", relationshipType: "other", directed: true, visibleAfter: {} },
+                })}
+                className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white"
+                title="Add relationship"
+              ><Plus className="w-3.5 h-3.5" /> Add</button>
+            </div>
+            {filteredRelationships.length === 0 ? (
+              <p className="px-5 py-3 text-xs text-[var(--foreground-muted)] italic">No relationships in this view.</p>
+            ) : (
               <ul className="divide-y divide-[var(--border)]/40">
                 {filteredRelationships.map((r) => (
                   <li key={r.id} className="px-5 py-2 text-sm text-white flex items-center gap-2">
@@ -482,65 +548,95 @@ export default function ReviewCompanionPage() {
                     <span className="text-[var(--foreground-muted)] italic text-xs">{r.label}</span>
                     <span className="font-medium">{charName(r.toCharacterId)}</span>
                     <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(r.visibleAfter, companion.mediaType)} · {r.relationshipType}</span>
+                    <button
+                      onClick={() => setEditorDraft({
+                        type: "relationship",
+                        id: r.id,
+                        companionId: companion.id,
+                        seasonNumber: r.seasonNumber,
+                        data: {
+                          fromCharacterId: r.fromCharacterId,
+                          toCharacterId: r.toCharacterId,
+                          label: r.label,
+                          relationshipType: r.relationshipType,
+                          directed: r.directed,
+                          visibleAfter: r.visibleAfter,
+                        },
+                      })}
+                      className="p-0.5 text-[var(--foreground-muted)] hover:text-white"
+                      title="Edit relationship"
+                    ><Pencil className="w-3 h-3" /></button>
                     <button onClick={() => deleteItem("relationship", r.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Timeline */}
-          {filteredTimeline.length > 0 && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[var(--ratist-red)]" />
-                <h3 className="text-sm font-semibold text-white">Timeline events ({filteredTimeline.length}{seasonFilter !== "all" && ` of ${companion.timeline.length}`})</h3>
-              </div>
-              <ul className="divide-y divide-[var(--border)]/40">
-                {filteredTimeline.map((t) => {
-                  const isEditing = editing?.type === "timeline" && editing.id === t.id;
-                  return (
-                    <li key={t.id} className="px-5 py-2 text-sm text-white flex items-start gap-3">
-                      <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider shrink-0 mt-0.5 w-12">{fmtVisible(t.visibleAfter, companion.mediaType)}</span>
-                      {isEditing ? (
-                        <div className="flex-1 space-y-1">
-                          <textarea
-                            value={editing.value}
-                            onChange={(e) => setEditing({ ...editing, value: e.target.value })}
-                            rows={2}
-                            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
-                          />
-                          <div className="flex gap-1">
-                            <button onClick={saveEdit} disabled={editSaving} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--ratist-red)] text-white rounded text-[10px] disabled:opacity-50">
-                              <Check className="w-2.5 h-2.5" /> Save
-                            </button>
-                            <button onClick={() => setEditing(null)} className="flex items-center gap-1 px-1.5 py-0.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-[10px]">
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="flex-1">{t.description}</span>
-                          <span className="text-[10px] text-[var(--foreground-muted)] shrink-0 mt-0.5">★{t.importance}</span>
-                          <button onClick={() => startEdit("timeline", t.id, "description", t.description)} className="p-0.5 text-[var(--foreground-muted)] hover:text-white" title="Edit"><Pencil className="w-3 h-3" /></button>
-                          <button onClick={() => deleteItem("timeline", t.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
-                        </>
-                      )}
-                    </li>
-                  );
+          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[var(--ratist-red)]" />
+              <h3 className="text-sm font-semibold text-white">Timeline events ({filteredTimeline.length}{seasonFilter !== "all" && ` of ${companion.timeline.length}`})</h3>
+              <button
+                onClick={() => setEditorDraft({
+                  type: "timeline",
+                  id: null,
+                  companionId: companion.id,
+                  seasonNumber: seasonFilter === "all" ? null : seasonFilter,
+                  data: { description: "", importance: 3, characterIds: [], visibleAfter: {} },
                 })}
+                className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white"
+                title="Add timeline event"
+              ><Plus className="w-3.5 h-3.5" /> Add</button>
+            </div>
+            {filteredTimeline.length === 0 ? (
+              <p className="px-5 py-3 text-xs text-[var(--foreground-muted)] italic">No timeline events in this view.</p>
+            ) : (
+              <ul className="divide-y divide-[var(--border)]/40">
+                {filteredTimeline.map((t) => (
+                  <li key={t.id} className="px-5 py-2 text-sm text-white flex items-start gap-3">
+                    <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider shrink-0 mt-0.5 w-12">{fmtVisible(t.visibleAfter, companion.mediaType)}</span>
+                    <span className="flex-1">{t.description}</span>
+                    <span className="text-[10px] text-[var(--foreground-muted)] shrink-0 mt-0.5">★{t.importance}</span>
+                    <button
+                      onClick={() => setEditorDraft({
+                        type: "timeline",
+                        id: t.id,
+                        companionId: companion.id,
+                        seasonNumber: t.seasonNumber,
+                        data: { description: t.description, importance: t.importance, characterIds: t.characterIds, visibleAfter: t.visibleAfter },
+                      })}
+                      className="p-0.5 text-[var(--foreground-muted)] hover:text-white"
+                      title="Edit timeline event"
+                    ><Pencil className="w-3 h-3" /></button>
+                    <button onClick={() => deleteItem("timeline", t.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
+                  </li>
+                ))}
               </ul>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Glossary */}
-          {filteredGlossary.length > 0 && (
-            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-[var(--ratist-red)]" />
-                <h3 className="text-sm font-semibold text-white">Glossary ({filteredGlossary.length}{seasonFilter !== "all" && ` of ${companion.glossary.length}`})</h3>
-              </div>
+          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[var(--ratist-red)]" />
+              <h3 className="text-sm font-semibold text-white">Glossary ({filteredGlossary.length}{seasonFilter !== "all" && ` of ${companion.glossary.length}`})</h3>
+              <button
+                onClick={() => setEditorDraft({
+                  type: "glossary",
+                  id: null,
+                  companionId: companion.id,
+                  seasonNumber: seasonFilter === "all" ? null : seasonFilter,
+                  data: { term: "", definition: "", category: "", visibleAfter: {} },
+                })}
+                className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white"
+                title="Add glossary term"
+              ><Plus className="w-3.5 h-3.5" /> Add</button>
+            </div>
+            {filteredGlossary.length === 0 ? (
+              <p className="px-5 py-3 text-xs text-[var(--foreground-muted)] italic">No glossary terms in this view.</p>
+            ) : (
               <ul className="divide-y divide-[var(--border)]/40">
                 {filteredGlossary.map((g) => {
                   const isEditing = editing?.type === "glossary" && editing.id === g.id;
@@ -550,7 +646,17 @@ export default function ReviewCompanionPage() {
                         <span className="font-semibold text-white">{g.term}</span>
                         {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
                         <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(g.visibleAfter, companion.mediaType)}</span>
-                        <button onClick={() => startEdit("glossary", g.id, "definition", g.definition)} className="p-0.5 text-[var(--foreground-muted)] hover:text-white" title="Edit definition"><Pencil className="w-3 h-3" /></button>
+                        <button
+                          onClick={() => setEditorDraft({
+                            type: "glossary",
+                            id: g.id,
+                            companionId: companion.id,
+                            seasonNumber: g.seasonNumber,
+                            data: { term: g.term, definition: g.definition, category: g.category ?? "", visibleAfter: g.visibleAfter },
+                          })}
+                          className="p-0.5 text-[var(--foreground-muted)] hover:text-white"
+                          title="Edit glossary term"
+                        ><Pencil className="w-3 h-3" /></button>
                         <button onClick={() => deleteItem("glossary", g.id)} className="p-0.5 text-[var(--foreground-muted)] hover:text-red-400" title="Delete"><Trash2 className="w-3 h-3" /></button>
                       </div>
                       {isEditing ? (
@@ -577,8 +683,8 @@ export default function ReviewCompanionPage() {
                   );
                 })}
               </ul>
-            </section>
-          )}
+            )}
+          </section>
         </div>
 
         {/* Sidebar */}
@@ -637,6 +743,87 @@ export default function ReviewCompanionPage() {
           </div>
         </div>
       </div>
+
+      <CompanionItemEditor
+        open={!!editorDraft}
+        draft={editorDraft}
+        mediaType={companion.mediaType}
+        characters={companion.characters.map((c) => ({ id: c.id, name: c.name }))}
+        onClose={() => setEditorDraft(null)}
+        onSaved={refetch}
+        getToken={getToken}
+      />
     </div>
+  );
+}
+
+// ── FactionEditor ───────────────────────────────────────────────────────
+// Bulk rename / clear a faction/group across every character that shares
+// the name. Surfaced above the characters list so admins can consolidate
+// AI-chosen group names without editing each character.
+
+function FactionEditor({ characters, companionId, getToken, onRenamed }: {
+  characters: Character[];
+  companionId: string;
+  getToken: () => Promise<string>;
+  onRenamed: () => void;
+}) {
+  const groups = Array.from(new Set(characters.map((c) => c.group).filter((g): g is string => !!g))).sort();
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+
+  async function submit(oldGroup: string) {
+    const token = await getToken();
+    await fetch(`/api/admin/watch-companion/${companionId}/rename-group`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ oldGroup, newGroup: newName }),
+    });
+    setRenaming(null);
+    setNewName("");
+    onRenamed();
+  }
+
+  if (groups.length === 0) return null;
+
+  return (
+    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
+        <Tag className="w-4 h-4 text-[var(--ratist-red)]" />
+        <h3 className="text-sm font-semibold text-white">Factions ({groups.length})</h3>
+      </div>
+      <ul className="divide-y divide-[var(--border)]/40">
+        {groups.map((g) => {
+          const count = characters.filter((c) => c.group === g).length;
+          const isRenaming = renaming === g;
+          return (
+            <li key={g} className="px-5 py-2 text-sm text-white flex items-center gap-2">
+              <span className="font-medium">{g}</span>
+              <span className="text-[10px] text-[var(--foreground-muted)]">{count} character{count === 1 ? "" : "s"}</span>
+              {isRenaming ? (
+                <>
+                  <input
+                    autoFocus
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="New name (blank to clear)"
+                    className="ml-auto bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                  />
+                  <button onClick={() => submit(g)} className="px-2 py-0.5 bg-[var(--ratist-red)] text-white rounded text-[10px] font-semibold"><Check className="w-3 h-3" /></button>
+                  <button onClick={() => { setRenaming(null); setNewName(""); }} className="px-2 py-0.5 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-[10px]"><X className="w-3 h-3" /></button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setRenaming(g); setNewName(g); }}
+                  className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white"
+                >
+                  <Pencil className="w-3 h-3" /> Rename
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

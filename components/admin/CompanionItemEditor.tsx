@@ -1,0 +1,501 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { X, Check, Loader2 } from "lucide-react";
+
+export type EditorType = "character" | "fact" | "relationship" | "timeline" | "glossary";
+
+interface VisibleAfter { seconds?: number; season?: number; episode?: number }
+
+interface CharacterDraft {
+  name: string;
+  baseDescription: string;
+  group: string;
+  visibleAfter: VisibleAfter;
+}
+interface FactDraft {
+  fact: string;
+  factType: string;
+  visibleAfter: VisibleAfter;
+}
+interface RelationshipDraft {
+  label: string;
+  relationshipType: string;
+  directed: boolean;
+  fromCharacterId: string;
+  toCharacterId: string;
+  visibleAfter: VisibleAfter;
+}
+interface TimelineDraft {
+  description: string;
+  importance: number;
+  characterIds: string[];
+  visibleAfter: VisibleAfter;
+}
+interface GlossaryDraft {
+  term: string;
+  definition: string;
+  category: string;
+  visibleAfter: VisibleAfter;
+}
+
+export type EditorDraft =
+  | { type: "character"; id: string; data: CharacterDraft }
+  | { type: "fact"; id: string | null; characterId: string; data: FactDraft }
+  | { type: "relationship"; id: string | null; companionId: string; data: RelationshipDraft; seasonNumber: number | null }
+  | { type: "timeline"; id: string | null; companionId: string; data: TimelineDraft; seasonNumber: number | null }
+  | { type: "glossary"; id: string | null; companionId: string; data: GlossaryDraft; seasonNumber: number | null };
+
+interface Props {
+  open: boolean;
+  draft: EditorDraft | null;
+  mediaType: "movie" | "tv";
+  characters: Array<{ id: string; name: string }>;
+  onClose: () => void;
+  onSaved: () => void;
+  getToken: () => Promise<string>;
+}
+
+const FACT_TYPES = ["role_change", "relationship_change", "arc", "death", "reveal", "other"];
+const REL_TYPES = ["family", "romantic", "business", "rivalry", "alliance", "mentor", "other"];
+const GLOSSARY_CATEGORIES = ["world", "faction", "jargon", "concept"];
+
+/**
+ * All-purpose create/edit modal for a Watch Companion item. Dispatches on
+ * draft.type for which fields to render, and on draft.id for whether to
+ * POST (create) or PATCH (edit). Never renders without a draft.
+ */
+export default function CompanionItemEditor({ open, draft, mediaType, characters, onClose, onSaved, getToken }: Props) {
+  const [working, setWorking] = useState<EditorDraft | null>(draft);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Reset working state whenever the caller hands us a new draft.
+  useEffect(() => {
+    setWorking(draft);
+    setError("");
+  }, [draft]);
+
+  if (!open || !working) return null;
+
+  async function save() {
+    if (!working) return;
+    setSaving(true);
+    setError("");
+    try {
+      const token = await getToken();
+      // Body assembly + endpoint selection dispatch on the draft shape.
+      let endpoint = "";
+      let method: "POST" | "PATCH" = "PATCH";
+      let body: Record<string, unknown> = {};
+      switch (working.type) {
+        case "character":
+          endpoint = `/api/admin/watch-companion/item/character/${working.id}`;
+          method = "PATCH";
+          body = {
+            name: working.data.name,
+            baseDescription: working.data.baseDescription,
+            group: working.data.group.length > 0 ? working.data.group : null,
+            visibleAfter: working.data.visibleAfter,
+          };
+          break;
+        case "fact":
+          endpoint = working.id
+            ? `/api/admin/watch-companion/item/fact/${working.id}`
+            : `/api/admin/watch-companion/item/fact`;
+          method = working.id ? "PATCH" : "POST";
+          body = {
+            characterId: working.characterId,
+            fact: working.data.fact,
+            factType: working.data.factType,
+            visibleAfter: working.data.visibleAfter,
+          };
+          break;
+        case "relationship":
+          endpoint = working.id
+            ? `/api/admin/watch-companion/item/relationship/${working.id}`
+            : `/api/admin/watch-companion/item/relationship`;
+          method = working.id ? "PATCH" : "POST";
+          body = {
+            companionId: working.companionId,
+            fromCharacterId: working.data.fromCharacterId,
+            toCharacterId: working.data.toCharacterId,
+            label: working.data.label,
+            relationshipType: working.data.relationshipType,
+            directed: working.data.directed,
+            seasonNumber: working.seasonNumber,
+            visibleAfter: working.data.visibleAfter,
+          };
+          break;
+        case "timeline":
+          endpoint = working.id
+            ? `/api/admin/watch-companion/item/timeline/${working.id}`
+            : `/api/admin/watch-companion/item/timeline`;
+          method = working.id ? "PATCH" : "POST";
+          body = {
+            companionId: working.companionId,
+            description: working.data.description,
+            importance: working.data.importance,
+            characterIds: working.data.characterIds,
+            seasonNumber: working.seasonNumber,
+            visibleAfter: working.data.visibleAfter,
+          };
+          break;
+        case "glossary":
+          endpoint = working.id
+            ? `/api/admin/watch-companion/item/glossary/${working.id}`
+            : `/api/admin/watch-companion/item/glossary`;
+          method = working.id ? "PATCH" : "POST";
+          body = {
+            companionId: working.companionId,
+            term: working.data.term,
+            definition: working.data.definition,
+            category: working.data.category.length > 0 ? working.data.category : null,
+            seasonNumber: working.seasonNumber,
+            visibleAfter: working.data.visibleAfter,
+          };
+          break;
+      }
+      const res = await fetch(endpoint, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.error ?? `Save failed (${res.status})`);
+        setSaving(false);
+        return;
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+      setSaving(false);
+    }
+  }
+
+  const title = working.type === "character" ? "Edit character"
+    : working.type === "fact" ? (working.id ? "Edit event" : "New event")
+    : working.type === "relationship" ? (working.id ? "Edit relationship" : "New relationship")
+    : working.type === "timeline" ? (working.id ? "Edit timeline event" : "New timeline event")
+    : (working.id ? "Edit glossary term" : "New glossary term");
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-xl bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--background)]">
+          <h3 className="text-base font-semibold text-white">{title}</h3>
+          <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-4 space-y-4">
+          {working.type === "character" && (
+            <CharacterFields
+              data={working.data}
+              mediaType={mediaType}
+              onChange={(next) => setWorking({ ...working, data: next })}
+            />
+          )}
+          {working.type === "fact" && (
+            <FactFields
+              data={working.data}
+              mediaType={mediaType}
+              onChange={(next) => setWorking({ ...working, data: next })}
+            />
+          )}
+          {working.type === "relationship" && (
+            <RelationshipFields
+              data={working.data}
+              mediaType={mediaType}
+              characters={characters}
+              onChange={(next) => setWorking({ ...working, data: next })}
+            />
+          )}
+          {working.type === "timeline" && (
+            <TimelineFields
+              data={working.data}
+              mediaType={mediaType}
+              characters={characters}
+              onChange={(next) => setWorking({ ...working, data: next })}
+            />
+          )}
+          {working.type === "glossary" && (
+            <GlossaryFields
+              data={working.data}
+              mediaType={mediaType}
+              onChange={(next) => setWorking({ ...working, data: next })}
+            />
+          )}
+          {error && (
+            <p className="text-sm text-red-400 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-[var(--border)] bg-[var(--background)] sticky bottom-0">
+          <button onClick={onClose} className="px-3 py-1.5 text-sm text-[var(--foreground-muted)] hover:text-white">Cancel</button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[var(--ratist-red)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--ratist-red)]/80 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Field blocks per type ───────────────────────────────────────────────
+
+function VisibleAfterInput({ value, mediaType, onChange }: {
+  value: VisibleAfter;
+  mediaType: "movie" | "tv";
+  onChange: (next: VisibleAfter) => void;
+}) {
+  if (mediaType === "movie") {
+    // Single seconds input rendered as MM:SS for readability.
+    const total = value.seconds ?? 0;
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return (
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Visible after (MM:SS)</label>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={0}
+            value={mins}
+            onChange={(e) => onChange({ ...value, seconds: (parseInt(e.target.value, 10) || 0) * 60 + secs })}
+            className="w-20 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+          <span className="text-[var(--foreground-muted)]">:</span>
+          <input
+            type="number"
+            min={0}
+            max={59}
+            value={secs}
+            onChange={(e) => onChange({ ...value, seconds: mins * 60 + (parseInt(e.target.value, 10) || 0) })}
+            className="w-20 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Visible after</label>
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-[var(--foreground-muted)]">S</label>
+        <input
+          type="number"
+          min={1}
+          value={value.season ?? ""}
+          placeholder="1"
+          onChange={(e) => onChange({ ...value, season: parseInt(e.target.value, 10) || undefined })}
+          className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+        />
+        <label className="text-xs text-[var(--foreground-muted)]">E</label>
+        <input
+          type="number"
+          min={1}
+          value={value.episode ?? ""}
+          placeholder="1"
+          onChange={(e) => onChange({ ...value, episode: parseInt(e.target.value, 10) || undefined })}
+          className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+        />
+        <label className="text-xs text-[var(--foreground-muted)]">sec into ep</label>
+        <input
+          type="number"
+          min={0}
+          value={value.seconds ?? ""}
+          placeholder="0"
+          onChange={(e) => onChange({ ...value, seconds: parseInt(e.target.value, 10) || undefined })}
+          className="w-24 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+        />
+      </div>
+    </div>
+  );
+}
+
+function LabelledInput({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)]"
+      />
+    </div>
+  );
+}
+
+function LabelledTextarea({ label, value, onChange, rows = 3 }: {
+  label: string; value: string; onChange: (v: string) => void; rows?: number;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+      />
+    </div>
+  );
+}
+
+function LabelledSelect({ label, value, onChange, options, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; options: string[]; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function CharacterFields({ data, mediaType, onChange }: { data: CharacterDraft; mediaType: "movie" | "tv"; onChange: (d: CharacterDraft) => void }) {
+  return (
+    <>
+      <LabelledInput label="Name" value={data.name} onChange={(v) => onChange({ ...data, name: v })} />
+      <LabelledTextarea label="Base description" value={data.baseDescription} onChange={(v) => onChange({ ...data, baseDescription: v })} rows={3} />
+      <LabelledInput label="Faction / group" value={data.group} onChange={(v) => onChange({ ...data, group: v })} placeholder="(none)" />
+      <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
+    </>
+  );
+}
+
+function FactFields({ data, mediaType, onChange }: { data: FactDraft; mediaType: "movie" | "tv"; onChange: (d: FactDraft) => void }) {
+  return (
+    <>
+      <LabelledTextarea label="Event description" value={data.fact} onChange={(v) => onChange({ ...data, fact: v })} rows={2} />
+      <LabelledSelect label="Event type" value={data.factType} onChange={(v) => onChange({ ...data, factType: v })} options={FACT_TYPES} />
+      <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
+    </>
+  );
+}
+
+function RelationshipFields({ data, mediaType, characters, onChange }: {
+  data: RelationshipDraft; mediaType: "movie" | "tv";
+  characters: Array<{ id: string; name: string }>;
+  onChange: (d: RelationshipDraft) => void;
+}) {
+  return (
+    <>
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">From character</label>
+        <select
+          value={data.fromCharacterId}
+          onChange={(e) => onChange({ ...data, fromCharacterId: e.target.value })}
+          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+        >
+          <option value="">Select character…</option>
+          {characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">To character</label>
+        <select
+          value={data.toCharacterId}
+          onChange={(e) => onChange({ ...data, toCharacterId: e.target.value })}
+          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+        >
+          <option value="">Select character…</option>
+          {characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <LabelledInput label="Label" value={data.label} onChange={(v) => onChange({ ...data, label: v })} placeholder="e.g. parent of" />
+      <LabelledSelect label="Relationship type" value={data.relationshipType} onChange={(v) => onChange({ ...data, relationshipType: v })} options={REL_TYPES} />
+      <label className="flex items-center gap-2 text-sm text-white">
+        <input
+          type="checkbox"
+          checked={data.directed}
+          onChange={(e) => onChange({ ...data, directed: e.target.checked })}
+          className="accent-[var(--ratist-red)]"
+        />
+        Directed (label reads "from → to"; uncheck for symmetric — siblings, spouses, allies).
+      </label>
+      <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
+    </>
+  );
+}
+
+function TimelineFields({ data, mediaType, characters, onChange }: {
+  data: TimelineDraft; mediaType: "movie" | "tv";
+  characters: Array<{ id: string; name: string }>;
+  onChange: (d: TimelineDraft) => void;
+}) {
+  return (
+    <>
+      <LabelledTextarea label="Description" value={data.description} onChange={(v) => onChange({ ...data, description: v })} rows={3} />
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Importance (1–5)</label>
+        <input
+          type="number"
+          min={1}
+          max={5}
+          value={data.importance}
+          onChange={(e) => onChange({ ...data, importance: Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 3)) })}
+          className="w-24 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+        />
+      </div>
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Characters involved</label>
+        <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
+          {characters.map((c) => {
+            const selected = data.characterIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onChange({
+                  ...data,
+                  characterIds: selected
+                    ? data.characterIds.filter((id) => id !== c.id)
+                    : [...data.characterIds, c.id],
+                })}
+                className={`px-2 py-0.5 text-[11px] rounded-full border transition-colors ${
+                  selected
+                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                    : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
+    </>
+  );
+}
+
+function GlossaryFields({ data, mediaType, onChange }: { data: GlossaryDraft; mediaType: "movie" | "tv"; onChange: (d: GlossaryDraft) => void }) {
+  return (
+    <>
+      <LabelledInput label="Term" value={data.term} onChange={(v) => onChange({ ...data, term: v })} />
+      <LabelledTextarea label="Definition" value={data.definition} onChange={(v) => onChange({ ...data, definition: v })} rows={3} />
+      <LabelledSelect label="Category" value={data.category} onChange={(v) => onChange({ ...data, category: v })} options={GLOSSARY_CATEGORIES} placeholder="(none)" />
+      <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
+    </>
+  );
+}
