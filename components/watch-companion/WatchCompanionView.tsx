@@ -795,6 +795,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                               group: c.group ?? "",
                               actorName: c.actorName ?? "",
                               actorTmdbId: c.actorTmdbId,
+                              // Admin-only field; suggest payload omits it.
+                              sortOrder: 0,
                               visibleAfter: c.visibleAfter,
                             },
                           })}
@@ -1005,6 +1007,9 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   group: "",
                   actorName: "",
                   actorTmdbId: null,
+                  // sortOrder is admin-only; the suggest payload ignores it.
+                  // Pass 0 just to satisfy the draft shape.
+                  sortOrder: 0,
                   // Default to the user's current slider position so the
                   // suggested character starts unlocked here. Editable in the
                   // form for any user who actually knows the earlier debut.

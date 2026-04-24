@@ -21,6 +21,11 @@ interface CharacterDraft {
   // an admin loads the people-table row.
   actorName: string;
   actorTmdbId: number | null;
+  // Admin-only position control. The cast tab renders characters by
+  // sortOrder asc, so lowering this value moves the card earlier in the
+  // list and raising it pushes the card later. Not exposed in the
+  // community suggest form — ordering is a moderator call.
+  sortOrder: number;
   visibleAfter: VisibleAfter;
 }
 interface FactDraft {
@@ -250,6 +255,7 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
             ...(working.data.actorName.length > 0
               ? { actorName: working.data.actorName, actorTmdbId: working.data.actorTmdbId }
               : {}),
+            sortOrder: working.data.sortOrder,
             visibleAfter: working.data.visibleAfter,
           };
           break;
@@ -394,6 +400,7 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
             <CharacterFields
               data={working.data}
               mediaType={mediaType}
+              mode={mode}
               onChange={(next) => setWorking({ ...working, data: next })}
             />
           )}
@@ -570,7 +577,7 @@ function LabelledSelect({ label, value, onChange, options, placeholder }: {
   );
 }
 
-function CharacterFields({ data, mediaType, onChange }: { data: CharacterDraft; mediaType: "movie" | "tv"; onChange: (d: CharacterDraft) => void }) {
+function CharacterFields({ data, mediaType, mode, onChange }: { data: CharacterDraft; mediaType: "movie" | "tv"; mode: "direct" | "suggest"; onChange: (d: CharacterDraft) => void }) {
   return (
     <>
       <LabelledInput label="Name" value={data.name} onChange={(v) => onChange({ ...data, name: v })} />
@@ -581,6 +588,23 @@ function CharacterFields({ data, mediaType, onChange }: { data: CharacterDraft; 
         actorTmdbId={data.actorTmdbId}
         onChange={(actorName, actorTmdbId) => onChange({ ...data, actorName, actorTmdbId })}
       />
+      {/* Admin-only: the cast tab renders sortOrder asc, so smaller numbers
+          come first. Lets moderators reshuffle after a community character
+          is approved and lands at the end (or swap a lead upward if the
+          generator got the order wrong). */}
+      {mode === "direct" && (
+        <div>
+          <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">
+            Sort order <span className="opacity-60 normal-case tracking-normal">(lower = earlier in cast list)</span>
+          </label>
+          <input
+            type="number"
+            value={data.sortOrder}
+            onChange={(e) => onChange({ ...data, sortOrder: parseInt(e.target.value, 10) || 0 })}
+            className="w-24 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+        </div>
+      )}
       <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
     </>
   );

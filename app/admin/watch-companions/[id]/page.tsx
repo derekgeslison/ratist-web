@@ -24,6 +24,7 @@ interface Character {
   id: string; name: string; actorName: string | null; baseDescription: string;
   group: string | null; visibleAfter: VisibleAfter; facts: Fact[];
   seasonNumber: number | null;
+  sortOrder: number;
   actors: ActorRow[];
   nameAliases: AliasRow[];
 }
@@ -484,6 +485,7 @@ export default function ReviewCompanionPage() {
                             group: c.group ?? "",
                             actorName: c.actorName ?? "",
                             actorTmdbId: c.actors?.[0]?.actorTmdbId ?? null,
+                            sortOrder: c.sortOrder,
                             visibleAfter: c.visibleAfter,
                           },
                         })}

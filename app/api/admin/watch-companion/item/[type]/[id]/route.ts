@@ -65,6 +65,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ type: str
         // Move actorTmdbId in lockstep with actorName so the celebrity link
         // doesn't drift to a stale id when the character's actor changes.
         if ("actorTmdbId" in body) data.actorTmdbId = typeof body.actorTmdbId === "number" ? body.actorTmdbId : null;
+        // Admin-controlled cast order. The viewer renders characters by
+        // sortOrder asc, so moderators use this to move community-added
+        // cards out of the middle of the list or to reshuffle a bad
+        // generator order.
+        if (typeof body.sortOrder === "number") data.sortOrder = Math.max(0, Math.floor(body.sortOrder));
         if (visibleAfter) data.visibleAfter = visibleAfter;
         if (Object.keys(data).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
         const updated = await prisma.companionCharacter.update({ where: { id }, data });
