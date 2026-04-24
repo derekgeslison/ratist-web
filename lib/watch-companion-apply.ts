@@ -53,20 +53,116 @@ export async function applySuggestion(suggestionId: string): Promise<void> {
 
   if (action === "remove") {
     if (!targetId) return;
+    // Capture the row we're about to nuke so an admin can restore it
+    // later via the Revert flow. Cascade-lost children (e.g. a character's
+    // facts) aren't included — revert recreates just the top-level row.
+    const snapshot = await captureItemSnapshot(targetType, targetId);
     await removeTarget(targetType, targetId);
+    if (snapshot) {
+      // Prisma's Json input wants a JsonObject — casting to unknown avoids
+      // the strict structural type (snapshots can contain any of the
+      // row's fields including nested Json like visibleAfter).
+      await prisma.companionSuggestion.update({
+        where: { id: suggestionId },
+        data: { originalSnapshot: snapshot as unknown as object },
+      });
+    }
     return;
   }
 
   if (action === "edit") {
     if (!targetId) return;
+    // Snapshot the fields we're about to overwrite before applying. Gives
+    // the admin Revert action something to write back, and preserves the
+    // original AI content even if community votes approve a bad edit.
+    const snapshot = await captureItemSnapshot(targetType, targetId);
     await editTarget(targetType, targetId, payload);
+    if (snapshot) {
+      // Prisma's Json input wants a JsonObject — casting to unknown avoids
+      // the strict structural type (snapshots can contain any of the
+      // row's fields including nested Json like visibleAfter).
+      await prisma.companionSuggestion.update({
+        where: { id: suggestionId },
+        data: { originalSnapshot: snapshot as unknown as object },
+      });
+    }
     return;
   }
 
   if (action === "add") {
-    await addTarget(targetType, companionId, payload);
+    const createdId = await addTarget(targetType, companionId, payload);
+    if (createdId) {
+      await prisma.companionSuggestion.update({
+        where: { id: suggestionId },
+        data: { appliedItemId: createdId },
+      });
+    }
     return;
   }
+}
+
+/**
+ * Reads the current DB state of a target item and returns a plain object
+ * snapshot suitable for writing into CompanionSuggestion.originalSnapshot.
+ * Returns null if the targetType isn't known or the row doesn't exist.
+ * Snapshot fields are the same ones that editTarget/addTarget know about,
+ * so the revert path can reuse the same logic to write them back.
+ */
+async function captureItemSnapshot(targetType: string, targetId: string): Promise<Record<string, unknown> | null> {
+  switch (targetType) {
+    case "baseDescription":
+    case "character": {
+      const c = await prisma.companionCharacter.findUnique({
+        where: { id: targetId },
+        select: {
+          id: true, companionId: true, seasonNumber: true, name: true,
+          actorName: true, actorTmdbId: true, baseDescription: true,
+          visibleAfter: true, group: true, imageUrl: true, sortOrder: true,
+          nameAliases: true,
+        },
+      });
+      return c ? (c as unknown as Record<string, unknown>) : null;
+    }
+    case "fact": {
+      const f = await prisma.companionFact.findUnique({
+        where: { id: targetId },
+        select: { id: true, characterId: true, fact: true, factType: true, visibleAfter: true },
+      });
+      return f ? (f as unknown as Record<string, unknown>) : null;
+    }
+    case "relationship": {
+      const r = await prisma.companionRelationship.findUnique({
+        where: { id: targetId },
+        select: {
+          id: true, companionId: true, seasonNumber: true,
+          fromCharacterId: true, toCharacterId: true, relationshipType: true,
+          label: true, directed: true, visibleAfter: true,
+        },
+      });
+      return r ? (r as unknown as Record<string, unknown>) : null;
+    }
+    case "timeline": {
+      const t = await prisma.companionTimelineEvent.findUnique({
+        where: { id: targetId },
+        select: {
+          id: true, companionId: true, seasonNumber: true,
+          description: true, importance: true, characterIds: true, visibleAfter: true,
+        },
+      });
+      return t ? (t as unknown as Record<string, unknown>) : null;
+    }
+    case "glossary": {
+      const g = await prisma.companionGlossaryTerm.findUnique({
+        where: { id: targetId },
+        select: {
+          id: true, companionId: true, seasonNumber: true,
+          term: true, definition: true, category: true, sortOrder: true, visibleAfter: true,
+        },
+      });
+      return g ? (g as unknown as Record<string, unknown>) : null;
+    }
+  }
+  return null;
 }
 
 async function removeTarget(targetType: string, targetId: string) {
@@ -162,7 +258,7 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
   }
 }
 
-async function addTarget(targetType: string, companionId: string, payload: Record<string, unknown>) {
+async function addTarget(targetType: string, companionId: string, payload: Record<string, unknown>): Promise<string | null> {
   const str = (k: string, max: number) => typeof payload[k] === "string" ? (payload[k] as string).slice(0, max) : null;
   const visibleAfter = isVisibleAfter(payload.visibleAfter) ? payload.visibleAfter : {};
   // seasonNumber comes from the payload when the suggesting user is on a
@@ -175,9 +271,9 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
     case "character": {
       const name = str("name", 120);
       const baseDescription = str("baseDescription", 600);
-      if (!name || !baseDescription) return;
+      if (!name || !baseDescription) return null;
       const nameAliases = normNameAliases(payload.nameAliases) ?? [];
-      await prisma.companionCharacter.create({
+      const created = await prisma.companionCharacter.create({
         data: {
           companionId,
           seasonNumber,
@@ -190,23 +286,23 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           nameAliases: nameAliases.length > 0 ? nameAliases : undefined,
         },
       });
-      return;
+      return created.id;
     }
 
     case "fact": {
       const characterId = str("characterId", 60);
       const fact = str("fact", 400);
       const factType = str("factType", 40) ?? "other";
-      if (!characterId || !fact) return;
+      if (!characterId || !fact) return null;
       // Facts aren't season-scoped on their own row — they inherit via the
       // parent character. Just confirm the character exists so we don't
       // orphan a fact.
       const parent = await prisma.companionCharacter.findUnique({ where: { id: characterId }, select: { id: true } });
-      if (!parent) return;
-      await prisma.companionFact.create({
+      if (!parent) return null;
+      const created = await prisma.companionFact.create({
         data: { characterId, fact, factType, visibleAfter },
       });
-      return;
+      return created.id;
     }
 
     case "relationship": {
@@ -214,9 +310,9 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       const toCharacterId = str("toCharacterId", 60);
       const relationshipType = str("relationshipType", 40) ?? "other";
       const label = str("label", 80);
-      if (!fromCharacterId || !toCharacterId || !label) return;
-      if (fromCharacterId === toCharacterId) return;
-      await prisma.companionRelationship.create({
+      if (!fromCharacterId || !toCharacterId || !label) return null;
+      if (fromCharacterId === toCharacterId) return null;
+      const created = await prisma.companionRelationship.create({
         data: {
           companionId, seasonNumber,
           fromCharacterId, toCharacterId, relationshipType, label,
@@ -224,13 +320,13 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           visibleAfter,
         },
       });
-      return;
+      return created.id;
     }
 
     case "timeline": {
       const description = str("description", 500);
-      if (!description) return;
-      await prisma.companionTimelineEvent.create({
+      if (!description) return null;
+      const created = await prisma.companionTimelineEvent.create({
         data: {
           companionId, seasonNumber,
           description,
@@ -239,13 +335,13 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           visibleAfter,
         },
       });
-      return;
+      return created.id;
     }
 
     case "glossary": {
       const term = str("term", 80);
       const definition = str("definition", 500);
-      if (!term || !definition) return;
+      if (!term || !definition) return null;
       // Append at the end of the glossary list so user-added terms don't
       // disrupt the AI's most-obscure-first ordering.
       const last = await prisma.companionGlossaryTerm.findFirst({
@@ -253,7 +349,7 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
         orderBy: { sortOrder: "desc" },
         select: { sortOrder: true },
       });
-      await prisma.companionGlossaryTerm.create({
+      const created = await prisma.companionGlossaryTerm.create({
         data: {
           companionId, seasonNumber,
           term, definition,
@@ -262,7 +358,8 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           sortOrder: (last?.sortOrder ?? -1) + 1,
         },
       });
-      return;
+      return created.id;
     }
   }
+  return null;
 }

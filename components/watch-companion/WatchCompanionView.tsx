@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus } from "lucide-react";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
 import RelationshipMap from "./RelationshipMap";
 import CompanionNotAvailable from "./CompanionNotAvailable";
@@ -73,6 +73,10 @@ export interface WatchCompanionData {
   glossary: GlossaryTerm[];
   seasonEpisodeCounts?: Record<number, number>;
   defaultEpisodeRuntimeSeconds?: number;
+  /** Keys of "{targetType}:{itemId}" for items that were created or edited
+   *  via a community-approved suggestion. Drives the community-sourced
+   *  badge in the viewer. */
+  communityItemIds?: string[];
 }
 
 function isVisible(visibleAfter: VisibleAfter, position: WatchPosition, mediaType: "movie" | "tv"): boolean {
@@ -132,6 +136,22 @@ function buildEpisodeSlots(seasonsGenerated: number[], seasonEpisodeCounts: Reco
     for (let e = 1; e <= count; e++) slots.push({ season: s, episode: e });
   }
   return slots;
+}
+
+// Small "community-sourced" badge rendered on items that were created or
+// edited via a community-approved suggestion. Distinct from the pending
+// ItemSuggestions bubble (red) — uses a green checkmark badge so users
+// can tell "this content was vetted by the community" at a glance.
+function CommunityBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 ${compact ? "text-[9px]" : "text-[10px]"} px-1.5 py-0.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400`}
+      title="Community-sourced — this was added or edited via a community suggestion"
+    >
+      <Users className={compact ? "w-2.5 h-2.5" : "w-3 h-3"} />
+      <Check className={compact ? "w-2 h-2 -ml-0.5" : "w-2.5 h-2.5 -ml-0.5"} />
+    </span>
+  );
 }
 
 // Small toggle pill used for the glossary category quick-filter row.
@@ -207,6 +227,29 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   }
   function suggestionsFor(targetType: string, targetId: string | null): SuggestionRow[] {
     return pendingSuggestions.filter((s) => s.targetType === targetType && s.targetId === targetId);
+  }
+  // "Add" suggestions have no targetId, so they don't surface on a specific
+  // item. Group them by intended parent (via payload.characterId for facts,
+  // payload.fromCharacterId for relationships) or by section.
+  function addSuggestionsForCharacter(characterId: string): SuggestionRow[] {
+    return pendingSuggestions.filter((s) => {
+      if (s.action !== "add") return false;
+      const p = (s.payload ?? {}) as Record<string, unknown>;
+      if (s.targetType === "fact" && p.characterId === characterId) return true;
+      if (s.targetType === "relationship" && p.fromCharacterId === characterId) return true;
+      return false;
+    });
+  }
+  function sectionAddSuggestions(targetType: "character" | "timeline" | "glossary"): SuggestionRow[] {
+    return pendingSuggestions.filter((s) => s.action === "add" && s.targetType === targetType);
+  }
+  // Fast lookup for the "community-sourced" badge.
+  const communityItemSet = useMemo(
+    () => new Set(data.communityItemIds ?? []),
+    [data.communityItemIds],
+  );
+  function isCommunitySourced(targetType: string, itemId: string): boolean {
+    return communityItemSet.has(`${targetType}:${itemId}`);
   }
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
   const generatedSet = useMemo(() => new Set(seasonsGenerated), [seasonsGenerated]);
@@ -579,6 +622,30 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           count={visibleCharacters.length}
           suggestButton={<SuggestEditButton companionId={data.id} defaultTargetType="character" label="Suggest a character edit" compact season={mediaType === "tv" ? selectedSeason : null} />}
         >
+          {sectionAddSuggestions("character").length > 0 && (
+            <div className="flex items-center gap-2 bg-[var(--surface-2)]/40 border border-[var(--ratist-red)]/20 rounded-lg px-3 py-2 text-[11px] text-[var(--foreground-muted)]">
+              <span>Community-proposed characters awaiting votes:</span>
+              <ItemSuggestions
+                suggestions={sectionAddSuggestions("character")}
+                myVotes={myVotes}
+                mediaType={mediaType}
+                onChanged={onSuggestionChanged}
+              />
+            </div>
+          )}
+          {user && (
+            <button
+              onClick={() => setSuggestDraft({
+                type: "character",
+                // For "add character" we have no existing id; pass a sentinel
+                // empty string and let the modal render as add-mode. The
+                // suggestion endpoint writes it as action=add.
+                id: "",
+                data: { name: "", baseDescription: "", group: "", visibleAfter: mediaType === "tv" ? { season: selectedSeason, episode: 1 } : {} },
+              })}
+              className="mb-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+            ><Plus className="w-3.5 h-3.5" /> Suggest a new character</button>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {visibleCharacters.map((c, idx) => {
               const color = c.group ? groupColors.get(c.group) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
@@ -710,8 +777,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                        the community votes inline — auto-applies on
                        threshold, no admin gate. */}
                     <div className="flex items-center gap-1 shrink-0">
+                      {isCommunitySourced("character", c.id) && <CommunityBadge compact />}
                       <ItemSuggestions
-                        suggestions={suggestionsFor("character", c.id)}
+                        suggestions={[
+                          ...suggestionsFor("character", c.id),
+                          ...addSuggestionsForCharacter(c.id),
+                        ]}
                         myVotes={myVotes}
                         mediaType={mediaType}
                         onChanged={onSuggestionChanged}
@@ -836,6 +907,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                                 </span>
                                 {f.fact}
                               </span>
+                              {isCommunitySourced("fact", f.id) && <CommunityBadge compact />}
                               <ItemSuggestions
                                 suggestions={suggestionsFor("fact", f.id)}
                                 myVotes={myVotes}
@@ -912,6 +984,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   {formatVisibleAfter(t.visibleAfter, mediaType)}
                 </span>
                 <span className="flex-1 text-white">{t.description}</span>
+                {isCommunitySourced("timeline", t.id) && <CommunityBadge compact />}
                 <ItemSuggestions
                   suggestions={suggestionsFor("timeline", t.id)}
                   myVotes={myVotes}
@@ -941,6 +1014,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               </li>
             ))}
           </ol>
+          {sectionAddSuggestions("timeline").length > 0 && (
+            <div className="mt-3 flex items-center gap-2 bg-[var(--surface-2)]/40 border border-[var(--ratist-red)]/20 rounded-lg px-3 py-2 text-[11px] text-[var(--foreground-muted)]">
+              <span>Community-proposed timeline events:</span>
+              <ItemSuggestions
+                suggestions={sectionAddSuggestions("timeline")}
+                myVotes={myVotes}
+                mediaType={mediaType}
+                onChanged={onSuggestionChanged}
+              />
+            </div>
+          )}
           {user && (
             <button
               onClick={() => setSuggestDraft({
@@ -1015,6 +1099,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
                     </div>
                     <div className="flex items-start gap-1 shrink-0 mt-1">
+                      {isCommunitySourced("glossary", g.id) && <CommunityBadge compact />}
                       <ItemSuggestions
                         suggestions={suggestionsFor("glossary", g.id)}
                         myVotes={myVotes}
@@ -1047,6 +1132,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               </dl>
             ) : (
               <p className="text-sm text-[var(--foreground-muted)] italic text-center py-4">No terms in this category yet.</p>
+            )}
+            {sectionAddSuggestions("glossary").length > 0 && (
+              <div className="mt-3 flex items-center gap-2 bg-[var(--surface-2)]/40 border border-[var(--ratist-red)]/20 rounded-lg px-3 py-2 text-[11px] text-[var(--foreground-muted)]">
+                <span>Community-proposed glossary terms:</span>
+                <ItemSuggestions
+                  suggestions={sectionAddSuggestions("glossary")}
+                  myVotes={myVotes}
+                  mediaType={mediaType}
+                  onChanged={onSuggestionChanged}
+                />
+              </div>
             )}
             {user && (
               <button

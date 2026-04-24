@@ -32,7 +32,7 @@ interface Submitter {
   lastSubmittedAt: string | null;
 }
 
-type StatusFilter = "pending" | "approved" | "dismissed";
+type StatusFilter = "pending" | "approved" | "dismissed" | "reverted";
 type Tab = "queue" | "submitters";
 
 export default function SuggestionsModerationPage() {
@@ -96,6 +96,20 @@ export default function SuggestionsModerationPage() {
     else fetchSubmitters();
   }, [user, tab, filter]);
 
+  async function revert(id: string) {
+    if (!user || !confirm("Revert this applied suggestion? The item will be restored to its state before this suggestion was applied.")) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/admin/watch-companion/suggestions/${id}/revert`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) setSuggestions((s) => s.filter((x) => x.id !== id));
+    else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "Revert failed");
+    }
+  }
+
   async function resolve(id: string, status: "approved" | "dismissed") {
     if (!user) return;
     const token = await user.getIdToken();
@@ -147,7 +161,7 @@ export default function SuggestionsModerationPage() {
 
       {tab === "queue" && (
       <div className="flex items-center gap-2 mb-4">
-        {(["pending", "approved", "dismissed"] as const).map((s) => (
+        {(["pending", "approved", "dismissed", "reverted"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -288,6 +302,17 @@ export default function SuggestionsModerationPage() {
                       title="Delete permanently"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {filter === "approved" && (
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button
+                      onClick={() => revert(s.id)}
+                      className="px-2 py-1 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-red-400 hover:border-red-500/50 transition-colors text-[10px] font-semibold uppercase tracking-wider"
+                      title="Revert — undo this applied suggestion using the original snapshot"
+                    >
+                      Revert
                     </button>
                   </div>
                 )}

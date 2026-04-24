@@ -2238,6 +2238,16 @@ model CompanionSuggestion {
   resolvedById String? @map("resolved_by_id")
   resolvedAt   DateTime? @map("resolved_at")
   resolutionNote String? @db.Text @map("resolution_note")
+  // When an "add" suggestion is approved, the new row's id is captured here
+  // so the viewer can show a "community-sourced" badge on the specific
+  // row that came from this suggestion. Null for edits / removes.
+  appliedItemId String? @map("applied_item_id")
+  // Pre-change state of the target, captured at apply-time. For edits:
+  // the fields about to be overwritten. For removes: the row's data so an
+  // admin can restore it. For adds: null (no prior state). Powers the
+  // Revert admin action — critical for undoing troll brigades without
+  // losing the original AI content permanently.
+  originalSnapshot Json? @map("original_snapshot")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

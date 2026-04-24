@@ -125,6 +125,16 @@ export default async function ShowCompanionPage({ params }: Props) {
       .map((n) => ({ name: n.name, visibleAfter: (n.visibleAfter ?? {}) as CharData["visibleAfter"] })),
   }));
 
+  const approvedSuggestions = await prisma.companionSuggestion.findMany({
+    where: { companionId: companion.id, status: { in: ["approved"] } },
+    select: { targetType: true, targetId: true, appliedItemId: true },
+  });
+  const communityItemIds = new Set<string>();
+  for (const s of approvedSuggestions) {
+    if (s.targetId) communityItemIds.add(`${s.targetType}:${s.targetId}`);
+    if (s.appliedItemId) communityItemIds.add(`${s.targetType}:${s.appliedItemId}`);
+  }
+
   const data: WatchCompanionData = {
     id: companion.id,
     tmdbId: companion.tmdbId,
@@ -132,6 +142,7 @@ export default async function ShowCompanionPage({ params }: Props) {
     mediaType: "tv",
     runtimeSeconds: null,
     seasonsGenerated: companion.seasonsGenerated,
+    communityItemIds: Array.from(communityItemIds),
     characters,
     relationships: companion.relationships.map((r) => ({ ...r, seasonNumber: r.seasonNumber, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),
     timeline: companion.timeline.map((t) => ({ ...t, seasonNumber: t.seasonNumber, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
