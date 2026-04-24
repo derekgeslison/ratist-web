@@ -187,6 +187,11 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
     // fields and hit save.
     setSaving(true);
     setError("");
+    // 20s timeout so the spinner can never hang forever on a stalled
+    // request. If we hit the timeout, the fetch rejects and the catch
+    // block below surfaces the error.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20_000);
     try {
       const token = await getToken();
 
@@ -200,11 +205,11 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ action, targetType, targetId, rationale: rationale.trim(), payload }),
+          signal: controller.signal,
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           setError(err.error ?? `Submission failed (${res.status})`);
-          setSaving(false);
           return;
         }
         onSaved();
@@ -289,17 +294,26 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
         method,
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         setError(err.error ?? `Save failed (${res.status})`);
-        setSaving(false);
         return;
       }
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Request timed out. Check your connection and try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Network error");
+      }
+    } finally {
+      // Always clear the timeout + spinner. Without this, any unexpected
+      // throw / early return would leave saving=true and the button would
+      // spin forever.
+      clearTimeout(timeoutId);
       setSaving(false);
     }
   }
