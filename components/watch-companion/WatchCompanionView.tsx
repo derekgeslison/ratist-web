@@ -885,13 +885,21 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   {/* Facts list — skips role_changes ONLY when the ladder
                      above is rendered (2+ role_changes). With 0–1
                      role_changes the ladder doesn't render and we fall back
-                     to showing the single role_change as a normal fact. */}
+                     to showing the single role_change as a normal fact.
+                     Sort ascending by visibleAfter so the user's eye
+                     follows the story chronologically (death at 84:00
+                     reads after a confide-scene at 71:22, not before it).
+                     Falls back to insertion order via the stable sort
+                     when two facts share the same visibleAfter. */}
                   {(() => {
                     const roleCount = visibleFacts.filter((f) => f.factType === "role_change").length;
                     const ladderShown = roleCount >= 2;
-                    const displayFacts = ladderShown
+                    const baseFacts = ladderShown
                       ? visibleFacts.filter((f) => f.factType !== "role_change")
                       : visibleFacts;
+                    const displayFacts = [...baseFacts].sort(
+                      (a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType),
+                    );
                     if (displayFacts.length === 0) return null;
                     return (
                       <ul className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-1.5">

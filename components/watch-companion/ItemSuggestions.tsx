@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MessageSquare, Flag, ThumbsUp, ThumbsDown, Loader2, Check, ChevronDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { usePopoverPosition } from "@/hooks/usePopoverPosition";
 
 export interface SuggestionRow {
   id: string;
@@ -37,12 +38,20 @@ interface Props {
  */
 export default function ItemSuggestions({ suggestions, myVotes, mediaType, onChanged, compact = false }: Props) {
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Fixed-position styles computed from the button's bounding rect — keeps
+  // the popover inside the viewport on narrow screens (the old absolute
+  // right-0 was bleeding off the left on mobile) and escapes any
+  // overflow:hidden parent that would otherwise clip a popover anchored
+  // to the last row of a section.
+  const popoverStyle = usePopoverPosition(buttonRef, open);
   if (suggestions.length === 0) return null;
   const Icon = MessageSquare;
   const sizeCls = compact ? "w-3 h-3" : "w-3.5 h-3.5";
   return (
-    <div className="relative inline-block">
+    <div className="inline-block">
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/20 transition-colors ${compact ? "text-[9px]" : "text-[10px]"} font-semibold`}
         aria-label={`${suggestions.length} community suggestion${suggestions.length === 1 ? "" : "s"}`}
@@ -51,14 +60,10 @@ export default function ItemSuggestions({ suggestions, myVotes, mediaType, onCha
         {suggestions.length}
         <ChevronDown className={`${compact ? "w-2.5 h-2.5" : "w-3 h-3"} transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && (
-        // Absolute so its width doesn't push the parent wider than the
-        // card on mobile. right-0 anchors to the icon so a card near the
-        // left edge still renders the popover toward the center of the
-        // screen instead of off-right. break-words stops long tokens from
-        // forcing a no-wrap line that blows out the layout.
+      {open && popoverStyle && (
         <div
-          className="absolute right-0 top-full mt-2 z-30 w-[min(320px,calc(100vw-1.5rem))] bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-lg p-2 space-y-2 text-left shadow-xl break-words"
+          style={popoverStyle}
+          className="z-30 bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-lg p-2 space-y-2 text-left shadow-xl break-words"
         >
           {suggestions.map((s) => (
             <SuggestionRowDisplay

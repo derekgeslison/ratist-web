@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X, Plus, Tag, MessageSquare } from "lucide-react";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
 import CompanionSubmittersTable from "@/components/admin/CompanionSubmittersTable";
+import { usePopoverPosition } from "@/hooks/usePopoverPosition";
 
 interface VisibleAfter { seconds?: number; season?: number; episode?: number }
 
@@ -855,6 +856,12 @@ function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: 
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // Fixed positioning so the popover escapes any overflow:hidden / rounded
+  // section container — important when reverting on the last row of a
+  // category, where the old absolute popover got clipped at the bottom of
+  // the tile.
+  const popoverStyle = usePopoverPosition(buttonRef, open, 340);
   if (suggestions.length === 0) return null;
 
   async function revert(id: string) {
@@ -877,8 +884,9 @@ function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: 
   }
 
   return (
-    <div className="relative inline-block">
+    <div className="inline-block">
       <button
+        ref={buttonRef}
         onClick={() => setOpen(!open)}
         className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors text-[10px] font-semibold"
         title={`${suggestions.length} community-approved change${suggestions.length === 1 ? "" : "s"}`}
@@ -887,8 +895,8 @@ function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: 
         <Check className="w-2.5 h-2.5 -ml-0.5" />
         {suggestions.length}
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-2 z-30 w-[min(340px, calc(100vw - 1.5rem))] bg-[var(--surface)] border border-green-500/30 rounded-lg p-2 space-y-1.5 shadow-xl break-words">
+      {open && popoverStyle && (
+        <div style={popoverStyle} className="z-30 bg-[var(--surface)] border border-green-500/30 rounded-lg p-2 space-y-1.5 shadow-xl break-words">
           {suggestions.map((s) => (
             <div key={s.id} className="bg-[var(--surface-2)] border border-[var(--border)]/60 rounded p-2 space-y-1">
               <div className="flex items-baseline gap-2 text-[10px] text-[var(--foreground-muted)]">
