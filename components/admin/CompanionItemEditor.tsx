@@ -5,7 +5,10 @@ import { X, Check, Loader2 } from "lucide-react";
 
 export type EditorType = "character" | "fact" | "relationship" | "timeline" | "glossary";
 
-interface VisibleAfter { seconds?: number; season?: number; episode?: number }
+// Accept nullable numbers so we can take data straight from viewer/admin
+// DB payloads (Prisma Json fields often surface nulls for missing keys).
+// The editor normalizes to clean optionals on submit.
+interface VisibleAfter { seconds?: number | null; season?: number | null; episode?: number | null }
 
 interface CharacterDraft {
   name: string;
@@ -46,6 +49,88 @@ export type EditorDraft =
   | { type: "timeline"; id: string | null; companionId: string; data: TimelineDraft; seasonNumber: number | null }
   | { type: "glossary"; id: string | null; companionId: string; data: GlossaryDraft; seasonNumber: number | null };
 
+/**
+ * Turn an EditorDraft into the { action, targetType, targetId, payload }
+ * shape the community-suggestion endpoint expects. Null id = "add" action;
+ * otherwise "edit". Payload carries all the editable fields in a plain
+ * object so applySuggestion() can pick them up.
+ */
+function draftToSuggestion(draft: EditorDraft): {
+  action: "add" | "edit";
+  targetType: string;
+  targetId: string | null;
+  payload: Record<string, unknown>;
+} {
+  const action: "add" | "edit" = draft.id ? "edit" : "add";
+  switch (draft.type) {
+    case "character":
+      return {
+        action,
+        targetType: "character",
+        targetId: draft.id,
+        payload: {
+          name: draft.data.name,
+          baseDescription: draft.data.baseDescription,
+          group: draft.data.group.length > 0 ? draft.data.group : null,
+          visibleAfter: draft.data.visibleAfter,
+        },
+      };
+    case "fact":
+      return {
+        action,
+        targetType: "fact",
+        targetId: draft.id,
+        payload: {
+          characterId: draft.characterId,
+          fact: draft.data.fact,
+          factType: draft.data.factType,
+          visibleAfter: draft.data.visibleAfter,
+        },
+      };
+    case "relationship":
+      return {
+        action,
+        targetType: "relationship",
+        targetId: draft.id,
+        payload: {
+          fromCharacterId: draft.data.fromCharacterId,
+          toCharacterId: draft.data.toCharacterId,
+          label: draft.data.label,
+          relationshipType: draft.data.relationshipType,
+          directed: draft.data.directed,
+          seasonNumber: draft.seasonNumber,
+          visibleAfter: draft.data.visibleAfter,
+        },
+      };
+    case "timeline":
+      return {
+        action,
+        targetType: "timeline",
+        targetId: draft.id,
+        payload: {
+          description: draft.data.description,
+          importance: draft.data.importance,
+          characterIds: draft.data.characterIds,
+          seasonNumber: draft.seasonNumber,
+          visibleAfter: draft.data.visibleAfter,
+        },
+      };
+    case "glossary":
+      return {
+        action,
+        targetType: "glossary",
+        targetId: draft.id,
+        payload: {
+          term: draft.data.term,
+          definition: draft.data.definition,
+          category: draft.data.category.length > 0 ? draft.data.category : null,
+          seasonNumber: draft.seasonNumber,
+          visibleAfter: draft.data.visibleAfter,
+        },
+      };
+  }
+}
+
 interface Props {
   open: boolean;
   draft: EditorDraft | null;
@@ -54,6 +139,17 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   getToken: () => Promise<string>;
+  /**
+   * "direct" (default): admin-only; writes through to the live data via the
+   * /api/admin/watch-companion/item/* endpoints.
+   * "suggest": public user flow; POSTs to
+   * /api/watch-companion/:companionId/suggestions so an admin can review
+   * before applying. The editor adds a required rationale field in this
+   * mode.
+   */
+  mode?: "direct" | "suggest";
+  /** Required when mode === "suggest" — used to compose the suggestions URL. */
+  companionId?: string;
 }
 
 const FACT_TYPES = ["role_change", "relationship_change", "arc", "death", "reveal", "other"];
@@ -65,14 +161,16 @@ const GLOSSARY_CATEGORIES = ["world", "faction", "jargon", "concept"];
  * draft.type for which fields to render, and on draft.id for whether to
  * POST (create) or PATCH (edit). Never renders without a draft.
  */
-export default function CompanionItemEditor({ open, draft, mediaType, characters, onClose, onSaved, getToken }: Props) {
+export default function CompanionItemEditor({ open, draft, mediaType, characters, onClose, onSaved, getToken, mode = "direct", companionId }: Props) {
   const [working, setWorking] = useState<EditorDraft | null>(draft);
+  const [rationale, setRationale] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   // Reset working state whenever the caller hands us a new draft.
   useEffect(() => {
     setWorking(draft);
+    setRationale("");
     setError("");
   }, [draft]);
 
@@ -80,10 +178,38 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
 
   async function save() {
     if (!working) return;
+    if (mode === "suggest" && rationale.trim().length === 0) {
+      setError("Please explain what you're suggesting and why.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const token = await getToken();
+
+      // SUGGEST MODE: route everything through the suggestion endpoint so an
+      // admin can review. Build { action, targetType, targetId, payload }
+      // from the draft and post once.
+      if (mode === "suggest") {
+        if (!companionId) { setError("Missing companionId."); setSaving(false); return; }
+        const { action, targetType, targetId, payload } = draftToSuggestion(working);
+        const res = await fetch(`/api/watch-companion/${companionId}/suggestions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ action, targetType, targetId, rationale: rationale.trim(), payload }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setError(err.error ?? `Submission failed (${res.status})`);
+          setSaving(false);
+          return;
+        }
+        onSaved();
+        onClose();
+        return;
+      }
+
+      // DIRECT MODE (original admin flow): PATCH / POST per item type.
       // Body assembly + endpoint selection dispatch on the draft shape.
       let endpoint = "";
       let method: "POST" | "PATCH" = "PATCH";
@@ -175,11 +301,12 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
     }
   }
 
-  const title = working.type === "character" ? "Edit character"
-    : working.type === "fact" ? (working.id ? "Edit event" : "New event")
-    : working.type === "relationship" ? (working.id ? "Edit relationship" : "New relationship")
-    : working.type === "timeline" ? (working.id ? "Edit timeline event" : "New timeline event")
-    : (working.id ? "Edit glossary term" : "New glossary term");
+  const titlePrefix = mode === "suggest" ? "Suggest " : "";
+  const title = working.type === "character" ? `${titlePrefix}Edit character`
+    : working.type === "fact" ? (working.id ? `${titlePrefix}Edit event` : `${titlePrefix}New event`)
+    : working.type === "relationship" ? (working.id ? `${titlePrefix}Edit relationship` : `${titlePrefix}New relationship`)
+    : working.type === "timeline" ? (working.id ? `${titlePrefix}Edit timeline event` : `${titlePrefix}New timeline event`)
+    : (working.id ? `${titlePrefix}Edit glossary term` : `${titlePrefix}New glossary term`);
 
   return (
     <div
@@ -192,6 +319,22 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
           <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-4 space-y-4">
+          {mode === "suggest" && (
+            <div className="bg-[var(--ratist-red)]/5 border border-[var(--ratist-red)]/30 rounded-lg p-3 space-y-2">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--ratist-red)] font-semibold">Community suggestion</p>
+              <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
+                Your edit will be reviewed by an admin before it goes live. Tell us what you noticed so the admin can understand the change.
+              </p>
+              <textarea
+                value={rationale}
+                onChange={(e) => setRationale(e.target.value)}
+                rows={2}
+                placeholder="e.g. The CFO is Gerri, not Karl — she takes over in S2E1."
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+                maxLength={1000}
+              />
+            </div>
+          )}
           {working.type === "character" && (
             <CharacterFields
               data={working.data}

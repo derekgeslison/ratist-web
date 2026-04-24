@@ -38,7 +38,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 
   if (!companion) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ companion });
+
+  // Pending suggestions for this companion. Sent alongside the companion
+  // so the admin detail page can render them inline without an extra
+  // round-trip. Admins can still open the global /admin/watch-companions/
+  // suggestions page for cross-companion triage.
+  const pendingSuggestions = await prisma.companionSuggestion.findMany({
+    where: { companionId: id, status: "pending" },
+    orderBy: [{ upvoteScore: "desc" }, { createdAt: "desc" }],
+    include: {
+      submitter: { select: { id: true, name: true, avatarUrl: true } },
+    },
+  });
+
+  return NextResponse.json({ companion, pendingSuggestions });
 }
 
 // Publish / unpublish / delete

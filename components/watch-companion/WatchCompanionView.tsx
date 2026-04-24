@@ -3,12 +3,14 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network } from "lucide-react";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus } from "lucide-react";
 import SuggestEditButton from "./SuggestEditButton";
 import CommunitySuggestions from "./CommunitySuggestions";
 import RelationshipMap from "./RelationshipMap";
 import CompanionNotAvailable from "./CompanionNotAvailable";
 import AdUnit from "@/components/AdUnit";
+import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
+import { useAuth } from "@/context/AuthContext";
 import { track } from "@/lib/analytics";
 
 const COMPANION_AD_SLOT = process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMPANION ?? "";
@@ -174,6 +176,15 @@ function Section({
 }
 
 export default function WatchCompanionView({ data }: { data: WatchCompanionData }) {
+  const { user } = useAuth();
+  // Structured-suggestion modal state. Null when closed. Drives the shared
+  // CompanionItemEditor in suggest-mode so users propose edits with the
+  // same per-type fields admins use.
+  const [suggestDraft, setSuggestDraft] = useState<EditorDraft | null>(null);
+  const [suggestionJustSent, setSuggestionJustSent] = useState(false);
+  async function getSuggestToken() {
+    return (await user?.getIdToken()) ?? "";
+  }
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
   const generatedSet = useMemo(() => new Set(seasonsGenerated), [seasonsGenerated]);
   // All seasons TMDB knows about for this show — the dropdown lists all of
@@ -671,6 +682,27 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       )}
                       {c.group && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>}
                     </div>
+                    {/* Per-card suggest-edit icon. Signed-in users can file
+                       a structured edit against this specific character;
+                       admin approves/dismisses from the companion detail
+                       page. */}
+                    {user && (
+                      <button
+                        onClick={() => setSuggestDraft({
+                          type: "character",
+                          id: c.id,
+                          data: {
+                            name: c.name,
+                            baseDescription: c.baseDescription,
+                            group: c.group ?? "",
+                            visibleAfter: c.visibleAfter,
+                          },
+                        })}
+                        className="p-1 text-[var(--foreground-muted)]/60 hover:text-[var(--ratist-red)] transition-colors shrink-0"
+                        title="Suggest an edit to this character"
+                        aria-label="Suggest an edit to this character"
+                      ><Pencil className="w-3 h-3" /></button>
+                    )}
                   </div>
                   <p className="text-sm text-[var(--foreground-muted)] mt-2 leading-relaxed">{c.baseDescription}</p>
 
@@ -764,16 +796,48 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                           /* Inline label — fact text flows after it and
                              wraps UNDER the label on line 2+, saving vertical
                              space vs the old two-column layout. */
-                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-                            <span className="text-[9px] uppercase tracking-wider font-semibold mr-1.5" style={{ color }}>
-                              {f.factType.replace(/_/g, " ")}
+                          <li key={f.id} className="text-xs text-[var(--foreground-muted)] leading-relaxed flex items-start gap-1">
+                            <span className="flex-1">
+                              <span className="text-[9px] uppercase tracking-wider font-semibold mr-1.5" style={{ color }}>
+                                {f.factType.replace(/_/g, " ")}
+                              </span>
+                              {f.fact}
                             </span>
-                            {f.fact}
+                            {user && (
+                              <button
+                                onClick={() => setSuggestDraft({
+                                  type: "fact",
+                                  id: f.id,
+                                  characterId: c.id,
+                                  data: { fact: f.fact, factType: f.factType, visibleAfter: f.visibleAfter },
+                                })}
+                                className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition shrink-0 mt-0.5"
+                                title="Suggest an edit to this event"
+                                aria-label="Suggest an edit to this event"
+                              ><Pencil className="w-2.5 h-2.5" /></button>
+                            )}
                           </li>
                         ))}
                       </ul>
                     );
                   })()}
+
+                  {/* "+ Suggest event" per character — only when signed in */}
+                  {user && (
+                    <div className="mt-2 pt-2 border-t border-[var(--border)]/40">
+                      <button
+                        onClick={() => setSuggestDraft({
+                          type: "fact",
+                          id: null,
+                          characterId: c.id,
+                          data: { fact: "", factType: "other", visibleAfter: c.visibleAfter },
+                        })}
+                        className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Suggest event for {c.name}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 </React.Fragment>
               );
@@ -807,9 +871,40 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   {formatVisibleAfter(t.visibleAfter, mediaType)}
                 </span>
                 <span className="flex-1 text-white">{t.description}</span>
+                {user && (
+                  <button
+                    onClick={() => setSuggestDraft({
+                      type: "timeline",
+                      id: t.id,
+                      companionId: data.id,
+                      seasonNumber: t.seasonNumber,
+                      data: {
+                        description: t.description,
+                        importance: t.importance,
+                        characterIds: t.characterIds,
+                        visibleAfter: t.visibleAfter,
+                      },
+                    })}
+                    className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition shrink-0 mt-0.5"
+                    title="Suggest an edit to this timeline event"
+                    aria-label="Suggest an edit to this timeline event"
+                  ><Pencil className="w-3 h-3" /></button>
+                )}
               </li>
             ))}
           </ol>
+          {user && (
+            <button
+              onClick={() => setSuggestDraft({
+                type: "timeline",
+                id: null,
+                companionId: data.id,
+                seasonNumber: mediaType === "tv" ? selectedSeason : null,
+                data: { description: "", importance: 3, characterIds: [], visibleAfter: {} },
+              })}
+              className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+            ><Plus className="w-3.5 h-3.5" /> Suggest a new timeline event</button>
+          )}
           {COMPANION_AD_SLOT && <AdUnit slot={COMPANION_AD_SLOT} format="auto" className="mt-4" />}
         </Section>
         ) : (
@@ -863,24 +958,79 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             {filteredGlossary.length > 0 ? (
               <dl className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
                 {filteredGlossary.map((g) => (
-                  <div key={g.id} className="px-3 py-2">
-                    <dt className="text-sm font-semibold text-white flex items-baseline gap-2">
-                      {g.term}
-                      {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
-                    </dt>
-                    <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
+                  <div key={g.id} className="px-3 py-2 flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <dt className="text-sm font-semibold text-white flex items-baseline gap-2">
+                        {g.term}
+                        {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
+                      </dt>
+                      <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
+                    </div>
+                    {user && (
+                      <button
+                        onClick={() => setSuggestDraft({
+                          type: "glossary",
+                          id: g.id,
+                          companionId: data.id,
+                          seasonNumber: g.seasonNumber,
+                          data: {
+                            term: g.term,
+                            definition: g.definition,
+                            category: g.category ?? "",
+                            visibleAfter: g.visibleAfter,
+                          },
+                        })}
+                        className="opacity-40 hover:opacity-100 hover:text-[var(--ratist-red)] transition shrink-0 mt-1"
+                        title="Suggest an edit to this glossary term"
+                        aria-label="Suggest an edit to this glossary term"
+                      ><Pencil className="w-3 h-3" /></button>
+                    )}
                   </div>
                 ))}
               </dl>
             ) : (
               <p className="text-sm text-[var(--foreground-muted)] italic text-center py-4">No terms in this category yet.</p>
             )}
+            {user && (
+              <button
+                onClick={() => setSuggestDraft({
+                  type: "glossary",
+                  id: null,
+                  companionId: data.id,
+                  seasonNumber: mediaType === "tv" ? selectedSeason : null,
+                  data: { term: "", definition: "", category: "", visibleAfter: {} },
+                })}
+                className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+              ><Plus className="w-3.5 h-3.5" /> Suggest a new glossary term</button>
+            )}
             {COMPANION_AD_SLOT && <AdUnit slot={COMPANION_AD_SLOT} format="auto" className="mt-4" />}
           </Section>
         );
       })()}
 
+      {suggestionJustSent && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2 text-xs text-green-300">
+          Thanks! Your suggestion was submitted and is now awaiting admin review.
+        </div>
+      )}
+
       <CommunitySuggestions companionId={data.id} />
+
+      {/* Shared editor, suggest-mode. Available only to signed-in users. */}
+      <CompanionItemEditor
+        open={!!suggestDraft && !!user}
+        draft={suggestDraft}
+        mediaType={mediaType}
+        characters={data.characters.map((c) => ({ id: c.id, name: c.name }))}
+        onClose={() => setSuggestDraft(null)}
+        onSaved={() => {
+          setSuggestionJustSent(true);
+          setTimeout(() => setSuggestionJustSent(false), 4000);
+        }}
+        getToken={getSuggestToken}
+        mode="suggest"
+        companionId={data.id}
+      />
 
       {/* Global catch-all for adding brand-new items (relationships, etc.) */}
       <div className="pt-4 border-t border-[var(--border)]/40">

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X, Plus, Tag } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clock, BookOpen, Pencil, Check, X, Plus, Tag, MessageSquare } from "lucide-react";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
 
 interface VisibleAfter { seconds?: number; season?: number; episode?: number }
@@ -48,6 +48,19 @@ interface Companion {
   timeline: TimelineEvent[]; glossary: GlossaryTerm[];
 }
 
+interface SuggestionRow {
+  id: string;
+  action: "add" | "edit" | "remove";
+  targetType: string;
+  targetId: string | null;
+  rationale: string | null;
+  payload: Record<string, unknown> | null;
+  upvoteScore: number;
+  voteCount: number;
+  createdAt: string;
+  submitter: { id: string; name: string; avatarUrl: string | null };
+}
+
 function fmtVisible(v: VisibleAfter, mediaType: "movie" | "tv"): string {
   if (mediaType === "movie") {
     if (typeof v.seconds === "number") {
@@ -77,6 +90,7 @@ export default function ReviewCompanionPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [companion, setCompanion] = useState<Companion | null>(null);
+  const [pendingSuggestions, setPendingSuggestions] = useState<SuggestionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -97,6 +111,7 @@ export default function ReviewCompanionPage() {
         if (!res.ok) return;
         const data = await res.json();
         setCompanion(data.companion);
+        setPendingSuggestions(data.pendingSuggestions ?? []);
       } catch { /* swallow — dialog just won't refresh */ }
     })();
   }
@@ -183,6 +198,7 @@ export default function ReviewCompanionPage() {
       }
       const data = await res.json();
       setCompanion(data.companion);
+      setPendingSuggestions(data.pendingSuggestions ?? []);
       setLoading(false);
     })();
   }, [user, id]);
@@ -361,6 +377,18 @@ export default function ReviewCompanionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Pending community suggestions — show inline so admins can
+             triage while reviewing this companion, no separate nav. */}
+          {pendingSuggestions.length > 0 && (
+            <PendingSuggestionsPanel
+              suggestions={pendingSuggestions}
+              characters={companion.characters}
+              mediaType={companion.mediaType}
+              getToken={getToken}
+              onResolved={refetch}
+            />
+          )}
+
           {/* Factions — quick bulk rename for all characters sharing a group */}
           <FactionEditor
             characters={companion.characters}
@@ -754,6 +782,148 @@ export default function ReviewCompanionPage() {
         getToken={getToken}
       />
     </div>
+  );
+}
+
+// ── PendingSuggestionsPanel ─────────────────────────────────────────────
+// Admin-facing inline review of community suggestions for this companion.
+// Renders a readable preview of each suggestion's action + payload plus
+// approve / dismiss buttons. Hitting approve triggers the existing
+// suggestion-apply pipeline (writes the payload into live data).
+
+function payloadLines(payload: Record<string, unknown> | null): Array<{ label: string; value: string }> {
+  if (!payload) return [];
+  const out: Array<{ label: string; value: string }> = [];
+  const stringify = (v: unknown): string | null => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    try { return JSON.stringify(v); } catch { return null; }
+  };
+  for (const [key, value] of Object.entries(payload)) {
+    const s = stringify(value);
+    if (s !== null && s.length > 0) out.push({ label: key, value: s });
+  }
+  return out;
+}
+
+function PendingSuggestionsPanel({
+  suggestions, characters, mediaType, getToken, onResolved,
+}: {
+  suggestions: SuggestionRow[];
+  characters: Character[];
+  mediaType: "movie" | "tv";
+  getToken: () => Promise<string>;
+  onResolved: () => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function resolve(id: string, status: "approved" | "dismissed") {
+    setBusy(id);
+    try {
+      const token = await getToken();
+      await fetch(`/api/admin/watch-companion/suggestions/${id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      onResolved();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function nuke(id: string) {
+    if (!confirm("Delete this suggestion outright? The submitter won't see it again.")) return;
+    setBusy(id);
+    try {
+      const token = await getToken();
+      await fetch(`/api/admin/watch-companion/suggestions/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      onResolved();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const charName = (cid: string) => characters.find((c) => c.id === cid)?.name ?? "(unknown)";
+
+  return (
+    <section className="bg-[var(--surface)] border border-[var(--ratist-red)]/40 rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-[var(--ratist-red)]" />
+        <h3 className="text-sm font-semibold text-white">Pending community suggestions ({suggestions.length})</h3>
+      </div>
+      <ul className="divide-y divide-[var(--border)]/40">
+        {suggestions.map((s) => {
+          const targetName = s.targetId
+            ? (s.targetType === "character" ? charName(s.targetId) :
+               s.targetType === "fact" ? "(fact)" :
+               s.targetType === "relationship" ? "(relationship)" :
+               s.targetType === "timeline" ? "(timeline event)" :
+               s.targetType === "glossary" ? "(glossary term)" : s.targetType)
+            : null;
+          const lines = payloadLines(s.payload);
+          return (
+            <li key={s.id} className="px-5 py-3 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap text-[11px] text-[var(--foreground-muted)]">
+                <span className="px-1.5 py-0.5 rounded bg-[var(--ratist-red)]/10 text-[var(--ratist-red)] font-semibold uppercase tracking-wider">
+                  {s.action} {s.targetType}
+                </span>
+                {targetName && <span>— {targetName}</span>}
+                <span className="ml-auto">by {s.submitter.name} · {new Date(s.createdAt).toLocaleDateString()}</span>
+              </div>
+              {s.rationale && (
+                <p className="text-sm text-white italic leading-relaxed">&ldquo;{s.rationale}&rdquo;</p>
+              )}
+              {lines.length > 0 && (
+                <dl className="text-xs text-[var(--foreground-muted)] grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                  {lines.map(({ label, value }) => (
+                    <div key={label} className="contents">
+                      <dt className="text-[10px] uppercase tracking-wider font-semibold mt-0.5">{label}</dt>
+                      <dd className="text-white break-words">
+                        {label === "visibleAfter" ? (() => {
+                          try {
+                            const va = JSON.parse(value) as { seconds?: number; season?: number; episode?: number };
+                            if (mediaType === "movie" && typeof va.seconds === "number") {
+                              const m = Math.floor(va.seconds / 60);
+                              const sec = va.seconds % 60;
+                              return `${m}:${String(sec).padStart(2, "0")}`;
+                            }
+                            if (mediaType === "tv") return `S${va.season ?? "?"}E${va.episode ?? "?"}${typeof va.seconds === "number" ? ` @ ${va.seconds}s` : ""}`;
+                            return value;
+                          } catch { return value; }
+                        })() : value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => resolve(s.id, "approved")}
+                  disabled={busy === s.id}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--ratist-red)] text-white rounded text-xs font-semibold hover:bg-[var(--ratist-red)]/80 disabled:opacity-50"
+                ><Check className="w-3 h-3" /> Approve + apply</button>
+                <button
+                  onClick={() => resolve(s.id, "dismissed")}
+                  disabled={busy === s.id}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground-muted)] rounded text-xs hover:text-white disabled:opacity-50"
+                ><X className="w-3 h-3" /> Dismiss</button>
+                <button
+                  onClick={() => nuke(s.id)}
+                  disabled={busy === s.id}
+                  className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[10px] text-[var(--foreground-muted)] hover:text-red-400 disabled:opacity-50"
+                  title="Delete suggestion permanently"
+                ><Trash2 className="w-3 h-3" /></button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
