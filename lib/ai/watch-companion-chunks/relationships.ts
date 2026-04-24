@@ -30,6 +30,28 @@ Emit 5–30 relationships referencing only characters in the provided list.
 
 Only relationships. Don't emit characters, facts, timeline events, or glossary entries.
 
+## Relationships are ENDURING STATES — not one-time events
+
+A relationship describes an ongoing connection between two characters: who they are to each other. "Parent of", "ex-spouse", "rival", "business partner", "best friend", "mentor of". It persists across scenes.
+
+A one-time thing that HAPPENED between two characters is NOT a relationship — it belongs in the timeline (as a beat) or as a character fact (on one of them). Dead giveaway: if the label starts with or implies a past-tense verb ("betrayed", "killed", "revealed to", "met", "first disclosed", "confronted", "lied to about", "proposed to") — that's an event, not a relationship.
+
+❌ WRONG (events masquerading as relationships):
+- { label: "betrayed", relationshipType: "rivalry" } — one-time event, goes in timeline.
+- { label: "first disclosed machine use to", relationshipType: "alliance" } — Primer. This is a timeline beat or a fact on Abe.
+- { label: "killed" } — timeline beat + fact (death).
+- { label: "proposed to" } — timeline beat. The resulting marriage IS a relationship ("spouse of").
+- { label: "confronted about the affair" } — timeline beat.
+- { label: "revealed identity to" } — timeline beat + a reveal fact on the revealer.
+
+✅ RIGHT (enduring states only):
+- { label: "rival of" } — ongoing rivalry.
+- { label: "former partner of" } — they WERE partners; the breakup is in the timeline.
+- { label: "wary of" } — ongoing wariness is fine.
+- { label: "sworn enemy of" } — a status that persists.
+
+Rule of thumb: if you'd finish the sentence with "(past-tense verb) and that's why they currently are X to each other", emit the RELATIONSHIP as the "X to each other" part and let the causing event show up as a timeline beat or fact. The relationship is the residue, not the incident.
+
 ## Label length — use exactly as many words as needed, no more
 
 The label renders as a small pill on a mobile card, so short is better when short is accurate. But don't over-compress: sometimes every word is load-bearing and cutting them loses information a viewer actually needs.
