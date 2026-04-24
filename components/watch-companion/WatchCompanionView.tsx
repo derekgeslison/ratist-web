@@ -228,20 +228,39 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   function suggestionsFor(targetType: string, targetId: string | null): SuggestionRow[] {
     return pendingSuggestions.filter((s) => s.targetType === targetType && s.targetId === targetId);
   }
-  // "Add" suggestions have no targetId, so they don't surface on a specific
-  // item. Group them by intended parent (via payload.characterId for facts,
-  // payload.fromCharacterId for relationships) or by section.
-  function addSuggestionsForCharacter(characterId: string): SuggestionRow[] {
+  // Spoiler gate for ADD suggestions: their payload carries a visibleAfter
+  // for the proposed new item. A viewer sitting at 0:30 shouldn't see a
+  // proposed "Betrayal at 1:45" suggestion — that'd spoil the future beat
+  // they're trying to avoid. Edit/remove suggestions target already-visible
+  // items so they don't need the check here.
+  function addSuggestionIsPastPosition(s: SuggestionRow): boolean {
+    const p = (s.payload ?? {}) as { visibleAfter?: VisibleAfter };
+    if (!p.visibleAfter) return true; // unknown timing — allow (no spoiler known)
+    return isVisible(p.visibleAfter, position, mediaType);
+  }
+  // Per-character ADD-relationship suggestions stay on the character card's
+  // top bubble (there's no dedicated "relationships" section per card to
+  // show them in). Add-fact goes to its own per-character events bubble.
+  function addRelationshipSuggestionsForCharacter(characterId: string): SuggestionRow[] {
     return pendingSuggestions.filter((s) => {
-      if (s.action !== "add") return false;
+      if (s.action !== "add" || s.targetType !== "relationship") return false;
       const p = (s.payload ?? {}) as Record<string, unknown>;
-      if (s.targetType === "fact" && p.characterId === characterId) return true;
-      if (s.targetType === "relationship" && p.fromCharacterId === characterId) return true;
-      return false;
+      if (p.fromCharacterId !== characterId) return false;
+      return addSuggestionIsPastPosition(s);
+    });
+  }
+  function addFactSuggestionsForCharacter(characterId: string): SuggestionRow[] {
+    return pendingSuggestions.filter((s) => {
+      if (s.action !== "add" || s.targetType !== "fact") return false;
+      const p = (s.payload ?? {}) as Record<string, unknown>;
+      if (p.characterId !== characterId) return false;
+      return addSuggestionIsPastPosition(s);
     });
   }
   function sectionAddSuggestions(targetType: "character" | "timeline" | "glossary"): SuggestionRow[] {
-    return pendingSuggestions.filter((s) => s.action === "add" && s.targetType === targetType);
+    return pendingSuggestions
+      .filter((s) => s.action === "add" && s.targetType === targetType)
+      .filter(addSuggestionIsPastPosition);
   }
   // Fast lookup for the "community-sourced" badge.
   const communityItemSet = useMemo(
@@ -781,7 +800,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       <ItemSuggestions
                         suggestions={[
                           ...suggestionsFor("character", c.id),
-                          ...addSuggestionsForCharacter(c.id),
+                          ...addRelationshipSuggestionsForCharacter(c.id),
                         ]}
                         myVotes={myVotes}
                         mediaType={mediaType}
@@ -935,22 +954,40 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     );
                   })()}
 
-                  {/* "+ Suggest event" per character — only when signed in */}
-                  {user && (
-                    <div className="mt-2 pt-2 border-t border-[var(--border)]/40">
-                      <button
-                        onClick={() => setSuggestDraft({
-                          type: "fact",
-                          id: null,
-                          characterId: c.id,
-                          data: { fact: "", factType: "other", visibleAfter: c.visibleAfter },
-                        })}
-                        className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-                      >
-                        <Plus className="w-3 h-3" /> Suggest event for {c.name}
-                      </button>
-                    </div>
-                  )}
+                  {/* Pending "add event" suggestions for THIS character —
+                     distinct from the character-level edit bubble at the
+                     card top. Only surfaces suggestions whose proposed
+                     visibleAfter is ≤ the slider (spoiler gate). */}
+                  {(() => {
+                    const addFactSugs = addFactSuggestionsForCharacter(c.id);
+                    if (addFactSugs.length === 0 && !user) return null;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-[var(--border)]/40 flex items-center flex-wrap gap-2">
+                        {user && (
+                          <button
+                            onClick={() => setSuggestDraft({
+                              type: "fact",
+                              id: null,
+                              characterId: c.id,
+                              data: { fact: "", factType: "other", visibleAfter: c.visibleAfter },
+                            })}
+                            className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                          >
+                            <Plus className="w-3 h-3" /> Suggest event for {c.name}
+                          </button>
+                        )}
+                        {addFactSugs.length > 0 && (
+                          <ItemSuggestions
+                            suggestions={addFactSugs}
+                            myVotes={myVotes}
+                            mediaType={mediaType}
+                            onChanged={onSuggestionChanged}
+                            compact
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 </React.Fragment>
               );

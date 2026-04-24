@@ -345,7 +345,13 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
       <div className="w-full max-w-xl bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--background)]">
           <h3 className="text-base font-semibold text-white">{title}</h3>
-          <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-5 h-5" /></button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 rounded-full bg-[var(--surface-2)] border border-[var(--border)] text-white hover:text-[var(--ratist-red)] hover:border-[var(--ratist-red)]/50 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
         <div className="p-4 space-y-4">
           {mode === "suggest" && (

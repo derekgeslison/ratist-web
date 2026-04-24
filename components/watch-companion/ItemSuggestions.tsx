@@ -41,7 +41,7 @@ export default function ItemSuggestions({ suggestions, myVotes, mediaType, onCha
   const Icon = MessageSquare;
   const sizeCls = compact ? "w-3 h-3" : "w-3.5 h-3.5";
   return (
-    <div className="inline-block relative">
+    <div className="relative inline-block">
       <button
         onClick={() => setOpen(!open)}
         className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/20 transition-colors ${compact ? "text-[9px]" : "text-[10px]"} font-semibold`}
@@ -52,7 +52,14 @@ export default function ItemSuggestions({ suggestions, myVotes, mediaType, onCha
         <ChevronDown className={`${compact ? "w-2.5 h-2.5" : "w-3 h-3"} transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="mt-2 bg-[var(--surface-2)]/80 border border-[var(--ratist-red)]/30 rounded-lg p-2 space-y-2 text-left">
+        // Absolute so its width doesn't push the parent wider than the
+        // card on mobile. right-0 anchors to the icon so a card near the
+        // left edge still renders the popover toward the center of the
+        // screen instead of off-right. break-words stops long tokens from
+        // forcing a no-wrap line that blows out the layout.
+        <div
+          className="absolute right-0 top-full mt-2 z-30 w-[min(320px,calc(100vw-1.5rem))] bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-lg p-2 space-y-2 text-left shadow-xl break-words"
+        >
           {suggestions.map((s) => (
             <SuggestionRowDisplay
               key={s.id}
