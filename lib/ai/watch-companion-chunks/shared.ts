@@ -21,13 +21,35 @@ export interface VisibleAfter {
 
 // ── Output shapes (one per chunk) ──────────────────────────────────────────
 
+export interface DraftCharacterActor {
+  actorName: string;
+  actorTmdbId: number | null;
+  note: string | null; // "young", "adult", "elderly", "twin", etc.
+  visibleAfter: VisibleAfter;
+}
+
+export interface DraftNameAlias {
+  name: string;
+  visibleAfter: VisibleAfter;
+}
+
 export interface DraftCharacter {
   name: string;
+  // Primary/earliest-visible actor for the character. Kept for backward
+  // compatibility — rich multi-actor info lives in `actors` below.
   actorName: string | null;
   actorTmdbId: number | null;
   baseDescription: string;
   group: string | null;
   visibleAfter: VisibleAfter;
+  // Multi-actor list for age variants, recasts, twins-as-one-character.
+  // When present, the earliest entry (lowest visibleAfter) typically
+  // mirrors actorName/actorTmdbId. Empty for single-actor characters.
+  actors?: DraftCharacterActor[];
+  // Names this character is known by at different points in the story.
+  // Used for twist-reveal cases — see the Khan example in the characters
+  // prompt. Empty for characters whose name never changes.
+  nameAliases?: DraftNameAlias[];
 }
 
 export interface DraftFact {

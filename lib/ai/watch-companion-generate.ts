@@ -254,6 +254,41 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   let charactersAdded = 0;
 
   for (const [idx, c] of draft.characters.entries()) {
+    // Build the actors list. Always include the primary actor (actorName +
+    // actorTmdbId on the char row) so the side-table row count reflects
+    // reality even when the AI emitted an empty actors array for a single-
+    // actor character. De-dupe in case the AI lists the primary actor again
+    // inside the actors array.
+    const actorEntries: Array<{ actorName: string; actorTmdbId: number | null; note: string | null; visibleAfter: { seconds?: number; season?: number; episode?: number } }> = [];
+    const seenActorKeys = new Set<string>();
+    if (c.actorName) {
+      const key = `${c.actorName}|${c.actorTmdbId ?? "?"}`;
+      seenActorKeys.add(key);
+      actorEntries.push({
+        actorName: c.actorName,
+        actorTmdbId: c.actorTmdbId,
+        note: null,
+        visibleAfter: serialize(c.visibleAfter),
+      });
+    }
+    for (const a of c.actors ?? []) {
+      const key = `${a.actorName}|${a.actorTmdbId ?? "?"}`;
+      if (seenActorKeys.has(key)) continue;
+      seenActorKeys.add(key);
+      actorEntries.push({
+        actorName: a.actorName,
+        actorTmdbId: a.actorTmdbId,
+        note: a.note,
+        visibleAfter: serialize(a.visibleAfter),
+      });
+    }
+
+    // Name aliases (twist reveals). Stored as JSON on the character row.
+    const nameAliases = (c.nameAliases ?? []).map((n) => ({
+      name: n.name,
+      visibleAfter: serialize(n.visibleAfter),
+    }));
+
     const char = await prisma.companionCharacter.create({
       data: {
         companionId: companion.id,
@@ -265,8 +300,23 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
         group: c.group,
         visibleAfter: serialize(c.visibleAfter),
         sortOrder: idx,
+        nameAliases: nameAliases.length > 0 ? nameAliases : undefined,
       },
     });
+    // Write the actors side-table rows. We skip createMany for clarity and
+    // because a character typically has 1-3 actors.
+    if (actorEntries.length > 0) {
+      await prisma.companionCharacterActor.createMany({
+        data: actorEntries.map((a, actorIdx) => ({
+          characterId: char.id,
+          actorName: a.actorName,
+          actorTmdbId: a.actorTmdbId,
+          note: a.note,
+          visibleAfter: a.visibleAfter,
+          sortOrder: actorIdx,
+        })),
+      });
+    }
     nameToId.set(c.name, char.id);
     charactersAdded++;
   }

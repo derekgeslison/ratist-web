@@ -2053,6 +2053,10 @@ model CompanionCharacter {
   // a different baseDescription / facts / imageUrl snapshot.
   seasonNumber Int?   @map("season_number")
   name         String
+  // Primary actor — kept for backward compatibility with pre-multi-actor
+  // data and as a fallback when the CompanionCharacterActor side-table is
+  // empty. New generations populate this with the earliest (first-visible)
+  // actor and ALSO write the full list to the side-table.
   actorName    String? @map("actor_name")
   actorTmdbId  Int?    @map("actor_tmdb_id")
   baseDescription String @db.Text @map("base_description")
@@ -2066,9 +2070,19 @@ model CompanionCharacter {
   group        String?
   imageUrl     String? @map("image_url") // headshot; usually TMDB profile path
 
+  // Alias names for twist-reveal characters. Array of { name, visibleAfter }
+  // where each entry is the name the character is known by after its reveal
+  // moment. The viewer picks the alias with the latest visibleAfter that is
+  // <= the current slider position, falling back to the primary `name`.
+  // Example: Star Trek Into Darkness —
+  //   name: "John Harrison"
+  //   nameAliases: [{ name: "Khan", visibleAfter: { seconds: 6300 } }]
+  nameAliases  Json?  @map("name_aliases")
+
   sortOrder    Int     @default(0) @map("sort_order")
 
   companion    WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  actors       CompanionCharacterActor[]
   facts        CompanionFact[]
   fromRelationships CompanionRelationship[] @relation("relFrom")
   toRelationships   CompanionRelationship[] @relation("relTo")
@@ -2076,6 +2090,30 @@ model CompanionCharacter {
   @@index([companionId])
   @@index([companionId, seasonNumber])
   @@map("companion_characters")
+}
+
+// Multiple-actor mapping for characters played by more than one person —
+// covers age variants (young/adult/elderly Murph in Interstellar), twins
+// playing one role (Winklevoss twins in The Social Network), and mid-show
+// recastings (Dark's triple-casting of major characters). Each entry has
+// its own visibleAfter so the viewer can unlock actors one at a time as
+// the story reveals them.
+model CompanionCharacterActor {
+  id           String @id @default(cuid())
+  characterId  String @map("character_id")
+  actorName    String @map("actor_name")
+  actorTmdbId  Int?   @map("actor_tmdb_id")
+  // Human-readable context label: "young", "adult", "elderly", "twin",
+  // etc. Null for single-actor characters where the label would be noise.
+  note         String?
+  // When this actor's version of the character is first revealed on-screen.
+  visibleAfter Json   @map("visible_after")
+  sortOrder    Int    @default(0) @map("sort_order")
+
+  character    CompanionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId])
+  @@map("companion_character_actors")
 }
 
 // A fact about a character that unlocks as the viewer progresses. "Becomes

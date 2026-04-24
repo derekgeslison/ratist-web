@@ -46,7 +46,13 @@ export default async function ShowCompanionPage({ params }: Props) {
   const companion = await prisma.watchCompanion.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType: "tv" } },
     include: {
-      characters: { include: { facts: true }, orderBy: { sortOrder: "asc" } },
+      characters: {
+        include: {
+          facts: true,
+          actors: { orderBy: { sortOrder: "asc" } },
+        },
+        orderBy: { sortOrder: "asc" },
+      },
       relationships: true,
       timeline: true,
       glossary: { orderBy: { sortOrder: "asc" } },
@@ -86,14 +92,37 @@ export default async function ShowCompanionPage({ params }: Props) {
     }
   } catch { /* fall through — component has a sensible default */ }
 
-  const actorIds = companion.characters.map((c) => c.actorTmdbId).filter((v): v is number => typeof v === "number");
-  const imageMap = await getActorImageMap(actorIds);
-  const characters = companion.characters.map((c) => ({
-    ...c,
+  // Gather every actor id referenced — the primary actor on each character
+  // OR any side-table actor row — so multi-actor characters get all their
+  // portraits loaded in one DB round trip.
+  const actorIdSet = new Set<number>();
+  for (const c of companion.characters) {
+    if (typeof c.actorTmdbId === "number") actorIdSet.add(c.actorTmdbId);
+    for (const a of c.actors) if (typeof a.actorTmdbId === "number") actorIdSet.add(a.actorTmdbId);
+  }
+  const imageMap = await getActorImageMap(Array.from(actorIdSet));
+  type CharData = WatchCompanionData["characters"][number];
+  const characters: CharData[] = companion.characters.map((c) => ({
+    id: c.id,
+    name: c.name,
+    actorName: c.actorName,
+    actorTmdbId: c.actorTmdbId,
+    baseDescription: c.baseDescription,
+    group: c.group,
     imageUrl: c.actorTmdbId ? imageMap.get(c.actorTmdbId) ?? null : null,
     seasonNumber: c.seasonNumber,
-    visibleAfter: c.visibleAfter as WatchCompanionData["characters"][number]["visibleAfter"],
-    facts: c.facts.map((f) => ({ ...f, visibleAfter: f.visibleAfter as WatchCompanionData["characters"][number]["facts"][number]["visibleAfter"] })),
+    visibleAfter: c.visibleAfter as CharData["visibleAfter"],
+    facts: c.facts.map((f) => ({ ...f, visibleAfter: f.visibleAfter as CharData["facts"][number]["visibleAfter"] })),
+    actors: c.actors.map((a) => ({
+      actorName: a.actorName,
+      actorTmdbId: a.actorTmdbId,
+      note: a.note,
+      visibleAfter: a.visibleAfter as CharData["visibleAfter"],
+      imageUrl: a.actorTmdbId ? imageMap.get(a.actorTmdbId) ?? null : null,
+    })),
+    nameAliases: ((c.nameAliases ?? []) as Array<{ name?: string; visibleAfter?: unknown }>)
+      .filter((n): n is { name: string; visibleAfter: CharData["visibleAfter"] } => typeof n?.name === "string")
+      .map((n) => ({ name: n.name, visibleAfter: (n.visibleAfter ?? {}) as CharData["visibleAfter"] })),
   }));
 
   const data: WatchCompanionData = {

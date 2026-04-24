@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { CompanionGroundingData } from "../watch-companion-grounding";
 import {
   type DraftCharacter,
+  type DraftCharacterActor,
+  type DraftNameAlias,
   type PriorSeasonCanon,
   VISIBLE_AFTER_SCHEMA,
   VISIBLE_AFTER_GUIDANCE,
@@ -17,17 +19,72 @@ const SYSTEM_PROMPT = `You are drafting the CHARACTERS section of a Watch Compan
 
 Emit 8–20 characters. Each one:
 
-- "name" — the character's in-story name as fans would say it. "Siobhan 'Shiv' Roy" is fine.
-- "actorName" and "actorTmdbId" — MUST match someone in the provided cast list exactly. Copy the tmdbId.
+- "name" — the character's in-story name as fans would say it. "Siobhan 'Shiv' Roy" is fine. **See "Twist-reveal names" below if the character's identity changes mid-story.**
+- "actorName" and "actorTmdbId" — the PRIMARY (earliest-visible) actor. MUST match someone in the provided cast list exactly. Copy the tmdbId. If the character has multiple actors, also fill the "actors" array (below).
 - "baseDescription" — SPOILER-SAFE identity. Describe WHO the character IS as a person in the story's world, NOT their current role or title (which changes).
   - GOOD: "A longtime Waystar executive and Logan's financial strategist. Loyal but increasingly cynical."
   - BAD: "CFO of Waystar Royco" — gets stale when the role changes.
   - GOOD: "The Roy family's outsider son-in-law. Pragmatic, self-serving, an anxious social climber."
   - BAD: "Shiv's husband and head of the news division" — both facts change.
 - "group" — their faction, family, team. Null if not applicable. Used for color-coding.
-- "visibleAfter" — when they first appear on-screen. See guidance below.
+- "visibleAfter" — when they first appear on-screen. See guidance below. For multi-actor characters, set this to the EARLIEST actor's appearance.
+- "actors" — multi-actor array (see below). Empty array \`[]\` for single-actor characters.
+- "nameAliases" — twist-reveal names (see below). Empty array \`[]\` when the name never changes.
 
 Do NOT include facts, relationships, timeline events, or glossary entries — other calls handle those. ONLY characters.
+
+## Multi-actor characters (age variants, twins, recasts) — consolidate into ONE character
+
+When a single character is portrayed by multiple actors — young / adult / elderly versions, twins playing one role, or the show recast them mid-run — emit ONE character with all actors in the "actors" array. Do NOT split them into multiple character entries.
+
+Each actor entry:
+- "actorName" / "actorTmdbId" — from the cast list, exact match
+- "note" — short label: "young", "adult", "elderly", "twin", etc. Null if single-actor.
+- "visibleAfter" — when THIS actor's version is first shown on-screen
+
+✅ CORRECT (Interstellar — Murph is one character):
+\`\`\`
+{
+  name: "Murph Cooper",
+  actorName: "Mackenzie Foy",  // the earliest-visible actor
+  actorTmdbId: 1020846,
+  baseDescription: "Cooper's daughter, a stubborn intuitive scientist-in-waiting who loves her father fiercely.",
+  visibleAfter: { seconds: 900 },
+  actors: [
+    { actorName: "Mackenzie Foy", actorTmdbId: 1020846, note: "young", visibleAfter: { seconds: 900 } },
+    { actorName: "Jessica Chastain", actorTmdbId: 1213786, note: "adult", visibleAfter: { seconds: 4500 } },
+    { actorName: "Ellen Burstyn", actorTmdbId: 3968, note: "elderly", visibleAfter: { seconds: 9800 } }
+  ],
+  nameAliases: []
+}
+\`\`\`
+
+❌ WRONG — three separate "Murph" entries clutter the card list and split relationships.
+
+Apply this rule for: Interstellar-style age variants, The Social Network's Winklevoss twins (two actors, one role — emit both with same visibleAfter), Dark's triple-casting, It (Pennywise / young-and-adult Losers Club), Titanic (Young Rose / Old Rose).
+
+## Twist-reveal names (Khan / Kaiser Söze / Tyler Durden)
+
+If the character's identity is a plot twist — they're introduced under one name but later revealed to have a real name — use the PRE-REVEAL name as the primary \`name\`. List the revealed name(s) in \`nameAliases\` with the visibleAfter tagged at the reveal moment.
+
+✅ CORRECT (Star Trek Into Darkness):
+\`\`\`
+{
+  name: "John Harrison",
+  actorName: "Benedict Cumberbatch",
+  actorTmdbId: 71580,
+  baseDescription: "A mysterious Starfleet operative whose motives — and identity — unravel as Kirk digs into his past.",
+  visibleAfter: { seconds: 300 },
+  actors: [],
+  nameAliases: [
+    { name: "Khan Noonien Singh", visibleAfter: { seconds: 5100 } }
+  ]
+}
+\`\`\`
+
+The viewer will show "John Harrison" initially, then switch to "Khan" once the slider crosses the reveal. Putting the twist name up front would spoil it the moment Cumberbatch appears.
+
+Skip nameAliases when the character has no identity twist — most characters get \`nameAliases: []\`.
 
 ${VISIBLE_AFTER_GUIDANCE}
 
@@ -54,8 +111,36 @@ const TOOL: Anthropic.Tool = {
             baseDescription: { type: "string", description: "Spoiler-safe identity. 1–2 sentences." },
             group: { type: ["string", "null"] },
             visibleAfter: VISIBLE_AFTER_SCHEMA,
+            actors: {
+              type: "array",
+              description: "Additional actors for multi-actor characters. Empty [] for single-actor characters.",
+              items: {
+                type: "object",
+                properties: {
+                  actorName: { type: "string" },
+                  actorTmdbId: { type: ["integer", "null"] },
+                  note: { type: ["string", "null"] },
+                  visibleAfter: VISIBLE_AFTER_SCHEMA,
+                },
+                required: ["actorName", "actorTmdbId", "note", "visibleAfter"],
+                additionalProperties: false,
+              },
+            },
+            nameAliases: {
+              type: "array",
+              description: "Twist-reveal names. Empty [] for characters whose name never changes.",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  visibleAfter: VISIBLE_AFTER_SCHEMA,
+                },
+                required: ["name", "visibleAfter"],
+                additionalProperties: false,
+              },
+            },
           },
-          required: ["name", "actorName", "actorTmdbId", "baseDescription", "group", "visibleAfter"],
+          required: ["name", "actorName", "actorTmdbId", "baseDescription", "group", "visibleAfter", "actors", "nameAliases"],
           additionalProperties: false,
         },
       },
@@ -88,13 +173,37 @@ export async function draftCharacters(
     ? result.characters
         .filter((c): c is DraftCharacter => typeof c === "object" && c !== null && typeof (c as DraftCharacter).name === "string" && typeof (c as DraftCharacter).baseDescription === "string")
         .slice(0, 30)
-        .map((c) => ({
-          name: c.name.slice(0, 120),
-          actorName: typeof c.actorName === "string" && c.actorName.length > 0 ? c.actorName.slice(0, 120) : null,
-          actorTmdbId: typeof c.actorTmdbId === "number" ? c.actorTmdbId : null,
-          baseDescription: c.baseDescription.slice(0, 600),
-          group: typeof c.group === "string" && c.group.length > 0 ? c.group.slice(0, 80) : null,
-          visibleAfter: normVisibleAfter(c.visibleAfter),
-        }))
+        .map((c) => {
+          const actors: DraftCharacterActor[] = Array.isArray((c as DraftCharacter).actors)
+            ? ((c as DraftCharacter).actors ?? [])
+                .filter((a): a is DraftCharacterActor => typeof a === "object" && a !== null && typeof (a as DraftCharacterActor).actorName === "string")
+                .slice(0, 6)
+                .map((a) => ({
+                  actorName: a.actorName.slice(0, 120),
+                  actorTmdbId: typeof a.actorTmdbId === "number" ? a.actorTmdbId : null,
+                  note: typeof a.note === "string" && a.note.length > 0 ? a.note.slice(0, 40) : null,
+                  visibleAfter: normVisibleAfter(a.visibleAfter),
+                }))
+            : [];
+          const nameAliases: DraftNameAlias[] = Array.isArray((c as DraftCharacter).nameAliases)
+            ? ((c as DraftCharacter).nameAliases ?? [])
+                .filter((n): n is DraftNameAlias => typeof n === "object" && n !== null && typeof (n as DraftNameAlias).name === "string")
+                .slice(0, 4)
+                .map((n) => ({
+                  name: n.name.slice(0, 120),
+                  visibleAfter: normVisibleAfter(n.visibleAfter),
+                }))
+            : [];
+          return {
+            name: c.name.slice(0, 120),
+            actorName: typeof c.actorName === "string" && c.actorName.length > 0 ? c.actorName.slice(0, 120) : null,
+            actorTmdbId: typeof c.actorTmdbId === "number" ? c.actorTmdbId : null,
+            baseDescription: c.baseDescription.slice(0, 600),
+            group: typeof c.group === "string" && c.group.length > 0 ? c.group.slice(0, 80) : null,
+            visibleAfter: normVisibleAfter(c.visibleAfter),
+            actors,
+            nameAliases,
+          };
+        })
     : [];
 }

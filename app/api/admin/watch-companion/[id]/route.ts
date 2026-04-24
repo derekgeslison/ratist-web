@@ -25,7 +25,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     where: { id },
     include: {
       characters: {
-        include: { facts: true },
+        include: {
+          facts: true,
+          actors: { orderBy: { sortOrder: "asc" } },
+        },
         orderBy: { sortOrder: "asc" },
       },
       relationships: true,

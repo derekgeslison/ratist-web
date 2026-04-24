@@ -26,11 +26,21 @@ interface WatchPosition {
 }
 
 interface Fact { id: string; fact: string; factType: string; visibleAfter: VisibleAfter }
+interface ActorEntry {
+  actorName: string;
+  actorTmdbId: number | null;
+  note: string | null;
+  visibleAfter: VisibleAfter;
+  imageUrl: string | null;
+}
+interface NameAlias { name: string; visibleAfter: VisibleAfter }
 interface Character {
   id: string; name: string; actorName: string | null; actorTmdbId: number | null;
   baseDescription: string; group: string | null; imageUrl: string | null;
   seasonNumber: number | null;
   visibleAfter: VisibleAfter; facts: Fact[];
+  actors: ActorEntry[];
+  nameAliases: NameAlias[];
 }
 interface Relationship {
   id: string; relationshipType: string; label: string; directed: boolean;
@@ -528,6 +538,33 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               const color = c.group ? groupColors.get(c.group) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
               const connections = relationshipsByCharacter.get(c.id) ?? [];
+
+              // Resolve which actor is "current" at the user's slider
+              // position. If the side table has entries, pick the one with
+              // the latest visibleAfter that's still ≤ position. Otherwise
+              // fall back to the primary actor on the character row (handles
+              // pre-migration data cleanly).
+              const unlockedActors = (c.actors ?? [])
+                .filter((a) => isVisible(a.visibleAfter, position, mediaType))
+                .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+              const currentActor = unlockedActors[unlockedActors.length - 1] ?? (c.actorName ? {
+                actorName: c.actorName,
+                actorTmdbId: c.actorTmdbId,
+                note: null as string | null,
+                visibleAfter: c.visibleAfter,
+                imageUrl: c.imageUrl,
+              } : null);
+              const pastActors = unlockedActors.slice(0, -1);
+
+              // Resolve the name to display — latest unlocked alias, falling
+              // back to the base name. If we've crossed an alias reveal, add
+              // a subtle "(previously X)" so rewatch mode still makes sense.
+              const unlockedAliases = (c.nameAliases ?? [])
+                .filter((n) => isVisible(n.visibleAfter, position, mediaType))
+                .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+              const displayName = unlockedAliases[unlockedAliases.length - 1]?.name ?? c.name;
+              const hasAliasReveal = unlockedAliases.length > 0;
+
               return (
                 <React.Fragment key={c.id}>
                   {/* Mid-cast ad unit, spans both columns. Only renders at
@@ -543,37 +580,66 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   style={{ borderLeftWidth: 3, borderLeftColor: color }}
                 >
                   <div className="flex items-start gap-3">
-                    {c.actorTmdbId ? (
-                      <Link href={`/celebrities/${c.actorTmdbId}`} className="shrink-0" aria-label={c.actorName ?? c.name}>
-                        {c.imageUrl ? (
+                    {currentActor?.actorTmdbId ? (
+                      <Link href={`/celebrities/${currentActor.actorTmdbId}`} className="shrink-0" aria-label={currentActor.actorName ?? displayName}>
+                        {currentActor.imageUrl ? (
                           <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[var(--surface-2)] hover:ring-2 hover:ring-[var(--ratist-red)] transition-all">
-                            <Image src={c.imageUrl} alt={c.name} fill sizes="48px" className="object-cover" />
+                            <Image src={currentActor.imageUrl} alt={displayName} fill sizes="48px" className="object-cover" />
                           </div>
                         ) : (
                           <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-white font-bold hover:ring-2 hover:ring-[var(--ratist-red)] transition-all">
-                            {c.name[0]?.toUpperCase() ?? "?"}
+                            {displayName[0]?.toUpperCase() ?? "?"}
                           </div>
                         )}
                       </Link>
-                    ) : c.imageUrl ? (
+                    ) : currentActor?.imageUrl ? (
                       <div className="relative w-12 h-12 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
-                        <Image src={c.imageUrl} alt={c.name} fill sizes="48px" className="object-cover" />
+                        <Image src={currentActor.imageUrl} alt={displayName} fill sizes="48px" className="object-cover" />
                       </div>
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-white font-bold shrink-0">
-                        {c.name[0]?.toUpperCase() ?? "?"}
+                        {displayName[0]?.toUpperCase() ?? "?"}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white">{c.name}</p>
-                      {c.actorName && (
-                        c.actorTmdbId ? (
-                          <Link href={`/celebrities/${c.actorTmdbId}`} className="text-[11px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors">
-                            played by {c.actorName}
-                          </Link>
-                        ) : (
-                          <p className="text-[11px] text-[var(--foreground-muted)]">played by {c.actorName}</p>
-                        )
+                      <p className="text-sm font-semibold text-white">
+                        {displayName}
+                        {hasAliasReveal && (
+                          <span className="ml-1.5 text-[10px] font-normal text-[var(--foreground-muted)]/80">
+                            (previously {c.name})
+                          </span>
+                        )}
+                      </p>
+                      {currentActor?.actorName && (
+                        <div className="text-[11px] text-[var(--foreground-muted)]">
+                          played by{" "}
+                          {currentActor.actorTmdbId ? (
+                            <Link href={`/celebrities/${currentActor.actorTmdbId}`} className="text-white hover:text-[var(--ratist-red)] transition-colors font-semibold">
+                              {currentActor.actorName}
+                            </Link>
+                          ) : (
+                            <span className="text-white font-semibold">{currentActor.actorName}</span>
+                          )}
+                          {currentActor.note && <span className="text-[var(--foreground-muted)]/70"> ({currentActor.note})</span>}
+                        </div>
+                      )}
+                      {pastActors.length > 0 && (
+                        <div className="text-[10px] text-[var(--foreground-muted)]/80 mt-0.5 leading-relaxed">
+                          also played by{" "}
+                          {pastActors.map((a, i) => (
+                            <span key={`${a.actorName}-${i}`}>
+                              {a.actorTmdbId ? (
+                                <Link href={`/celebrities/${a.actorTmdbId}`} className="hover:text-white transition-colors">
+                                  {a.actorName}
+                                </Link>
+                              ) : (
+                                <span>{a.actorName}</span>
+                              )}
+                              {a.note && <span className="italic"> ({a.note})</span>}
+                              {i < pastActors.length - 1 ? ", " : ""}
+                            </span>
+                          ))}
+                        </div>
                       )}
                       {c.group && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>}
                     </div>

@@ -9,10 +9,21 @@ import { ArrowLeft, Eye, EyeOff, Trash2, Sparkles, RefreshCcw, Users, Link2, Clo
 interface VisibleAfter { seconds?: number; season?: number; episode?: number }
 
 interface Fact { id: string; fact: string; factType: string; visibleAfter: VisibleAfter }
+interface ActorRow {
+  id: string;
+  actorName: string;
+  actorTmdbId: number | null;
+  note: string | null;
+  visibleAfter: VisibleAfter;
+  sortOrder: number;
+}
+interface AliasRow { name: string; visibleAfter: VisibleAfter }
 interface Character {
   id: string; name: string; actorName: string | null; baseDescription: string;
   group: string | null; visibleAfter: VisibleAfter; facts: Fact[];
   seasonNumber: number | null;
+  actors: ActorRow[];
+  nameAliases: AliasRow[];
 }
 interface Relationship {
   id: string; relationshipType: string; label: string; directed: boolean;
@@ -345,9 +356,39 @@ export default function ReviewCompanionPage() {
                 return (
                 <div key={c.id} className="px-5 py-3">
                   <div className="flex items-start justify-between gap-3 mb-1">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{c.name}</p>
-                      {c.actorName && <p className="text-xs text-[var(--foreground-muted)]">played by {c.actorName}</p>}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">
+                        {c.name}
+                        {c.nameAliases && c.nameAliases.length > 0 && (
+                          <span className="ml-2 text-[10px] font-normal text-[var(--foreground-muted)]">
+                            later known as {c.nameAliases.map((a, i) => (
+                              <span key={i}>
+                                <span className="text-white">{a.name}</span>
+                                <span className="text-[var(--foreground-muted)]/70"> @ {fmtVisible(a.visibleAfter, companion.mediaType)}</span>
+                                {i < c.nameAliases.length - 1 ? ", " : ""}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </p>
+                      {/* Prefer the side-table actors list when populated,
+                         falling back to the primary actorName for legacy
+                         data. */}
+                      {c.actors && c.actors.length > 1 ? (
+                        <p className="text-xs text-[var(--foreground-muted)]">
+                          played by{" "}
+                          {c.actors.map((a, i) => (
+                            <span key={a.id}>
+                              <span className="text-white">{a.actorName}</span>
+                              {a.note && <span className="text-[var(--foreground-muted)]/80"> ({a.note})</span>}
+                              <span className="text-[var(--foreground-muted)]/60"> @ {fmtVisible(a.visibleAfter, companion.mediaType)}</span>
+                              {i < c.actors.length - 1 ? ", " : ""}
+                            </span>
+                          ))}
+                        </p>
+                      ) : c.actorName ? (
+                        <p className="text-xs text-[var(--foreground-muted)]">played by {c.actorName}</p>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] shrink-0">
                       {c.group && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-2)]">{c.group}</span>}
