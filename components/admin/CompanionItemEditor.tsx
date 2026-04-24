@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Check, Loader2 } from "lucide-react";
 
 export type EditorType = "character" | "fact" | "relationship" | "timeline" | "glossary";
@@ -166,6 +166,11 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
   const [rationale, setRationale] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Tracks whether a mousedown originated on the backdrop itself. Without
+  // this, text-selecting inside the modal whose mouseup drifts onto the
+  // backdrop fires `click` on the overlay (common ancestor) and closes
+  // the modal mid-drag.
+  const mouseDownOnBackdrop = useRef(false);
 
   // Reset working state whenever the caller hands us a new draft.
   useEffect(() => {
@@ -309,7 +314,19 @@ export default function CompanionItemEditor({ open, draft, mediaType, characters
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => {
+        // Remember if the press started on the backdrop itself — only then
+        // does a subsequent mouseup on the backdrop count as an
+        // "outside-click" dismiss. A press that begins inside the modal
+        // (e.g. selecting text) and drifts onto the backdrop won't close.
+        mouseDownOnBackdrop.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        mouseDownOnBackdrop.current = false;
+      }}
     >
       <div className="w-full max-w-xl bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)] sticky top-0 bg-[var(--background)]">
