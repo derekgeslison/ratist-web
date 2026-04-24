@@ -179,8 +179,13 @@ export function formatGroundingContext(grounding: CompanionGroundingData, season
   includeCast?: boolean;
   includeSeasonEpisodes?: boolean;
   includeWikipediaEpisodes?: boolean;
+  /** Whether to inline the subtitle excerpt (when grounding has one). Chunks
+   *  that need timestamp anchors (facts, relationships, timeline, glossary)
+   *  should keep this on; the characters chunk defaults it off since actor
+   *  identity doesn't benefit from dialogue. */
+  includeSubtitles?: boolean;
 }): string {
-  const opts = { includeCast: true, includeSeasonEpisodes: true, includeWikipediaEpisodes: true, ...options };
+  const opts = { includeCast: true, includeSeasonEpisodes: true, includeWikipediaEpisodes: true, includeSubtitles: true, ...options };
   const sections: string[] = [];
 
   sections.push(`TITLE: ${grounding.title}${grounding.year ? ` (${grounding.year})` : ""}`);
@@ -221,6 +226,15 @@ export function formatGroundingContext(grounding: CompanionGroundingData, season
   }
   if (opts.includeWikipediaEpisodes && grounding.wikipediaEpisodes) {
     sections.push(`\nWIKIPEDIA EPISODE CONTEXT:\n${grounding.wikipediaEpisodes.slice(0, 4000)}`);
+  }
+  if (opts.includeSubtitles && grounding.subtitleExcerpt) {
+    // Real dialogue with timestamps. Massively improves visibleAfter accuracy
+    // because the AI can see WHEN a line is spoken instead of guessing act
+    // boundaries. Only one file is included per gen (pilot of the season, or
+    // the movie itself) so don't expect cross-season coverage here.
+    sections.push(
+      `\nDIALOGUE EXCERPT (${grounding.subtitleExcerpt.label}) — sampled timestamped dialogue from the English subtitle file. Use these timestamps to anchor visibleAfter.seconds values when a reveal/beat happens on-screen.\n\n${grounding.subtitleExcerpt.cues}`,
+    );
   }
   return sections.join("\n");
 }

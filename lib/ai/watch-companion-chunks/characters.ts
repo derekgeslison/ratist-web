@@ -71,7 +71,10 @@ export async function draftCharacters(
   season: number | null,
   priorCanon: PriorSeasonCanon | null = null,
 ): Promise<DraftCharacter[]> {
-  const userMessage = formatGroundingContext(grounding, season)
+  // Skip subtitles for the characters chunk — identity/faction metadata comes
+  // from cast + overview, and the dialogue excerpt is better spent on
+  // chunks that need timestamp anchors (facts, relationships, timeline).
+  const userMessage = formatGroundingContext(grounding, season, { includeSubtitles: false })
     + formatPriorSeasonCanon(priorCanon)
     + `\n\nEmit the characters now. Each must cite an actorTmdbId from the cast list above and include a correct visibleAfter.`;
   const result = await callTool<{ characters: unknown[] }>({

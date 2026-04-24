@@ -4,6 +4,8 @@
 // fetcher returns nothing, the generator still proceeds with whatever it has.
 
 import { getMovieDetails, getShowDetails, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
+import { getSubtitleForTmdb } from "@/lib/opensubtitles";
+import { parseSrt, renderCuesForPrompt } from "@/lib/srt-parser";
 
 interface WikipediaPage {
   title: string;
@@ -101,6 +103,14 @@ export async function fetchWikipediaEpisodeList(showTitle: string, year?: number
   return null;
 }
 
+// A sampled dialogue excerpt from an English subtitle file. The label
+// identifies where the excerpt came from ("Movie" for films, "S1E1 — Pilot"
+// for TV) so the AI can anchor timestamp references correctly.
+export interface SubtitleExcerpt {
+  label: string;
+  cues: string; // pre-rendered "[M:SS] line" block, already trimmed to budget
+}
+
 export interface CompanionGroundingData {
   source: "movie" | "tv";
   title: string;
@@ -112,6 +122,7 @@ export interface CompanionGroundingData {
   tmdb: TMDBMovie | TMDBShow;
   cast: Array<{ tmdbId: number; name: string; character: string; order: number; profilePath: string | null }>;
   seasons?: Array<{ seasonNumber: number; episodeCount: number; overview: string | null; episodes: Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null }> }>;
+  subtitleExcerpt?: SubtitleExcerpt | null;
 }
 
 /**
@@ -131,6 +142,7 @@ export async function loadGroundingForMovie(tmdbId: number): Promise<CompanionGr
     order: c.order ?? 0,
     profilePath: c.profile_path ?? null,
   }));
+  const subtitleExcerpt = await fetchSubtitleExcerpt(tmdbId, "movie");
   return {
     source: "movie",
     title: tmdb.title,
@@ -141,6 +153,7 @@ export async function loadGroundingForMovie(tmdbId: number): Promise<CompanionGr
     wikipediaEpisodes: null,
     tmdb,
     cast,
+    subtitleExcerpt,
   };
 }
 
@@ -173,6 +186,8 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     targetSeason.episodes = episodes;
   }
 
+  const subtitleExcerpt = await fetchSubtitleExcerpt(tmdbId, "tv", seasonNumber, 1);
+
   return {
     source: "tv",
     title: tmdb.name,
@@ -184,7 +199,41 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     tmdb,
     cast,
     seasons,
+    subtitleExcerpt,
   };
+}
+
+/**
+ * Pulls one English subtitle file for the target and thins it to a
+ * ~4-5k-token dialogue excerpt. Returns null whenever OpenSubtitles is
+ * unavailable, the API key/credentials are missing, or quota is exhausted
+ * — generation proceeds without subtitles in all these cases.
+ *
+ * Strategy is deliberately modest: one file per gen (the movie itself, or
+ * ep 1 of the target season) so free-tier accounts don't blow their daily
+ * quota on a single TV season.
+ */
+async function fetchSubtitleExcerpt(
+  tmdbId: number,
+  mediaType: "movie" | "tv",
+  season?: number,
+  episode?: number,
+): Promise<SubtitleExcerpt | null> {
+  try {
+    const srt = await getSubtitleForTmdb(tmdbId, mediaType, season, episode);
+    if (!srt) return null;
+    const cues = parseSrt(srt);
+    if (cues.length === 0) return null;
+    const rendered = renderCuesForPrompt(cues);
+    if (!rendered) return null;
+    const label = mediaType === "movie"
+      ? "Movie"
+      : `S${season ?? "?"}E${episode ?? 1}`;
+    return { label, cues: rendered };
+  } catch (err) {
+    console.error("fetchSubtitleExcerpt error (proceeding without):", err);
+    return null;
+  }
 }
 
 async function fetchSeasonEpisodes(tmdbId: number, seasonNumber: number) {
