@@ -457,11 +457,11 @@ export default async function MovieDetailPage({ params }: Props) {
           </section>
         )}
 
-        {/* Watch Companion CTA — shown always when eligible, with copy that
-           matches whether a published companion exists. "Eligible" for a
-           movie means TMDB lists at least one stream/rent/buy provider —
-           i.e. the film isn't still theatrical-only. We reuse the
-           watchProviders fetch above so this is free. */}
+        {/* Watch Companion banner — consistent tagline regardless of
+           whether one exists yet. The /companion page handles the
+           generate-or-view distinction. Hidden for movies with no digital
+           provider (likely still theatrical) since we block generation
+           there anyway. */}
         {(() => {
           const hasAnyProvider = !!(watchProviders?.flatrate?.length || watchProviders?.rent?.length || watchProviders?.buy?.length);
           if (!hasAnyProvider) return null;
@@ -472,12 +472,8 @@ export default async function MovieDetailPage({ params }: Props) {
             >
               <MonitorPlay className="w-5 h-5 text-[var(--ratist-red)] shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">{hasCompanion ? "Watch Companion available" : "Generate a Watch Companion"}</p>
-                <p className="text-xs text-[var(--foreground-muted)]">
-                  {hasCompanion
-                    ? "Spoiler-safe reference guide to pull up while you watch."
-                    : "No companion yet — open to generate one yourself or request one."}
-                </p>
+                <p className="text-sm font-semibold text-white">Watch Companion</p>
+                <p className="text-xs text-[var(--foreground-muted)]">Spoiler-safe reference guide to pull up while you watch.</p>
               </div>
               <ArrowRight className="w-4 h-4 text-[var(--foreground-muted)] group-hover:text-white transition-colors shrink-0" />
             </Link>

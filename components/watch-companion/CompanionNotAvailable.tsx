@@ -233,7 +233,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
           <h1 className="text-lg font-bold text-white">Generating companion for {title}…</h1>
         </div>
         <p className="text-sm text-[var(--foreground-muted)] mb-4">
-          Our AI drafts the companion in five focused passes — usually takes 2–4 minutes. Keep this tab open.
+          Our AI drafts the companion in five focused passes — usually takes 2–4 minutes. Keep this page open.
         </p>
         <div className="space-y-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           {buildSteps(mediaType).map((step) => {
