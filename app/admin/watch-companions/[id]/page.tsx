@@ -53,11 +53,13 @@ interface SuggestionRow {
   action: "add" | "edit" | "remove";
   targetType: string;
   targetId: string | null;
+  appliedItemId?: string | null;
   rationale: string | null;
   payload: Record<string, unknown> | null;
   upvoteScore: number;
   voteCount: number;
   createdAt: string;
+  resolvedAt?: string | null;
   submitter: { id: string; name: string; avatarUrl: string | null };
 }
 
@@ -91,6 +93,7 @@ export default function ReviewCompanionPage() {
   const router = useRouter();
   const [companion, setCompanion] = useState<Companion | null>(null);
   const [pendingSuggestions, setPendingSuggestions] = useState<SuggestionRow[]>([]);
+  const [appliedSuggestions, setAppliedSuggestions] = useState<SuggestionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -112,6 +115,7 @@ export default function ReviewCompanionPage() {
         const data = await res.json();
         setCompanion(data.companion);
         setPendingSuggestions(data.pendingSuggestions ?? []);
+        setAppliedSuggestions(data.appliedSuggestions ?? []);
       } catch { /* swallow — dialog just won't refresh */ }
     })();
   }
@@ -199,6 +203,7 @@ export default function ReviewCompanionPage() {
       const data = await res.json();
       setCompanion(data.companion);
       setPendingSuggestions(data.pendingSuggestions ?? []);
+      setAppliedSuggestions(data.appliedSuggestions ?? []);
       setLoading(false);
     })();
   }, [user, id]);
@@ -334,6 +339,21 @@ export default function ReviewCompanionPage() {
 
   const charName = (cid: string) => companion.characters.find((c) => c.id === cid)?.name ?? "(unknown)";
 
+  // Build a "community changes on this item" lookup. Approved edits
+  // target the item via targetId. Approved adds created the item via
+  // appliedItemId. The baseDescription alias case targets a character.
+  const communityByItem = new Map<string, SuggestionRow[]>();
+  for (const s of appliedSuggestions) {
+    const bucketType = s.targetType === "baseDescription" ? "character" : s.targetType;
+    const idForMap = s.targetId ?? s.appliedItemId ?? null;
+    if (!idForMap) continue;
+    const key = `${bucketType}:${idForMap}`;
+    const arr = communityByItem.get(key) ?? [];
+    arr.push(s);
+    communityByItem.set(key, arr);
+  }
+  const communityFor = (type: string, id: string) => communityByItem.get(`${type}:${id}`) ?? [];
+
   // Apply the admin's season filter. Movies have seasonNumber: null on every
   // row and the filter stays as "all" implicitly.
   const matchesSeason = <T extends { seasonNumber: number | null }>(row: T) =>
@@ -446,6 +466,12 @@ export default function ReviewCompanionPage() {
                     <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] shrink-0">
                       {c.group && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-2)]">{c.group}</span>}
                       <span>appears {fmtVisible(c.visibleAfter, companion.mediaType)}</span>
+                      <ItemCommunityChanges
+                        suggestions={communityFor("character", c.id)}
+                        mediaType={companion.mediaType}
+                        getToken={getToken}
+                        onReverted={refetch}
+                      />
                       <button
                         onClick={() => setEditorDraft({
                           type: "character",
@@ -525,6 +551,12 @@ export default function ReviewCompanionPage() {
                               <>
                                 <span className="flex-1">{f.fact}</span>
                                 <span className="shrink-0">{fmtVisible(f.visibleAfter, companion.mediaType)}</span>
+                                <ItemCommunityChanges
+                                  suggestions={communityFor("fact", f.id)}
+                                  mediaType={companion.mediaType}
+                                  getToken={getToken}
+                                  onReverted={refetch}
+                                />
                                 <button
                                   onClick={() => setEditorDraft({
                                     type: "fact",
@@ -576,6 +608,12 @@ export default function ReviewCompanionPage() {
                     <span className="text-[var(--foreground-muted)] italic text-xs">{r.label}</span>
                     <span className="font-medium">{charName(r.toCharacterId)}</span>
                     <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(r.visibleAfter, companion.mediaType)} · {r.relationshipType}</span>
+                    <ItemCommunityChanges
+                      suggestions={communityFor("relationship", r.id)}
+                      mediaType={companion.mediaType}
+                      getToken={getToken}
+                      onReverted={refetch}
+                    />
                     <button
                       onClick={() => setEditorDraft({
                         type: "relationship",
@@ -627,6 +665,12 @@ export default function ReviewCompanionPage() {
                     <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider shrink-0 mt-0.5 w-12">{fmtVisible(t.visibleAfter, companion.mediaType)}</span>
                     <span className="flex-1">{t.description}</span>
                     <span className="text-[10px] text-[var(--foreground-muted)] shrink-0 mt-0.5">★{t.importance}</span>
+                    <ItemCommunityChanges
+                      suggestions={communityFor("timeline", t.id)}
+                      mediaType={companion.mediaType}
+                      getToken={getToken}
+                      onReverted={refetch}
+                    />
                     <button
                       onClick={() => setEditorDraft({
                         type: "timeline",
@@ -674,6 +718,12 @@ export default function ReviewCompanionPage() {
                         <span className="font-semibold text-white">{g.term}</span>
                         {g.category && <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">{g.category}</span>}
                         <span className="ml-auto text-[10px] text-[var(--foreground-muted)]">{fmtVisible(g.visibleAfter, companion.mediaType)}</span>
+                        <ItemCommunityChanges
+                          suggestions={communityFor("glossary", g.id)}
+                          mediaType={companion.mediaType}
+                          getToken={getToken}
+                          onReverted={refetch}
+                        />
                         <button
                           onClick={() => setEditorDraft({
                             type: "glossary",
@@ -785,6 +835,86 @@ export default function ReviewCompanionPage() {
   );
 }
 
+// ── ItemCommunityChanges ────────────────────────────────────────────────
+// Inline admin badge + expand-to-revert popover. Rendered on any
+// character / fact / timeline / glossary row that has at least one
+// approved community suggestion attached (either via targetId for edits
+// or appliedItemId for adds).
+
+function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: {
+  suggestions: SuggestionRow[];
+  mediaType: "movie" | "tv";
+  getToken: () => Promise<string>;
+  onReverted: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (suggestions.length === 0) return null;
+
+  async function revert(id: string) {
+    if (!confirm("Revert this community change? The item will be restored to its state before this suggestion was applied.")) return;
+    setBusy(id);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/admin/watch-companion/suggestions/${id}/revert`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) onReverted();
+      else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Revert failed");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-colors text-[10px] font-semibold"
+        title={`${suggestions.length} community-approved change${suggestions.length === 1 ? "" : "s"}`}
+      >
+        <Users className="w-2.5 h-2.5" />
+        <Check className="w-2.5 h-2.5 -ml-0.5" />
+        {suggestions.length}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-30 w-[min(340px, calc(100vw - 1.5rem))] bg-[var(--surface)] border border-green-500/30 rounded-lg p-2 space-y-1.5 shadow-xl break-words">
+          {suggestions.map((s) => (
+            <div key={s.id} className="bg-[var(--surface-2)] border border-[var(--border)]/60 rounded p-2 space-y-1">
+              <div className="flex items-baseline gap-2 text-[10px] text-[var(--foreground-muted)]">
+                <span className="px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 font-semibold uppercase tracking-wider">{s.action}</span>
+                <span>by {s.submitter.name}</span>
+                <span className="ml-auto">{s.resolvedAt ? new Date(s.resolvedAt).toLocaleDateString() : ""}</span>
+              </div>
+              {s.rationale && (
+                <p className="text-[11px] text-white italic leading-snug">&ldquo;{s.rationale}&rdquo;</p>
+              )}
+              {s.payload && Object.keys(s.payload).length > 0 && (
+                <details>
+                  <summary className="text-[10px] text-[var(--foreground-muted)] cursor-pointer hover:text-white">payload</summary>
+                  <pre className="text-[10px] text-[var(--foreground-muted)] bg-[var(--surface)] rounded p-1.5 mt-1 overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(s.payload, null, 2)}</pre>
+                </details>
+              )}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => revert(s.id)}
+                  disabled={busy === s.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-red-400 hover:border-red-500/50 rounded text-[10px] font-semibold uppercase tracking-wider disabled:opacity-50"
+                >
+                  {busy === s.id ? "…" : "Revert"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 // ── PendingSuggestionsPanel ─────────────────────────────────────────────
 // Admin-facing inline review of community suggestions for this companion.
 // Renders a readable preview of each suggestion's action + payload plus
