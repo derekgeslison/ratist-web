@@ -14,8 +14,12 @@
  * installment to compress.
  *
  * Run with:
- *   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-companion-recaps.ts          # dry run
- *   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-companion-recaps.ts --commit # write changes
+ *   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-companion-recaps.ts                # dry run
+ *   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-companion-recaps.ts --commit       # write changes
+ *   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-companion-recaps.ts --redo-series  # also redraft series blocks that resolved to null under the old "skip if no priors found" logic — now that we gap-fill from training data, S2+ and franchise sequels should always have a non-null series recap.
+ *
+ * --redo-series only redrafts the series block. Existing installment
+ * text is preserved so manual edits aren't clobbered.
  *
  * Subtitles are intentionally not fetched here — the recap chunk reads
  * TMDB overview + Wikipedia + episode summaries + the persisted
@@ -25,12 +29,13 @@
 
 import { prisma } from "../lib/prisma";
 import { getAnthropic } from "../lib/ai/client";
-import { draftRecap, type PriorRecapEntry } from "../lib/ai/watch-companion-chunks/recap";
+import { draftRecap, draftSeriesRecap, type PriorRecapEntry, type PriorMissingEntry } from "../lib/ai/watch-companion-chunks/recap";
 import { fetchWikipediaPage, fetchWikipediaEpisodeList, type CompanionGroundingData } from "../lib/ai/watch-companion-grounding";
 import { getMovieDetails, getShowDetails, getCollectionDetails, type TMDBMovie, type TMDBShow } from "../lib/tmdb";
 import type { DraftTimelineEvent } from "../lib/ai/watch-companion-chunks/shared";
 
 const COMMIT = process.argv.includes("--commit");
+const REDO_SERIES = process.argv.includes("--redo-series");
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
@@ -129,38 +134,59 @@ async function buildSlimGroundingForShow(tmdbId: number, seasonNumber: number): 
 }
 
 /**
- * Read this companion's existing per-season installment recaps for
- * seasons earlier than the one we're generating. Used to seed the
- * series-block context when the script processes seasons in order.
+ * Build the prior-installment context for the series-recap chunk —
+ * mirroring `loadPriorContext` in watch-companion-generate.ts.
+ *
+ * Returns two lists:
+ *   - stored:  prior installments that already have an INSTALLMENT
+ *              recap drafted (full text — source of truth).
+ *   - missing: prior installments that don't have a recap yet
+ *              (label + TMDB overview — AI fills from training data).
+ *
+ * Without `missing` the series block silently skips installments
+ * generated out of order (e.g. backfilling S5 when S2/3/4 don't exist).
  */
-async function loadTvPriorRecaps(companionId: string, currentSeason: number): Promise<PriorRecapEntry[]> {
+async function loadTvPriorContext(
+  companionId: string,
+  currentSeason: number,
+  grounding: CompanionGroundingData,
+): Promise<{ stored: PriorRecapEntry[]; missing: PriorMissingEntry[] }> {
   const c = await prisma.watchCompanion.findUnique({
     where: { id: companionId },
     select: { recaps: true },
   });
-  if (!c?.recaps || typeof c.recaps !== "object" || Array.isArray(c.recaps)) return [];
-  const blob = c.recaps as Record<string, unknown>;
-  const out: PriorRecapEntry[] = [];
+  const blob = (c?.recaps && typeof c.recaps === "object" && !Array.isArray(c.recaps))
+    ? (c.recaps as Record<string, unknown>)
+    : {};
+  const seasonOverviews = grounding.source === "tv" ? (grounding.seasons ?? []) : [];
+
+  const stored: PriorRecapEntry[] = [];
+  const missing: PriorMissingEntry[] = [];
   for (let n = 1; n < currentSeason; n++) {
     const slot = blob[String(n)];
-    if (slot && typeof slot === "object" && !Array.isArray(slot)) {
-      const inst = (slot as { installment?: unknown }).installment;
-      if (typeof inst === "string" && inst.length > 0) {
-        out.push({ label: `Season ${n}`, text: inst });
-      }
+    const inst = slot && typeof slot === "object" && !Array.isArray(slot)
+      ? (slot as { installment?: unknown }).installment
+      : undefined;
+    if (typeof inst === "string" && inst.length > 0) {
+      stored.push({ label: `Season ${n}`, text: inst });
+    } else {
+      const info = seasonOverviews.find((s) => s.seasonNumber === n);
+      missing.push({
+        label: `Season ${n}`,
+        tmdbOverview: info?.overview ?? null,
+        year: null,
+      });
     }
   }
-  return out;
+  return { stored, missing };
 }
 
-/**
- * Pull every published franchise-sibling movie's installment recap that
- * released before the current film. Mirrors the gen-time loader but
- * runs from the script's process.
- */
-async function loadMoviePriorRecaps(tmdbId: number, currentTmdb: TMDBMovie): Promise<PriorRecapEntry[]> {
+async function loadMoviePriorContext(
+  tmdbId: number,
+  currentTmdb: TMDBMovie,
+): Promise<{ stored: PriorRecapEntry[]; missing: PriorMissingEntry[] }> {
   const collectionId = currentTmdb.belongs_to_collection?.id;
-  if (!collectionId) return [];
+  if (!collectionId) return { stored: [], missing: [] };
   try {
     const collection = await getCollectionDetails(collectionId);
     const targetDate = currentTmdb.release_date ? new Date(currentTmdb.release_date) : null;
@@ -171,27 +197,42 @@ async function loadMoviePriorRecaps(tmdbId: number, currentTmdb: TMDBMovie): Pro
         return new Date(p.release_date).getTime() < targetDate.getTime();
       })
       .sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""));
-    if (earlierParts.length === 0) return [];
+    if (earlierParts.length === 0) return { stored: [], missing: [] };
+
     const partIds = earlierParts.map((p) => p.id);
     const companions = await prisma.watchCompanion.findMany({
       where: { mediaType: "movie", status: "published", tmdbId: { in: partIds } },
-      select: { tmdbId: true, title: true, recaps: true },
+      select: { tmdbId: true, recaps: true },
     });
-    const byTmdb = new Map<number, { title: string; recaps: unknown }>();
+    const byTmdb = new Map<number, { recaps: unknown }>();
     for (const c of companions) byTmdb.set(c.tmdbId, c);
-    const out: PriorRecapEntry[] = [];
+
+    const stored: PriorRecapEntry[] = [];
+    const missing: PriorMissingEntry[] = [];
     for (const part of earlierParts) {
+      const yearStr = part.release_date ? part.release_date.slice(0, 4) : null;
+      const year = yearStr ? Number(yearStr) : null;
+      const yearSuffix = yearStr ? ` (${yearStr})` : "";
+      const label = `${part.title}${yearSuffix}`;
+
       const c = byTmdb.get(part.id);
-      if (!c?.recaps || typeof c.recaps !== "object" || Array.isArray(c.recaps)) continue;
-      const blob = c.recaps as { current?: { installment?: unknown; text?: unknown } };
-      const inst = blob.current?.installment ?? blob.current?.text;
-      if (typeof inst !== "string" || inst.length === 0) continue;
-      const year = part.release_date ? part.release_date.slice(0, 4) : null;
-      out.push({ label: `${part.title}${year ? ` (${year})` : ""}`, text: inst });
+      const blob = (c?.recaps && typeof c.recaps === "object" && !Array.isArray(c.recaps))
+        ? (c.recaps as { current?: { installment?: unknown; text?: unknown } })
+        : null;
+      const inst = blob?.current?.installment ?? blob?.current?.text;
+      if (typeof inst === "string" && inst.length > 0) {
+        stored.push({ label, text: inst });
+      } else {
+        missing.push({
+          label: part.title,
+          tmdbOverview: part.overview ?? null,
+          year: Number.isFinite(year ?? NaN) ? year : null,
+        });
+      }
     }
-    return out;
+    return { stored, missing };
   } catch {
-    return [];
+    return { stored: [], missing: [] };
   }
 }
 
@@ -248,7 +289,12 @@ async function planAll(): Promise<SlotPlan[]> {
       const hasInstallmentText = typeof current?.installment === "string" && (current.installment as string).length > 0
         || typeof current?.text === "string" && (current.text as string).length > 0;
       const seriesAttempted = has(current, "series");
-      if (!hasInstallmentText || !seriesAttempted) {
+      const seriesIsNull = seriesAttempted && current?.series === null;
+      // --redo-series re-tries any movie slot whose series ended up null.
+      // It might still resolve to null at exec time (standalone, not in a
+      // collection) — exec handles that gracefully.
+      const wantsSeriesRedo = REDO_SERIES && hasInstallmentText && seriesIsNull;
+      if (!hasInstallmentText || !seriesAttempted || wantsSeriesRedo) {
         plans.push({
           companionId: c.id,
           tmdbId: c.tmdbId,
@@ -256,7 +302,7 @@ async function planAll(): Promise<SlotPlan[]> {
           title: c.title,
           season: null,
           needsInstallment: !hasInstallmentText,
-          needsSeries: !seriesAttempted,
+          needsSeries: !seriesAttempted || wantsSeriesRedo,
           hasPriors: false, // resolved at exec time
         });
       }
@@ -268,10 +314,15 @@ async function planAll(): Promise<SlotPlan[]> {
           : null;
         const hasInstallmentText = typeof slot?.installment === "string" && (slot.installment as string).length > 0;
         const seriesAttempted = has(slot, "series");
+        const seriesIsNull = seriesAttempted && slot?.series === null;
         const isFirstSeason = s === 1;
+        // --redo-series re-tries S2+ where series resolved to null under
+        // the old "skip if no priors found" logic — now they should always
+        // produce non-null series via the missing-installment gap-fill.
+        const wantsSeriesRedo = REDO_SERIES && hasInstallmentText && seriesIsNull && !isFirstSeason;
         // First seasons skip the series block by definition. For S2+,
-        // we attempt only if the property is missing entirely.
-        if (!hasInstallmentText || (!seriesAttempted && !isFirstSeason)) {
+        // attempt if the property is missing entirely OR if we want a redo.
+        if (!hasInstallmentText || (!seriesAttempted && !isFirstSeason) || wantsSeriesRedo) {
           plans.push({
             companionId: c.id,
             tmdbId: c.tmdbId,
@@ -279,7 +330,7 @@ async function planAll(): Promise<SlotPlan[]> {
             title: c.title,
             season: s,
             needsInstallment: !hasInstallmentText,
-            needsSeries: !seriesAttempted && !isFirstSeason,
+            needsSeries: (!seriesAttempted && !isFirstSeason) || wantsSeriesRedo,
             hasPriors: !isFirstSeason,
           });
         }
@@ -295,16 +346,9 @@ async function execPlan(plan: SlotPlan): Promise<{ ok: boolean; reason?: string 
   const grounding = plan.mediaType === "movie"
     ? await buildSlimGroundingForMovie(plan.tmdbId)
     : await buildSlimGroundingForShow(plan.tmdbId, plan.season!);
-  const timeline = await loadTimelineEvents(plan.companionId, plan.season);
-  const priorRecaps: PriorRecapEntry[] = plan.mediaType === "movie"
-    ? await loadMoviePriorRecaps(plan.tmdbId, grounding.tmdb as TMDBMovie)
-    : await loadTvPriorRecaps(plan.companionId, plan.season!);
 
-  // draftRecap returns { installment, series } — series is null when
-  // priorRecaps is empty (the chunk skips the second AI call).
-  const result = await draftRecap(client, grounding, plan.season, timeline, priorRecaps);
-
-  // Persist into the existing recaps blob, preserving other slots.
+  // Read the existing slot up front so we can preserve installment text
+  // when only the series block is being redrafted (--redo-series path).
   const existing = await prisma.watchCompanion.findUnique({
     where: { id: plan.companionId },
     select: { recaps: true },
@@ -312,19 +356,60 @@ async function execPlan(plan: SlotPlan): Promise<{ ok: boolean; reason?: string 
   const blob = (existing?.recaps && typeof existing.recaps === "object" && !Array.isArray(existing.recaps))
     ? { ...(existing.recaps as Record<string, unknown>) }
     : {};
+  const existingSlot = plan.mediaType === "movie"
+    ? (blob.current && typeof blob.current === "object" && !Array.isArray(blob.current) ? blob.current as Record<string, unknown> : null)
+    : (blob[String(plan.season)] && typeof blob[String(plan.season)] === "object" && !Array.isArray(blob[String(plan.season)]) ? blob[String(plan.season)] as Record<string, unknown> : null);
+  const existingInstallment = typeof existingSlot?.installment === "string" ? existingSlot.installment as string : null;
+
+  let installmentText: string;
+  let seriesText: string | null;
+
+  if (plan.needsInstallment) {
+    // Full draft — both blocks. Loads priors + drafts installment + series.
+    const timeline = await loadTimelineEvents(plan.companionId, plan.season);
+    const { stored, missing } = plan.mediaType === "movie"
+      ? await loadMoviePriorContext(plan.tmdbId, grounding.tmdb as TMDBMovie)
+      : await loadTvPriorContext(plan.companionId, plan.season!, grounding);
+    const result = await draftRecap(client, grounding, plan.season, timeline, stored, missing);
+    installmentText = result.installment;
+    seriesText = result.series;
+  } else if (plan.needsSeries) {
+    // Series-only redo. Reuse the persisted installment text (could be
+    // an admin-edited version) and only redraft the series block.
+    if (!existingInstallment) {
+      return { ok: false, reason: "needsSeries but no existing installment text to anchor against" };
+    }
+    installmentText = existingInstallment;
+    const { stored, missing } = plan.mediaType === "movie"
+      ? await loadMoviePriorContext(plan.tmdbId, grounding.tmdb as TMDBMovie)
+      : await loadTvPriorContext(plan.companionId, plan.season!, grounding);
+    if (stored.length === 0 && missing.length === 0) {
+      // Standalone or S1 — no priors. Series stays null.
+      seriesText = null;
+    } else {
+      const isMovie = plan.mediaType === "movie";
+      const installmentLabel = isMovie
+        ? `${plan.title}${(grounding.tmdb as TMDBMovie).release_date ? ` (${(grounding.tmdb as TMDBMovie).release_date.slice(0, 4)})` : ""}`
+        : `${plan.title} — Season ${plan.season}`;
+      seriesText = await draftSeriesRecap(client, installmentLabel, installmentText, stored, missing);
+    }
+  } else {
+    return { ok: false, reason: "neither installment nor series flagged" };
+  }
+
   if (plan.mediaType === "movie") {
     const tmdb = grounding.tmdb as TMDBMovie;
     const year = tmdb.release_date ? parseInt(tmdb.release_date.slice(0, 4), 10) : null;
     blob.current = {
       title: plan.title,
       year: Number.isFinite(year ?? NaN) ? year : null,
-      installment: result.installment,
-      series: result.series,
+      installment: installmentText,
+      series: seriesText,
     };
   } else {
     blob[String(plan.season)] = {
-      installment: result.installment,
-      series: result.series,
+      installment: installmentText,
+      series: seriesText,
     };
   }
   if (COMMIT) {
@@ -394,9 +479,14 @@ async function main() {
       ? plan.title
       : `${plan.title} S${plan.season}`;
     try {
-      await execPlan(plan);
-      done++;
-      console.log(`[${done}/${plans.length}] ${label} — ok`);
+      const res = await execPlan(plan);
+      if (res.ok) {
+        done++;
+        console.log(`[${done}/${plans.length}] ${label} — ok`);
+      } else {
+        failed++;
+        console.error(`[${done + failed}/${plans.length}] ${label} — SKIPPED: ${res.reason ?? "unknown reason"}`);
+      }
     } catch (err) {
       failed++;
       const msg = err instanceof Error ? err.message : String(err);

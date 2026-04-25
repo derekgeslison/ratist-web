@@ -14,11 +14,21 @@ import type { DraftTimelineEvent } from "./shared";
  *      for the first installment of a series since it'd duplicate the
  *      installment recap.
  *
- * The series recap is informed by prior installments' stored individual
- * recaps (passed in as `priorRecaps`), so quality scales with how many
- * prior installments have already been generated. Missing prior data
- * isn't fatal — the AI still produces a series recap, just leaning on
- * grounding instead of stored prose.
+ * The series recap is informed by EVERY prior installment in the series,
+ * regardless of whether earlier companions have been generated. Two
+ * input lists drive this:
+ *
+ *   - `priorRecaps`: prior installments that already have a stored
+ *     INSTALLMENT recap (from an earlier gen). Full text, used as the
+ *     source of truth for those installments.
+ *
+ *   - `priorMissing`: prior installments that don't have a stored recap
+ *     yet. Only the label and a TMDB overview blurb are passed; the AI
+ *     fills in the arc from training-data knowledge. Without this list
+ *     the series recap would silently skip whole installments whenever
+ *     a user generated S5 before S2/3/4 — leaving holes in the through-
+ *     line. Now every prior installment is represented either by stored
+ *     prose or by an AI-summarized gap-fill.
  */
 
 const INSTALLMENT_SYSTEM_PROMPT = `You are drafting an INSTALLMENT recap for a Watch Companion's Recap tab. The audience uses this to refresh memory before watching the next installment — written equivalent of a "previously on" voiceover, ~150-250 words.
@@ -66,9 +76,19 @@ Plain prose, ~150-250 words total. Two paragraphs typical. NO markdown, NO bulle
 
 ## Scope
 
-Cover EVERY installment of the series in scope (every prior film / every prior season AND the current one) — but compressed into one cohesive narrative. The reader is NOT going to read 9 separate season recaps; they need the through-line.
+Cover EVERY installment of the series in chronological order (every prior film / every prior season AND the current one) — compressed into one cohesive narrative. The reader is NOT going to read N separate recaps; they need the through-line.
 
-You'll receive the previously-drafted recap of each installment in the user message. Use those as the source of truth — don't add events not represented there. Synthesize, don't list.
+## Two input sources for prior installments
+
+The user message splits prior installments into two groups:
+
+  1. PRIOR INSTALLMENT RECAPS — installments that already have a recap drafted. Full text is provided. Treat these as the source of truth for those installments; do not add events that aren't represented.
+
+  2. PRIOR INSTALLMENTS WITHOUT STORED RECAPS — installments that haven't been drafted yet. Only a label and a brief TMDB overview blurb are provided. The TMDB overview is a marketing synopsis, NOT the plot — use your own training-data knowledge of these works to summarize their major arc, then cross-check that it fits with the overview.
+
+Cover BOTH groups in your recap. The reader doesn't care about your sources — they want a smooth, continuous chronological recap that doesn't have a gap where one installment is skipped. DO NOT call attention to which installments had stored recaps vs. which you reconstructed from training knowledge. DO NOT say things like "the third film was not provided" — just write the through-line as if you know all of it.
+
+If you don't recognize an installment in group 2 from training data, lean on the TMDB overview and write a single neutral sentence about it rather than skipping or speculating.
 
 ## How to compress
 
@@ -102,12 +122,22 @@ export interface PriorRecapEntry {
   text: string;
 }
 
+export interface PriorMissingEntry {
+  /** Human label for the AI ("Season 2", "Dune (2021)"). */
+  label: string;
+  /** TMDB synopsis blurb if available — marketing copy, not full plot. */
+  tmdbOverview: string | null;
+  /** Optional release year, used by movie franchises. Null for TV seasons. */
+  year: number | null;
+}
+
 export async function draftRecap(
   client: Anthropic,
   grounding: CompanionGroundingData,
   season: number | null,
   timelineEvents: DraftTimelineEvent[],
   priorRecaps: PriorRecapEntry[],
+  priorMissing: PriorMissingEntry[],
 ): Promise<RecapResult> {
   const isMovie = grounding.source === "movie";
   const installmentLabel = isMovie
@@ -116,14 +146,13 @@ export async function draftRecap(
 
   const installment = await draftInstallmentRecap(client, grounding, season, timelineEvents, installmentLabel);
 
-  // Skip the series block when there's nothing to compress against —
-  // a standalone movie or S1 has the same content for both, no need
-  // for a second AI call or a duplicate UI block.
-  if (priorRecaps.length === 0) {
+  // Skip the series block when nothing is prior — standalone movie or
+  // S1 with no earlier installments. Nothing to compress against.
+  if (priorRecaps.length === 0 && priorMissing.length === 0) {
     return { installment, series: null };
   }
 
-  const series = await draftSeriesRecap(client, installmentLabel, installment, priorRecaps);
+  const series = await draftSeriesRecap(client, installmentLabel, installment, priorRecaps, priorMissing);
   return { installment, series };
 }
 
@@ -176,20 +205,35 @@ async function draftInstallmentRecap(
   return await callForText(client, INSTALLMENT_SYSTEM_PROMPT, userMessage);
 }
 
-async function draftSeriesRecap(
+export async function draftSeriesRecap(
   client: Anthropic,
   currentLabel: string,
   currentInstallmentRecap: string,
   priorRecaps: PriorRecapEntry[],
+  priorMissing: PriorMissingEntry[],
 ): Promise<string> {
   const lines: string[] = [];
-  lines.push(`Series: ${currentLabel.split(" — Season ")[0]}`);
-  lines.push(`\nINSTALLMENT RECAPS (chronological — synthesize all of these into one ~150-250 word series recap):`);
-  for (const r of priorRecaps) {
-    lines.push(`\n## ${r.label}\n${r.text}`);
+  const seriesTitle = currentLabel.split(" — Season ")[0];
+  lines.push(`Series: ${seriesTitle}`);
+
+  if (priorRecaps.length > 0) {
+    lines.push(`\n=== PRIOR INSTALLMENT RECAPS (full text — source of truth for these installments) ===`);
+    for (const r of priorRecaps) {
+      lines.push(`\n## ${r.label}\n${r.text}`);
+    }
   }
-  lines.push(`\n## ${currentLabel} (current — most recent installment)\n${currentInstallmentRecap}`);
-  lines.push(`\nWrite the series recap covering everything through ${currentLabel} now.`);
+
+  if (priorMissing.length > 0) {
+    lines.push(`\n=== PRIOR INSTALLMENTS WITHOUT STORED RECAPS (use your training-data knowledge of these works to summarize them; the TMDB overview is a marketing blurb, not the plot) ===`);
+    for (const m of priorMissing) {
+      const overview = m.tmdbOverview ? `\n  TMDB overview: ${m.tmdbOverview}` : "";
+      lines.push(`\n## ${m.label}${overview}`);
+    }
+  }
+
+  lines.push(`\n=== CURRENT INSTALLMENT (just drafted — most recent) ===`);
+  lines.push(`\n## ${currentLabel}\n${currentInstallmentRecap}`);
+  lines.push(`\nWrite the series recap covering everything through ${currentLabel} in chronological order. Cover every prior installment from BOTH groups above plus the current one.`);
   return await callForText(client, SERIES_SYSTEM_PROMPT, lines.join("\n"));
 }
 

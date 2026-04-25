@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { getAnthropic } from "./client";
-import { getMovieDetails, getCollectionDetails } from "@/lib/tmdb";
+import { getMovieDetails, getCollectionDetails, type TMDBMovie } from "@/lib/tmdb";
 import { loadGroundingForMovie, loadGroundingForShow, type CompanionGroundingData } from "./watch-companion-grounding";
 import { draftCharacters } from "./watch-companion-chunks/characters";
 import { draftFacts } from "./watch-companion-chunks/facts";
 import { draftRelationships } from "./watch-companion-chunks/relationships";
 import { draftTimeline } from "./watch-companion-chunks/timeline";
 import { draftGlossary } from "./watch-companion-chunks/glossary";
-import { draftRecap, type PriorRecapEntry, type RecapResult } from "./watch-companion-chunks/recap";
+import { draftRecap, type PriorRecapEntry, type PriorMissingEntry, type RecapResult } from "./watch-companion-chunks/recap";
 import type {
   CompanionDraft,
   DraftCharacter,
@@ -184,21 +184,21 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   // single paragraph. Both are gated behind a reveal button on the
   // viewer so full spoilers are fine.
   //
-  // The series recap leans on the prior installments' INSTALLMENT
-  // recaps (loaded below) so it stays accurate without re-reading
-  // every prior film/season. Movies pull prior franchise siblings'
-  // stored recaps; TV pulls this companion's own per-season slots.
-  // Missing prior recaps (legacy companions, never-generated seasons)
-  // mean the series recap leans more on the AI's own knowledge —
-  // acceptable degradation, not a blocker.
+  // The series recap covers EVERY prior installment. We split context
+  // into two lists: stored recaps (drafted on a previous gen — used as
+  // source of truth) and missing installments (no recap yet — passed as
+  // labels + TMDB overview so the AI fills the gap from training data).
+  // Without the missing list the recap would silently skip whole
+  // installments whenever the user generates out of order (e.g. S5
+  // before S2/3/4) — leaving holes in the through-line.
   //
   // Failures are non-fatal: the recap field stays at whatever was
   // there before so a flaky AI call doesn't wipe a good prior recap.
   yield { kind: "step", step: "recap", status: "running" };
   let recap: RecapResult | null = null;
   try {
-    const priorRecaps = await loadPriorRecaps(tmdbId, mediaType, seasonArg);
-    recap = await draftRecap(client, grounding, seasonArg, timelineEvents, priorRecaps);
+    const { stored, missing } = await loadPriorContext(tmdbId, mediaType, seasonArg, grounding);
+    recap = await draftRecap(client, grounding, seasonArg, timelineEvents, stored, missing);
   } catch (err) {
     console.error("Recap draft failed (continuing without):", err);
     recap = null;
@@ -396,6 +396,13 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       visibleAfter: serialize(n.visibleAfter),
     }));
 
+    // Group/faction history (defections, hidden allegiance reveals).
+    // Same shape as nameAliases — array of { group, visibleAfter }.
+    const groupHistory = (c.groupHistory ?? []).map((g) => ({
+      group: g.group,
+      visibleAfter: serialize(g.visibleAfter),
+    }));
+
     const char = await prisma.companionCharacter.create({
       data: {
         companionId: companion.id,
@@ -408,6 +415,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
         visibleAfter: serialize(c.visibleAfter),
         sortOrder: idx,
         nameAliases: nameAliases.length > 0 ? nameAliases : undefined,
+        groupHistory: groupHistory.length > 0 ? groupHistory : undefined,
       },
     });
     // Write the actors side-table rows. We skip createMany for clarity and
@@ -520,54 +528,75 @@ function serialize(v: VisibleAfter): { seconds?: number; season?: number; episod
 }
 
 /**
- * Loads the INSTALLMENT recaps of every prior installment in the same
- * series so the recap chunk can compress them into a SERIES recap.
+ * Loads context for every prior installment in the series, split into
+ * two lists for the recap chunk:
  *
- * Movies: query franchise siblings (same TMDB collection) released
- * before this one, pull their stored `recaps.current.installment`
- * text, and order by release date.
+ *   - stored: installments that already have a drafted INSTALLMENT
+ *     recap. Full text is the source of truth.
  *
- * TV: read this companion's existing `recaps[N]` for each N < season.
- * Same companion row, different season slot.
+ *   - missing: installments that don't have a recap yet. Only label +
+ *     TMDB overview blurb is passed; the AI fills the gap from
+ *     training-data knowledge. Without this list the series recap
+ *     would silently skip whole installments whenever the user
+ *     generates out of order (S5 before S2/3/4).
  *
- * Empty array signals "first installment" — the recap chunk skips the
+ * Movies: walks earlier parts of the same TMDB collection (sorted by
+ * release date). Each part is either stored or missing depending on
+ * whether a published companion exists for that tmdbId with installment
+ * text.
+ *
+ * TV: walks seasons 1..currentSeason-1 of the current companion. Each
+ * is either stored (slot has installment text) or missing (no slot, or
+ * slot has no text yet). Missing entries pull `overview` from the TMDB
+ * season metadata already on grounding.
+ *
+ * Both empty signals "first installment" — the recap chunk skips the
  * series block in that case so we don't waste a Sonnet call writing a
  * duplicate of the installment recap.
  */
-async function loadPriorRecaps(
+async function loadPriorContext(
   tmdbId: number,
   mediaType: "movie" | "tv",
   season: number | null,
-): Promise<PriorRecapEntry[]> {
+  grounding: CompanionGroundingData,
+): Promise<{ stored: PriorRecapEntry[]; missing: PriorMissingEntry[] }> {
   if (mediaType === "tv") {
-    if (season === null || season <= 1) return [];
+    if (season === null || season <= 1) return { stored: [], missing: [] };
     const companion = await prisma.watchCompanion.findUnique({
       where: { tmdbId_mediaType: { tmdbId, mediaType: "tv" } },
-      select: { title: true, recaps: true },
+      select: { recaps: true },
     });
-    if (!companion?.recaps || typeof companion.recaps !== "object" || Array.isArray(companion.recaps)) return [];
-    const recaps = companion.recaps as Record<string, unknown>;
-    const out: PriorRecapEntry[] = [];
+    const recaps = (companion?.recaps && typeof companion.recaps === "object" && !Array.isArray(companion.recaps))
+      ? (companion.recaps as Record<string, unknown>)
+      : {};
+
+    const seasonOverviews = grounding.source === "tv" ? (grounding.seasons ?? []) : [];
+    const stored: PriorRecapEntry[] = [];
+    const missing: PriorMissingEntry[] = [];
     for (let n = 1; n < season; n++) {
       const slot = recaps[String(n)];
-      if (slot && typeof slot === "object" && !Array.isArray(slot)) {
-        const inst = (slot as { installment?: unknown }).installment;
-        if (typeof inst === "string" && inst.length > 0) {
-          out.push({ label: `Season ${n}`, text: inst });
-        }
+      const inst = slot && typeof slot === "object" && !Array.isArray(slot)
+        ? (slot as { installment?: unknown }).installment
+        : undefined;
+      if (typeof inst === "string" && inst.length > 0) {
+        stored.push({ label: `Season ${n}`, text: inst });
+      } else {
+        const info = seasonOverviews.find((s) => s.seasonNumber === n);
+        missing.push({
+          label: `Season ${n}`,
+          tmdbOverview: info?.overview ?? null,
+          year: null,
+        });
       }
     }
-    return out;
+    return { stored, missing };
   }
 
-  // Movies — pull franchise siblings from the same TMDB collection that
-  // released before the current film. Skip siblings without a stored
-  // installment recap (legacy companions); the series chunk degrades
-  // gracefully instead of failing.
+  // Movies — walk the franchise collection.
   try {
-    const movie = await getMovieDetails(tmdbId);
+    const movie = grounding.tmdb as TMDBMovie;
     const collectionId = movie.belongs_to_collection?.id;
-    if (!collectionId) return [];
+    if (!collectionId) return { stored: [], missing: [] };
     const collection = await getCollectionDetails(collectionId);
     const targetDate = movie.release_date ? new Date(movie.release_date) : null;
     const earlierParts = (collection.parts ?? [])
@@ -578,30 +607,43 @@ async function loadPriorRecaps(
         return pd.getTime() < targetDate.getTime();
       })
       .sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""));
-    if (earlierParts.length === 0) return [];
+    if (earlierParts.length === 0) return { stored: [], missing: [] };
 
     const partIds = earlierParts.map((p) => p.id);
     const companions = await prisma.watchCompanion.findMany({
       where: { mediaType: "movie", status: "published", tmdbId: { in: partIds } },
-      select: { tmdbId: true, title: true, recaps: true },
+      select: { tmdbId: true, recaps: true },
     });
-    const byTmdbId = new Map<number, { title: string; recaps: unknown }>();
+    const byTmdbId = new Map<number, { recaps: unknown }>();
     for (const c of companions) byTmdbId.set(c.tmdbId, c);
 
-    const out: PriorRecapEntry[] = [];
+    const stored: PriorRecapEntry[] = [];
+    const missing: PriorMissingEntry[] = [];
     for (const part of earlierParts) {
+      const yearStr = part.release_date ? part.release_date.slice(0, 4) : null;
+      const year = yearStr ? Number(yearStr) : null;
+      const yearSuffix = yearStr ? ` (${yearStr})` : "";
+      const label = `${part.title}${yearSuffix}`;
+
       const c = byTmdbId.get(part.id);
-      if (!c?.recaps || typeof c.recaps !== "object" || Array.isArray(c.recaps)) continue;
-      const blob = c.recaps as { current?: { installment?: unknown; text?: unknown } };
-      const inst = blob.current?.installment ?? blob.current?.text; // fall back to old `text` shape from prior schema
-      if (typeof inst !== "string" || inst.length === 0) continue;
-      const year = part.release_date ? part.release_date.slice(0, 4) : null;
-      out.push({ label: `${part.title}${year ? ` (${year})` : ""}`, text: inst });
+      const blob = (c?.recaps && typeof c.recaps === "object" && !Array.isArray(c.recaps))
+        ? (c.recaps as { current?: { installment?: unknown; text?: unknown } })
+        : null;
+      const inst = blob?.current?.installment ?? blob?.current?.text; // fall back to old `text` shape
+      if (typeof inst === "string" && inst.length > 0) {
+        stored.push({ label, text: inst });
+      } else {
+        missing.push({
+          label: part.title,
+          tmdbOverview: part.overview ?? null,
+          year: Number.isFinite(year ?? NaN) ? year : null,
+        });
+      }
     }
-    return out;
+    return { stored, missing };
   } catch (err) {
-    console.error("loadPriorRecaps movie path failed (continuing without):", err);
-    return [];
+    console.error("loadPriorContext movie path failed (continuing without):", err);
+    return { stored: [], missing: [] };
   }
 }
 

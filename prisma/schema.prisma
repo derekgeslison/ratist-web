@@ -2131,6 +2131,16 @@ model CompanionCharacter {
   //   nameAliases: [{ name: "Khan", visibleAfter: { seconds: 6300 } }]
   nameAliases  Json?  @map("name_aliases")
 
+  // Group/faction history for characters who switch sides or have hidden
+  // allegiances. Same shape as nameAliases — array of { group, visibleAfter }.
+  // The viewer picks the latest unlocked entry's group, falling back to the
+  // primary `group` column when nothing has unlocked yet. Examples:
+  //   - Severus Snape: group "Death Eaters" (cover), groupHistory entry
+  //     { group: "Order of the Phoenix", visibleAfter: <reveal moment> }
+  //   - FN-2187 → Finn: group "First Order", groupHistory entry
+  //     { group: "Resistance", visibleAfter: <defection moment> }
+  groupHistory Json?  @map("group_history")
+
   sortOrder    Int     @default(0) @map("sort_order")
 
   companion    WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)

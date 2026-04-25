@@ -33,6 +33,11 @@ export interface DraftNameAlias {
   visibleAfter: VisibleAfter;
 }
 
+export interface DraftGroupChange {
+  group: string;
+  visibleAfter: VisibleAfter;
+}
+
 export interface DraftCharacter {
   name: string;
   // Primary/earliest-visible actor for the character. Kept for backward
@@ -50,6 +55,11 @@ export interface DraftCharacter {
   // Used for twist-reveal cases — see the Khan example in the characters
   // prompt. Empty for characters whose name never changes.
   nameAliases?: DraftNameAlias[];
+  // Group/faction history for characters who switch sides or have hidden
+  // allegiances. Same shape as nameAliases — { group, visibleAfter }.
+  // The viewer picks the latest unlocked entry, falling back to `group`.
+  // Empty for characters whose faction never changes.
+  groupHistory?: DraftGroupChange[];
 }
 
 export interface DraftFact {

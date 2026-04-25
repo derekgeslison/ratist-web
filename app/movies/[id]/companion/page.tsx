@@ -102,6 +102,9 @@ export default async function MovieCompanionPage({ params }: Props) {
     nameAliases: ((c.nameAliases ?? []) as Array<{ name?: string; visibleAfter?: unknown }>)
       .filter((n): n is { name: string; visibleAfter: CharData["visibleAfter"] } => typeof n?.name === "string")
       .map((n) => ({ name: n.name, visibleAfter: (n.visibleAfter ?? {}) as CharData["visibleAfter"] })),
+    groupHistory: ((c.groupHistory ?? []) as Array<{ group?: string; visibleAfter?: unknown }>)
+      .filter((g): g is { group: string; visibleAfter: CharData["visibleAfter"] } => typeof g?.group === "string" && g.group.length > 0)
+      .map((g) => ({ group: g.group, visibleAfter: (g.visibleAfter ?? {}) as CharData["visibleAfter"] })),
   }));
 
   // Resolved community-approved suggestions for the "community-sourced"

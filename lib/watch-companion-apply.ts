@@ -41,6 +41,23 @@ function normNameAliases(v: unknown): Array<{ name: string; visibleAfter: Visibl
   return out;
 }
 
+// Same shape as normNameAliases but for groupHistory entries — { group,
+// visibleAfter }. Cap at 4 entries to match the generator's normalization.
+function normGroupHistory(v: unknown): Array<{ group: string; visibleAfter: VisibleAfter }> | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: Array<{ group: string; visibleAfter: VisibleAfter }> = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    const group = typeof e.group === "string" ? e.group.slice(0, 80) : "";
+    if (!group) continue;
+    const va = isVisibleAfter(e.visibleAfter) ? e.visibleAfter : {};
+    out.push({ group, visibleAfter: va });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 export async function applySuggestion(suggestionId: string): Promise<void> {
   const suggestion = await prisma.companionSuggestion.findUnique({
     where: { id: suggestionId },
@@ -124,7 +141,7 @@ async function captureItemSnapshot(targetType: string, targetId: string): Promis
           id: true, companionId: true, seasonNumber: true, name: true,
           actorName: true, actorTmdbId: true, baseDescription: true,
           visibleAfter: true, group: true, imageUrl: true, sortOrder: true,
-          nameAliases: true,
+          nameAliases: true, groupHistory: true,
         },
       });
       return c ? (c as unknown as Record<string, unknown>) : null;
@@ -214,6 +231,8 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       if (season !== undefined) data.seasonNumber = season;
       const aliases = normNameAliases(payload.nameAliases);
       if (aliases !== undefined) data.nameAliases = aliases;
+      const groupHistory = normGroupHistory(payload.groupHistory);
+      if (groupHistory !== undefined) data.groupHistory = groupHistory;
       if (Object.keys(data).length > 0) await prisma.companionCharacter.update({ where: { id: targetId }, data });
       return;
     }
@@ -284,6 +303,7 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
       const baseDescription = str("baseDescription", 600);
       if (!name || !baseDescription) return null;
       const nameAliases = normNameAliases(payload.nameAliases) ?? [];
+      const groupHistory = normGroupHistory(payload.groupHistory) ?? [];
       // Append at the end of the cast list (per season for TV) so
       // community-added characters don't shove in at position two next to
       // the lead. sortOrder is asc in the viewer; take max+1 within the
@@ -304,6 +324,7 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           group: str("group", 80),
           visibleAfter,
           nameAliases: nameAliases.length > 0 ? nameAliases : undefined,
+          groupHistory: groupHistory.length > 0 ? groupHistory : undefined,
           sortOrder: (last?.sortOrder ?? -1) + 1,
         },
       });

@@ -21,6 +21,7 @@ interface ActorRow {
   sortOrder: number;
 }
 interface AliasRow { name: string; visibleAfter: VisibleAfter }
+interface GroupChangeRow { group: string; visibleAfter: VisibleAfter }
 interface Character {
   id: string; name: string; actorName: string | null; baseDescription: string;
   group: string | null; visibleAfter: VisibleAfter; facts: Fact[];
@@ -28,6 +29,7 @@ interface Character {
   sortOrder: number;
   actors: ActorRow[];
   nameAliases: AliasRow[];
+  groupHistory: GroupChangeRow[];
 }
 interface Relationship {
   id: string; relationshipType: string; label: string; directed: boolean;
@@ -514,6 +516,17 @@ export default function ReviewCompanionPage() {
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] shrink-0">
                       {c.group && <span className="px-1.5 py-0.5 rounded bg-[var(--surface-2)]">{c.group}</span>}
+                      {c.groupHistory && c.groupHistory.length > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--surface-2)]" title="Faction changes">
+                          → {c.groupHistory.map((g, i) => (
+                            <span key={i}>
+                              <span className="text-white">{g.group}</span>
+                              <span className="text-[var(--foreground-muted)]/70"> @ {fmtVisible(g.visibleAfter, companion.mediaType)}</span>
+                              {i < c.groupHistory.length - 1 ? ", " : ""}
+                            </span>
+                          ))}
+                        </span>
+                      )}
                       <span>appears {fmtVisible(c.visibleAfter, companion.mediaType)}</span>
                       <ItemCommunityChanges
                         suggestions={communityFor("character", c.id)}

@@ -37,6 +37,7 @@ interface ActorEntry {
   imageUrl: string | null;
 }
 interface NameAlias { name: string; visibleAfter: VisibleAfter }
+interface GroupChange { group: string; visibleAfter: VisibleAfter }
 interface Character {
   id: string; name: string; actorName: string | null; actorTmdbId: number | null;
   baseDescription: string; group: string | null; imageUrl: string | null;
@@ -44,6 +45,7 @@ interface Character {
   visibleAfter: VisibleAfter; facts: Fact[];
   actors: ActorEntry[];
   nameAliases: NameAlias[];
+  groupHistory: GroupChange[];
 }
 interface Relationship {
   id: string; relationshipType: string; label: string; directed: boolean;
@@ -112,6 +114,27 @@ function isVisible(visibleAfter: VisibleAfter, position: WatchPosition, mediaTyp
   if (curEpisode > thEpisode) return true;
   if (curEpisode < thEpisode) return false;
   return curSeconds >= thSeconds;
+}
+
+// Resolve the character's group at the user's slider position. Walks
+// groupHistory entries in chronological order, returning the latest one
+// whose visibleAfter is unlocked. Falls back to the primary `group`
+// when nothing has unlocked — the AUDIENCE-FACING starting allegiance.
+//
+// Used by the cast cards (color + badge label), the swim-lane (lane
+// color), and the relationship map (cluster + node color). Drives the
+// faction badge swap when a character defects mid-story.
+function currentGroupOf(
+  character: { group: string | null; groupHistory?: GroupChange[] },
+  position: WatchPosition,
+  mediaType: "movie" | "tv",
+): string | null {
+  const history = character.groupHistory ?? [];
+  if (history.length === 0) return character.group;
+  const unlocked = history
+    .filter((g) => isVisible(g.visibleAfter, position, mediaType))
+    .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+  return unlocked.length > 0 ? unlocked[unlocked.length - 1].group : character.group;
 }
 
 function formatMovieTime(seconds: number): string {
@@ -462,7 +485,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   );
 
   const groupColors = useMemo(() => {
-    const groups = Array.from(new Set(seasonCharacters.map((c) => c.group).filter((g): g is string => !!g)));
+    // Include groups from groupHistory entries too — otherwise a Resistance
+    // color would only get allocated AFTER Finn's defection unlocks, which
+    // would re-shuffle every other faction's color around the palette.
+    // Building over the full union keeps every faction's color stable
+    // regardless of where the slider sits.
+    const all = new Set<string>();
+    for (const c of seasonCharacters) {
+      if (c.group) all.add(c.group);
+      for (const g of c.groupHistory ?? []) all.add(g.group);
+    }
+    const groups = Array.from(all);
     const map = new Map<string, string>();
     groups.forEach((g, i) => map.set(g, GROUP_COLORS[i % GROUP_COLORS.length]));
     return map;
@@ -864,7 +897,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {visibleCharacters.map((c, idx) => {
-              const color = c.group ? groupColors.get(c.group) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
+              // Resolve the character's faction at the slider's current
+              // position — walks groupHistory and falls back to c.group.
+              // Drives the card border, the faction badge label, and the
+              // swim-lane lane color downstream.
+              const currentGroup = currentGroupOf(c, position, mediaType);
+              const color = currentGroup ? groupColors.get(currentGroup) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
               const connections = relationshipsByCharacter.get(c.id) ?? [];
 
@@ -1044,7 +1082,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                           ))}
                         </div>
                       )}
-                      {c.group && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{c.group}</p>}
+                      {currentGroup && <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color }}>{currentGroup}</p>}
                     </div>
                     {/* Per-card suggest-edit icon + community-suggestion
                        bubble. Signed-in users can file a structured edit;
@@ -1311,7 +1349,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       {/* Relationship map */}
       {seasonIsGenerated && activeTab === "map" && (
         <RelationshipMap
-          characters={visibleCharacters.map((c) => ({ id: c.id, name: c.name, group: c.group }))}
+          characters={visibleCharacters.map((c) => ({
+            id: c.id,
+            name: c.name,
+            // Resolve to the slider-current faction so a defected
+            // character clusters with their NEW faction post-defection.
+            group: currentGroupOf(c, position, mediaType),
+          }))}
           relationships={visibleRelationships}
           groupColors={groupColors}
         />
@@ -1506,8 +1550,11 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   // ungrouped character look like a member of the
                   // first colored faction.
                   const UNGROUPED_LANE_COLOR = "#6b7280"; // tailwind gray-500 — neutral, no faction implied
-                  const laneColor = character.group
-                    ? (groupColors.get(character.group) ?? GROUP_COLORS[0])
+                  // Resolve to the slider-current faction so a defected
+                  // character's lane recolors past their defection moment.
+                  const laneGroup = currentGroupOf(character, position, mediaType);
+                  const laneColor = laneGroup
+                    ? (groupColors.get(laneGroup) ?? GROUP_COLORS[0])
                     : UNGROUPED_LANE_COLOR;
                   return (
                   <div key={character.id} className="flex items-center gap-2">

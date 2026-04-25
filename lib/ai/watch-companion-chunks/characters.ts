@@ -4,6 +4,7 @@ import {
   type DraftCharacter,
   type DraftCharacterActor,
   type DraftNameAlias,
+  type DraftGroupChange,
   type PriorSeasonCanon,
   VISIBLE_AFTER_SCHEMA,
   VISIBLE_AFTER_GUIDANCE,
@@ -26,10 +27,11 @@ Aim for ~10–15 characters total (see Quality bar). Each one:
   - BAD: "CFO of Waystar Royco" — gets stale when the role changes.
   - GOOD: "The Roy family's outsider son-in-law. Pragmatic, self-serving, an anxious social climber."
   - BAD: "Shiv's husband and head of the news division" — both facts change.
-- "group" — their faction, family, team. Null if not applicable. Used for color-coding.
+- "group" — their faction, family, team AT FIRST APPEARANCE (cover identity / starting allegiance). Null if not applicable. Used for color-coding. **See "Group / faction changes" below if the character changes sides mid-story.**
 - "visibleAfter" — when they first appear on-screen. See guidance below. For multi-actor characters, set this to the EARLIEST actor's appearance.
 - "actors" — multi-actor array (see below). Empty array \`[]\` for single-actor characters.
 - "nameAliases" — twist-reveal names (see below). Empty array \`[]\` when the name never changes.
+- "groupHistory" — faction/side changes (see below). Empty array \`[]\` when the character's faction never changes.
 
 Do NOT include facts, relationships, timeline events, or glossary entries — other calls handle those. ONLY characters.
 
@@ -40,6 +42,7 @@ Most movies don't trigger any of these — apply the defaults above. When a movi
 - ⚠ Multiple actors → ONE character (Murph at different ages, Olsen twins playing Michelle Tanner): **Multi-actor characters** / **Twins on ONE role**
 - ⚠ ONE actor → MULTIPLE characters (Lohan as twins, Vince Vaughn's two Nicks, Maslany's clones): **Same actor playing MULTIPLE distinct characters**
 - ⚠ Character's real name revealed mid-story (Khan, Kaiser Söze, Tyler Durden): **Twist-reveal names**
+- ⚠ Character switches sides / hidden allegiance revealed (Snape, Finn, Mr. Robot's Dom, the Severus pattern): **Group / faction changes**
 - ⚠ Two seemingly-separate characters revealed to be one (Mr. Robot's Elliot/Mr. Robot, Donnie Darko's Frank): **Inverse twist**
 - Cover identity, persona, disguise, DID (Jackie Daytona, Sybil): **Cover identities, personas, disguises, multiple personalities**
 - ⚠ Body swap between two humans (Freaky Friday, Your Name): **Body swaps**
@@ -159,6 +162,65 @@ Skip nameAliases when the character has no identity twist — most characters ge
 ## Inverse twist — two characters revealed to be one person
 
 Sometimes the audience tracks two seemingly separate characters and only later learns they're the same person — Mr. Robot / Elliot Alderson in Mr. Robot, Frank in Donnie Darko. Emit BOTH as separate cards. That mirrors how the audience is meant to perceive them up to the reveal, and the same-actor rule above already covers the actor attribution. Use a fact ("revealed to be a projection of X") rather than collapsing the cards.
+
+## Group / faction changes (Snape, Finn, sleeper-agent reveals, defections)
+
+When a character's faction/side/allegiance CHANGES during the story — they were a deep-cover double agent, they defect, their hidden loyalty is revealed, they get recruited mid-story — set the primary \`group\` to the AUDIENCE-FACING starting faction (the one fans first see them in) and add an entry to \`groupHistory\` for each subsequent shift. Each entry is \`{ group, visibleAfter }\` where visibleAfter anchors the moment the change becomes audience-known.
+
+This mirrors the \`nameAliases\` mechanic exactly: starting state goes in the primary field, transitions go in a history array gated by visibleAfter. The viewer picks the LATEST unlocked entry's group for color-coding and the faction badge.
+
+Cases that warrant a groupHistory entry:
+- **Defections** — Finn deserts the First Order to join the Resistance. \`group: "First Order"\`, \`groupHistory: [{ group: "Resistance", visibleAfter: <defection moment> }]\`.
+- **Hidden allegiance reveals** — Snape's Order of the Phoenix loyalty exposed in Deathly Hallows. \`group: "Death Eaters"\`, \`groupHistory: [{ group: "Order of the Phoenix", visibleAfter: <reveal moment> }]\`. (Use the IN-STORY perception arc, not "what fans now know" — Snape reads as Death Eater for almost the whole series.)
+- **Sleeper / mole reveals** — a character introduced inside Faction A is revealed mid-show to have always been working for Faction B.
+- **Recruitment / inducted into a faction** — a previously unaffiliated character joins a faction (Daenerys's followers, Mad-Eye Moody's recruits). \`group: null\`, \`groupHistory: [{ group: "Order of the Phoenix", visibleAfter: <induction moment> }]\`.
+- **Return-to-revert reveals** — a character who appeared aligned with one side, switched to another, and ultimately returned. List EVERY transition in chronological order.
+
+⚠️ Use the AUDIENCE-FACING perception, not the in-fiction truth. Snape was loyal to Dumbledore the whole series, but the AUDIENCE perceives him as a Death Eater until the reveal — so \`group: "Death Eaters"\` and the Order entry goes in groupHistory at the reveal moment. Spoiling the loyalty in the primary \`group\` would defeat the spoiler-gating system.
+
+Cases that DO NOT warrant a groupHistory entry:
+- A character's faction stays consistent through the whole story — most characters. Empty array.
+- A character is between factions briefly but settles back to the original — only emit transitions the audience tracks as meaningful shifts, not minor scene-level wavering.
+- Cover identity / persona switches that aren't faction-level (Laszlo → Jackie Daytona is a name persona, not a faction change). Use nameAliases instead, or skip entirely.
+
+✅ CORRECT (Severus Snape — Harry Potter; cover loyalty exposed late in the series):
+\`\`\`
+{
+  name: "Severus Snape",
+  actorName: "Alan Rickman",
+  actorTmdbId: 4566,
+  baseDescription: "The dour Potions master at Hogwarts whose past with Harry's parents shadows every interaction.",
+  group: "Death Eaters",
+  visibleAfter: { season: 1, episode: 1 },
+  actors: [],
+  nameAliases: [],
+  groupHistory: [
+    { group: "Order of the Phoenix", visibleAfter: <reveal moment> }
+  ]
+}
+\`\`\`
+
+✅ CORRECT (Finn — Star Wars: The Force Awakens; defects from First Order on screen):
+\`\`\`
+{
+  name: "Finn",
+  actorName: "John Boyega",
+  actorTmdbId: 1206156,
+  baseDescription: "A stormtrooper raised since childhood by the First Order who walks away from his post and finds a cause worth fighting for.",
+  group: "First Order",
+  visibleAfter: { seconds: 60 },
+  actors: [],
+  nameAliases: [
+    { name: "FN-2187", visibleAfter: { seconds: 60 } },
+    { name: "Finn",    visibleAfter: { seconds: 1500 } }
+  ],
+  groupHistory: [
+    { group: "Resistance", visibleAfter: { seconds: 1500 } }
+  ]
+}
+\`\`\`
+
+The viewer renders the cast card's faction badge based on the LATEST unlocked groupHistory entry (or the primary \`group\` if none have unlocked). Pre-defection: badge says "First Order", color from that group's palette slot. Post-defection: badge switches to "Resistance".
 
 ## Cover identities, personas, disguises, multiple personalities — KEEP AS ONE character
 
@@ -376,8 +438,21 @@ const TOOL: Anthropic.Tool = {
                 additionalProperties: false,
               },
             },
+            groupHistory: {
+              type: "array",
+              description: "Faction/side changes. Empty [] for characters whose faction never changes.",
+              items: {
+                type: "object",
+                properties: {
+                  group: { type: "string" },
+                  visibleAfter: VISIBLE_AFTER_SCHEMA,
+                },
+                required: ["group", "visibleAfter"],
+                additionalProperties: false,
+              },
+            },
           },
-          required: ["name", "actorName", "actorTmdbId", "baseDescription", "group", "visibleAfter", "actors", "nameAliases"],
+          required: ["name", "actorName", "actorTmdbId", "baseDescription", "group", "visibleAfter", "actors", "nameAliases", "groupHistory"],
           additionalProperties: false,
         },
       },
@@ -433,6 +508,15 @@ export async function draftCharacters(
                   visibleAfter: normVisibleAfter(n.visibleAfter),
                 }))
             : [];
+          const groupHistory: DraftGroupChange[] = Array.isArray((c as DraftCharacter).groupHistory)
+            ? ((c as DraftCharacter).groupHistory ?? [])
+                .filter((g): g is DraftGroupChange => typeof g === "object" && g !== null && typeof (g as DraftGroupChange).group === "string" && (g as DraftGroupChange).group.length > 0)
+                .slice(0, 4)
+                .map((g) => ({
+                  group: g.group.slice(0, 80),
+                  visibleAfter: normVisibleAfter(g.visibleAfter),
+                }))
+            : [];
           return {
             name: c.name.slice(0, 120),
             actorName: typeof c.actorName === "string" && c.actorName.length > 0 ? c.actorName.slice(0, 120) : null,
@@ -442,6 +526,7 @@ export async function draftCharacters(
             visibleAfter: normVisibleAfter(c.visibleAfter),
             actors,
             nameAliases,
+            groupHistory,
           };
         })
     : [];

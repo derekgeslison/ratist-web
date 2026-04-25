@@ -124,7 +124,7 @@ function pickWritableFields(targetType: string, snapshot: Record<string, unknown
   // Fields each table considers writable — mirrors the edit path in
   // watch-companion-apply.ts.
   const FIELDS: Record<string, string[]> = {
-    character: ["name", "actorName", "actorTmdbId", "baseDescription", "visibleAfter", "group", "imageUrl", "sortOrder", "seasonNumber", "nameAliases"],
+    character: ["name", "actorName", "actorTmdbId", "baseDescription", "visibleAfter", "group", "imageUrl", "sortOrder", "seasonNumber", "nameAliases", "groupHistory"],
     baseDescription: ["baseDescription"],
     fact: ["fact", "factType", "visibleAfter"],
     relationship: ["fromCharacterId", "toCharacterId", "relationshipType", "label", "directed", "visibleAfter", "seasonNumber"],
