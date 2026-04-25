@@ -32,7 +32,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
-  if (post.authorId !== user.id && !user.isAdmin) {
+  // Authors can edit their own posts; admins cannot edit other users'
+  // posts (only delete/pin/lock via the admin endpoint). Putting words
+  // in someone else's mouth is a different power than removing or
+  // moderating the thread, and it should never silently happen even
+  // from a trusted admin account.
+  if (post.authorId !== user.id) {
     return NextResponse.json({ error: "You can only edit your own posts" }, { status: 403 });
   }
 

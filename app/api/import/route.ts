@@ -167,6 +167,15 @@ export async function POST(req: NextRequest) {
           });
           if (existingTVRating) { skipped++; continue; }
 
+          // No rating in the import row → seen-only. The userFavoriteShow
+          // upsert above already marked it as watched; creating a Rating
+          // with null overall+ratist would surface it as a blank "quick
+          // review" in the user's diary, which is what we want to avoid.
+          if (row.rating == null) {
+            imported++;
+            continue;
+          }
+
           // Create series-level rating (as basic/quick review)
           await prisma.tVShowRating.create({
             data: {
@@ -174,8 +183,8 @@ export async function POST(req: NextRequest) {
               tvShowId: tvShow.id,
               ratingScope: "series",
               seasonNumber: 0,
-              overallRating: row.rating ?? null,
-              ratistRating: row.rating ?? null,
+              overallRating: row.rating,
+              ratistRating: row.rating,
               reviewType: "basic",
             },
           });
@@ -260,6 +269,16 @@ export async function POST(req: NextRequest) {
           create: { userId: user.id, movieId: movie.id, watchedDate: watchedAt },
           update: { ...(row.watchedDate ? { watchedDate: watchedAt } : {}) },
         });
+
+        // No rating AND no review text → seen-only. Creating a MovieRating
+        // with null overall+ratist+review surfaces in the diary as a
+        // blank "imported quick review" with no stars, which the user
+        // explicitly didn't want — they'd rather see the entry as just
+        // a watched-on date.
+        if (row.rating == null && !row.review?.trim()) {
+          imported++;
+          continue;
+        }
 
         // Create rating — set both overallRating AND ratistRating
         await prisma.movieRating.create({

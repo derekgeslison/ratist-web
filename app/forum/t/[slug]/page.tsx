@@ -305,7 +305,10 @@ export default function ThreadPage({ params }: Props) {
                   {new Date(op.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
                   {op.isEdited && " (edited)"}
                 </span>
-                {(isAuthor || isAdmin) && editingPostId !== op.id && (
+                {/* Author-only edit. Admins moderate via delete/pin/lock
+                   above — they should not be able to rewrite someone
+                   else's post content (matches the API's authorization). */}
+                {isAuthor && editingPostId !== op.id && (
                   <button onClick={() => { setEditingPostId(op.id); setEditContent(op.content); }} className="text-[var(--foreground-muted)] hover:text-white transition-colors">
                     <Pencil className="w-3 h-3" />
                   </button>
