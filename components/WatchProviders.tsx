@@ -1,15 +1,20 @@
 import Image from "next/image";
 import type { TMDBWatchProvider } from "@/lib/tmdb";
-import { getProviderUrl, getRentBuyUrl } from "@/lib/affiliates";
+import { getProviderUrl, getRentBuyUrl, getTrackerProviderKey } from "@/lib/affiliates";
+import AffiliateLink from "./AffiliateLink";
 
 interface Props {
   streaming?: TMDBWatchProvider[];
   rent?: TMDBWatchProvider[];
   contentTitle?: string;
   contentType?: "movie" | "tv";
+  /** TMDB id of the title these providers belong to. Forwarded to the
+   *  click tracker so the admin report can break down "top titles per
+   *  provider" — only logged when present. */
+  tmdbId?: number;
 }
 
-function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent }: { providers: TMDBWatchProvider[]; contentTitle?: string; contentType?: "movie" | "tv"; isRent?: boolean }) {
+function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent, tmdbId }: { providers: TMDBWatchProvider[]; contentTitle?: string; contentType?: "movie" | "tv"; isRent?: boolean; tmdbId?: number }) {
   return (
     <div className="flex flex-wrap gap-2">
       {providers.map((p) => {
@@ -33,9 +38,15 @@ function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent
         );
 
         return href ? (
-          <a key={p.provider_id} href={href} target="_blank" rel="noopener noreferrer">
+          <AffiliateLink
+            key={p.provider_id}
+            href={href}
+            provider={getTrackerProviderKey(p.provider_id)}
+            mediaType={contentType}
+            tmdbId={tmdbId}
+          >
             {badge}
-          </a>
+          </AffiliateLink>
         ) : (
           <div key={p.provider_id}>{badge}</div>
         );
@@ -44,7 +55,7 @@ function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent
   );
 }
 
-export default function WatchProviders({ streaming, rent, contentTitle, contentType = "movie" }: Props) {
+export default function WatchProviders({ streaming, rent, contentTitle, contentType = "movie", tmdbId }: Props) {
   if (!streaming?.length && !rent?.length) return null;
 
   return (
@@ -53,13 +64,13 @@ export default function WatchProviders({ streaming, rent, contentTitle, contentT
       {streaming && streaming.length > 0 && (
         <div>
           <p className="text-xs text-[var(--foreground-muted)] mb-2">Stream</p>
-          <ProviderBadges providers={streaming} contentTitle={contentTitle} contentType={contentType} />
+          <ProviderBadges providers={streaming} contentTitle={contentTitle} contentType={contentType} tmdbId={tmdbId} />
         </div>
       )}
       {rent && rent.length > 0 && (
         <div>
           <p className="text-xs text-[var(--foreground-muted)] mb-2">Rent / Buy</p>
-          <ProviderBadges providers={rent} contentTitle={contentTitle} contentType={contentType} isRent />
+          <ProviderBadges providers={rent} contentTitle={contentTitle} contentType={contentType} isRent tmdbId={tmdbId} />
         </div>
       )}
       <p className="text-[10px] text-[var(--foreground-muted)]/60">

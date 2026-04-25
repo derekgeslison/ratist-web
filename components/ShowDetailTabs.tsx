@@ -742,6 +742,7 @@ export default function ShowDetailTabs({
                 rent={rent ?? undefined}
                 contentTitle={show.name}
                 contentType="tv"
+                tmdbId={show.id}
               />
             </div>
           </div>

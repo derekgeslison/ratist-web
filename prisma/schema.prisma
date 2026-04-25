@@ -129,6 +129,7 @@ model User {
   companionSuggestionResolutions CompanionSuggestion[] @relation("suggestionResolver")
   watchCompanionRatings WatchCompanionRating[]
   companionFollows     CompanionFollow[]
+  affiliateClicks      AffiliateClick[]
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -2354,6 +2355,42 @@ model CompanionSuggestionVote {
 // Lock key uses season=0 as the sentinel for movies, since a unique
 // constraint with NULL would treat each null as distinct in Postgres
 // (defeating the purpose).
+// Outbound affiliate click tracking. One row per click on a streaming
+// provider link (Netflix, Hulu, Prime), Fandango showtimes/tickets,
+// Spotify soundtrack, etc. The aggregate report drives partnership
+// negotiations — counts per provider per week / month are the leverage
+// when approaching companies that don't yet have public affiliate
+// programs ("we sent you N clicks last quarter").
+//
+// Anonymous clicks (logged-out viewers) record userId=null but still
+// count toward the aggregate. We don't care who clicked — only how
+// often and where.
+model AffiliateClick {
+  id           String   @id @default(cuid())
+  // Stable provider key — name lowercased ("netflix", "hulu", "fandango",
+  // "spotify"). Keep this denormalized as a string so a provider's
+  // TMDB id can change without breaking historical reports.
+  provider     String
+  // Full target URL the click sent the user to. Captured for diagnostic
+  // verification (did the affiliate ID embed correctly?) and for spot-
+  // checks when reviewing the report.
+  targetUrl    String   @db.Text @map("target_url")
+  userId       String?  @map("user_id")
+  // What media the user was clicking FROM, when applicable. Lets the
+  // admin see which titles drive the most outbound traffic per provider.
+  mediaType    String?  @map("media_type")
+  tmdbId       Int?     @map("tmdb_id")
+  // Page path the user was on at click time, e.g. "/movies/123".
+  referrerPath String?  @db.Text @map("referrer_path")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([provider, createdAt])
+  @@index([createdAt])
+  @@map("affiliate_clicks")
+}
+
 model CompanionGenerationLock {
   id          String   @id @default(cuid())
   tmdbId      Int      @map("tmdb_id")

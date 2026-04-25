@@ -233,6 +233,7 @@ export default function MovieDetailTabs({
                 rent={rent ?? undefined}
                 contentTitle={movie.title}
                 contentType="movie"
+                tmdbId={movie.id}
               />
             </div>
           </div>

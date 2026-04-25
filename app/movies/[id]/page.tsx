@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clock, Calendar, Globe, Ticket, MonitorPlay, ArrowRight } from "lucide-react";
 import { getFandangoUrl } from "@/lib/affiliates";
+import AffiliateLink from "@/components/AffiliateLink";
 import {
   getMovieDetails,
   getWatchProviders,
@@ -411,15 +412,16 @@ export default async function MovieDetailPage({ params }: Props) {
 
             {/* In Theaters — showtimes link */}
             {isInTheaters && (
-              <a
+              <AffiliateLink
                 href={getFandangoUrl(movie.title)}
-                target="_blank"
-                rel="noopener noreferrer"
+                provider="fandango"
+                mediaType="movie"
+                tmdbId={movie.id}
                 className="inline-flex items-center gap-2 px-4 py-2 mb-4 bg-[var(--surface)] border border-orange-400/50 rounded-full text-sm font-semibold text-orange-400 hover:bg-orange-400/10 transition-colors"
               >
                 <Ticket className="w-4 h-4" />
                 Find Showtimes & Tickets
-              </a>
+              </AffiliateLink>
             )}
 
             <UserMoviePanel

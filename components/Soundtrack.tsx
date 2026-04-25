@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Music, ExternalLink, ChevronDown, ChevronUp, Disc3 } from "lucide-react";
 import { getSpotifyTrackUrl } from "@/lib/affiliates";
+import AffiliateLink from "./AffiliateLink";
 
 interface Track {
   position: number;
@@ -90,15 +91,16 @@ export default function Soundtrack({ tmdbId, title, mediaType = "movie" }: Props
                 {track.duration && (
                   <span className="text-xs text-[var(--foreground-muted)] shrink-0">{track.duration}</span>
                 )}
-                <a
+                <AffiliateLink
                   href={spotifySearchUrl(track)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  provider="spotify"
+                  mediaType={mediaType}
+                  tmdbId={tmdbId}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-green-500 hover:text-green-400 shrink-0"
                   title="Search on Spotify"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                </AffiliateLink>
               </div>
             </div>
           );

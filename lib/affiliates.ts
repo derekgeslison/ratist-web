@@ -248,3 +248,50 @@ export function getSpotifyTrackUrl(trackTitle: string, artist: string): string {
   const q = `${trackTitle} ${artist}`;
   return `https://open.spotify.com/search/${encodeURIComponent(q)}`;
 }
+
+// ─── Affiliate click tracker keys ───────────────────────────────────────────
+//
+// Stable lowercased provider keys used by /api/affiliate-click and the
+// admin report. The TMDB provider names ("Amazon Prime Video", "Apple TV
+// Plus", etc.) include rebrand variants and platform suffixes that drift
+// over time — pinning to our own short keys means a TMDB rename doesn't
+// fragment a single provider into two report buckets.
+//
+// IDs not in this map fall back to "other"; the report bucket then
+// surfaces them so we know which providers to add over time.
+const TRACKER_KEY_BY_PROVIDER_ID: Record<number, string> = {
+  8: "netflix",
+  9: "amazon",
+  337: "disney",
+  15: "hulu",
+  350: "apple_tv",
+  1899: "max",
+  386: "peacock",
+  531: "paramount",
+  2303: "paramount",
+  43: "starz",
+  37: "showtime",
+  526: "amc_plus",
+  151: "shudder",
+  287: "mubi",
+  258: "criterion",
+  // Apple TV / iTunes rent-buy
+  2: "apple_tv",
+  // Amazon rent-buy variants
+  10: "amazon",
+  // Google Play rent-buy
+  3: "google_play",
+  // YouTube rent-buy
+  192: "youtube",
+  // Vudu / Fandango at Home
+  7: "vudu",
+  // Microsoft Store
+  68: "microsoft",
+};
+
+/** Stable provider key for the affiliate click tracker, given a TMDB
+ *  provider id. Returns "other" for unknown ids — the admin report
+ *  surfaces "other" so we can spot popular gaps and add them. */
+export function getTrackerProviderKey(providerId: number): string {
+  return TRACKER_KEY_BY_PROVIDER_ID[providerId] ?? "other";
+}
