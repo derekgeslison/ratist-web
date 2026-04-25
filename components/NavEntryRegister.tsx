@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { pushNavEntry } from "@/lib/nav-history";
 
 interface Props {
@@ -12,20 +12,24 @@ interface Props {
 }
 
 /**
- * Client-side breadcrumb registrar. Drop this into any server page
- * that wants its dynamic title remembered for back-link context. Just
- * pass the title — the path comes from usePathname() at the time the
- * effect runs, so server-rendered pages get the right breadcrumb push
- * after hydration without needing to plumb pathname through props.
+ * Client-side breadcrumb registrar. Drop this into any page that wants
+ * its title remembered for back-link context. Pass the title — the
+ * path comes from usePathname() at the time the effect runs.
+ *
+ * Read window.location.search directly inside the effect rather than
+ * subscribing via useSearchParams(), because useSearchParams() forces
+ * the host page to opt into Suspense and breaks static prerender on
+ * client-component pages that aren't already wrapped (e.g., /forum).
+ * The breadcrumb only needs the search string at mount time anyway —
+ * subsequent same-path filter changes are conceptually still the
+ * same "page" from the user's perspective.
  */
 export default function NavEntryRegister({ title }: Props) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   useEffect(() => {
-    if (!pathname || !title) return;
-    const search = searchParams?.toString();
-    const fullPath = search ? `${pathname}?${search}` : pathname;
+    if (!pathname || !title || typeof window === "undefined") return;
+    const fullPath = pathname + (window.location.search || "");
     pushNavEntry({ path: pathname, fullPath, title });
-  }, [pathname, searchParams, title]);
+  }, [pathname, title]);
   return null;
 }
