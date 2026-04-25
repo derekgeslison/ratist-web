@@ -84,13 +84,29 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   // proceeds without them, but timestamps fall back to runtime-percentage
   // estimates ("~80% in") instead of dialogue-anchored ones ("81:42") —
   // the moderator should know that's what they're getting and why.
-  if (grounding.subtitleStatus && !grounding.subtitleStatus.ok) {
-    yield {
-      kind: "warning",
-      source: "subtitles",
-      reason: grounding.subtitleStatus.reason,
-      message: grounding.subtitleStatus.message,
-    };
+  //
+  // For TV we now fetch every episode in the season, so failures get
+  // aggregated by reason before emission — emitting one warning per
+  // distinct failure type with a count keeps a 10-episode quota wipeout
+  // from spamming the admin UI with ten near-identical messages.
+  const statuses = grounding.subtitleStatuses ?? [];
+  const failed = statuses.filter((s) => !s.ok);
+  if (failed.length > 0) {
+    const total = statuses.length;
+    type Bucket = { count: number; sampleMessage: string };
+    const byReason = new Map<string, Bucket>();
+    for (const f of failed) {
+      if (f.ok) continue; // narrow the type
+      const bucket = byReason.get(f.reason);
+      if (bucket) bucket.count++;
+      else byReason.set(f.reason, { count: 1, sampleMessage: f.message });
+    }
+    for (const [reason, bucket] of byReason) {
+      const message = total > 1
+        ? `${bucket.count} of ${total} subtitle fetches failed — ${bucket.sampleMessage}`
+        : bucket.sampleMessage;
+      yield { kind: "warning", source: "subtitles", reason, message };
+    }
   }
 
   const seasonArg = mediaType === "tv" ? season! : null;

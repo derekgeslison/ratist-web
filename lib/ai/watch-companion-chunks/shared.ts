@@ -249,14 +249,20 @@ export function formatGroundingContext(grounding: CompanionGroundingData, season
   if (opts.includeWikipediaEpisodes && grounding.wikipediaEpisodes) {
     sections.push(`\nWIKIPEDIA EPISODE CONTEXT:\n${grounding.wikipediaEpisodes.slice(0, 4000)}`);
   }
-  if (opts.includeSubtitles && grounding.subtitleExcerpt) {
+  if (opts.includeSubtitles && grounding.subtitleExcerpts && grounding.subtitleExcerpts.length > 0) {
     // Real dialogue with timestamps. Massively improves visibleAfter accuracy
     // because the AI can see WHEN a line is spoken instead of guessing act
-    // boundaries. Only one file is included per gen (pilot of the season, or
-    // the movie itself) so don't expect cross-season coverage here.
-    sections.push(
-      `\nDIALOGUE EXCERPT (${grounding.subtitleExcerpt.label}) — sampled timestamped dialogue from the English subtitle file. Use these timestamps to anchor visibleAfter.seconds values when a reveal/beat happens on-screen.\n\n${grounding.subtitleExcerpt.cues}`,
-    );
+    // boundaries. For TV, every episode in the target season gets its own
+    // labeled block — the [M:SS] timestamps are seconds-within-episode,
+    // not absolute, so the AI must compose visibleAfter as
+    // { season, episode, seconds } for the matching block.
+    const blocks = grounding.subtitleExcerpts
+      .map((e) => `--- ${e.label} ---\n${e.cues}`)
+      .join("\n\n");
+    const header = grounding.subtitleExcerpts.length === 1
+      ? `\nDIALOGUE EXCERPT (${grounding.subtitleExcerpts[0].label}) — sampled timestamped dialogue from the English subtitle file. Use these timestamps to anchor visibleAfter.seconds values when a reveal/beat happens on-screen.`
+      : `\nDIALOGUE EXCERPTS (${grounding.subtitleExcerpts.length} episodes) — sampled timestamped dialogue from the English subtitle file for each episode in the target season. Each block's [M:SS] timestamps are seconds WITHIN THAT EPISODE — when anchoring visibleAfter for TV, set season + episode to match the block, and seconds to the timestamp.`;
+    sections.push(`${header}\n\n${blocks}`);
   }
   return sections.join("\n");
 }

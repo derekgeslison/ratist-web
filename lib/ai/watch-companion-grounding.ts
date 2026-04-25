@@ -115,10 +115,16 @@ export async function fetchWikipediaEpisodeList(showTitle: string, year?: number
 }
 
 // A sampled dialogue excerpt from an English subtitle file. The label
-// identifies where the excerpt came from ("Movie" for films, "S1E1 — Pilot"
-// for TV) so the AI can anchor timestamp references correctly.
+// identifies where the excerpt came from ("Movie" for films, "S1E3 —
+// 'The Pointy End'" for TV) so the AI can anchor timestamp references
+// to the correct episode when multiple are present.
 export interface SubtitleExcerpt {
   label: string;
+  // Episode metadata, present for TV excerpts. The downstream prompt uses
+  // these to build visibleAfter values from raw [M:SS] timestamps in the
+  // cue block (which are seconds-within-episode, not absolute).
+  season?: number;
+  episode?: number;
   cues: string; // pre-rendered "[M:SS] line" block, already trimmed to budget
 }
 
@@ -133,8 +139,14 @@ export interface CompanionGroundingData {
   tmdb: TMDBMovie | TMDBShow;
   cast: Array<{ tmdbId: number; name: string; character: string; order: number; profilePath: string | null }>;
   seasons?: Array<{ seasonNumber: number; episodeCount: number; overview: string | null; episodes: Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null }> }>;
-  subtitleExcerpt?: SubtitleExcerpt | null;
-  subtitleStatus?: SubtitleStatus;
+  // One excerpt per fetch attempt that returned dialogue. Movies always
+  // produce a single-element array; TV produces one entry per episode in
+  // the target season that had subs available.
+  subtitleExcerpts?: SubtitleExcerpt[];
+  // Status for every fetch attempt (success + failure), in episode order
+  // for TV. The orchestrator aggregates failures by reason before emitting
+  // warnings so admins don't see ten near-identical messages.
+  subtitleStatuses?: SubtitleStatus[];
 }
 
 /**
@@ -165,8 +177,8 @@ export async function loadGroundingForMovie(tmdbId: number): Promise<CompanionGr
     wikipediaEpisodes: null,
     tmdb,
     cast,
-    subtitleExcerpt: excerpt,
-    subtitleStatus: status,
+    subtitleExcerpts: excerpt ? [excerpt] : [],
+    subtitleStatuses: [status],
   };
 }
 
@@ -199,7 +211,47 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     targetSeason.episodes = episodes;
   }
 
-  const { excerpt, status } = await fetchSubtitleExcerpt(tmdbId, "tv", seasonNumber, 1);
+  // Pull subtitles for EVERY episode in the target season (was: just ep 1
+  // as a quota-saving measure during early development). Per-episode cue
+  // budget shrinks as the season grows so the combined excerpt stays
+  // within ~30k chars total — the 18k single-episode default is fine for
+  // a movie or a 1–2 episode pull, but a 10-episode season at 18k each
+  // would drown the prompt.
+  const targetEpisodes = targetSeason?.episodes ?? [];
+  const episodeNumbers = targetEpisodes.length > 0
+    ? targetEpisodes.map((e) => e.episodeNumber)
+    : [1]; // fallback when TMDB didn't return episode metadata
+  const TOTAL_SUBTITLE_BUDGET = 30000;
+  const PER_EP_FLOOR = 1500;
+  const PER_EP_CEIL = 18000;
+  const perEpisodeBudget = Math.min(
+    PER_EP_CEIL,
+    Math.max(PER_EP_FLOOR, Math.floor(TOTAL_SUBTITLE_BUDGET / episodeNumbers.length)),
+  );
+  const episodeNameMap = new Map<number, string>(
+    targetEpisodes.map((e) => [e.episodeNumber, e.name] as const),
+  );
+
+  // Parallel fetch — OpenSubtitles handles concurrent calls fine and the
+  // grounding step otherwise becomes the wall-clock bottleneck for a
+  // 10-episode season. If we ever start hitting per-second rate limits
+  // we can swap for a small concurrency pool.
+  const fetched = await Promise.all(
+    episodeNumbers.map((ep) =>
+      fetchSubtitleExcerpt(
+        tmdbId,
+        "tv",
+        seasonNumber,
+        ep,
+        perEpisodeBudget,
+        episodeNameMap.get(ep),
+      ),
+    ),
+  );
+  const subtitleExcerpts = fetched
+    .map((r) => r.excerpt)
+    .filter((e): e is SubtitleExcerpt => e !== null);
+  const subtitleStatuses = fetched.map((r) => r.status);
 
   return {
     source: "tv",
@@ -212,8 +264,8 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     tmdb,
     cast,
     seasons,
-    subtitleExcerpt: excerpt,
-    subtitleStatus: status,
+    subtitleExcerpts,
+    subtitleStatuses,
   };
 }
 
@@ -232,6 +284,8 @@ async function fetchSubtitleExcerpt(
   mediaType: "movie" | "tv",
   season?: number,
   episode?: number,
+  maxChars?: number,
+  episodeName?: string,
 ): Promise<{ excerpt: SubtitleExcerpt | null; status: SubtitleStatus }> {
   try {
     const result = await getSubtitleForTmdb(tmdbId, mediaType, season, episode);
@@ -245,7 +299,7 @@ async function fetchSubtitleExcerpt(
         status: { ok: false, reason: "all_filtered", message: "Subtitle file downloaded but contained no parseable cues." },
       };
     }
-    const rendered = renderCuesForPrompt(cues);
+    const rendered = renderCuesForPrompt(cues, maxChars);
     if (!rendered) {
       return {
         excerpt: null,
@@ -254,9 +308,15 @@ async function fetchSubtitleExcerpt(
     }
     const label = mediaType === "movie"
       ? "Movie"
-      : `S${season ?? "?"}E${episode ?? 1}`;
+      : episodeName
+        ? `S${season ?? "?"}E${episode ?? 1} — "${episodeName}"`
+        : `S${season ?? "?"}E${episode ?? 1}`;
     return {
-      excerpt: { label, cues: rendered },
+      excerpt: {
+        label,
+        cues: rendered,
+        ...(mediaType === "tv" ? { season, episode } : {}),
+      },
       status: { ok: true, remaining: result.remaining },
     };
   } catch (err) {
