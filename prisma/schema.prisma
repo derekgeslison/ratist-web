@@ -127,6 +127,7 @@ model User {
   companionSuggestions CompanionSuggestion[]     @relation("suggestionAuthor")
   companionSuggestionVotes CompanionSuggestionVote[]
   companionSuggestionResolutions CompanionSuggestion[] @relation("suggestionResolver")
+  watchCompanionRatings WatchCompanionRating[]
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -2037,10 +2038,35 @@ model WatchCompanion {
   timeline    CompanionTimelineEvent[]
   glossary    CompanionGlossaryTerm[]
   suggestions CompanionSuggestion[]
+  ratings     WatchCompanionRating[]
 
   @@unique([tmdbId, mediaType])
   @@index([status])
   @@map("watch_companions")
+}
+
+// User-submitted "was this companion helpful?" ratings. One vote per user
+// per companion (upsert on the unique pair). vote: 1 = thumbs up,
+// -1 = thumbs down. Counts and comments are admin-only — the front-end
+// never displays aggregates so a brigaded show can't visibly trash a
+// companion before the admin gets a chance to fix it. Cascade on
+// companion delete; SetNull on user delete so admin can still see
+// historical feedback after an account is removed.
+model WatchCompanionRating {
+  id          String   @id @default(cuid())
+  companionId String   @map("companion_id")
+  userId      String?  @map("user_id")
+  vote        Int      // 1 (thumbs up) or -1 (thumbs down)
+  comment     String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([companionId, userId])
+  @@index([companionId, vote])
+  @@map("watch_companion_ratings")
 }
 
 // A character in a companion. baseDescription is always visible (spoiler-safe

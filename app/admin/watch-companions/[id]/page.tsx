@@ -421,6 +421,14 @@ export default function ReviewCompanionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* User-facing rating feedback — counts and free-text comments
+             from the public "Was this companion helpful?" widget. Sits
+             above moderation since a flood of thumbs-down comments is
+             often the FIRST signal that a companion needs intervention
+             (regenerate, manual fix, etc.) — admin should see it
+             before they dig into individual suggestions. */}
+          <CompanionRatingsPanel companionId={companion.id} getToken={getToken} />
+
           {/* Moderation — Queue + Submitters tabs, scoped to this
              companion. Always shown so admins can review submitters
              even when the queue is empty. */}
@@ -946,6 +954,129 @@ function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: 
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+// ── CompanionRatingsPanel ───────────────────────────────────────────────
+// Admin-only readout of the per-companion thumbs up / thumbs down votes
+// and any optional comments. Counts and comments aren't exposed on the
+// public side — this is the sole surface for spotting "users hate this
+// companion" so the admin can regenerate or manually fix it.
+
+interface AdminRating {
+  id: string;
+  vote: number;
+  comment: string | null;
+  userName: string;
+  userId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function CompanionRatingsPanel({ companionId, getToken }: {
+  companionId: string;
+  getToken: () => Promise<string>;
+}) {
+  const [data, setData] = useState<{ upCount: number; downCount: number; ratings: AdminRating[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "up" | "down" | "comments">("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const token = await getToken();
+      const res = await fetch(`/api/admin/watch-companion/${companionId}/ratings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok || cancelled) { setLoading(false); return; }
+      const json = await res.json();
+      if (cancelled) return;
+      setData({ upCount: json.upCount, downCount: json.downCount, ratings: json.ratings });
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companionId]);
+
+  if (loading) return null;
+  if (!data) return null;
+  const total = data.upCount + data.downCount;
+  // Approval rate as a quick health metric. Percent has more bite than
+  // raw counts when scanning a list of companions ("32% up" jumps out).
+  const approval = total > 0 ? Math.round((data.upCount / total) * 100) : null;
+
+  const filtered = data.ratings.filter((r) => {
+    if (filter === "up") return r.vote === 1;
+    if (filter === "down") return r.vote === -1;
+    if (filter === "comments") return !!r.comment;
+    return true;
+  });
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-white">User feedback</h3>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-green-400 tabular-nums">▲ {data.upCount}</span>
+          <span className="text-red-400 tabular-nums">▼ {data.downCount}</span>
+          {approval !== null && (
+            <span className={`tabular-nums font-semibold ${approval >= 70 ? "text-green-400" : approval <= 40 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+              {approval}% positive
+            </span>
+          )}
+          <span className="text-[var(--foreground-muted)]">· {total} {total === 1 ? "vote" : "votes"}</span>
+        </div>
+      </div>
+
+      {data.ratings.length === 0 ? (
+        <p className="text-xs text-[var(--foreground-muted)] italic">No ratings yet.</p>
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {([
+              { key: "all", label: `All (${data.ratings.length})` },
+              { key: "down", label: `Thumbs down (${data.downCount})` },
+              { key: "comments", label: `With comments (${data.ratings.filter((r) => !!r.comment).length})` },
+              { key: "up", label: `Thumbs up (${data.upCount})` },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
+                  filter === key
+                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                    : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <ul className="space-y-1.5 max-h-96 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <li className="text-xs text-[var(--foreground-muted)] italic px-2 py-1">No ratings match the filter.</li>
+            ) : filtered.map((r) => (
+              <li key={r.id} className="bg-[var(--surface-2)]/60 border border-[var(--border)]/40 rounded p-2 text-xs">
+                <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] mb-1">
+                  <span className={r.vote === 1 ? "text-green-400" : "text-red-400"}>
+                    {r.vote === 1 ? "▲ Thumbs up" : "▼ Thumbs down"}
+                  </span>
+                  <span>·</span>
+                  <span className="text-white">{r.userName}</span>
+                  <span className="ml-auto">{new Date(r.updatedAt).toLocaleDateString()}</span>
+                </div>
+                {r.comment ? (
+                  <p className="text-white whitespace-pre-wrap leading-snug">&ldquo;{r.comment}&rdquo;</p>
+                ) : (
+                  <p className="text-[var(--foreground-muted)] italic text-[11px]">No comment.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

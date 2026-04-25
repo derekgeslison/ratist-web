@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
 import RelationshipMap from "./RelationshipMap";
+import RateCompanion from "./RateCompanion";
 import CompanionNotAvailable from "./CompanionNotAvailable";
 import AdUnit from "@/components/AdUnit";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
@@ -621,6 +622,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         <Sparkles className="w-3 h-3 shrink-0 text-[var(--ratist-red)]/70" />
         AI-drafted and community-refined — accuracy improves as users contribute corrections.
       </p>
+
+      {/* Rate-this-companion. Sits at the very top of content (just under
+         the disclaimer) so feedback is the first interaction a returning
+         user lands on — quickest path to the moderator queue when a
+         companion is going wrong. Counts are intentionally hidden from
+         the front-end; only the admin page surfaces aggregates. */}
+      <RateCompanion companionId={data.id} />
 
       {/* Thin-content banner — fires when the currently-viewed season has
          fewer than 5 characters or fewer than 3 timeline beats. Indicates
@@ -1270,66 +1278,6 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
           title="Plot timeline"
           count={filteredTimeline.length}
         >
-          {/* Swim-lane visualization. One lane per character with at least
-             one visible event; pins at each event timestamp. Tap a pin to
-             scroll-and-flash the matching <li> below. The vertical line
-             is the user's current slider position so they see "I'm here"
-             relative to the season. Filter-respecting: events that don't
-             match the active character filter render as dim pins instead
-             of disappearing, so the chart still gives plot density at a
-             glance. Hidden when there are fewer than 2 lanes (a single
-             lane wouldn't tell the user anything the list doesn't). */}
-          {timelineLanes && timelineLanes.lanes.length >= 2 && (
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold mb-2">
-                Character timelines · tap a pin to jump
-              </p>
-              <div className="space-y-1.5">
-                {timelineLanes.lanes.map(({ character, events }) => (
-                  <div key={character.id} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => scrollToCharacter(character.id)}
-                      className="text-[10px] text-[var(--foreground-muted)] hover:text-white shrink-0 truncate text-left w-20"
-                      title={`Jump to ${character.name}`}
-                    >
-                      {character.name}
-                    </button>
-                    <div className="relative flex-1 h-3 bg-[var(--surface-2)] rounded">
-                      <div
-                        className="absolute top-0 bottom-0 w-px bg-[var(--ratist-red)]/40 pointer-events-none"
-                        style={{ left: `${timelineLanes.currentFraction * 100}%` }}
-                        aria-hidden
-                      />
-                      {events.map(({ event, fraction, included }) => (
-                        <button
-                          key={event.id}
-                          type="button"
-                          onClick={() => scrollToTimelineEvent(event.id)}
-                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-all hover:scale-150 ${
-                            included
-                              ? "bg-[var(--ratist-red)]"
-                              : "bg-[var(--foreground-muted)]/30"
-                          }`}
-                          style={{ left: `${fraction * 100}%` }}
-                          title={`${formatVisibleAfter(event.visibleAfter, mediaType)} — ${event.description.replace(/\(\(([^)]+)\)\)/g, "$1").slice(0, 80)}`}
-                          aria-label={`Jump to event: ${event.description.replace(/\(\(([^)]+)\)\)/g, "$1").slice(0, 80)}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="shrink-0 w-20" aria-hidden />
-                <div className="flex-1 flex justify-between text-[9px] text-[var(--foreground-muted)]">
-                  <span>{timelineLanes.startLabel}</span>
-                  <span>{timelineLanes.midLabel}</span>
-                  <span>{timelineLanes.endLabel}</span>
-                </div>
-              </div>
-            </div>
-          )}
           {/* Character filter row — multi-select with AND semantics so the
              user can pick one character ("just Tyrion's beats") or
              multiple ("scenes Tyrion and Bronn shared"). Only renders
@@ -1476,6 +1424,85 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             })}
           </ol>
           )}
+
+          {/* Swim-lane visualization. One lane per character with at least
+             one visible event; pins at each event timestamp colored by
+             the character's group/faction so the chart reads like the
+             cast tab. Tap a pin to scroll-and-flash the matching <li>
+             above. The vertical line is the user's current slider
+             position so they see "I'm here" relative to the season.
+             Filter-respecting: events that don't match the active
+             character filter render as dim pins instead of disappearing,
+             preserving plot density at a glance. Hidden when there are
+             fewer than 2 lanes (a single lane wouldn't tell the user
+             anything the list doesn't). Sits BELOW the list so the
+             reader scans events first, then uses the chart for an
+             overview / quick navigation. */}
+          {timelineLanes && timelineLanes.lanes.length >= 2 && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 mt-3">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold mb-2">
+                Character timelines · tap a pin to jump
+              </p>
+              <div className="space-y-1.5">
+                {timelineLanes.lanes.map(({ character, events }) => {
+                  // Group/faction color from the same palette that drives
+                  // the cast cards' left border so the chart stays
+                  // visually consistent with the rest of the viewer.
+                  const laneColor = character.group
+                    ? (groupColors.get(character.group) ?? GROUP_COLORS[0])
+                    : GROUP_COLORS[0];
+                  return (
+                  <div key={character.id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => scrollToCharacter(character.id)}
+                      className="text-[10px] text-[var(--foreground-muted)] hover:text-white shrink-0 truncate text-left w-20 flex items-center gap-1"
+                      title={`Jump to ${character.name}`}
+                    >
+                      <span
+                        className="inline-block w-1 h-3 rounded-sm shrink-0"
+                        style={{ backgroundColor: laneColor }}
+                        aria-hidden
+                      />
+                      <span className="truncate">{character.name}</span>
+                    </button>
+                    <div className="relative flex-1 h-3 bg-[var(--surface-2)] rounded">
+                      <div
+                        className="absolute top-0 bottom-0 w-px bg-[var(--ratist-red)]/40 pointer-events-none"
+                        style={{ left: `${timelineLanes.currentFraction * 100}%` }}
+                        aria-hidden
+                      />
+                      {events.map(({ event, fraction, included }) => (
+                        <button
+                          key={event.id}
+                          type="button"
+                          onClick={() => scrollToTimelineEvent(event.id)}
+                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-all hover:scale-150"
+                          style={{
+                            left: `${fraction * 100}%`,
+                            backgroundColor: laneColor,
+                            opacity: included ? 1 : 0.25,
+                          }}
+                          title={`${formatVisibleAfter(event.visibleAfter, mediaType)} — ${event.description.replace(/\(\(([^)]+)\)\)/g, "$1").slice(0, 80)}`}
+                          aria-label={`Jump to event: ${event.description.replace(/\(\(([^)]+)\)\)/g, "$1").slice(0, 80)}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="shrink-0 w-20" aria-hidden />
+                <div className="flex-1 flex justify-between text-[9px] text-[var(--foreground-muted)]">
+                  <span>{timelineLanes.startLabel}</span>
+                  <span>{timelineLanes.midLabel}</span>
+                  <span>{timelineLanes.endLabel}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {sectionAddSuggestions("timeline").length > 0 && (
             <div className="mt-3 flex items-center gap-2 bg-[var(--surface-2)]/40 border border-[var(--ratist-red)]/20 rounded-lg px-3 py-2 text-[11px] text-[var(--foreground-muted)]">
               <span>Community-proposed timeline events:</span>
