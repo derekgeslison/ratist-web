@@ -8,6 +8,7 @@ import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import MoviesAiSearch from "@/components/MoviesAiSearch";
 import SeenFilterRunner from "@/components/SeenFilterRunner";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import AdUnit from "@/components/AdUnit";
 import SpotlightCards from "@/components/SpotlightCards";
 import { prisma } from "@/lib/prisma";
@@ -515,6 +516,11 @@ export default async function MoviesPage({ searchParams }: Props) {
       <div className="mb-4">
         <SpotlightCards placement="movies" />
       </div>
+
+      {/* Register the list page in the breadcrumb so detail pages
+         navigated to from here render "Back to {pageTitle}" rather
+         than falling back to the static "All movies" label. */}
+      <NavEntryRegister title={pageTitle} />
 
       <MoviesAiSearch />
 

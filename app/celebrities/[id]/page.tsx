@@ -3,9 +3,11 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import ZoomableImage from "@/components/ZoomableImage";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import AdUnit from "@/components/AdUnit";
 import { prisma } from "@/lib/prisma";
 import CelebrityBio from "./CelebrityBio";
@@ -356,12 +358,15 @@ export default async function CelebrityPage({ params }: Props) {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <Link
-        href="/celebrities"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> All Celebrities
-      </Link>
+      {/* Smart back link — points to wherever the user actually came
+         from (e.g., the movie they just clicked an actor on). Falls
+         back to the celebrities list when the in-app breadcrumb is
+         empty. NavEntryRegister pushes this person's name so OTHER
+         pages get "Back to {name}" when navigating from here. */}
+      <NavEntryRegister title={person.name} />
+      <div className="mb-6">
+        <SmartBackLink defaultHref="/celebrities" defaultLabel="All celebrities" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors" />
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-8 mb-10">
         {/* Photo — tap to zoom into a larger version. */}

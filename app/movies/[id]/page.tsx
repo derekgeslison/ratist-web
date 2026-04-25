@@ -8,6 +8,8 @@ import { Clock, Calendar, Globe, Ticket, MonitorPlay, ArrowRight } from "lucide-
 import { getFandangoUrl } from "@/lib/affiliates";
 import AffiliateLink from "@/components/AffiliateLink";
 import ZoomableImage from "@/components/ZoomableImage";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import {
   getMovieDetails,
   getWatchProviders,
@@ -341,6 +343,15 @@ export default async function MovieDetailPage({ params }: Props) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Breadcrumb registration + smart back link. The register
+           component pushes this movie's title onto the per-tab
+           breadcrumb so OTHER detail pages render "Back to {title}"
+           when the user navigates from here. The link itself reads
+           the previous breadcrumb entry and renders accordingly. */}
+        <NavEntryRegister title={movie.title} />
+        <div className="pt-4 -mb-2 relative z-10">
+          <SmartBackLink defaultHref="/movies" defaultLabel="All movies" />
+        </div>
         {/* Main info row */}
         <div className="flex gap-6 -mt-16 relative z-10 mb-8">
           {/* Poster — tap to zoom into a larger version. */}

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { upsertCelebrityList } from "@/lib/tmdb-sync";
 import { generateFuzzyVariants } from "@/lib/fuzzy-search";
 import AdUnit from "@/components/AdUnit";
+import NavEntryRegister from "@/components/NavEntryRegister";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -304,6 +305,7 @@ export default async function CelebritiesPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <NavEntryRegister title="All celebrities" />
       <div className="flex items-center gap-3 mb-2">
         <Users className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Celebrities</h1>

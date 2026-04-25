@@ -13,6 +13,7 @@ import ShowCard from "@/components/ShowCard";
 import { Suspense } from "react";
 import AdUnit from "@/components/AdUnit";
 import SeenFilterRunner from "@/components/SeenFilterRunner";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import { prisma } from "@/lib/prisma";
 
 const API_KEY = process.env.TMDB_API_KEY;
@@ -253,6 +254,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <NavEntryRegister title={q ? `Search: "${q}"` : "Search"} />
       <div className="flex items-center gap-3 mb-4">
         <Search className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">

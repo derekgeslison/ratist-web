@@ -24,6 +24,8 @@ import { getTVShowAwards } from "@/lib/awards";
 import { syncTVShowAwards } from "@/lib/awards-sync";
 import PageShare from "@/components/PageShare";
 import ZoomableImage from "@/components/ZoomableImage";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import AdUnit from "@/components/AdUnit";
 
 interface Props {
@@ -382,6 +384,12 @@ export default async function ShowDetailPage({ params }: Props) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Breadcrumb registration + smart back link — see movies/[id]
+           for the rationale; same pattern. */}
+        <NavEntryRegister title={show.name} />
+        <div className="pt-4 -mb-2 relative z-10">
+          <SmartBackLink defaultHref="/movies?type=tv" defaultLabel="All shows" />
+        </div>
         {/* Main info row */}
         <div className="flex gap-6 -mt-16 relative z-10 mb-8">
           {/* Poster — tap to zoom into a larger version. */}
