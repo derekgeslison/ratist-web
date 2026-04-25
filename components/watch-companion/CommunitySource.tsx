@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Users, Check, Flag, Loader2, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { usePopoverPosition } from "@/hooks/usePopoverPosition";
@@ -45,33 +45,39 @@ export default function CommunitySource({ companionId, targetType, itemId, media
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<ApprovedSuggestion[] | null>(null);
   const [fetchError, setFetchError] = useState("");
+  // Track first-fetch with a ref instead of state. Putting it in
+  // useState would dep-loop the effect: setLoading(true) re-fires the
+  // effect, the cleanup sets cancelled=true, and the eventual
+  // setLoading(false) becomes a no-op — spinner stuck forever.
+  const fetchedRef = useRef(false);
 
-  // Fetch on first open, cache thereafter. Closing + reopening doesn't
-  // refetch — approved suggestions don't change while the user is
-  // looking at them.
-  useEffect(() => {
-    if (!open || suggestions !== null || loading) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setFetchError("");
-      try {
-        const url = `/api/watch-companion/${companionId}/community-source?targetType=${encodeURIComponent(targetType)}&itemId=${encodeURIComponent(itemId)}`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          if (!cancelled) setFetchError("Couldn't load suggestion details.");
-          return;
-        }
-        const data = (await res.json()) as { suggestions: ApprovedSuggestion[] };
-        if (!cancelled) setSuggestions(data.suggestions ?? []);
-      } catch {
-        if (!cancelled) setFetchError("Network error.");
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadSuggestions = useCallback(async () => {
+    fetchedRef.current = true;
+    setLoading(true);
+    setFetchError("");
+    try {
+      const url = `/api/watch-companion/${companionId}/community-source?targetType=${encodeURIComponent(targetType)}&itemId=${encodeURIComponent(itemId)}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        setFetchError("Couldn't load suggestion details.");
+        return;
       }
-    })();
-    return () => { cancelled = true; };
-  }, [open, suggestions, loading, companionId, targetType, itemId]);
+      const data = (await res.json()) as { suggestions: ApprovedSuggestion[] };
+      setSuggestions(data.suggestions ?? []);
+    } catch {
+      setFetchError("Network error.");
+    } finally {
+      setLoading(false);
+    }
+  }, [companionId, targetType, itemId]);
+
+  // Fetch on first open. Closing + reopening doesn't refetch — approved
+  // suggestions don't change while the user is looking at them. If a
+  // future reopen needs a refresh we can clear fetchedRef on a button.
+  useEffect(() => {
+    if (!open || fetchedRef.current) return;
+    void loadSuggestions();
+  }, [open, loadSuggestions]);
 
   return (
     <div className="inline-block">
