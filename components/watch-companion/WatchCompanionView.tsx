@@ -1336,7 +1336,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               // a fallback chip below the description.
               const parts: React.ReactNode[] = [];
               const referenced = new Set<string>();
-              const tagRe = /\(\(([^)]+)\)\)/g;
+              // Allow ONE level of nested parens inside the marker so
+              // character names with paren-suffixed disambiguators —
+              // e.g. "Nick (Future)" — render correctly when wrapped:
+              // ((Nick (Future))). Two-level nesting isn't supported,
+              // but no character name uses that.
+              const tagRe = /\(\(((?:[^()]|\([^()]*\))*)\)\)/g;
               let lastIdx = 0;
               let pkey = 0;
               let mr: RegExpExecArray | null;
@@ -1488,8 +1493,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                             backgroundColor: laneColor,
                             opacity: included ? 1 : 0.25,
                           }}
-                          title={`${formatVisibleAfter(event.visibleAfter, mediaType)} — ${event.description.replace(/\(\(([^)]+)\)\)/g, "$1").slice(0, 80)}`}
-                          aria-label={`Jump to event: ${event.description.replace(/\(\(([^)]+)\)\)/g, "$1").slice(0, 80)}`}
+                          title={`${formatVisibleAfter(event.visibleAfter, mediaType)} — ${event.description.replace(/\(\(((?:[^()]|\([^()]*\))*)\)\)/g, "$1").slice(0, 80)}`}
+                          aria-label={`Jump to event: ${event.description.replace(/\(\(((?:[^()]|\([^()]*\))*)\)\)/g, "$1").slice(0, 80)}`}
                         />
                       ))}
                     </div>

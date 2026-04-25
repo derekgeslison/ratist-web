@@ -43,7 +43,9 @@ function escapeForRegex(s: string): string {
 function wrapName(text: string, name: string): { next: string; replaced: number } {
   if (!name || name.length < 2) return { next: text, replaced: 0 };
   const re = new RegExp(`\\b${escapeForRegex(name)}\\b`, "g");
-  const parts = text.split(/(\(\([^)]+\)\))/g);
+  // Split allowing one level of nested parens inside markers so
+  // character names like "Nick (Future)" don't break tokenization.
+  const parts = text.split(/(\(\((?:[^()]|\([^()]*\))*\)\))/g);
   let total = 0;
   for (let i = 0; i < parts.length; i++) {
     // Even indices are non-marker chunks; odd indices are markers we
