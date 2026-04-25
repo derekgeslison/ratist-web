@@ -174,15 +174,26 @@ const NOW_PLAYING_WINDOW_DAYS = 60;
 // pages = ~100 films, plenty to cover a 60-day theatrical window.
 const NOW_PLAYING_PAGES = 5;
 
+// TMDB popularity floor for the "Now Playing" rail. Films with mainstream
+// theatrical distribution always score >10 within a week of release;
+// micro-indies and self-published direct-to-streaming films classified
+// as "theatrical" by TMDB sit around 0.1-2. Without this floor, sorting
+// by newest puts yesterday's BatFreak Part II / OFFICE JOB / Lovebug
+// ahead of last week's wide releases. 5 is conservative — keeps
+// mid-tier indies that have any traction, kills the no-name spam.
+const NOW_PLAYING_MIN_POPULARITY = 5;
+
 /** Strip out items that don't actually belong in a "now playing" view:
  *  no release date, future-dated (TMDB sometimes pre-lists upcoming
- *  films inside now_playing), or older than the theatrical window
- *  (catches re-releases). */
+ *  films inside now_playing), older than the theatrical window
+ *  (catches re-releases), or below the popularity floor (catches
+ *  micro-indie / self-release noise). */
 function filterNowPlayingResults(items: TMDBMovie[], today: string, windowStart: string): TMDBMovie[] {
   return items.filter((m) => {
     if (!m.release_date) return false;
     if (m.release_date > today) return false;
     if (m.release_date < windowStart) return false;
+    if ((m.popularity ?? 0) < NOW_PLAYING_MIN_POPULARITY) return false;
     return true;
   });
 }
@@ -219,16 +230,24 @@ async function loadNowPlayingPool(): Promise<TMDBMovie[]> {
   );
 
   const discoverPages = Promise.all(
-    Array.from({ length: 3 }, (_, i) => i + 1).map((p) =>
+    Array.from({ length: 2 }, (_, i) => i + 1).map((p) =>
       tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", {
         page: String(p),
         region: "US",
         with_release_type: "3",
         "primary_release_date.gte": windowStart,
         "primary_release_date.lte": today,
-        sort_by: "primary_release_date.desc",
+        // Sort by popularity rather than release_date so the discover
+        // supplement leans toward films with audience traction. Date is
+        // already enforced by primary_release_date.gte; we just don't
+        // want to use date-desc here because that prioritizes today's
+        // micro-indie self-releases over a 5-day-old wide release.
+        sort_by: "popularity.desc",
         with_original_language: "en",
-        "vote_count.gte": "0",
+        // vote_count floor of 5 hides films with literally no audience
+        // signal. Mainstream releases exceed this within ~24h; indie
+        // self-releases usually sit at 0-2 forever.
+        "vote_count.gte": "5",
       }).catch(() => null),
     ),
   );
