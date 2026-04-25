@@ -12,10 +12,15 @@ import AdUnit from "@/components/AdUnit";
 
 export default async function BlogPage({ searchParams }: { searchParams: Promise<{ sort?: string; q?: string }> }) {
   const { sort = "newest", q } = await searchParams;
+  // Order by publishedAt for chronological sorts (the actual go-live
+  // date, which may be the picked-by-admin scheduled time rather than
+  // the draft-creation date). publishedAt is non-null for every
+  // currently-visible post thanks to the 20260501 backfill, so a plain
+  // desc/asc sort works without nulls-last shenanigans.
   const orderBy =
     sort === "popular" ? { viewCount: "desc" as const } :
-    sort === "oldest" ? { createdAt: "asc" as const } :
-    { createdAt: "desc" as const };
+    sort === "oldest" ? { publishedAt: "asc" as const } :
+    { publishedAt: "desc" as const };
 
   const searchFilter = q?.trim()
     ? { OR: [
@@ -24,9 +29,16 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
       ] }
     : {};
 
+  // Filter publishedAt <= now() so scheduled posts (publishedAt set in
+  // the future) stay hidden from readers until their go-live time.
   const posts = await prisma.blogPost.findMany({
-    where: { type: "BLOG", published: true, ...searchFilter },
-    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, showAuthor: true, author: { select: { name: true, avatarUrl: true } } },
+    where: {
+      type: "BLOG",
+      published: true,
+      publishedAt: { lte: new Date() },
+      ...searchFilter,
+    },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, publishedAt: true, createdAt: true, viewCount: true, showAuthor: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
 
@@ -119,7 +131,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {new Date(post.createdAt).toLocaleDateString()}
+                      {new Date(post.publishedAt ?? post.createdAt).toLocaleDateString()}
                     </span>
                     {post.viewCount > 0 && (
                       <span className="flex items-center gap-1">

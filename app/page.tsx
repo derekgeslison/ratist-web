@@ -76,12 +76,12 @@ export default async function HomePage() {
       // Ensure at least one editorial article is always in the mix
       const [latestArticle, recent] = await Promise.all([
         prisma.newsItem.findFirst({
-          where: { published: true, type: "EDITORIAL" },
+          where: { published: true, type: "EDITORIAL", publishedAt: { lte: new Date() } },
           orderBy: { publishedAt: "desc" },
           select: newsSelect,
         }),
         prisma.newsItem.findMany({
-          where: { published: true },
+          where: { published: true, publishedAt: { lte: new Date() } },
           orderBy: { publishedAt: "desc" },
           take: 6,
           select: newsSelect,

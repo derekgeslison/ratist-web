@@ -18,7 +18,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const item = await prisma.newsItem.findUnique({ where: { slug, published: true }, select: { title: true, excerpt: true, coverImage: true } });
+  const item = await prisma.newsItem.findFirst({ where: { slug, published: true, publishedAt: { lte: new Date() } }, select: { title: true, excerpt: true, coverImage: true } });
   if (!item) return { title: "Article Not Found" };
   return {
     title: item.title,
@@ -44,8 +44,8 @@ export default async function NewsArticlePage({ params }: Props) {
   // Fire-and-forget view count
   prisma.newsItem.update({ where: { slug }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
-  const item = await prisma.newsItem.findUnique({
-    where: { slug, published: true },
+  const item = await prisma.newsItem.findFirst({
+    where: { slug, published: true, publishedAt: { lte: new Date() } },
     include: {
       author: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } },
       media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },

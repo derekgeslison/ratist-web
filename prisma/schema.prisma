@@ -807,6 +807,14 @@ model BlogPost {
   excerpt    String?
   coverImage String?  @map("cover_image")
   published  Boolean  @default(false)
+  // The "go-live" timestamp. Set when the admin flips published=true,
+  // and may be set to a FUTURE date for scheduled posts (Squarespace-
+  // style). Public-facing queries filter publishedAt <= now() so a
+  // post with a future publishedAt stays hidden from readers but is
+  // visible to admins as "scheduled". Cleared when the post is
+  // unpublished. Existing rows are backfilled to createdAt by the
+  // 20260501 migration so historical posts don't disappear.
+  publishedAt DateTime? @map("published_at")
   showAuthor Boolean  @default(true) @map("show_author")
   viewCount  Int      @default(0) @map("view_count")
   createdAt  DateTime @default(now()) @map("created_at")

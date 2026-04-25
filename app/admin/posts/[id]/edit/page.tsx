@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload, Calendar, Clock } from "lucide-react";
 import Link from "next/link";
 import type { PostType } from "@prisma/client";
 import MediaLinker from "@/components/forum/MediaLinker";
@@ -34,6 +34,10 @@ export default function EditPostPage() {
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  // datetime-local string ("YYYY-MM-DDTHH:mm"). Stored in local time so
+  // the picker round-trips; we convert to ISO at save time. Empty
+  // string = "publish at save-time"; future value = scheduled.
+  const [publishedAtLocal, setPublishedAtLocal] = useState("");
   const [showAuthor, setShowAuthor] = useState(true);
   const [slug, setSlug] = useState("");
   const [media, setMedia] = useState<{tmdbId: number; mediaType: "movie" | "tv"; title: string; posterPath: string | null}[]>([]);
@@ -59,6 +63,21 @@ export default function EditPostPage() {
       setExcerpt(post.excerpt ?? "");
       setCoverImage(post.coverImage ?? "");
       setPublished(post.published);
+      // The DB returns publishedAt as an ISO string. Convert to the
+      // local-time slice the datetime-local input expects so the picker
+      // shows the right value when the page loads.
+      if (post.publishedAt) {
+        const d = new Date(post.publishedAt);
+        // toLocaleString with sortable options gives YYYY-MM-DDTHH:mm
+        // shape via a manual format — datetime-local doesn't accept the
+        // ISO string with timezone, only naive local time.
+        const pad = (n: number) => String(n).padStart(2, "0");
+        setPublishedAtLocal(
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+        );
+      } else {
+        setPublishedAtLocal("");
+      }
       setShowAuthor(post.showAuthor ?? true);
       setSlug(post.slug);
       setMedia(post.media ?? []);
@@ -72,10 +91,19 @@ export default function EditPostPage() {
     setSaving(true);
     setError("");
     const token = await user.getIdToken();
+    // Send publishedAt as ISO when the admin filled the picker. Empty
+    // string means "use server default" — the API resolves that to
+    // now() on a publish toggle, leaves it alone otherwise.
+    const publishedAtIso = published && publishedAtLocal
+      ? new Date(publishedAtLocal).toISOString()
+      : null;
     const res = await fetch(`/api/admin/posts/${id}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title, content, excerpt: excerpt || null, coverImage: coverImage || null, published, showAuthor, media, people }),
+      body: JSON.stringify({
+        title, content, excerpt: excerpt || null, coverImage: coverImage || null,
+        published, publishedAt: publishedAtIso, showAuthor, media, people,
+      }),
     });
     if (!res.ok) {
       const d = await res.json();
@@ -139,6 +167,45 @@ export default function EditPostPage() {
                 <Eye className="w-3.5 h-3.5" /> Published
               </button>
             </div>
+
+            {/* Publish-date picker. Visible only when "Published" is
+                selected since drafts have no go-live date. Empty input
+                tells the server to default to now() — useful for the
+                "publish immediately" case. A future value schedules
+                the post; public queries hide it until the timestamp
+                passes. */}
+            {published && (() => {
+              // Compute scheduled-state from the local picker value so
+              // the badge updates without a save.
+              let isScheduled = false;
+              try {
+                if (publishedAtLocal) {
+                  isScheduled = new Date(publishedAtLocal).getTime() > Date.now();
+                }
+              } catch { /* ignore parse errors */ }
+              return (
+                <div className="mb-4">
+                  <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3" />
+                    Publish at
+                    {isScheduled && (
+                      <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5 normal-case tracking-normal">
+                        <Clock className="w-2.5 h-2.5" /> Scheduled
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={publishedAtLocal}
+                    onChange={(e) => setPublishedAtLocal(e.target.value)}
+                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                  />
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-1 leading-relaxed">
+                    Leave blank to publish immediately. Set a future date/time to schedule — the post stays hidden from readers until then.
+                  </p>
+                </div>
+              );
+            })()}
             <label className="flex items-center gap-2 mb-4 cursor-pointer">
               <input
                 type="checkbox"

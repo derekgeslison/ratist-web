@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
     orderBy: { updatedAt: "desc" },
     select: {
       id: true, type: true, title: true, slug: true,
-      published: true, createdAt: true, updatedAt: true, viewCount: true,
+      published: true, publishedAt: true,
+      createdAt: true, updatedAt: true, viewCount: true,
       author: { select: { name: true } },
       media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
       people: { select: { tmdbId: true, name: true, profilePath: true } },
@@ -61,8 +62,21 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
-    const { title, type = "BLOG", content, excerpt, coverImage, published = false, showAuthor = true, media: mediaItems = [], people: peopleItems = [] } = body;
+    const { title, type = "BLOG", content, excerpt, coverImage, published = false, publishedAt: publishedAtRaw, showAuthor = true, media: mediaItems = [], people: peopleItems = [] } = body;
     if (!title || !content) return NextResponse.json({ error: "title and content required" }, { status: 400 });
+
+    // For brand-new posts the publishedAt either matches the provided
+    // ISO string (scheduled / picked date) or defaults to now() when
+    // the admin publishes immediately. Drafts get null.
+    let publishedAt: Date | null = null;
+    if (published) {
+      if (typeof publishedAtRaw === "string" && publishedAtRaw.length > 0) {
+        const parsed = new Date(publishedAtRaw);
+        publishedAt = isNaN(parsed.getTime()) ? new Date() : parsed;
+      } else {
+        publishedAt = new Date();
+      }
+    }
 
     const slug = await uniqueSlug(slugify(title));
     const post = await prisma.blogPost.create({
@@ -75,6 +89,7 @@ export async function POST(req: NextRequest) {
         excerpt: excerpt ?? null,
         coverImage: coverImage ?? null,
         published,
+        publishedAt,
         showAuthor,
       },
     });

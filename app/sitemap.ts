@@ -47,22 +47,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       orderBy: { updatedAt: "desc" }, take: 5000,
     })),
     safe(() => prisma.blogPost.findMany({
-      where: { published: true, type: "BLOG" },
+      where: { published: true, publishedAt: { lte: new Date() }, type: "BLOG" },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
     })),
     safe(() => prisma.newsItem.findMany({
-      where: { published: true },
+      where: { published: true, publishedAt: { lte: new Date() } },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: "desc" }, take: 2000,
     })),
     safe(() => prisma.blogPost.findMany({
-      where: { published: true, type: "MOVIE_MAP" },
+      where: { published: true, publishedAt: { lte: new Date() }, type: "MOVIE_MAP" },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
     })),
     safe(() => prisma.blogPost.findMany({
-      where: { published: true, type: "PUNCH_AND_JUDY" },
+      where: { published: true, publishedAt: { lte: new Date() }, type: "PUNCH_AND_JUDY" },
       select: { slug: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
     })),

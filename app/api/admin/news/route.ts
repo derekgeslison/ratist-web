@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     const {
       type = "EDITORIAL",
       title, content, excerpt, coverImage,
-      published = false, showAuthor,
+      published = false, publishedAt: publishedAtRaw, showAuthor,
       movieTmdbId, showTmdbId, posterPath,
       sourceUrl, sourceName, youtubeKey,
       rssHeadlineId,
@@ -81,6 +81,19 @@ export async function POST(req: NextRequest) {
 
     if (!title) return NextResponse.json({ error: "title required" }, { status: 400 });
     if (type !== "EDITORIAL" && type !== "TRAILER") return NextResponse.json({ error: "invalid type" }, { status: 400 });
+
+    // Resolve the go-live timestamp on create. Match the posts route:
+    // publishing without a date means now(); a provided ISO string is
+    // honored (lets admins schedule from the new-news form).
+    let publishedAt: Date | null = null;
+    if (published) {
+      if (typeof publishedAtRaw === "string" && publishedAtRaw.length > 0) {
+        const parsed = new Date(publishedAtRaw);
+        publishedAt = isNaN(parsed.getTime()) ? new Date() : parsed;
+      } else {
+        publishedAt = new Date();
+      }
+    }
 
     const slug = await uniqueSlug(slugify(title));
     const item = await prisma.newsItem.create({
@@ -93,7 +106,7 @@ export async function POST(req: NextRequest) {
         excerpt: excerpt ?? null,
         coverImage: coverImage ?? null,
         published,
-        publishedAt: published ? new Date() : null,
+        publishedAt,
         ...(showAuthor !== undefined && { showAuthor }),
         movieTmdbId: movieTmdbId ? Number(movieTmdbId) : null,
         showTmdbId: showTmdbId ? Number(showTmdbId) : null,

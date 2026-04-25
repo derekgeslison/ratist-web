@@ -42,8 +42,16 @@ export async function GET(req: NextRequest) {
         where: { tvShowId: internalId, excluded: false, ratingScope: "series", reviewText: { not: null } },
       });
 
-  if (currentCount === 0) {
-    return NextResponse.json({ digest: null, reviewCount: 0 });
+  // Floor below which we don't bother summarizing — a digest of 1-2
+  // reviews reads like a misleading consensus pulled from one
+  // person's opinion. Was 0 during early testing; bumped to 10 now
+  // that the feature is live. The stepping system in
+  // isDigestStale() (≥3 review delta AND ≥20% growth) handles
+  // post-floor refresh cadence so 10 → 12 → 14 keeps regenerating
+  // at meaningful checkpoints without burning tokens on every vote.
+  const MIN_REVIEWS_FOR_DIGEST = 10;
+  if (currentCount < MIN_REVIEWS_FOR_DIGEST) {
+    return NextResponse.json({ digest: null, reviewCount: currentCount });
   }
 
   const cached = await prisma.reviewDigest.findUnique({

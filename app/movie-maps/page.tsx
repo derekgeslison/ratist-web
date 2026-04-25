@@ -15,8 +15,8 @@ export default async function MovieMapsPage({ searchParams }: { searchParams: Pr
   const { sort = "newest", q } = await searchParams;
   const orderBy =
     sort === "popular" ? { viewCount: "desc" as const } :
-    sort === "oldest" ? { createdAt: "asc" as const } :
-    { createdAt: "desc" as const };
+    sort === "oldest" ? { publishedAt: "asc" as const } :
+    { publishedAt: "desc" as const };
 
   const searchFilter = q?.trim()
     ? { OR: [
@@ -26,8 +26,13 @@ export default async function MovieMapsPage({ searchParams }: { searchParams: Pr
     : {};
 
   const posts = await prisma.blogPost.findMany({
-    where: { type: "MOVIE_MAP", published: true, ...searchFilter },
-    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, createdAt: true, viewCount: true, showAuthor: true, author: { select: { name: true, avatarUrl: true } } },
+    where: {
+      type: "MOVIE_MAP",
+      published: true,
+      publishedAt: { lte: new Date() },
+      ...searchFilter,
+    },
+    select: { id: true, slug: true, title: true, excerpt: true, coverImage: true, publishedAt: true, createdAt: true, viewCount: true, showAuthor: true, author: { select: { name: true, avatarUrl: true } } },
     orderBy,
   });
 
@@ -121,7 +126,7 @@ export default async function MovieMapsPage({ searchParams }: { searchParams: Pr
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {new Date(post.createdAt).toLocaleDateString()}
+                      {new Date(post.publishedAt ?? post.createdAt).toLocaleDateString()}
                     </span>
                     {post.viewCount > 0 && (
                       <span className="flex items-center gap-1">

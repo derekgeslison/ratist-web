@@ -4,7 +4,7 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { Save, ArrowLeft, Eye, EyeOff, Upload } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff, Upload, Calendar, Clock } from "lucide-react";
 import Link from "next/link";
 import MediaLinker from "@/components/forum/MediaLinker";
 import PersonLinker from "@/components/forum/PersonLinker";
@@ -27,6 +27,10 @@ function NewPostInner() {
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  // datetime-local string. Empty = "publish at save time" (server fills
+  // with now()). Future value = scheduled — public queries hide the
+  // post until the timestamp passes.
+  const [publishedAtLocal, setPublishedAtLocal] = useState("");
   const [showAuthor, setShowAuthor] = useState(true);
   const [media, setMedia] = useState<{tmdbId: number; mediaType: "movie" | "tv"; title: string; posterPath: string | null}[]>([]);
   const [people, setPeople] = useState<{tmdbId: number; name: string; profilePath: string | null}[]>([]);
@@ -40,10 +44,16 @@ function NewPostInner() {
     setError("");
     try {
       const token = await user.getIdToken();
+      const publishedAtIso = published && publishedAtLocal
+        ? new Date(publishedAtLocal).toISOString()
+        : null;
       const res = await fetch("/api/admin/posts", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ title, type, content, excerpt: excerpt || null, coverImage: coverImage || null, published, showAuthor, media, people }),
+        body: JSON.stringify({
+          title, type, content, excerpt: excerpt || null, coverImage: coverImage || null,
+          published, publishedAt: publishedAtIso, showAuthor, media, people,
+        }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -104,6 +114,39 @@ function NewPostInner() {
                 <Eye className="w-3.5 h-3.5" /> Published
               </button>
             </div>
+
+            {/* Optional publish date — leave blank for "now". Future
+                values schedule the post; public queries hide it until
+                the timestamp passes. */}
+            {published && (() => {
+              let isScheduled = false;
+              try {
+                if (publishedAtLocal) isScheduled = new Date(publishedAtLocal).getTime() > Date.now();
+              } catch { /* ignore */ }
+              return (
+                <div className="mb-4">
+                  <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3" />
+                    Publish at
+                    {isScheduled && (
+                      <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5 normal-case tracking-normal">
+                        <Clock className="w-2.5 h-2.5" /> Scheduled
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={publishedAtLocal}
+                    onChange={(e) => setPublishedAtLocal(e.target.value)}
+                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                  />
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-1 leading-relaxed">
+                    Leave blank to publish immediately. Set a future date/time to schedule.
+                  </p>
+                </div>
+              );
+            })()}
+
             <label className="flex items-center gap-2 mb-4 cursor-pointer">
               <input
                 type="checkbox"

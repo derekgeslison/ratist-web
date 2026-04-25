@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload, Link2 } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff, ExternalLink, Upload, Link2, Calendar, Clock } from "lucide-react";
 import Link from "next/link";
 import MediaLinker from "@/components/forum/MediaLinker";
 import PersonLinker from "@/components/forum/PersonLinker";
@@ -18,6 +18,10 @@ export default function EditNewsPage() {
   const [excerpt, setExcerpt] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  // datetime-local string. Empty = "use the existing publish date" or
+  // (on first publish) defaults to now() server-side. Future value =
+  // scheduled — public queries hide the item until it passes.
+  const [publishedAtLocal, setPublishedAtLocal] = useState("");
   const [slug, setSlug] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceName, setSourceName] = useState("");
@@ -44,6 +48,15 @@ export default function EditNewsPage() {
       setExcerpt(item.excerpt ?? "");
       setCoverImage(item.coverImage ?? "");
       setPublished(item.published);
+      if (item.publishedAt) {
+        const d = new Date(item.publishedAt);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        setPublishedAtLocal(
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+        );
+      } else {
+        setPublishedAtLocal("");
+      }
       setSlug(item.slug ?? "");
       setSourceUrl(item.sourceUrl ?? "");
       setSourceName(item.sourceName ?? "");
@@ -80,7 +93,11 @@ export default function EditNewsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           title, content: content || null, excerpt: excerpt || null,
-          coverImage: coverImage || null, published, showAuthor,
+          coverImage: coverImage || null, published,
+          publishedAt: published && publishedAtLocal
+            ? new Date(publishedAtLocal).toISOString()
+            : null,
+          showAuthor,
           movieTmdbId: null, showTmdbId: null, posterPath: null,
           media, people,
           sourceUrl: sourceUrl || null, sourceName: sourceName || null,
@@ -131,6 +148,40 @@ export default function EditNewsPage() {
               {published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               {published ? "Published" : "Draft"}
             </button>
+
+            {/* Optional publish date — leave blank to use the existing
+                value (or now() on first publish). Future values schedule
+                the post; public queries filter publishedAt <= now() so
+                a scheduled item stays hidden until then. */}
+            {published && (() => {
+              let isScheduled = false;
+              try {
+                if (publishedAtLocal) isScheduled = new Date(publishedAtLocal).getTime() > Date.now();
+              } catch { /* ignore */ }
+              return (
+                <div>
+                  <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3" />
+                    Publish at
+                    {isScheduled && (
+                      <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5 normal-case tracking-normal">
+                        <Clock className="w-2.5 h-2.5" /> Scheduled
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={publishedAtLocal}
+                    onChange={(e) => setPublishedAtLocal(e.target.value)}
+                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                  />
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-1 leading-relaxed">
+                    Leave blank to use the existing date (or publish immediately on first publish). Set a future value to schedule.
+                  </p>
+                </div>
+              );
+            })()}
+
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={showAuthor} onChange={(e) => setShowAuthor(e.target.checked)} className="accent-[var(--ratist-red)] w-3.5 h-3.5" />
               <span className="text-sm text-[var(--foreground-muted)]">Show author name</span>

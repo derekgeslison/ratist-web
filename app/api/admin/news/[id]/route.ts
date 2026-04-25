@@ -65,7 +65,7 @@ export async function PUT(req: NextRequest, { params }: Props) {
     const body = await req.json();
     const {
       title, content, excerpt, coverImage,
-      published, showAuthor, movieTmdbId, showTmdbId, posterPath,
+      published, publishedAt: publishedAtRaw, showAuthor, movieTmdbId, showTmdbId, posterPath,
       sourceUrl, sourceName, youtubeKey,
       media: mediaItems,
       people: peopleItems,
@@ -74,12 +74,25 @@ export async function PUT(req: NextRequest, { params }: Props) {
     const existing = await prisma.newsItem.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Handle publish state change
+    // Resolve the go-live timestamp. Three valid combos mirror the
+    // posts route: published=true + ISO string → schedule / pin to a
+    // specific date; published=true + omitted → publish now (or leave
+    // existing date alone for already-published items); published=false
+    // → clear publishedAt.
     let publishedAt = existing.publishedAt;
-    if (published === true && !existing.publishedAt) {
-      publishedAt = new Date();
+    if (published === true) {
+      if (typeof publishedAtRaw === "string" && publishedAtRaw.length > 0) {
+        const parsed = new Date(publishedAtRaw);
+        publishedAt = isNaN(parsed.getTime()) ? (existing.publishedAt ?? new Date()) : parsed;
+      } else if (!existing.publishedAt) {
+        publishedAt = new Date();
+      }
     } else if (published === false) {
       publishedAt = null;
+    } else if (typeof publishedAtRaw === "string" && publishedAtRaw.length > 0) {
+      // Reschedule without flipping status.
+      const parsed = new Date(publishedAtRaw);
+      if (!isNaN(parsed.getTime())) publishedAt = parsed;
     }
 
     // Regen slug if title changed

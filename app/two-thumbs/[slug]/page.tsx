@@ -18,7 +18,7 @@ interface Props { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const post = await prisma.blogPost.findUnique({ where: { slug, published: true, type: "PUNCH_AND_JUDY" }, select: { title: true, excerpt: true, coverImage: true } });
+  const post = await prisma.blogPost.findFirst({ where: { slug, published: true, type: "PUNCH_AND_JUDY", publishedAt: { lte: new Date() } }, select: { title: true, excerpt: true, coverImage: true } });
   if (!post) return { title: "Not Found" };
   const description = post.excerpt ?? undefined;
   return {
@@ -44,8 +44,8 @@ export default async function TwoThumbsPostPage({ params }: Props) {
   // Fire-and-forget view count increment
   prisma.blogPost.update({ where: { slug }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
-  const post = await prisma.blogPost.findUnique({
-    where: { slug, published: true, type: "PUNCH_AND_JUDY" },
+  const post = await prisma.blogPost.findFirst({
+    where: { slug, published: true, type: "PUNCH_AND_JUDY", publishedAt: { lte: new Date() } },
     include: {
       author: { select: { name: true, avatarUrl: true, firebaseUid: true } },
       media: { select: { tmdbId: true, mediaType: true, title: true, posterPath: true } },
@@ -59,7 +59,7 @@ export default async function TwoThumbsPostPage({ params }: Props) {
     "@type": "Article",
     headline: post.title,
     url: `https://www.theratist.com/two-thumbs/${slug}`,
-    datePublished: post.createdAt.toISOString(),
+    datePublished: (post.publishedAt ?? post.createdAt).toISOString(),
     dateModified: post.updatedAt.toISOString(),
     ...(post.excerpt ? { description: post.excerpt } : {}),
     ...(post.coverImage ? { image: [post.coverImage] } : {}),
@@ -115,7 +115,7 @@ export default async function TwoThumbsPostPage({ params }: Props) {
         <div>
           {post.showAuthor !== false && <p className="text-sm font-medium text-white">{post.author.name}</p>}
           <p className="text-xs text-[var(--foreground-muted)] flex items-center gap-1">
-            <Calendar className="w-3 h-3" /> {new Date(post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+            <Calendar className="w-3 h-3" /> {new Date(post.publishedAt ?? post.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
       </div>

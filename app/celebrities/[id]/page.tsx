@@ -292,15 +292,15 @@ export default async function CelebrityPage({ params }: Props) {
         take: 10,
       }),
       prisma.newsItem.findMany({
-        where: { published: true, people: { some: { tmdbId: person.id } } },
+        where: { published: true, publishedAt: { lte: new Date() }, people: { some: { tmdbId: person.id } } },
         select: { id: true, title: true, slug: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { publishedAt: "desc" },
         take: 5,
       }),
       prisma.blogPost.findMany({
-        where: { published: true, people: { some: { tmdbId: person.id } } },
-        select: { id: true, title: true, slug: true, type: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
-        orderBy: { createdAt: "desc" },
+        where: { published: true, publishedAt: { lte: new Date() }, people: { some: { tmdbId: person.id } } },
+        select: { id: true, title: true, slug: true, type: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
+        orderBy: { publishedAt: "desc" },
         take: 5,
       }),
     ]);

@@ -35,7 +35,33 @@ export async function PUT(req: NextRequest, { params }: Props) {
   const { id } = await params;
 
   const body = await req.json();
-  const { title, content, excerpt, coverImage, published, showAuthor, media: mediaItems, people: peopleItems } = body;
+  const { title, content, excerpt, coverImage, published, publishedAt: publishedAtRaw, showAuthor, media: mediaItems, people: peopleItems } = body;
+
+  // Resolve publish-related fields. Three legitimate combos:
+  //  - published=true  + ISO string → schedule / publish at that date
+  //  - published=true  + omitted    → publish now
+  //  - published=false                → unpublish; clear publishedAt
+  // Editing other fields without touching publish status leaves both
+  // columns alone so a save-on-typo doesn't reset a scheduled date.
+  const publishUpdates: { published?: boolean; publishedAt?: Date | null } = {};
+  if (typeof published === "boolean") {
+    publishUpdates.published = published;
+    if (!published) {
+      publishUpdates.publishedAt = null;
+    } else if (typeof publishedAtRaw === "string" && publishedAtRaw.length > 0) {
+      const parsed = new Date(publishedAtRaw);
+      publishUpdates.publishedAt = isNaN(parsed.getTime()) ? new Date() : parsed;
+    } else {
+      publishUpdates.publishedAt = new Date();
+    }
+  } else if (typeof publishedAtRaw === "string" && publishedAtRaw.length > 0) {
+    // Admin tweaked just the date (rescheduling a published post without
+    // toggling status). Validate but don't auto-flip published.
+    const parsed = new Date(publishedAtRaw);
+    if (!isNaN(parsed.getTime())) publishUpdates.publishedAt = parsed;
+  } else if (publishedAtRaw === null) {
+    publishUpdates.publishedAt = null;
+  }
 
   const post = await prisma.blogPost.update({
     where: { id },
@@ -44,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: Props) {
       ...(content !== undefined && { content }),
       ...(excerpt !== undefined && { excerpt }),
       ...(coverImage !== undefined && { coverImage }),
-      ...(published !== undefined && { published }),
+      ...publishUpdates,
       ...(showAuthor !== undefined && { showAuthor }),
     },
   });

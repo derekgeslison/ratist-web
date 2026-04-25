@@ -20,7 +20,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
 
   const [items, total] = await Promise.all([
     prisma.newsItem.findMany({
-      where: { published: true, ...typeFilter },
+      where: { published: true, publishedAt: { lte: new Date() }, ...typeFilter },
       orderBy: { publishedAt: "desc" },
       take: perPage,
       skip: (page - 1) * perPage,
@@ -33,7 +33,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
         author: { select: { name: true, avatarUrl: true } },
       },
     }),
-    prisma.newsItem.count({ where: { published: true, ...typeFilter } }),
+    prisma.newsItem.count({ where: { published: true, publishedAt: { lte: new Date() }, ...typeFilter } }),
   ]);
 
   const totalPages = Math.ceil(total / perPage);

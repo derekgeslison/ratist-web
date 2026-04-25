@@ -107,15 +107,15 @@ export default async function ShowDetailPage({ params }: Props) {
         take: 10,
       }),
       prisma.newsItem.findMany({
-        where: { published: true, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+        where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
         select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
         orderBy: { publishedAt: "desc" },
         take: 5,
       }),
       prisma.blogPost.findMany({
-        where: { published: true, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
-        select: { id: true, title: true, slug: true, type: true, viewCount: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
-        orderBy: { createdAt: "desc" },
+        where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+        select: { id: true, title: true, slug: true, type: true, viewCount: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
+        orderBy: { publishedAt: "desc" },
         take: 5,
       }),
     ]);
