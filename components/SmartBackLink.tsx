@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getPreviousNavEntry, inferTitleForPath, type NavEntry } from "@/lib/nav-history";
@@ -18,12 +18,6 @@ interface Props {
 interface Resolved {
   href: string;
   label: string;
-  /** True when the resolved target came from sessionStorage (i.e. the
-   *  user genuinely was just there). When true, clicking the link
-   *  prefers router.back() so the browser's forward stack and scroll
-   *  position are preserved; when false (referrer or default), we
-   *  push a fresh navigation. */
-  fromHistory: boolean;
 }
 
 /**
@@ -43,14 +37,21 @@ interface Resolved {
  * Initial render uses the defaults (we can't read sessionStorage during
  * SSR, and it'd cause a hydration mismatch otherwise). The effect
  * resolves the smarter target after mount.
+ *
+ * Navigation is intentionally a plain Link — no router.back() trickery.
+ * Earlier revisions tried to preserve forward stack + scroll position
+ * via router.back() when the breadcrumb said "you just came from
+ * there", but window.history.length is unreliable (it counts about:
+ * blank fresh-tab entries) so the back() call sometimes no-op'd and
+ * the click did nothing. Plain href navigation is the bulletproof
+ * default; the small loss of scroll preservation is worth the
+ * predictable behavior.
  */
 export default function SmartBackLink({ defaultHref, defaultLabel, className }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const [resolved, setResolved] = useState<Resolved>({
     href: defaultHref,
     label: defaultLabel,
-    fromHistory: false,
   });
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function SmartBackLink({ defaultHref, defaultLabel, className }: 
 
     const prev: NavEntry | null = getPreviousNavEntry(pathname);
     if (prev) {
-      setResolved({ href: prev.fullPath, label: `Back to ${prev.title}`, fromHistory: true });
+      setResolved({ href: prev.fullPath, label: `Back to ${prev.title}` });
       return;
     }
 
@@ -74,33 +75,18 @@ export default function SmartBackLink({ defaultHref, defaultLabel, className }: 
           setResolved({
             href: ref.pathname + ref.search,
             label: `Back to ${inferred}`,
-            fromHistory: false,
           });
           return;
         }
       }
     } catch { /* malformed referrer URL — fall through to default */ }
 
-    setResolved({ href: defaultHref, label: defaultLabel, fromHistory: false });
+    setResolved({ href: defaultHref, label: defaultLabel });
   }, [pathname, defaultHref, defaultLabel]);
-
-  const onClick = (e: React.MouseEvent) => {
-    // History-backed targets: use router.back() so the forward stack
-    // and the destination's scroll position survive. We only do this
-    // when the breadcrumb says we just came from there — modifier
-    // clicks (cmd/ctrl/middle) get the regular Link behavior so users
-    // can open in a new tab.
-    if (!resolved.fromHistory) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-    e.preventDefault();
-    if (window.history.length > 1) router.back();
-    else router.push(resolved.href);
-  };
 
   return (
     <Link
       href={resolved.href}
-      onClick={onClick}
       className={className ?? "inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"}
     >
       <ArrowLeft className="w-4 h-4" />
