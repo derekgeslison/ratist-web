@@ -222,25 +222,27 @@ function ReportForm({ suggestionId, onSubmitted, onCancel }: {
 
   return (
     <div className="w-full space-y-1 mt-1">
-      <div className="flex items-center gap-1">
-        <select
-          value={reason}
-          onChange={(e) => setReason(e.target.value as typeof reason)}
-          className="text-[10px] bg-[var(--surface-2)] border border-[var(--border)] rounded px-1 py-0.5 text-white"
-        >
-          <option value="inappropriate">Inaccurate / inappropriate</option>
-          <option value="spoilers">Reveals spoilers</option>
-          <option value="spam">Spam</option>
-          <option value="harassment">Harassment</option>
-          <option value="other">Other</option>
-        </select>
-        <input
-          value={details}
-          onChange={(e) => setDetails(e.target.value.slice(0, 200))}
-          placeholder="Optional detail"
-          className="flex-1 text-[10px] bg-[var(--surface-2)] border border-[var(--border)] rounded px-1 py-0.5 text-white"
-        />
-      </div>
+      {/* Stacked vertical layout: select + input side-by-side overflowed
+         the popover on narrow screens since the select needs ~140px for
+         the longer option labels and the flex-1 input was getting
+         squeezed past the popover's right edge. */}
+      <select
+        value={reason}
+        onChange={(e) => setReason(e.target.value as typeof reason)}
+        className="w-full text-[10px] bg-[var(--surface-2)] border border-[var(--border)] rounded px-1 py-0.5 text-white"
+      >
+        <option value="inappropriate">Inaccurate / inappropriate</option>
+        <option value="spoilers">Reveals spoilers</option>
+        <option value="spam">Spam</option>
+        <option value="harassment">Harassment</option>
+        <option value="other">Other</option>
+      </select>
+      <input
+        value={details}
+        onChange={(e) => setDetails(e.target.value.slice(0, 200))}
+        placeholder="Optional detail"
+        className="w-full text-[10px] bg-[var(--surface-2)] border border-[var(--border)] rounded px-1 py-0.5 text-white"
+      />
       <div className="flex items-center justify-end gap-1">
         {error && <span className="text-[9px] text-red-400 mr-auto">{error}</span>}
         <button onClick={onCancel} className="text-[9px] text-[var(--foreground-muted)] px-1.5 py-0.5">Cancel</button>
