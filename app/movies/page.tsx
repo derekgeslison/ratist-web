@@ -7,6 +7,7 @@ import MovieListItem from "@/components/MovieListItem";
 import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import MoviesAiSearch from "@/components/MoviesAiSearch";
+import SeenFilterRunner from "@/components/SeenFilterRunner";
 import AdUnit from "@/components/AdUnit";
 import SpotlightCards from "@/components/SpotlightCards";
 import { prisma } from "@/lib/prisma";
@@ -223,12 +224,22 @@ export default async function MoviesPage({ searchParams }: Props) {
   }
 
   // Fetch shows — for "tv" mode OR for "all" mode when searching/filtering.
-  // Skip shows in "all" mode when:
-  //   - cast filter is active (TMDB TV discover doesn't support with_cast)
-  //   - any selected genre is movie-only (Romance, Horror, etc. have no TV equivalent
-  //     — including unfiltered TV results would bypass the user's intent)
+  // Skip shows in "all" mode when the active filters can't apply to TV
+  // and would otherwise leak through unfiltered:
+  //   - cast filter (TMDB TV discover doesn't support with_cast)
+  //   - any movie-only genre (Romance / Horror / etc. — no TV equivalent)
+  //   - MPAA cert filter (TMDB TV discover doesn't support certification;
+  //     TV uses content_ratings as a separate field)
+  //   - parents'-guide severity caps (only tracked for movies in our DB)
   const hasMovieOnlyGenre = contentType === "all" && genres && genres.some((g) => MOVIE_ONLY_GENRES.has(g));
-  const shouldFetchShows = contentType === "tv" || (contentType === "all" && !castIds?.length && !hasMovieOnlyGenre);
+  const shouldFetchShows = contentType === "tv" || (
+    contentType === "all"
+      && !castIds?.length
+      && !hasMovieOnlyGenre
+      && mpaaRatings.length === 0
+      && !hasMaxCap
+      && !hasMinCap
+  );
   if (showShows && shouldFetchShows) {
     const isSearchOrFilter = !!(params.search || hasFilters);
     const tvGenres = genres?.length ? translateGenresForTV(genres) : undefined;
@@ -586,6 +597,10 @@ export default async function MoviesPage({ searchParams }: Props) {
       {totalPages > 1 && (
         <Pagination current={page} total={totalPages} params={params} />
       )}
+      {/* Seen-filter overlay — hides cards client-side based on
+         ?seenStatus= and the user's seen list. Cheap when the filter
+         is off, and keeps the SSR list intact for SEO. */}
+      <SeenFilterRunner />
     </div>
   );
 }

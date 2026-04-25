@@ -66,8 +66,14 @@ const SORT_OPTIONS = [
 const FILTER_URL_KEYS = new Set([
   "genres", "cast", "castLabels", "keywords", "keywordLabels",
   "yearFrom", "yearTo", "mpaa", "ratingOp", "ratingVal",
-  "releaseStatus", "providers", "language",
+  "releaseStatus", "providers", "language", "seenStatus",
 ]);
+
+const SEEN_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "unseen", label: "Haven't seen" },
+  { value: "seen", label: "Seen" },
+];
 
 const RELEASE_OPTIONS = [
   { value: "", label: "All" },
@@ -113,6 +119,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentLanguage = searchParams.get("language") ?? "";
   const currentKeywordIds = searchParams.get("keywords")?.split(",").filter(Boolean) ?? [];
   const currentKeywordLabels = searchParams.get("keywordLabels")?.split(",").filter(Boolean) ?? [];
+  const currentSeenStatus = searchParams.get("seenStatus") ?? "";
 
   // AI-only URL params — set by the AI search bar but have no visible
   // per-dimension control. Surfaced as a single removable "AI filter" pill.
@@ -176,6 +183,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentReleaseStatus,
     currentProviders.length > 0,
     currentLanguage,
+    currentSeenStatus,
     hasAiFilter,
   ].filter(Boolean).length;
 
@@ -512,6 +520,12 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               <button onClick={() => update({ language: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
+          {currentSeenStatus && (
+            <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
+              {currentSeenStatus === "seen" ? "Seen" : "Haven't seen"}
+              <button onClick={() => update({ seenStatus: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+            </span>
+          )}
           {hasAiFilter && (
             <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white" title="AI-applied filters (severity caps, exclusions, etc.)">
               <Wand2 className="w-3 h-3 text-[var(--ratist-red)]" />
@@ -538,6 +552,24 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
                   key={o.value}
                   onClick={() => update({ releaseStatus: o.value || null })}
                   className={`${chipBase} ${currentReleaseStatus === o.value ? chipOn : chipOff}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Seen status — client-side overlay filter applied via
+             SeenFilterRunner. Not pushed to TMDB; runs on the rendered
+             results against the user's seen list. */}
+          <div>
+            <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Seen Status</p>
+            <div className="flex flex-wrap gap-2">
+              {SEEN_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => update({ seenStatus: o.value || null })}
+                  className={`${chipBase} ${currentSeenStatus === o.value ? chipOn : chipOff}`}
                 >
                   {o.label}
                 </button>

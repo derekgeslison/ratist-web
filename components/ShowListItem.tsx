@@ -60,6 +60,7 @@ export default function ShowListItem({ show, characterName, streaming, rent, cer
     <Link
       href={`/shows/${show.id}`}
       className="flex items-center gap-4 py-4 hover:bg-[var(--surface)] px-3 -mx-3 rounded-lg transition-colors group"
+      data-seen-filter-id={`tv-${show.id}`}
     >
       <div className="relative w-14 h-20 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
         <Image src={posterUrl(show.poster_path, "w92")} alt={show.name} fill sizes="56px" className="object-cover" />

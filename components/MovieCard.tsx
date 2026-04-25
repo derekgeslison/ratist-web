@@ -68,6 +68,7 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
     <Link
       href={`/movies/${movie.id}`}
       className="group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
+      data-seen-filter-id={`movie-${movie.id}`}
     >
       <div className="relative aspect-[2/3] overflow-hidden bg-[var(--surface-2)]">
         <Image

@@ -68,6 +68,7 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
     <Link
       href={`/shows/${show.id}`}
       className="group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
+      data-seen-filter-id={`tv-${show.id}`}
     >
       <div className="relative aspect-[2/3] overflow-hidden bg-[var(--surface-2)]">
         <Image

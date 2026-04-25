@@ -12,6 +12,7 @@ import ShowListItem from "@/components/ShowListItem";
 import ShowCard from "@/components/ShowCard";
 import { Suspense } from "react";
 import AdUnit from "@/components/AdUnit";
+import SeenFilterRunner from "@/components/SeenFilterRunner";
 import { prisma } from "@/lib/prisma";
 
 const API_KEY = process.env.TMDB_API_KEY;
@@ -359,6 +360,9 @@ export default async function SearchPage({ searchParams }: Props) {
           </div>
         </section>
       )}
+      {/* Seen-filter overlay — hides results client-side based on
+         ?seenStatus= and the user's seen list. */}
+      <SeenFilterRunner />
     </div>
   );
 }

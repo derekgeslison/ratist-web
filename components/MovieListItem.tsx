@@ -60,6 +60,7 @@ export default function MovieListItem({ movie, characterName, streaming, rent, c
     <Link
       href={`/movies/${movie.id}`}
       className="flex items-center gap-4 py-4 hover:bg-[var(--surface)] px-3 -mx-3 rounded-lg transition-colors group"
+      data-seen-filter-id={`movie-${movie.id}`}
     >
       <div className="relative w-14 h-20 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
         <Image src={posterUrl(movie.poster_path, "w92")} alt={movie.title} fill sizes="56px" className="object-cover" />
