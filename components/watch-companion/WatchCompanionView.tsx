@@ -1500,9 +1500,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   // Group/faction color from the same palette that drives
                   // the cast cards' left border so the chart stays
                   // visually consistent with the rest of the viewer.
+                  // Ungrouped characters get a neutral gray (matching
+                  // the relationship map) instead of falling through
+                  // to the first palette entry, which would make every
+                  // ungrouped character look like a member of the
+                  // first colored faction.
+                  const UNGROUPED_LANE_COLOR = "#6b7280"; // tailwind gray-500 — neutral, no faction implied
                   const laneColor = character.group
                     ? (groupColors.get(character.group) ?? GROUP_COLORS[0])
-                    : GROUP_COLORS[0];
+                    : UNGROUPED_LANE_COLOR;
                   return (
                   <div key={character.id} className="flex items-center gap-2">
                     <button
