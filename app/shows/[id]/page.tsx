@@ -369,6 +369,13 @@ export default async function ShowDetailPage({ params }: Props) {
     <div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      {/* Breadcrumb + smart back link, rendered above the backdrop so
+         the negative-margin poster row below can't cover it. */}
+      <NavEntryRegister title={show.name} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+        <SmartBackLink defaultHref="/movies?type=tv" defaultLabel="All shows" />
+      </div>
+
       {/* Backdrop hero */}
       <div className="relative w-full h-[30vh] min-h-[200px] max-h-[340px] overflow-hidden">
         <Image
@@ -384,12 +391,6 @@ export default async function ShowDetailPage({ params }: Props) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Breadcrumb registration + smart back link — see movies/[id]
-           for the rationale; same pattern. */}
-        <NavEntryRegister title={show.name} />
-        <div className="pt-4 -mb-2 relative z-10">
-          <SmartBackLink defaultHref="/movies?type=tv" defaultLabel="All shows" />
-        </div>
         {/* Main info row */}
         <div className="flex gap-6 -mt-16 relative z-10 mb-8">
           {/* Poster — tap to zoom into a larger version. */}

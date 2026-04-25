@@ -328,6 +328,15 @@ export default async function MovieDetailPage({ params }: Props) {
     <div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      {/* Breadcrumb registration + smart back link, rendered ABOVE the
+         backdrop hero so it can't get covered by the negative-margin
+         poster row that overlaps the bottom of the hero. Lives in its
+         own slim row at the top of the page. */}
+      <NavEntryRegister title={movie.title} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+        <SmartBackLink defaultHref="/movies" defaultLabel="All movies" />
+      </div>
+
       {/* Backdrop hero */}
       <div className="relative w-full h-[30vh] min-h-[200px] max-h-[340px] overflow-hidden">
         <Image
@@ -343,15 +352,6 @@ export default async function MovieDetailPage({ params }: Props) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Breadcrumb registration + smart back link. The register
-           component pushes this movie's title onto the per-tab
-           breadcrumb so OTHER detail pages render "Back to {title}"
-           when the user navigates from here. The link itself reads
-           the previous breadcrumb entry and renders accordingly. */}
-        <NavEntryRegister title={movie.title} />
-        <div className="pt-4 -mb-2 relative z-10">
-          <SmartBackLink defaultHref="/movies" defaultLabel="All movies" />
-        </div>
         {/* Main info row */}
         <div className="flex gap-6 -mt-16 relative z-10 mb-8">
           {/* Poster — tap to zoom into a larger version. */}
