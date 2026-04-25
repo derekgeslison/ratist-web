@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
@@ -296,6 +296,23 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   const [hydrated, setHydrated] = useState(false);
   const [activeTab, setActiveTab] = useState<"cast" | "map" | "timeline" | "glossary">("cast");
   const [glossaryCategoryFilter, setGlossaryCategoryFilter] = useState<string | "all">("all");
+  // Multi-select character filter for the Timeline tab. AND semantics —
+  // events must include EVERY selected character to remain visible. With
+  // one selected the user gets "Tyrion's beats"; with two the user gets
+  // "scenes Tyrion and Bronn shared".
+  const [timelineCharFilter, setTimelineCharFilter] = useState<string[]>([]);
+
+  // Refs to character card DOM nodes so a chip on a timeline event can
+  // scroll its target into view. Map indexed by character id so React's
+  // re-render churn doesn't break the lookup.
+  const characterCardRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [pendingScrollCharacterId, setPendingScrollCharacterId] = useState<string | null>(null);
+
+  const scrollToCharacter = useCallback((characterId: string) => {
+    setActiveTab("cast");
+    setPendingScrollCharacterId(characterId);
+    track("companion_chip_jump", { companion_id: data.id, target_character_id: characterId });
+  }, [data.id]);
 
   // Episode slots for the CURRENTLY SELECTED season only. The season picker is
   // the "which season am I watching?" control; the slider scrubs within it.
@@ -340,6 +357,29 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     // run-once per mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Scroll-to-character once the cast tab is active and the target ref is
+  // attached. Two-step (set tab, then scroll on next render) because the
+  // card DOM doesn't exist while activeTab is anything other than "cast".
+  useEffect(() => {
+    if (!pendingScrollCharacterId || activeTab !== "cast") return;
+    const target = characterCardRefs.current.get(pendingScrollCharacterId);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Brief highlight flash so the user's eye finds the right card after
+      // a tab swap and scroll. Tailwind doesn't have an arbitrary class for
+      // this so we drive it via inline outline + a setTimeout cleanup.
+      target.style.outline = "2px solid var(--ratist-red)";
+      target.style.outlineOffset = "2px";
+      target.style.transition = "outline-color 800ms ease-out";
+      setTimeout(() => {
+        target.style.outline = "";
+        target.style.outlineOffset = "";
+        target.style.transition = "";
+      }, 1200);
+    }
+    setPendingScrollCharacterId(null);
+  }, [pendingScrollCharacterId, activeTab]);
   const currentSlot = episodeSlots[slotIndex] ?? { season: selectedSeason, episode: 1 };
 
   const position: WatchPosition = useMemo(
@@ -410,6 +450,38 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType)),
     [seasonTimeline, position, mediaType],
   );
+  // Lookup table for quick id → Character resolution. Used by the timeline
+  // event chips and the per-character "story beats" mini-timeline. Keyed
+  // off all data.characters (not just visibleCharacters) so a chip can
+  // resolve a character that's tagged in an unlocked timeline event but
+  // hasn't yet appeared on screen.
+  const characterById = useMemo(() => {
+    const m = new Map<string, Character>();
+    for (const c of data.characters) m.set(c.id, c);
+    return m;
+  }, [data.characters]);
+  // Apply the multi-select character filter on top of the slider-visible
+  // timeline. AND semantics — an event must mention every selected
+  // character id to make the cut. Empty filter = all events.
+  const filteredTimeline = useMemo(
+    () => timelineCharFilter.length === 0
+      ? visibleTimeline
+      : visibleTimeline.filter((t) =>
+          timelineCharFilter.every((id) => t.characterIds.includes(id))
+        ),
+    [visibleTimeline, timelineCharFilter],
+  );
+  // Characters that actually appear in at least one currently-visible
+  // timeline event. Drives the filter pill row — no point offering a pill
+  // for a character no event tags. Sorted by name for stable ordering.
+  const timelineFilterOptions = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of visibleTimeline) for (const id of t.characterIds) ids.add(id);
+    return Array.from(ids)
+      .map((id) => characterById.get(id))
+      .filter((c): c is Character => !!c)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [visibleTimeline, characterById]);
   const visibleGlossary = useMemo(
     () => seasonGlossary.filter((g) => isVisible(g.visibleAfter, position, mediaType)),
     [seasonGlossary, position, mediaType],
@@ -737,7 +809,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     </div>
                   )}
                 <div
-                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3"
+                  ref={(el) => { characterCardRefs.current.set(c.id, el); }}
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 scroll-mt-[140px]"
                   style={{ borderLeftWidth: 3, borderLeftColor: color }}
                 >
                   <div className="flex items-start gap-3">
@@ -1000,6 +1073,51 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     );
                   })()}
 
+                  {/* Plot beats this character is tagged in. Pulls from
+                     the visibleTimeline by characterIds, sorted ascending
+                     by visibleAfter. Distinct from facts (which are
+                     micro per-character details) — these are macro plot
+                     events the character was involved in, so a viewer can
+                     trace their arc through the story without leaving the
+                     cast tab. Capped at 6 entries so a heavily-tagged
+                     character doesn't dominate the card; surplus events
+                     remain visible on the Timeline tab. */}
+                  {(() => {
+                    const beats = visibleTimeline
+                      .filter((t) => t.characterIds.includes(c.id))
+                      .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+                    if (beats.length === 0) return null;
+                    const displayBeats = beats.slice(0, 6);
+                    const overflow = beats.length - displayBeats.length;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-[var(--border)]/40">
+                        <p className="text-[9px] uppercase tracking-wider font-semibold mb-1.5" style={{ color }}>Story beats</p>
+                        <ul className="space-y-1">
+                          {displayBeats.map((t) => (
+                            <li key={t.id} className="text-xs text-[var(--foreground-muted)] leading-snug flex items-start gap-2">
+                              <span className="text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]/70 shrink-0 mt-0.5 w-12">
+                                {formatVisibleAfter(t.visibleAfter, mediaType)}
+                              </span>
+                              <span className="flex-1">{t.description}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {overflow > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab("timeline");
+                              setTimelineCharFilter([c.id]);
+                            }}
+                            className="mt-1.5 text-[10px] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+                          >
+                            + {overflow} more on Timeline →
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Pending "add event" suggestions for THIS character —
                      distinct from the character-level edit bubble at the
                      card top. Only surfaces suggestions whose proposed
@@ -1102,15 +1220,82 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         <Section
           icon={Clock}
           title="Plot timeline"
-          count={visibleTimeline.length}
+          count={filteredTimeline.length}
         >
+          {/* Character filter row — multi-select with AND semantics so the
+             user can pick one character ("just Tyrion's beats") or
+             multiple ("scenes Tyrion and Bronn shared"). Only renders
+             characters who actually appear in at least one currently-
+             visible timeline event so the pill row stays useful even on
+             a large cast. Hidden when there's at most one option. */}
+          {timelineFilterOptions.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              <FilterPill
+                active={timelineCharFilter.length === 0}
+                onClick={() => setTimelineCharFilter([])}
+              >
+                All ({visibleTimeline.length})
+              </FilterPill>
+              {timelineFilterOptions.map((c) => {
+                const active = timelineCharFilter.includes(c.id);
+                const count = visibleTimeline.filter((t) => t.characterIds.includes(c.id)).length;
+                return (
+                  <FilterPill
+                    key={c.id}
+                    active={active}
+                    onClick={() => setTimelineCharFilter((prev) =>
+                      prev.includes(c.id) ? prev.filter((id) => id !== c.id) : [...prev, c.id]
+                    )}
+                  >
+                    {c.name} ({count})
+                  </FilterPill>
+                );
+              })}
+            </div>
+          )}
+          {filteredTimeline.length === 0 ? (
+            <p className="text-sm text-[var(--foreground-muted)] italic text-center py-6">
+              No timeline events match the selected character{timelineCharFilter.length === 1 ? "" : "s"}.
+            </p>
+          ) : (
           <ol className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/40">
-            {visibleTimeline.map((t) => (
+            {filteredTimeline.map((t) => {
+              // Resolve character chips against characterById so a chip
+              // can still render for characters that are tagged here but
+              // unlocked for the slider via a later first-appearance —
+              // the user shouldn't see a phantom chip for a character not
+              // yet visible in the cast tab. Filter to visibleCharIds.
+              const chipChars = t.characterIds
+                .map((id) => characterById.get(id))
+                .filter((c): c is Character => !!c && visibleCharIds.has(c.id));
+              return (
               <li key={t.id} className="px-3 py-2 text-sm flex items-start gap-3">
                 <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider shrink-0 mt-0.5 w-14">
                   {formatVisibleAfter(t.visibleAfter, mediaType)}
                 </span>
-                <span className="flex-1 text-white">{t.description}</span>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="text-white leading-relaxed">{t.description}</p>
+                  {chipChars.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {chipChars.map((cc) => (
+                        <button
+                          key={cc.id}
+                          type="button"
+                          onClick={() => scrollToCharacter(cc.id)}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)]/60 transition-colors text-[10px] text-[var(--foreground-muted)] hover:text-white"
+                          title={`Jump to ${cc.name}`}
+                        >
+                          {cc.imageUrl ? (
+                            <span className="relative w-4 h-4 rounded-full overflow-hidden bg-[var(--surface)] shrink-0">
+                              <Image src={cc.imageUrl} alt="" fill sizes="16px" className="object-cover" />
+                            </span>
+                          ) : null}
+                          <span className="truncate max-w-[120px]">{cc.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {isCommunitySourced("timeline", t.id) && <CommunityBadge compact />}
                 <ItemSuggestions
                   suggestions={suggestionsFor("timeline", t.id)}
@@ -1139,8 +1324,10 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   ><Pencil className="w-3 h-3" /></button>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ol>
+          )}
           {sectionAddSuggestions("timeline").length > 0 && (
             <div className="mt-3 flex items-center gap-2 bg-[var(--surface-2)]/40 border border-[var(--ratist-red)]/20 rounded-lg px-3 py-2 text-[11px] text-[var(--foreground-muted)]">
               <span>Community-proposed timeline events:</span>
