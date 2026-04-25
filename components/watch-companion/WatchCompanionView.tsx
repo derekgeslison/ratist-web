@@ -669,8 +669,28 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               const currentActors = latestUnlocked
                 ? unlockedActors.filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) === 0)
                 : fallbackActor ? [fallbackActor] : [];
+              // Dedup past actors against the current row AND against
+              // each other on the (actor, note) pair. Without this a
+              // multi-swap card like Jumanji 2's Spencer ends up reading
+              // "played by Dwayne Johnson, also played by Alex Wolff,
+              // Awkwafina, Dwayne Johnson, ..." — repeating the current
+              // actor and any prior identical-vessel periods. The (actor,
+              // note) key keeps distinct vessel periods from collapsing
+              // (Dwayne in Bravestone vs Dwayne in Mouse stay separate).
+              const actorKey = (a: { actorName: string; actorTmdbId: number | null; note: string | null }) =>
+                `${a.actorTmdbId ?? a.actorName}|${a.note ?? ""}`;
+              const currentKeys = new Set(currentActors.map(actorKey));
+              const seenPast = new Set<string>();
               const pastActors = latestUnlocked
-                ? unlockedActors.filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) !== 0)
+                ? unlockedActors
+                    .filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) !== 0)
+                    .filter((a) => {
+                      const key = actorKey(a);
+                      if (currentKeys.has(key)) return false;
+                      if (seenPast.has(key)) return false;
+                      seenPast.add(key);
+                      return true;
+                    })
                 : [];
               // Pick ONE "lead" actor for the portrait — twins look alike so
               // either works. First-listed wins (stable sortOrder).
