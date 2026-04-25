@@ -17,7 +17,7 @@ const SYSTEM_PROMPT = `You are drafting the CHARACTERS section of a Watch Compan
 
 ## Your only job
 
-Emit 8–20 characters. Each one:
+Aim for ~10–15 characters total (see Quality bar). Each one:
 
 - "name" — the character's in-story name as fans would say it. "Siobhan 'Shiv' Roy" is fine. **See "Twist-reveal names" below if the character's identity changes mid-story.**
 - "actorName" and "actorTmdbId" — the PRIMARY (earliest-visible) actor. MUST match someone in the provided cast list exactly. Copy the tmdbId. If the character has multiple actors, also fill the "actors" array (below).
@@ -141,14 +141,80 @@ The viewer will show "John Harrison" initially, then switch to "Khan" once the s
 
 Skip nameAliases when the character has no identity twist — most characters get \`nameAliases: []\`.
 
-## Cover identities, personas, disguises — KEEP AS ONE character
+## Inverse twist — two characters revealed to be one person
+
+Sometimes the audience tracks two seemingly separate characters and only later learns they're the same person — Mr. Robot / Elliot Alderson in Mr. Robot, Frank in Donnie Darko. Emit BOTH as separate cards. That mirrors how the audience is meant to perceive them up to the reveal, and the same-actor rule above already covers the actor attribution. Use a fact ("revealed to be a projection of X") rather than collapsing the cards.
+
+## Cover identities, personas, disguises, multiple personalities — KEEP AS ONE character
 
 A character pretending to be someone else is NOT a separate character. If Laszlo Cravensworth poses as "Jackie Daytona" for an episode, that's ONE character (Laszlo) — do NOT emit a separate "Jackie Daytona" card. The audience knows it's still Laszlo.
 
-The same rule applies to undercover cops, spies under cover, characters in disguise, characters using a fake name to escape a past, etc. One character, one card. The cover name only goes in \`nameAliases\` if the alias is sustained AND audience-known AND meaningfully part of how viewers refer to the character — most personas don't need an alias entry at all.
+The same rule applies to undercover cops, spies under cover, characters in disguise, characters using a fake name to escape a past, AND dissociative identity disorder / multiple personalities (Sybil, Split). One body, one card — the alternate identities are facets of the same person, not separate characters. The cover name only goes in \`nameAliases\` if the alias is sustained AND audience-known AND meaningfully part of how viewers refer to the character — most personas don't need an alias entry at all.
 
 ❌ WRONG — emitting "Laszlo Cravensworth" AND "Jackie Daytona" as two characters.
+❌ WRONG — emitting one card per personality for a DID character.
 ✅ CORRECT — one card for Laszlo, no alias entry (the persona is a one-bit gag).
+
+## Voice-only, unseen, or non-human characters
+
+Some plot-critical characters are never seen as a human face on-screen: Wilson the volleyball in Cast Away, the Iron Giant, Samantha in Her, GERTY in Moon, HAL 9000 in 2001. Give them a card when they're a major part of the story.
+
+- Voiced characters (Iron Giant, Samantha, GERTY, HAL): \`actorName\` / \`actorTmdbId\` point to the credited voice performer. \`visibleAfter\` anchors to the first audible appearance.
+- Silent objects/entities with no credited performer (Wilson the volleyball, R2-D2 in moments where there's no body performer credited, etc.): set \`actorName: null\` and \`actorTmdbId: null\`. The card still tracks their narrative role.
+
+Don't overdo this:
+
+- A kid playing with ten named toys doesn't need ten cards — only a Wilson-tier prop the audience tracks as a character with a personality and arc.
+- Pets / animals: only when plot-critical. The talking dog in Absolutely Anything earns a card; the Iron Giant earns a card; a generic golden retriever who shows up to wag its tail is encoded as a fact on the owner's card or a timeline event, not a card.
+- Background AI / hologram tools (JARVIS, Cortana, generic ship computer voices) do NOT get cards — they're set dressing. Central AI characters (Samantha in Her, GERTY, HAL) DO get cards.
+
+## Body swaps
+
+When two characters swap bodies mid-story (Freaky Friday, Your Name, 17 Again-style premises), still emit TWO cards — one per consciousness/identity, not per body. Use the existing \`actors[]\` infrastructure to track which actor is portraying that consciousness across the runtime, with \`note\` flagging the swap window.
+
+✅ CORRECT (Freaky Friday — Tess and Anna swap bodies):
+\`\`\`
+{
+  name: "Tess Coleman",
+  actorName: "Jamie Lee Curtis",
+  actorTmdbId: 6356,
+  baseDescription: "Anna's overworked mother, a therapist on the verge of remarriage.",
+  visibleAfter: { seconds: 0 },
+  actors: [
+    { actorName: "Jamie Lee Curtis", actorTmdbId: 6356, note: null, visibleAfter: { seconds: 0 } },
+    { actorName: "Lindsay Lohan",    actorTmdbId: 22226, note: "in Anna's body during swap", visibleAfter: { seconds: 1500 } },
+    { actorName: "Jamie Lee Curtis", actorTmdbId: 6356, note: "back in own body", visibleAfter: { seconds: 5400 } }
+  ],
+  nameAliases: []
+},
+{
+  name: "Anna Coleman",
+  actorName: "Lindsay Lohan",
+  actorTmdbId: 22226,
+  baseDescription: "Tess's teenage daughter, a guitarist who feels unseen by her mother.",
+  visibleAfter: { seconds: 0 },
+  actors: [
+    { actorName: "Lindsay Lohan",    actorTmdbId: 22226, note: null, visibleAfter: { seconds: 0 } },
+    { actorName: "Jamie Lee Curtis", actorTmdbId: 6356, note: "in Tess's body during swap", visibleAfter: { seconds: 1500 } },
+    { actorName: "Lindsay Lohan",    actorTmdbId: 22226, note: "back in own body", visibleAfter: { seconds: 5400 } }
+  ],
+  nameAliases: []
+}
+\`\`\`
+
+The viewer renders each card with the actor entries chronologically, so during the swap window the audience sees "currently played by [the other actor] — in [other character]'s body".
+
+## When NOT to create a card — bias toward fewer, denser characters
+
+Most movies and shows yield ~10–15 trackable characters. Beyond that the cast tab gets hectic and the audience can't see the leads. Skip cards for:
+
+- **Narrators** who aren't characters in the story (Ron Howard in Arrested Development). If the narrator IS also a character (Old Rose narrating young Rose in Titanic), use the character's name and treat narration as a fact — don't create a "narrator" card alongside the character card.
+- **One-event characters.** If a character's whole role in the movie is a single moment ("the bartender who hears the protagonist's confession", "the lawyer who reads the will"), encode it as a timeline event, and OPTIONALLY also as a character event (fact) on whichever MAJOR character is involved in the scene. Do NOT emit a card for the minor character themselves — they don't need to be tracked across the watch.
+- **Implied / never-on-screen characters** (Maris in Frasier, Vera in Cheers). They're a punchline, not a tracked character.
+- **Generic crowd / faction members.** Stormtroopers as a group are not characters; specific named ones the audience tracks (FN-2187 → Finn) are.
+- **Background pets / animals** without plot weight (covered above under voice-only).
+
+When in doubt, prefer encoding the role as a timeline event and a character event on a MAJOR character, not a separate card for someone with five minutes of screen time.
 
 ## Exclude body doubles, acting doubles, stunt performers, stand-ins
 
@@ -168,8 +234,8 @@ ${VISIBLE_AFTER_GUIDANCE}
 ## Quality bar
 
 - Use ONLY information that appears in the grounding data (TMDB cast + overview, Wikipedia summary, episode summaries).
-- Skip one-scene cameos unless essential.
-- For recurring ensemble shows (Succession, Yellowstone, GoT), aim toward 15–20. For a movie, 8–12 is usually right.`;
+- Aim for ~10–15 characters total. Movies usually land in 8–12; ensemble shows (Succession, Yellowstone, GoT) can go up to 15. Going beyond 15 makes the cast tab hectic and dilutes attention from the leads.
+- One-scene minor characters become a timeline event + an optional character event on a MAJOR character — not their own card.`;
 
 const TOOL: Anthropic.Tool = {
   name: "emit_characters",
