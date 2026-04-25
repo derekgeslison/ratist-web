@@ -325,11 +325,11 @@ export function formatPriorSeasonCanon(canon: PriorSeasonCanon | null): string {
 // ── Episode-mode addendum (incremental update for actively-airing seasons) ─
 // When generating a single episode's worth of new content for a season
 // already partway through generation, every chunk's user message includes
-// this block. It tells the AI two things: (1) the canon already includes
-// content from earlier episodes in this same season, so don't re-emit
-// items that are already there; (2) every visibleAfter must point at this
-// episode or later — anything earlier should already exist in the canon
-// list and re-emitting it would create duplicates.
+// this block. It tells the AI: (1) the canon already includes content from
+// earlier episodes in this same season, so don't re-emit items that are
+// already there; (2) every visibleAfter must point at this exact episode
+// — earlier episodes are already in our DB and later episodes haven't
+// aired yet, so neither should appear in this output.
 export function formatEpisodeModeAddendum(season: number, episode: number, kind: "characters" | "facts" | "relationships" | "timeline" | "glossary"): string {
   const itemNoun = {
     characters: "character",
@@ -338,7 +338,39 @@ export function formatEpisodeModeAddendum(season: number, episode: number, kind:
     timeline: "timeline event",
     glossary: "glossary term",
   }[kind];
-  return `\n\n## INCREMENTAL UPDATE — S${season}E${episode} ONLY\n\nThis season is in airing status — earlier episodes (S${season}E1..S${season}E${episode - 1}) have ALREADY been generated and persisted. The "CANON FROM PRIOR SEASONS" block above includes both prior seasons AND earlier episodes of the current season — anything listed there ALREADY EXISTS in our database.\n\n- Do NOT re-emit any ${itemNoun} already in the canon list. Skip them entirely; they're already saved.\n- ONLY emit ${itemNoun}s that become audience-known AT or AFTER S${season}E${episode}.\n- Every visibleAfter you emit MUST be { season: ${season}, episode: ${episode}, ... } or later. Earlier visibleAfter values are forbidden — those items would already be in our DB.\n- If S${season}E${episode} introduces nothing new for your section, emit an empty list. That's fine — not every episode introduces new ${itemNoun}s.`;
+  return `\n\n## INCREMENTAL UPDATE — S${season}E${episode} ONLY\n\nThis season is in airing status — earlier episodes (S${season}E1..S${season}E${episode - 1}) have ALREADY been generated and persisted. The "CANON FROM PRIOR SEASONS" block above includes both prior seasons AND earlier episodes of the current season — anything listed there ALREADY EXISTS in our database.\n\n- Do NOT re-emit any ${itemNoun} already in the canon list. Skip them entirely; they're already saved.\n- ONLY emit ${itemNoun}s that become audience-known specifically AT S${season}E${episode}.\n- Every visibleAfter you emit MUST be { season: ${season}, episode: ${episode}, seconds?: N }. Earlier visibleAfter values are forbidden (already in our DB). LATER visibleAfter values are also forbidden — even if you know from training data what happens in S${season}E${episode + 1}+, those episodes haven't aired yet and content for them must wait until they pass the 2-day buffer and get their own per-episode generation. Items with visibleAfter outside { season: ${season}, episode: ${episode} } will be DROPPED at persist.\n- If S${season}E${episode} introduces nothing new for your section, emit an empty list. That's fine — not every episode introduces new ${itemNoun}s.`;
+}
+
+// ── Airing-mode addendum (initial gen for an actively-airing season) ──────
+// Used when the route layer detects airing and runs the season-mode
+// pipeline against the eligible-episodes batch (those whose air_date + 2
+// days have passed). Two non-obvious behaviors to enforce here:
+//
+//   1. DISTRIBUTE visibleAfter across the eligible episodes, not just E1.
+//      Empirically the AI parks ~90% of emissions at E1 because subtitle
+//      dialogue is most reliably indexed for the first-aired episode and
+//      thinning toward more-recent ones. The TMDB synopses for later
+//      episodes are sufficient evidence to anchor visibleAfter even
+//      without dialogue cues — this addendum makes that explicit.
+//
+//   2. FORBID emissions for unaired episodes. The AI's training data
+//      includes the rest of the season's plot for shows that are well
+//      into their broadcast run; without this constraint the AI will
+//      cheerfully tag content at E5+ from memory.
+export function formatAiringModeAddendum(season: number, eligibleEpisodes: number[], kind: "characters" | "facts" | "relationships" | "timeline" | "glossary"): string {
+  if (eligibleEpisodes.length === 0) return "";
+  const sorted = [...eligibleEpisodes].sort((a, b) => a - b);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const list = sorted.map((e) => `S${season}E${e}`).join(", ");
+  const itemNoun = {
+    characters: "characters",
+    facts: "facts",
+    relationships: "relationships",
+    timeline: "timeline events",
+    glossary: "glossary terms",
+  }[kind];
+  return `\n\n## ACTIVELY-AIRING SEASON — DISTRIBUTE ACROSS ${sorted.length} AIRED EPISODES\n\nSeason ${season} is currently on air week-to-week. Only these episodes have aired and have grounding above: ${list}. Episodes after S${season}E${last} have NOT YET AIRED and are not represented in the grounding.\n\n- DISTRIBUTE visibleAfter values across all aired episodes (${list}). ANCHOR each emission to the SPECIFIC episode where it happens, using the TMDB synopses in "SEASON ${season} EPISODES" above as evidence. Do NOT park everything at S${season}E${first} just because subtitle dialogue is most reliable there — TMDB synopses for the other aired episodes are sufficient evidence to anchor visibleAfter accurately.\n- FORBIDDEN: emitting any ${itemNoun} with visibleAfter.episode > ${last}. Even if you know from training data what happens in S${season}E${last + 1}+, those episodes have NOT AIRED — that content does NOT belong here. It will be generated separately when each future episode passes the 2-day grounding buffer. Items with visibleAfter.episode > ${last} will be DROPPED at persist.\n- Every visibleAfter.episode you emit MUST be in [${sorted.join(", ")}]. Use a spread of these values, not just the first. A timeline event from the S${season}E3 synopsis gets visibleAfter.episode = 3, not 1.`;
 }
 
 // ── Shared visibleAfter guidance (inserted into each chunk's prompt) ───────

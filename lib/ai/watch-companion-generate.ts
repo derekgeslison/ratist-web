@@ -180,59 +180,72 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
     priorCanon = await loadFranchiseCanon(tmdbId);
   }
 
+  // Airing-mode pass-through for chunk prompts. The chunks use this to add
+  // distribute-across-eligible-episodes guidance + a forbid-future-episodes
+  // rule (training-data leakage).
+  const airingArg = airingMode ? { eligibleEpisodes: airingMode.eligibleEpisodes } : null;
+
   // 2. Characters
   yield { kind: "step", step: "characters", status: "running" };
   let characters: DraftCharacter[];
   try {
-    characters = await draftCharacters(client, grounding, seasonArg, priorCanon, episodeArg);
+    characters = await draftCharacters(client, grounding, seasonArg, priorCanon, episodeArg, airingArg);
   } catch (err) {
     yield { kind: "error", message: `Characters draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
   }
+  // Defense-in-depth visibleAfter scoping. The prompt forbids out-of-range
+  // emissions but the AI sometimes sneaks training-data content in for
+  // unaired episodes anyway. Drop those before they hit persist.
+  characters = filterScopeToEligible(characters, airingArg, episodeArg, seasonArg);
   yield { kind: "step", step: "characters", status: "done", count: characters.length };
 
   // 3. Facts
   yield { kind: "step", step: "facts", status: "running" };
   let facts: DraftFact[];
   try {
-    facts = await draftFacts(client, grounding, seasonArg, characters, priorCanon, episodeArg);
+    facts = await draftFacts(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg);
   } catch (err) {
     yield { kind: "error", message: `Facts draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
   }
+  facts = filterScopeToEligible(facts, airingArg, episodeArg, seasonArg);
   yield { kind: "step", step: "facts", status: "done", count: facts.length };
 
   // 4. Relationships
   yield { kind: "step", step: "relationships", status: "running" };
   let relationships: DraftRelationship[];
   try {
-    relationships = await draftRelationships(client, grounding, seasonArg, characters, priorCanon, episodeArg);
+    relationships = await draftRelationships(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg);
   } catch (err) {
     yield { kind: "error", message: `Relationships draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
   }
+  relationships = filterScopeToEligible(relationships, airingArg, episodeArg, seasonArg);
   yield { kind: "step", step: "relationships", status: "done", count: relationships.length };
 
   // 5. Timeline
   yield { kind: "step", step: "timeline", status: "running" };
   let timelineEvents: DraftTimelineEvent[];
   try {
-    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters, priorCanon, episodeArg);
+    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg);
   } catch (err) {
     yield { kind: "error", message: `Timeline draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
   }
+  timelineEvents = filterScopeToEligible(timelineEvents, airingArg, episodeArg, seasonArg);
   yield { kind: "step", step: "timeline", status: "done", count: timelineEvents.length };
 
   // 6. Glossary
   yield { kind: "step", step: "glossary", status: "running" };
   let glossary: DraftGlossaryTerm[];
   try {
-    glossary = await draftGlossary(client, grounding, seasonArg, priorCanon, episodeArg);
+    glossary = await draftGlossary(client, grounding, seasonArg, priorCanon, episodeArg, airingArg);
   } catch (err) {
     yield { kind: "error", message: `Glossary draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
   }
+  glossary = filterScopeToEligible(glossary, airingArg, episodeArg, seasonArg);
   yield { kind: "step", step: "glossary", status: "done", count: glossary.length };
 
   // 7. Recap. Two prose blocks per installment — an INSTALLMENT recap
@@ -690,6 +703,48 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     glossaryAdded,
     ...(airingSummary ? { airing: airingSummary } : {}),
   };
+}
+
+/**
+ * Defense-in-depth visibleAfter scope filter. Even when the chunk prompt
+ * forbids out-of-range emissions, the AI sometimes sneaks training-data
+ * content through — Sonnet has The Boys S5's full plot in memory and
+ * will tag a Butcher death at S5E8 regardless of how clearly the prompt
+ * says "E5+ has not aired."
+ *
+ * - airing mode: drop items with visibleAfter.episode > max(eligible). Null
+ *   episode is treated as 1 (matches isVisible's default in the viewer).
+ * - episode mode: drop items where visibleAfter.episode !== target. Both
+ *   earlier (already in DB via canon) and later (unaired) are out-of-scope.
+ * - neither: pass through. The grounding restricted what the AI saw, so
+ *   we trust its emissions.
+ */
+function filterScopeToEligible<T extends { visibleAfter: VisibleAfter }>(
+  items: T[],
+  airing: { eligibleEpisodes: number[] } | null,
+  episode: number | null,
+  season: number | null,
+): T[] {
+  if (season === null) return items;
+  if (episode !== null) {
+    return items.filter((item) => {
+      const ep = item.visibleAfter.episode;
+      // Episode mode requires exact match. Treat null as a soft mismatch
+      // — the prompt explicitly required `{ season, episode, ... }`, so
+      // null indicates the AI didn't follow instructions and the safe
+      // play is to drop rather than guess.
+      return typeof ep === "number" && ep === episode;
+    });
+  }
+  if (airing) {
+    if (airing.eligibleEpisodes.length === 0) return items;
+    const maxEp = Math.max(...airing.eligibleEpisodes);
+    return items.filter((item) => {
+      const ep = item.visibleAfter.episode ?? 1;
+      return ep <= maxEp;
+    });
+  }
+  return items;
 }
 
 function serialize(v: VisibleAfter): { seconds?: number; season?: number; episode?: number } {

@@ -13,6 +13,7 @@ import {
   formatGroundingContext,
   formatPriorSeasonCanon,
   formatEpisodeModeAddendum,
+  formatAiringModeAddendum,
   callTool,
 } from "./shared";
 
@@ -170,12 +171,14 @@ export async function draftRelationships(
   characters: DraftCharacter[],
   priorCanon: PriorSeasonCanon | null = null,
   episode: number | null = null,
+  airing: { eligibleEpisodes: number[] } | null = null,
 ): Promise<DraftRelationship[]> {
   const charList = characters.map((c) => `- ${c.name}`).join("\n");
   const userMessage = formatGroundingContext(grounding, season, { includeCast: false, episode })
     + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference these EXACTLY by name)\n\n${charList}`
     + (episode !== null && season !== null ? formatEpisodeModeAddendum(season, episode, "relationships") : "")
+    + (airing && season !== null ? formatAiringModeAddendum(season, airing.eligibleEpisodes, "relationships") : "")
     + `\n\nEmit the relationships now. Every fromName and toName must match one of the names above exactly.`;
 
   const result = await callTool<{ relationships: unknown[] }>({

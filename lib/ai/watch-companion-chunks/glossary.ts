@@ -11,6 +11,7 @@ import {
   formatGroundingContext,
   formatPriorSeasonCanon,
   formatEpisodeModeAddendum,
+  formatAiringModeAddendum,
   callTool,
 } from "./shared";
 
@@ -71,10 +72,12 @@ export async function draftGlossary(
   season: number | null,
   priorCanon: PriorSeasonCanon | null = null,
   episode: number | null = null,
+  airing: { eligibleEpisodes: number[] } | null = null,
 ): Promise<DraftGlossaryTerm[]> {
   const userMessage = formatGroundingContext(grounding, season, { includeCast: false, episode })
     + formatPriorSeasonCanon(priorCanon)
     + (episode !== null && season !== null ? formatEpisodeModeAddendum(season, episode, "glossary") : "")
+    + (airing && season !== null ? formatAiringModeAddendum(season, airing.eligibleEpisodes, "glossary") : "")
     + `\n\nEmit the glossary now. Sort most-obscure-first. ${episode !== null && season !== null ? "0–6 NEW terms for a single episode is typical — most episodes only introduce a handful of new jargon, if any." : "Aim for 10–25 terms for prestige / worldbuilding-heavy media."}`;
 
   const result = await callTool<{ terms: unknown[] }>({

@@ -34,6 +34,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       relationships: true,
       timeline: true,
       glossary: { orderBy: { sortOrder: "asc" } },
+      airingSeasons: {
+        select: { seasonNumber: true, episodesGenerated: true, status: true, failureCount: true, lastError: true, lastSweepAt: true },
+        orderBy: { seasonNumber: "asc" },
+      },
     },
   });
 

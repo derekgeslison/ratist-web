@@ -10,6 +10,7 @@ import {
   formatGroundingContext,
   formatPriorSeasonCanon,
   formatEpisodeModeAddendum,
+  formatAiringModeAddendum,
   callTool,
 } from "./shared";
 
@@ -88,13 +89,20 @@ export async function draftTimeline(
   characters: DraftCharacter[],
   priorCanon: PriorSeasonCanon | null = null,
   episode: number | null = null,
+  airing: { eligibleEpisodes: number[] } | null = null,
 ): Promise<DraftTimelineEvent[]> {
   const charList = characters.map((c) => `- ${c.name}`).join("\n");
+  const epHint = episode !== null && season !== null
+    ? "1–4 beats for a single episode is typical — this is one episode of an actively-airing season."
+    : airing && season !== null
+      ? `Aim for 1-3 beats PER aired episode (${airing.eligibleEpisodes.length} aired = roughly ${airing.eligibleEpisodes.length}-${airing.eligibleEpisodes.length * 3} beats total). DISTRIBUTE — every aired episode should have at least one beat.`
+      : "Minimum 8 beats for a season, 6 for a movie.";
   const userMessage = formatGroundingContext(grounding, season, { includeCast: false, episode })
     + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference by exact name in characterNames)\n\n${charList}`
     + (episode !== null && season !== null ? formatEpisodeModeAddendum(season, episode, "timeline") : "")
-    + `\n\nEmit the timeline now. ${episode !== null && season !== null ? "1–4 beats for a single episode is typical — this is one episode of an actively-airing season." : "Minimum 8 beats for a season, 6 for a movie."}`;
+    + (airing && season !== null ? formatAiringModeAddendum(season, airing.eligibleEpisodes, "timeline") : "")
+    + `\n\nEmit the timeline now. ${epHint}`;
 
   const result = await callTool<{ events: unknown[] }>({
     client,

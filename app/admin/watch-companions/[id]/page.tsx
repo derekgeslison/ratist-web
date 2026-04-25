@@ -44,6 +44,14 @@ interface GlossaryTerm {
   id: string; term: string; definition: string; category: string | null; visibleAfter: VisibleAfter;
   seasonNumber: number | null;
 }
+interface AiringSeasonRow {
+  seasonNumber: number;
+  episodesGenerated: number[];
+  status: "airing" | "completed";
+  failureCount: number;
+  lastError: string | null;
+  lastSweepAt: string | null;
+}
 interface Companion {
   id: string; tmdbId: number; mediaType: "movie" | "tv";
   title: string; status: "draft" | "published"; seasonsGenerated: number[];
@@ -51,6 +59,10 @@ interface Companion {
   lastGeneratedAt: string | null; publishedAt: string | null;
   characters: Character[]; relationships: Relationship[];
   timeline: TimelineEvent[]; glossary: GlossaryTerm[];
+  /** Airing-season tracker rows. Surfaced in the header + filter so admins
+   *  can see which seasons are mid-air, how many episodes are in, and
+   *  whether the cron sweep is failing on any of them. */
+  airingSeasons?: AiringSeasonRow[];
   /** Per-installment recap blob. Movies: { current: { installment, series } }.
    *  TV: { "1": { installment, series }, "2": {...}, ... }. */
   recaps: Record<string, unknown> | null;
@@ -392,7 +404,24 @@ export default function ReviewCompanionPage() {
   const filteredRelationships = companion.relationships.filter(matchesSeason);
   const filteredTimeline = companion.timeline.filter(matchesSeason);
   const filteredGlossary = companion.glossary.filter(matchesSeason);
-  const sortedSeasons = [...companion.seasonsGenerated].sort((a, b) => a - b);
+  // Combine completed + airing seasons for the filter dropdown so admins
+  // can scope the view to a season that's currently airing too. Airing
+  // rows that have already finalized are excluded — those have flipped
+  // into seasonsGenerated, which is the source of truth post-finalize.
+  const airingForUi = (companion.airingSeasons ?? []).filter((a) => a.status === "airing");
+  const sortedSeasons = Array.from(
+    new Set([...companion.seasonsGenerated, ...airingForUi.map((a) => a.seasonNumber)]),
+  ).sort((a, b) => a - b);
+
+  // Compact "S3, S5 (airing · 4 eps)" label for the header. Failing cron
+  // rows get a red dot so an at-risk row is impossible to miss when an
+  // admin opens the page.
+  const headerSeasonLabel = companion.mediaType === "tv" && (companion.seasonsGenerated.length > 0 || airingForUi.length > 0)
+    ? ` · ${[
+        ...companion.seasonsGenerated.map((n) => `S${n}`),
+        ...airingForUi.map((a) => `S${a.seasonNumber} (airing · ${a.episodesGenerated.length} ep${a.episodesGenerated.length === 1 ? "" : "s"}${a.failureCount > 0 ? ` · ⚠ ${a.failureCount} failures` : ""})`),
+      ].join(", ")}`
+    : "";
 
   return (
     <div>
@@ -403,7 +432,7 @@ export default function ReviewCompanionPage() {
         <h2 className="text-lg font-semibold text-white">{companion.title}</h2>
         <span className="text-xs text-[var(--foreground-muted)]">
           {companion.mediaType === "tv" ? "TV" : "Movie"} · TMDB {companion.tmdbId}
-          {companion.mediaType === "tv" && companion.seasonsGenerated.length > 0 && ` · S${companion.seasonsGenerated.join(", S")}`}
+          {headerSeasonLabel}
         </span>
         {companion.mediaType === "tv" && sortedSeasons.length > 1 && (
           <label className="ml-auto flex items-center gap-2 text-[11px] text-[var(--foreground-muted)]">

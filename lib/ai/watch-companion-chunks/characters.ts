@@ -12,6 +12,7 @@ import {
   formatGroundingContext,
   formatPriorSeasonCanon,
   formatEpisodeModeAddendum,
+  formatAiringModeAddendum,
   callTool,
 } from "./shared";
 
@@ -469,6 +470,7 @@ export async function draftCharacters(
   season: number | null,
   priorCanon: PriorSeasonCanon | null = null,
   episode: number | null = null,
+  airing: { eligibleEpisodes: number[] } | null = null,
 ): Promise<DraftCharacter[]> {
   // Include subtitles — even though baseDescription is identity-only, the
   // actors[] visibleAfter and nameAliases[] visibleAfter fields both need
@@ -478,6 +480,7 @@ export async function draftCharacters(
   const userMessage = formatGroundingContext(grounding, season, { episode })
     + formatPriorSeasonCanon(priorCanon)
     + (episode !== null && season !== null ? formatEpisodeModeAddendum(season, episode, "characters") : "")
+    + (airing && season !== null ? formatAiringModeAddendum(season, airing.eligibleEpisodes, "characters") : "")
     + `\n\nEmit the characters now. Each must cite an actorTmdbId from the cast list above and include a correct visibleAfter. For multi-actor characters and twist-reveal names, use the DIALOGUE EXCERPT timestamps as ground truth for when each actor/name becomes visible.`;
   const result = await callTool<{ characters: unknown[] }>({
     client,

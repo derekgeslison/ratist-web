@@ -714,6 +714,22 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   // full season. The 2-day-delay banner explains the rest.
   const seasonIsAiring = mediaType === "tv" && airingSeasonByNumber.has(selectedSeason);
   const seasonIsGenerated = mediaType === "movie" || generatedSet.has(selectedSeason) || seasonIsAiring;
+  // Latest aired-and-generated episode for this season (only meaningful
+  // when seasonIsAiring). Drives the "this episode hasn't aired yet" hint
+  // when the user scrubs the slot slider past what's actually generated.
+  const maxAiredEpisode = useMemo(() => {
+    if (!seasonIsAiring) return null;
+    const eps = airingSeasonByNumber.get(selectedSeason)?.episodesGenerated ?? [];
+    if (eps.length === 0) return null;
+    return Math.max(...eps);
+  }, [seasonIsAiring, selectedSeason, airingSeasonByNumber]);
+  // True when the user has scrubbed the within-season episode slider past
+  // the latest episode that's actually generated. Surfaces the hint inline
+  // above the position-in-episode slider.
+  const slotIsBeyondAired = mediaType === "tv"
+    && maxAiredEpisode !== null
+    && episodeSlots[slotIndex]?.episode !== undefined
+    && (episodeSlots[slotIndex]?.episode ?? 1) > maxAiredEpisode;
 
   // Thin-content detection for the "this companion is lightweight" banner.
   // Thresholds match the Cine-Q-style floor: fewer than 5 characters or
@@ -875,6 +891,14 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               className="w-full accent-[var(--ratist-red)]"
               aria-label="Episode position"
             />
+            {slotIsBeyondAired && (
+              <p className="mt-1.5 text-[11px] text-amber-300 flex items-start gap-1.5 leading-relaxed">
+                <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                <span>
+                  S{currentSlot.season}E{currentSlot.episode} hasn&apos;t aired yet. The latest episode with companion content is S{currentSlot.season}E{maxAiredEpisode} — slide back to see what&apos;s unlocked. New episodes go live ~2 days after they air.
+                </span>
+              </p>
+            )}
             <div className="flex items-baseline justify-between mt-2 mb-1">
               <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">
                 Position in episode{" "}

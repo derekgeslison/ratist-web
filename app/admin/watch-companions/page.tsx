@@ -12,6 +12,7 @@ interface CompanionRow {
   title: string;
   status: "draft" | "published";
   seasonsGenerated: number[];
+  airingSeasons: Array<{ seasonNumber: number; episodesGenerated: number[]; status: "airing" | "completed"; failureCount: number }>;
   lastGeneratedAt: string | null;
   publishedAt: string | null;
   updatedAt: string;
@@ -115,11 +116,18 @@ export default function CompanionsListPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--foreground-muted)]">
-                    {row.mediaType === "tv"
-                      ? row.seasonsGenerated.length > 0
-                        ? `S${row.seasonsGenerated.join(", S")}`
-                        : "—"
-                      : "—"}
+                    {row.mediaType === "tv" ? (() => {
+                      // Combine completed (seasonsGenerated) + airing rows
+                      // so a show with only an airing season doesn't render
+                      // as "—". Airing rows get a count suffix so the admin
+                      // can see at a glance how many episodes are in.
+                      const completed = row.seasonsGenerated.map((n) => `S${n}`);
+                      const airing = (row.airingSeasons ?? [])
+                        .filter((a) => a.status === "airing")
+                        .map((a) => `S${a.seasonNumber} (airing · ${a.episodesGenerated.length} ep${a.episodesGenerated.length === 1 ? "" : "s"})`);
+                      const parts = [...completed, ...airing];
+                      return parts.length > 0 ? parts.join(", ") : "—";
+                    })() : "—"}
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--foreground-muted)]">
                     {row._count.characters} char · {row._count.relationships} rel · {row._count.timeline} events · {row._count.glossary} terms

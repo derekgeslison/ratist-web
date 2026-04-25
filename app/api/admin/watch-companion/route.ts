@@ -32,6 +32,10 @@ export async function GET(req: NextRequest) {
         lastGeneratedAt: true,
         publishedAt: true,
         updatedAt: true,
+        airingSeasons: {
+          select: { seasonNumber: true, episodesGenerated: true, status: true, failureCount: true },
+          orderBy: { seasonNumber: "asc" },
+        },
         _count: {
           select: {
             characters: true,
