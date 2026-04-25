@@ -648,6 +648,21 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
               const connections = relationshipsByCharacter.get(c.id) ?? [];
 
+              // Resolve the name to display — latest unlocked alias, falling
+              // back to the base name. Computed BEFORE actor resolution so
+              // the alias-revert override below can see it.
+              const unlockedAliases = (c.nameAliases ?? [])
+                .filter((n) => isVisible(n.visibleAfter, position, mediaType))
+                .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
+              const displayName = unlockedAliases[unlockedAliases.length - 1]?.name ?? c.name;
+              // Suppress the parenthetical when the latest alias matches the
+              // original name — covers the Jumanji-style "swap back to self
+              // at the end" case where the consciousness card cycles
+              // Spencer → Bravestone → Ming → Spencer; without this guard
+              // we'd render "Spencer (originally Spencer Gilpin)".
+              const hasAliasReveal = unlockedAliases.length > 0 && displayName !== c.name;
+              const aliasRevertedToOriginal = unlockedAliases.length > 0 && displayName === c.name;
+
               // Resolve the "current" actor(s) at the user's slider position.
               // Any actors sharing the LATEST unlocked visibleAfter are all
               // current — this is how we handle twins / interchangeable
@@ -666,49 +681,50 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                 imageUrl: c.imageUrl,
               } : null;
               const latestUnlocked = unlockedActors[unlockedActors.length - 1];
-              const currentActors = latestUnlocked
+              const baseCurrentActors = latestUnlocked
                 ? unlockedActors.filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) === 0)
                 : fallbackActor ? [fallbackActor] : [];
-              // Dedup past actors against the current row AND against
-              // each other on the (actor, note) pair. Without this a
-              // multi-swap card like Jumanji 2's Spencer ends up reading
-              // "played by Dwayne Johnson, also played by Alex Wolff,
-              // Awkwafina, Dwayne Johnson, ..." — repeating the current
-              // actor and any prior identical-vessel periods. The (actor,
-              // note) key keeps distinct vessel periods from collapsing
-              // (Dwayne in Bravestone vs Dwayne in Mouse stay separate).
+
+              // Alias-revert override: when the displayed name has cycled
+              // back to c.name (Jumanji's Spencer ending the movie back as
+              // himself), the actor row should match — Alex Wolff, not the
+              // last-seen avatar actor. The AI is supposed to emit a final
+              // actors[] entry restoring the original, but in practice it
+              // sometimes only updates nameAliases. This safety net forces
+              // the current-actor row to the fallback whenever the alias
+              // says we're back to the original identity but actors[]
+              // hasn't caught up. Doesn't fire when the AI did emit the
+              // revert (because the matching fallback actor is already in
+              // baseCurrentActors).
+              const fallbackId = fallbackActor ? (fallbackActor.actorTmdbId ?? fallbackActor.actorName) : null;
+              const fallbackInCurrent = fallbackId !== null
+                && baseCurrentActors.some((a) => (a.actorTmdbId ?? a.actorName) === fallbackId);
+              const currentActors = aliasRevertedToOriginal && fallbackActor && !fallbackInCurrent
+                ? [fallbackActor]
+                : baseCurrentActors;
+
+              // Past actors — drop anyone whose actor identity is currently
+              // active (regardless of note differences), then dedup what
+              // remains by (actor, note) so distinct vessel periods stay
+              // visible in the swap log but identical repeats collapse.
+              const actorIdOnly = (a: { actorName: string; actorTmdbId: number | null }) =>
+                a.actorTmdbId ?? a.actorName;
               const actorKey = (a: { actorName: string; actorTmdbId: number | null; note: string | null }) =>
-                `${a.actorTmdbId ?? a.actorName}|${a.note ?? ""}`;
-              const currentKeys = new Set(currentActors.map(actorKey));
+                `${actorIdOnly(a)}|${a.note ?? ""}`;
+              const currentIds = new Set(currentActors.map(actorIdOnly));
               const seenPast = new Set<string>();
-              const pastActors = latestUnlocked
-                ? unlockedActors
-                    .filter((a) => compareVisibleAfter(a.visibleAfter, latestUnlocked.visibleAfter, mediaType) !== 0)
-                    .filter((a) => {
-                      const key = actorKey(a);
-                      if (currentKeys.has(key)) return false;
-                      if (seenPast.has(key)) return false;
-                      seenPast.add(key);
-                      return true;
-                    })
-                : [];
+              const pastActors = unlockedActors
+                .filter((a) => !currentIds.has(actorIdOnly(a)))
+                .filter((a) => {
+                  const key = actorKey(a);
+                  if (seenPast.has(key)) return false;
+                  seenPast.add(key);
+                  return true;
+                });
+
               // Pick ONE "lead" actor for the portrait — twins look alike so
               // either works. First-listed wins (stable sortOrder).
               const currentActor = currentActors[0] ?? null;
-
-              // Resolve the name to display — latest unlocked alias, falling
-              // back to the base name. If we've crossed an alias reveal, add
-              // a subtle "(previously X)" so rewatch mode still makes sense.
-              const unlockedAliases = (c.nameAliases ?? [])
-                .filter((n) => isVisible(n.visibleAfter, position, mediaType))
-                .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
-              const displayName = unlockedAliases[unlockedAliases.length - 1]?.name ?? c.name;
-              // Suppress the parenthetical when the latest alias matches the
-              // original name — covers the Jumanji-style "swap back to self
-              // at the end" case where the consciousness card cycles
-              // Spencer → Bravestone → Ming → Spencer; without this guard
-              // we'd render "Spencer (originally Spencer Gilpin)".
-              const hasAliasReveal = unlockedAliases.length > 0 && displayName !== c.name;
 
               return (
                 <React.Fragment key={c.id}>

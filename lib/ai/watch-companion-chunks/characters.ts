@@ -216,14 +216,16 @@ Apply the same rule as a Freaky Friday swap: ONE card per consciousness, NOT per
 
 ⚠️ The trap: TMDB will list the vessel as a separate character ("Dwayne Johnson as Dr. Smolder Bravestone" alongside "Alex Wolff as Spencer Gilpin"). The cast list is a casting credit, not a character list — collapse them under the consciousness card. For Jumanji the result is FOUR cards (Spencer, Bethany, Fridge, Martha), not eight.
 
-### Always include exit / revert entries
+### Always include exit / revert entries — BOTH lists, every time
 
-When the consciousness returns to its original body (end of game in Jumanji, swap reverses in Freaky Friday, possession ends, etc.), you MUST add a final entry to BOTH \`actors[]\` and \`nameAliases\` resetting to the originals:
+When the consciousness returns to its original body (end of game in Jumanji, swap reverses in Freaky Friday, possession ends, etc.), you MUST add a final entry to BOTH \`actors[]\` AND \`nameAliases\` resetting to the originals. Two lists, two entries — never just one.
 
-- \`actors[]\` gets another entry with the original actor + the exit timestamp.
-- \`nameAliases\` gets another entry with the original \`name\` (the same string used in the card's top-level \`name\` field) + the exit timestamp.
+- \`actors[]\` gets another entry with the ORIGINAL \`actorName\` and \`actorTmdbId\` (matching the card's top-level fields), \`note: "back in own body"\`, and \`visibleAfter\` set to the exit timestamp.
+- \`nameAliases\` gets another entry with the ORIGINAL \`name\` (matching the card's top-level \`name\` field) + the same exit \`visibleAfter\`.
 
-Without these revert entries the viewer stays stuck on the avatar/vessel name and actor for the rest of the runtime — even after the audience has watched the kids climb out of the game. The viewer always renders the LATEST unlocked entry, so the only way to revert is to write a later entry.
+A common failure mode: emitting only the \`nameAliases\` revert and forgetting the \`actors[]\` revert. The card then renders "Spencer Gilpin played by Dwayne Johnson" at the end of the movie — the name reverts but the actor stays stuck on the last avatar actor. The viewer always picks the LATEST unlocked entry from each list independently, so both lists need their own revert entry.
+
+Mental check before you finish a vessel/swap card: count the entries. If \`nameAliases\` has N entries, \`actors[]\` should have N+1 (one more, because actors starts with the original-body row at \`visibleAfter: 0\` while nameAliases starts empty before the first inhabit). Spencer in Jumanji 1: 2 aliases (Bravestone, Spencer Gilpin), 3 actors (Alex, Dwayne, Alex). Spencer in Next Level: 3 aliases (Ming, Bravestone, Spencer Gilpin), 4 actors (Alex, Awkwafina, Dwayne, Alex).
 
 ### Use descriptive notes — they're the audience's swap log
 
