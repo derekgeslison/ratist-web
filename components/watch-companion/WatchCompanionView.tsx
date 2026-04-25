@@ -683,7 +683,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                 .filter((n) => isVisible(n.visibleAfter, position, mediaType))
                 .sort((a, b) => compareVisibleAfter(a.visibleAfter, b.visibleAfter, mediaType));
               const displayName = unlockedAliases[unlockedAliases.length - 1]?.name ?? c.name;
-              const hasAliasReveal = unlockedAliases.length > 0;
+              // Suppress the parenthetical when the latest alias matches the
+              // original name — covers the Jumanji-style "swap back to self
+              // at the end" case where the consciousness card cycles
+              // Spencer → Bravestone → Ming → Spencer; without this guard
+              // we'd render "Spencer (originally Spencer Gilpin)".
+              const hasAliasReveal = unlockedAliases.length > 0 && displayName !== c.name;
 
               return (
                 <React.Fragment key={c.id}>
@@ -726,7 +731,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                         {displayName}
                         {hasAliasReveal && (
                           <span className="ml-1.5 text-[10px] font-normal text-[var(--foreground-muted)]/80">
-                            (previously {c.name})
+                            {/* "originally" reads correctly for both
+                                twist-reveals (Khan was originally
+                                introduced as John Harrison) and vessel
+                                inhabitance (Bravestone is originally
+                                Spencer, the consciousness inside).
+                                "previously" implied the underlying name
+                                was a former identity, which is wrong for
+                                possession / avatar premises. */}
+                            (originally {c.name})
                           </span>
                         )}
                       </p>

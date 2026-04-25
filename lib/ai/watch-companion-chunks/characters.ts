@@ -204,6 +204,38 @@ When two characters swap bodies mid-story (Freaky Friday, Your Name, 17 Again-st
 
 The viewer renders each card with the actor entries chronologically, so during the swap window the audience sees "currently played by [the other actor] — in [other character]'s body".
 
+### Vessel / avatar / possession variant — same rule, watch the cast list
+
+A common variation: the "body" the consciousness inhabits is itself a separately-credited named character. Examples:
+
+- **Game avatars** — Jumanji: Welcome to the Jungle / The Next Level. Spencer (Alex Wolff) inhabits Dr. Smolder Bravestone (Dwayne Johnson). TMDB lists both as separate cast entries.
+- **Possession** — Get Out's sunken-place body-takeovers, body-snatcher premises (Invasion of the Body Snatchers), demonic possession (The Exorcist).
+- **Mind transfers** — Self/Less, Altered Carbon (sleeves), Avatar (the human-Na'vi link).
+
+Apply the same rule as a Freaky Friday swap: ONE card per consciousness, NOT per vessel. The vessel's name goes in \`nameAliases\` with \`visibleAfter\` at the inhabit moment. The vessel actor goes in \`actors[]\` with \`note: "in [vessel name]'s body"\` and the same \`visibleAfter\`. Inherent traits of the vessel that the consciousness inherits while inside (Bravestone's strength, Mouse's zoology knowledge, Ruby's martial arts) become facts on the consciousness's card with \`visibleAfter\` at the inhabit moment.
+
+⚠️ The trap: TMDB will list the vessel as a separate character ("Dwayne Johnson as Dr. Smolder Bravestone" alongside "Alex Wolff as Spencer Gilpin"). The cast list is a casting credit, not a character list — collapse them under the consciousness card. For Jumanji the result is FOUR cards (Spencer, Bethany, Fridge, Martha), not eight.
+
+✅ CORRECT (Jumanji: Welcome to the Jungle — Spencer inhabits Bravestone):
+\`\`\`
+{
+  name: "Spencer Gilpin",
+  actorName: "Alex Wolff",
+  actorTmdbId: 1284057,
+  baseDescription: "An anxious high-schooler who finds confidence inside the game's strongest avatar.",
+  visibleAfter: { seconds: 0 },
+  actors: [
+    { actorName: "Alex Wolff",     actorTmdbId: 1284057, note: null, visibleAfter: { seconds: 0 } },
+    { actorName: "Dwayne Johnson", actorTmdbId: 18918,   note: "in Bravestone's avatar", visibleAfter: { seconds: 1100 } }
+  ],
+  nameAliases: [
+    { name: "Dr. Smolder Bravestone", visibleAfter: { seconds: 1100 } }
+  ]
+}
+\`\`\`
+
+For Next Level's multi-swap (Eddie ends up in Mouse, Spencer ends up in Ming, etc., then they swap again mid-movie), each swap is just another \`actors[]\` entry + another \`nameAliases\` entry on the affected consciousness's card. Same machinery, more rows.
+
 ## When NOT to create a card — bias toward fewer, denser characters
 
 Most movies and shows yield ~10–15 trackable characters. Beyond that the cast tab gets hectic and the audience can't see the leads. Skip cards for:
@@ -234,8 +266,8 @@ ${VISIBLE_AFTER_GUIDANCE}
 ## Quality bar
 
 - Use ONLY information that appears in the grounding data (TMDB cast + overview, Wikipedia summary, episode summaries).
-- Aim for ~10–15 characters total. Movies usually land in 8–12; ensemble shows (Succession, Yellowstone, GoT) can go up to 15. Going beyond 15 makes the cast tab hectic and dilutes attention from the leads.
-- One-scene minor characters become a timeline event + an optional character event on a MAJOR character — not their own card.`;
+- ~10–15 cards is a soft target, not a hard cap. Most movies land in 8–12. Standard ensemble shows (Succession, Yellowstone) sit around 15. Truly sprawling ensembles (Game of Thrones, The Wire, Lost) can run 20–25+ — that's fine when every card is a character the audience actively tracks across the season. The criterion is "audience tracks" not "TMDB lists".
+- The failure mode is pulling in tertiary characters to pad the list, not refusing to add a 16th genuinely-tracked one. When in doubt about a borderline character, encode their role as a timeline event + an optional character event on a MAJOR character instead of giving them a card.`;
 
 const TOOL: Anthropic.Tool = {
   name: "emit_characters",
