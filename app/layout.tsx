@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import AccountStatusBanner from "@/components/AccountStatusBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import OnboardingGuard from "@/components/OnboardingGuard";
+import NavEntryAutoRegister from "@/components/NavEntryAutoRegister";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -81,6 +82,7 @@ gtag('config', '${GA_ID}');`}
         />
         <TypingGuardProvider>
         <AuthProvider>
+          <NavEntryAutoRegister />
           <AccountStatusBanner />
           <AnnouncementBanner />
           <Navbar />

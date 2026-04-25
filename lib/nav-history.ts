@@ -22,6 +22,11 @@ export interface NavEntry {
   fullPath: string;
   /** User-facing label, e.g., "Inception" or "All celebrities". */
   title: string;
+  /** True when the title was inferred from the pathname rather than
+   *  explicitly registered with a dynamic value (movie title, person
+   *  name). Used to prevent the auto-registrar from overwriting a
+   *  page's explicit registration with a generic inferred label. */
+  inferred?: boolean;
   /** Push timestamp. Mostly diagnostic; not used by readers. */
   ts: number;
 }
@@ -52,13 +57,20 @@ function writeList(list: NavEntry[]): void {
  * "Back" target doesn't unintentionally point at our own previous query
  * state.
  */
-export function pushNavEntry(entry: { path: string; fullPath: string; title: string }): void {
+export function pushNavEntry(entry: { path: string; fullPath: string; title: string; inferred?: boolean }): void {
   if (typeof window === "undefined") return;
   if (!entry.path || !entry.title) return;
   const list = readList();
   const last = list[list.length - 1];
   if (last && last.path === entry.path) {
-    list[list.length - 1] = { ...last, title: entry.title, fullPath: entry.fullPath, ts: Date.now() };
+    // Don't let an inferred title clobber an explicit one. The
+    // auto-registrar runs on every page; pages that also register
+    // explicitly (movies, shows, people, posts) deserve their richer
+    // dynamic title. Without this guard, the auto-register effect
+    // (which runs after the page's explicit register due to
+    // child-to-parent useEffect ordering) would always overwrite.
+    if (entry.inferred && last.title && !last.inferred) return;
+    list[list.length - 1] = { ...last, title: entry.title, fullPath: entry.fullPath, inferred: entry.inferred, ts: Date.now() };
   } else {
     list.push({ ...entry, ts: Date.now() });
   }
@@ -90,16 +102,59 @@ export function getPreviousNavEntry(currentPath: string): NavEntry | null {
  */
 export function inferTitleForPath(pathname: string): string | null {
   if (!pathname) return null;
-  // Strip trailing slash for matching.
   const p = pathname.replace(/\/+$/, "") || "/";
-  if (p === "/") return "Home";
-  if (p === "/movies") return "All movies";
-  if (p === "/celebrities") return "All celebrities";
-  if (p === "/search") return "Search";
-  if (p === "/forum") return "Forum";
-  if (p === "/blog") return "Blog";
-  if (p === "/news") return "News";
-  if (p === "/two-thumbs") return "Two Thumbs";
-  if (p === "/movie-maps") return "Movie Maps";
+
+  // Static labels — exact-match routes. Detail pages (/movies/[id],
+  // /celebrities/[id], etc.) intentionally aren't here; they register
+  // their dynamic title via NavEntryRegister.
+  const STATIC: Record<string, string> = {
+    "/": "Home",
+    "/movies": "All movies",
+    "/celebrities": "All celebrities",
+    "/search": "Search",
+    "/forum": "Forum",
+    "/blog": "Blog",
+    "/news": "News",
+    "/two-thumbs": "Two Thumbs",
+    "/movie-maps": "Movie Maps",
+    "/tools": "Tools",
+    "/tools/matchup": "The Matchup",
+    "/tools/shared-cast": "Shared Cast & Crew",
+    "/tools/actor-lookup": "Actor Lookup",
+    "/tools/recommend": "Recommendations",
+    "/tools/rankings": "Rankings",
+    "/tools/oscar-predictor": "Oscar Predictor",
+    "/tools/analytics": "Analytics",
+    "/tools/collections": "Collections",
+    "/community": "Community",
+    "/community/recast": "Recasts",
+    "/community/hot-takes": "Hot Takes",
+    "/community/looks-like": "Looks Like",
+    "/community/pitches": "Movie Pitches",
+    "/community/cineq": "Cine-Q",
+    "/community/movie-club": "Movie Club",
+    "/community/oscar-picks": "Oscar Picks",
+    "/watchlist": "Watchlists",
+    "/seen": "Diary",
+    "/ratings": "My Ratings",
+    "/for-you": "For You",
+    "/screening-room": "Screening Room",
+    "/connections": "Connections",
+    "/badges": "Badges",
+    "/notifications": "Notifications",
+    "/feedback": "Feedback",
+    "/feedback/my": "My Feedback",
+    "/settings": "Settings",
+    "/about": "About",
+    "/backstage-pass": "Backstage Pass",
+  };
+  if (STATIC[p]) return STATIC[p];
+
+  // Pattern fallbacks. The auto-registrar uses these so even subroute
+  // pages (e.g., /backstage-pass/critics-mode) get a sensible label.
+  if (p.startsWith("/backstage-pass/")) return "Backstage Pass";
+  if (p.startsWith("/tools/")) return "Tools";
+  if (p.startsWith("/community/")) return "Community";
+
   return null;
 }

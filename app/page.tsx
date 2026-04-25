@@ -17,6 +17,7 @@ import BrandCTAButtons from "@/components/BrandCTAButtons";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassPromo from "@/components/BackstagePassPromo";
 import NewsTrailerCard from "@/components/NewsTrailerCard";
+import NavEntryRegister from "@/components/NavEntryRegister";
 
 const TOOLS = [
   {
@@ -114,6 +115,7 @@ export default async function HomePage() {
 
   return (
     <div>
+      <NavEntryRegister title="Home" />
       {/* Brand lockup — above the hero so the logo is the first thing visitors see */}
       <div className="bg-[var(--surface)] py-8 sm:py-10 border-b border-[var(--border)]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-3 text-center">
