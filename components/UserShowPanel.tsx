@@ -117,22 +117,36 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
 
   async function handleWatchlistClick() {
     if (!user) return;
-    if (watchlisted) {
-      await openListPicker();
-    } else {
-      setMarkingWL(true);
+    // New behavior: don't auto-add to default. Fetch lists first; if
+    // exactly one exists, toggle it directly. If multiple, open the
+    // picker. Also opens picker when already-watchlisted to manage
+    // memberships.
+    setMarkingWL(true);
+    try {
       const token = await user.getIdToken();
-      const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: showName, poster_path: posterPath }),
-      }).catch(() => null);
-      if (res?.ok) {
-        const data = await res.json();
-        setWatchlisted(data.watchlisted ?? true);
-        // Open list picker after adding
-        await openListPicker();
+      const listsRes = await fetch(`/api/shows/${tmdbId}/watchlist`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!listsRes.ok) return;
+      const listsData = await listsRes.json();
+      const lists = listsData.lists ?? [];
+
+      if (lists.length < 2) {
+        const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: showName, poster_path: posterPath }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setWatchlisted(data.watchlisted ?? true);
+        }
+        return;
       }
+
+      setAllLists(lists);
+      setShowListPicker(true);
+    } finally {
       setMarkingWL(false);
     }
   }
@@ -156,22 +170,28 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
     if (!list) { setTogglingListId(null); return; }
 
     if (list.hasMovie) {
-      // Remove from this list
+      // Remove from this list. The watchlist detail GET flattens both
+      // movies and shows into `movies`; the unified DELETE endpoint
+      // tries WatchlistMovie then falls through to WatchlistShow.
+      // Previous code hit non-existent /shows paths and silently
+      // failed.
       const res = await fetch(`/api/watchlist/${listId}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      const entry = data.shows?.find((s: { tmdbId: number }) => s.tmdbId === tmdbId);
+      const entries: Array<{ id: string; tmdbId: number }> = data.movies ?? [];
+      const entry = entries.find((s) => s.tmdbId === tmdbId);
       if (entry) {
-        await fetch(`/api/watchlist/${listId}/shows/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+        await fetch(`/api/watchlist/${listId}/movies/${entry.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       }
       const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: false } : l);
       setAllLists(updated);
       setWatchlisted(updated.some((l) => l.hasMovie));
     } else {
-      // Add to this list
-      await fetch(`/api/watchlist/${listId}/shows`, {
+      // Add to this list — unified POST endpoint, mediaType:"tv" writes
+      // a WatchlistShow row.
+      await fetch(`/api/watchlist/${listId}/movies`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ tmdbId, name: showName, posterPath }),
+        body: JSON.stringify({ tmdbId, title: showName, posterPath, mediaType: "tv" }),
       });
       const updated = allLists.map((l) => l.id === listId ? { ...l, hasMovie: true } : l);
       setAllLists(updated);

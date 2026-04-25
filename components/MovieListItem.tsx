@@ -9,6 +9,7 @@ import RatingBadge from "./RatingBadge";
 import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useWatchlistFlow } from "./WatchlistFlow";
 
 interface Props {
   movie: TMDBMovie;
@@ -23,7 +24,6 @@ export default function MovieListItem({ movie, characterName, streaming, rent, c
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
   const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useMovieUserState(movie.id);
   const [markingS, setMarkingS] = useState(false);
-  const [markingW, setMarkingW] = useState(false);
 
   async function markSeen(e: React.MouseEvent) {
     e.preventDefault(); e.stopPropagation();
@@ -39,22 +39,15 @@ export default function MovieListItem({ movie, characterName, streaming, rent, c
     setMarkingS(false);
   }
 
-  async function addToWatchlist(e: React.MouseEvent) {
-    e.preventDefault(); e.stopPropagation();
-    if (!user || markingW || watchlisted) return;
-    setMarkingW(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/movies/${movie.id}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
-    }).catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setWatchlistState(data.watchlisted ?? true);
-    }
-    setMarkingW(false);
-  }
+  // Watchlist click flow — same picker behavior as MovieCard.
+  const watchlistFlow = useWatchlistFlow({
+    tmdbId: movie.id,
+    mediaType: "movie",
+    title: movie.title,
+    posterPath: movie.poster_path,
+    releaseDate: movie.release_date,
+    onWatchlistedChange: setWatchlistState,
+  });
 
   return (
     <Link
@@ -101,20 +94,21 @@ export default function MovieListItem({ movie, characterName, streaming, rent, c
           </button>
 
           <button
-            onClick={addToWatchlist}
-            disabled={markingW || watchlisted}
-            title={watchlisted ? "In your watchlist" : "Add to watchlist"}
-            className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold pl-2 pr-0 group-hover:pr-2 py-1.5 rounded-full border gap-0 group-hover:gap-1.5 ${
+            onClick={watchlistFlow.handleClick}
+            disabled={watchlistFlow.busy}
+            title={watchlisted ? "Manage watchlists" : "Add to watchlist"}
+            className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold pl-2 pr-0 group-hover:pr-2 py-1.5 rounded-full border gap-0 group-hover:gap-1.5 disabled:opacity-60 ${
               watchlisted
-                ? "border-blue-500/50 text-blue-400 bg-blue-500/10 w-[26px] group-hover:w-[118px] cursor-default"
+                ? "border-blue-500/50 text-blue-400 bg-blue-500/10 w-[26px] group-hover:w-[118px]"
                 : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-blue-400 hover:text-blue-300 w-[26px] group-hover:w-[118px]"
             }`}
           >
             {watchlisted ? <BookmarkCheck className="w-3.5 h-3.5 shrink-0" /> : <Bookmark className="w-3.5 h-3.5 shrink-0" />}
             <span className="whitespace-nowrap overflow-hidden w-0 group-hover:w-auto transition-all duration-200">
-              {watchlisted ? "Watchlisted" : markingW ? "..." : "+ Watchlist"}
+              {watchlisted ? "Watchlisted" : watchlistFlow.busy ? "..." : "+ Watchlist"}
             </span>
           </button>
+          {watchlistFlow.picker}
         </div>
       )}
 

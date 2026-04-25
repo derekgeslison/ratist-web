@@ -156,25 +156,39 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
   async function handleWatchlistClick() {
     if (!user) return;
-    if (watchlisted) {
-      // Already in a list — just open picker to manage
-      await openListPicker();
-    } else {
-      // Not in any list — add to default, then show picker
-      setTogglingWatchlist(true);
+    // New behavior: don't auto-add to default. Fetch lists first; if
+    // exactly one exists, toggle it directly (no point asking). If
+    // multiple, open the picker so the user can pick which list(s).
+    // Also opens the picker when already-watchlisted so the user
+    // can manage memberships instead of needing a separate UI.
+    setTogglingWatchlist(true);
+    try {
       const token = await user.getIdToken();
-      const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ title: movieTitle, poster_path: posterPath }),
+      const listsRes = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      setWatchlisted(data.watchlisted ?? true);
-      setTogglingWatchlist(false);
-      if (data.lists) {
-        setAllLists(data.lists);
-        setShowListPicker(true);
+      if (!listsRes.ok) return;
+      const listsData = await listsRes.json();
+      const lists = listsData.lists ?? [];
+
+      if (lists.length < 2) {
+        // 0 lists (endpoint creates default) or 1 list — toggle on default.
+        const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ title: movieTitle, poster_path: posterPath }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setWatchlisted(data.watchlisted ?? true);
+        }
+        return;
       }
+
+      setAllLists(lists);
+      setShowListPicker(true);
+    } finally {
+      setTogglingWatchlist(false);
     }
   }
 

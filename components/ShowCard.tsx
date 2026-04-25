@@ -9,6 +9,7 @@ import RatingBadge from "./RatingBadge";
 import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useShowUserState } from "@/hooks/useShowUserState";
+import { useWatchlistFlow } from "./WatchlistFlow";
 
 interface Props {
   show: TMDBShow;
@@ -23,7 +24,6 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
   const { seen, watchlisted, ratistRating, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useShowUserState(show.id);
   const [markingS, setMarkingS] = useState(false);
-  const [markingW, setMarkingW] = useState(false);
   const [seenError, setSeenError] = useState<string | null>(null);
 
   async function toggleSeen(e: React.MouseEvent) {
@@ -47,22 +47,14 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
     setMarkingS(false);
   }
 
-  async function addToWatchlist(e: React.MouseEvent) {
-    e.preventDefault(); e.stopPropagation();
-    if (!user || markingW || watchlisted) return;
-    setMarkingW(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/shows/${show.id}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: show.name, poster_path: show.poster_path, first_air_date: show.first_air_date }),
-    }).catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setWatchlistState(data.watchlisted ?? true);
-    }
-    setMarkingW(false);
-  }
+  // Watchlist click flow — same picker behavior as MovieCard.
+  const watchlistFlow = useWatchlistFlow({
+    tmdbId: show.id,
+    mediaType: "tv",
+    title: show.name,
+    posterPath: show.poster_path,
+    onWatchlistedChange: setWatchlistState,
+  });
 
   return (
     <Link
@@ -100,14 +92,15 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
               {seen ? <><EyeOff className="w-3.5 h-3.5" /> Unsee</> : <><Eye className="w-3.5 h-3.5" /> {markingS ? "..." : "Mark Seen"}</>}
             </button>
             <button
-              onClick={addToWatchlist}
-              disabled={markingW || watchlisted}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+              onClick={watchlistFlow.handleClick}
+              disabled={watchlistFlow.busy}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors disabled:opacity-60 ${
+                watchlisted ? "bg-blue-600/80 text-white hover:bg-blue-600" : "bg-white/90 text-black hover:bg-white"
               }`}
             >
-              {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {markingW ? "..." : "Watchlist"}</>}
+              {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {watchlistFlow.busy ? "..." : "Watchlist"}</>}
             </button>
+            {watchlistFlow.picker}
           </div>
         )}
         {certification && (

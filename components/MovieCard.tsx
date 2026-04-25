@@ -9,6 +9,7 @@ import RatingBadge from "./RatingBadge";
 import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useWatchlistFlow } from "./WatchlistFlow";
 
 interface Props {
   movie: TMDBMovie;
@@ -23,7 +24,6 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
   const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useMovieUserState(movie.id);
   const [markingS, setMarkingS] = useState(false);
-  const [markingW, setMarkingW] = useState(false);
   const [seenError, setSeenError] = useState<string | null>(null);
 
   async function toggleSeen(e: React.MouseEvent) {
@@ -47,22 +47,18 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
     setMarkingS(false);
   }
 
-  async function addToWatchlist(e: React.MouseEvent) {
-    e.preventDefault(); e.stopPropagation();
-    if (!user || markingW || watchlisted) return;
-    setMarkingW(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/movies/${movie.id}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: movie.title, poster_path: movie.poster_path, release_date: movie.release_date }),
-    }).catch(() => null);
-    if (res?.ok) {
-      const data = await res.json();
-      setWatchlistState(data.watchlisted ?? true);
-    }
-    setMarkingW(false);
-  }
+  // Watchlist click flow: 0/1 lists → toggle directly; 2+ → open
+  // picker. Replaces the old "always add to default" behavior so a
+  // user with a "Want to watch" + "Date night" + "With dad" doesn't
+  // get the wrong list silently.
+  const watchlistFlow = useWatchlistFlow({
+    tmdbId: movie.id,
+    mediaType: "movie",
+    title: movie.title,
+    posterPath: movie.poster_path,
+    releaseDate: movie.release_date,
+    onWatchlistedChange: setWatchlistState,
+  });
 
   return (
     <Link
@@ -95,14 +91,15 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
               {seen ? <><EyeOff className="w-3.5 h-3.5" /> Unsee</> : <><Eye className="w-3.5 h-3.5" /> {markingS ? "..." : "Mark Seen"}</>}
             </button>
             <button
-              onClick={addToWatchlist}
-              disabled={markingW || watchlisted}
-              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                watchlisted ? "bg-blue-600/80 text-white cursor-default" : "bg-white/90 text-black hover:bg-white"
+              onClick={watchlistFlow.handleClick}
+              disabled={watchlistFlow.busy}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors disabled:opacity-60 ${
+                watchlisted ? "bg-blue-600/80 text-white hover:bg-blue-600" : "bg-white/90 text-black hover:bg-white"
               }`}
             >
-              {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {markingW ? "..." : "Watchlist"}</>}
+              {watchlisted ? <><BookmarkCheck className="w-3.5 h-3.5" /> Watchlisted</> : <><Bookmark className="w-3.5 h-3.5" /> {watchlistFlow.busy ? "..." : "Watchlist"}</>}
             </button>
+            {watchlistFlow.picker}
           </div>
         )}
         {certification && (
