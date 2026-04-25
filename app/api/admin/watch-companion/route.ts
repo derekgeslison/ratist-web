@@ -44,7 +44,28 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ companions });
+    // Per-companion rating counts. One groupBy across all companions is
+    // O(votes) and avoids the N+1 we'd get fetching them per row in the
+    // .map below. Buckets become a quick lookup so the response merge
+    // stays linear in companion count.
+    const ratingGroups = await prisma.watchCompanionRating.groupBy({
+      by: ["companionId", "vote"],
+      _count: { _all: true },
+    });
+    const ratingsByCompanion = new Map<string, { upCount: number; downCount: number }>();
+    for (const row of ratingGroups) {
+      const cur = ratingsByCompanion.get(row.companionId) ?? { upCount: 0, downCount: 0 };
+      const count = row._count._all ?? 0;
+      if (row.vote === 1) cur.upCount = count;
+      else if (row.vote === -1) cur.downCount = count;
+      ratingsByCompanion.set(row.companionId, cur);
+    }
+    const enriched = companions.map((c) => {
+      const r = ratingsByCompanion.get(c.id) ?? { upCount: 0, downCount: 0 };
+      return { ...c, ratings: r };
+    });
+
+    return NextResponse.json({ companions: enriched });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("Watch Companion list error:", err);

@@ -3,9 +3,18 @@
 import { useEffect, useState } from "react";
 import { ThumbsUp, ThumbsDown, Check, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import SignInLink from "@/components/SignInLink";
 
 interface Props {
   companionId: string;
+  // 0 for movies (or "whole show" placeholder), 1+ for the currently
+  // viewed TV season. Lets viewers leave separate ratings for, e.g.,
+  // GoT S1 vs S8 — the API treats season as part of the upsert key.
+  seasonNumber: number;
+  // Optional human-readable label rendered next to the prompt so the
+  // viewer knows which scope they're rating ("Rate Season 2"). Pass
+  // null to omit (movies, or shows without a meaningful season label).
+  seasonLabel?: string | null;
 }
 
 interface Rating {
@@ -25,7 +34,7 @@ interface Rating {
  * actions, and adding another nudge at the very top would crowd the
  * sticky header.
  */
-export default function RateCompanion({ companionId }: Props) {
+export default function RateCompanion({ companionId, seasonNumber, seasonLabel }: Props) {
   const { user } = useAuth();
   const [rating, setRating] = useState<Rating | null>(null);
   const [comment, setComment] = useState("");
@@ -34,15 +43,20 @@ export default function RateCompanion({ companionId }: Props) {
   const [commentSaved, setCommentSaved] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch existing rating on mount so the user sees their previous
-  // vote highlighted when they revisit the page.
+  // Fetch the user's existing rating for THIS season (or movie scope)
+  // whenever the companion or season changes — so flipping seasons in
+  // the season picker swaps the highlighted thumb to match what they
+  // voted on that season specifically.
   useEffect(() => {
     if (!user) { setLoaded(true); return; }
     let cancelled = false;
+    setRating(null);
+    setComment("");
+    setLoaded(false);
     (async () => {
       try {
         const token = await user.getIdToken();
-        const res = await fetch(`/api/watch-companion/${companionId}/rate`, {
+        const res = await fetch(`/api/watch-companion/${companionId}/rate?season=${seasonNumber}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok || cancelled) return;
@@ -50,14 +64,28 @@ export default function RateCompanion({ companionId }: Props) {
         if (cancelled) return;
         setRating(data.rating);
         if (data.rating?.comment) setComment(data.rating.comment);
+        else setComment("");
       } finally {
         if (!cancelled) setLoaded(true);
       }
     })();
     return () => { cancelled = true; };
-  }, [user, companionId]);
+  }, [user, companionId, seasonNumber]);
 
-  if (!user) return null;
+  if (!user) {
+    // Surface the feature to logged-out viewers instead of returning null
+    // — otherwise people who'd rate never discover that rating exists.
+    // Compact one-line CTA, same dimensions as the rated widget so the
+    // page doesn't shift when they sign in.
+    return (
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 -mt-2 flex items-center gap-3 text-xs">
+        <ThumbsUp className="w-3.5 h-3.5 text-[var(--foreground-muted)] shrink-0" />
+        <span className="text-[var(--foreground-muted)]">
+          <SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to rate this companion and leave feedback.
+        </span>
+      </div>
+    );
+  }
   if (!loaded) return null; // brief flicker is preferable to a wrong-state widget
 
   async function vote(next: 1 | -1) {
@@ -73,7 +101,7 @@ export default function RateCompanion({ companionId }: Props) {
       const res = await fetch(`/api/watch-companion/${companionId}/rate`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ vote: next }),
+        body: JSON.stringify({ vote: next, seasonNumber }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -98,7 +126,7 @@ export default function RateCompanion({ companionId }: Props) {
       const res = await fetch(`/api/watch-companion/${companionId}/rate`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ vote: rating.vote, comment: comment.trim() }),
+        body: JSON.stringify({ vote: rating.vote, comment: comment.trim(), seasonNumber }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -118,7 +146,9 @@ export default function RateCompanion({ companionId }: Props) {
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 -mt-2">
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-[var(--foreground-muted)]">Was this companion helpful?</span>
+        <span className="text-xs text-[var(--foreground-muted)]">
+          Was this companion helpful{seasonLabel ? ` for ${seasonLabel}` : ""}?
+        </span>
         <div className="flex items-center gap-2 ml-auto">
           <button
             type="button"

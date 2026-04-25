@@ -627,8 +627,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
          the disclaimer) so feedback is the first interaction a returning
          user lands on — quickest path to the moderator queue when a
          companion is going wrong. Counts are intentionally hidden from
-         the front-end; only the admin page surfaces aggregates. */}
-      <RateCompanion companionId={data.id} />
+         the front-end; only the admin page surfaces aggregates. Per-
+         season scope on TV so a viewer can rate S1 and S2 independently. */}
+      <RateCompanion
+        companionId={data.id}
+        seasonNumber={mediaType === "tv" ? selectedSeason : 0}
+        seasonLabel={mediaType === "tv" ? `Season ${selectedSeason}` : null}
+      />
 
       {/* Thin-content banner — fires when the currently-viewed season has
          fewer than 5 characters or fewer than 3 timeline beats. Indicates

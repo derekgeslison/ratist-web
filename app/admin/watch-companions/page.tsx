@@ -16,6 +16,7 @@ interface CompanionRow {
   publishedAt: string | null;
   updatedAt: string;
   _count: { characters: number; relationships: number; timeline: number; glossary: number; suggestions: number };
+  ratings: { upCount: number; downCount: number };
 }
 
 export default function CompanionsListPage() {
@@ -95,6 +96,7 @@ export default function CompanionsListPage() {
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Seasons</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Content</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider" title="Net = up minus down">Feedback</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Updated</th>
               </tr>
             </thead>
@@ -137,6 +139,33 @@ export default function CompanionsListPage() {
                         <EyeOff className="w-3 h-3" /> Draft
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {(() => {
+                      const up = row.ratings?.upCount ?? 0;
+                      const down = row.ratings?.downCount ?? 0;
+                      const net = up - down;
+                      if (up === 0 && down === 0) {
+                        return <span className="text-[var(--foreground-muted)]/60">—</span>;
+                      }
+                      // Net colored when meaningful — strong negative net
+                      // pops in red so the moderator can scan for trouble
+                      // companions at a glance.
+                      const netColor = net <= -3
+                        ? "text-red-400"
+                        : net >= 3
+                        ? "text-green-400"
+                        : "text-[var(--foreground-muted)]";
+                      return (
+                        <span className="inline-flex items-center gap-2 tabular-nums">
+                          <span className="text-green-400">▲ {up}</span>
+                          <span className="text-red-400">▼ {down}</span>
+                          <span className={`${netColor} font-semibold`}>
+                            {net > 0 ? "+" : ""}{net}
+                          </span>
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--foreground-muted)]">
                     {new Date(row.updatedAt).toLocaleDateString()}

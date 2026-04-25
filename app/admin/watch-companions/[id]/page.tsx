@@ -427,7 +427,7 @@ export default function ReviewCompanionPage() {
              often the FIRST signal that a companion needs intervention
              (regenerate, manual fix, etc.) — admin should see it
              before they dig into individual suggestions. */}
-          <CompanionRatingsPanel companionId={companion.id} getToken={getToken} />
+          <CompanionRatingsPanel companionId={companion.id} mediaType={companion.mediaType as "movie" | "tv"} getToken={getToken} />
 
           {/* Moderation — Queue + Submitters tabs, scoped to this
              companion. Always shown so admins can review submitters
@@ -966,6 +966,7 @@ function ItemCommunityChanges({ suggestions, mediaType, getToken, onReverted }: 
 
 interface AdminRating {
   id: string;
+  seasonNumber: number;
   vote: number;
   comment: string | null;
   userName: string;
@@ -974,13 +975,25 @@ interface AdminRating {
   updatedAt: string;
 }
 
-function CompanionRatingsPanel({ companionId, getToken }: {
+interface SeasonBreakdown {
+  seasonNumber: number;
+  upCount: number;
+  downCount: number;
+}
+
+function CompanionRatingsPanel({ companionId, mediaType, getToken }: {
   companionId: string;
+  mediaType: "movie" | "tv";
   getToken: () => Promise<string>;
 }) {
-  const [data, setData] = useState<{ upCount: number; downCount: number; ratings: AdminRating[] } | null>(null);
+  const [data, setData] = useState<{ upCount: number; downCount: number; seasonBreakdown: SeasonBreakdown[]; ratings: AdminRating[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "up" | "down" | "comments">("all");
+  // null = all seasons; number = filter to that season's ratings only.
+  // Movies always have a single season=0 bucket so the season picker is
+  // hidden in that case.
+  const [seasonFilter, setSeasonFilter] = useState<number | null>(null);
+  const [dismissing, setDismissing] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -993,12 +1006,43 @@ function CompanionRatingsPanel({ companionId, getToken }: {
       if (!res.ok || cancelled) { setLoading(false); return; }
       const json = await res.json();
       if (cancelled) return;
-      setData({ upCount: json.upCount, downCount: json.downCount, ratings: json.ratings });
+      setData({
+        upCount: json.upCount,
+        downCount: json.downCount,
+        seasonBreakdown: json.seasonBreakdown ?? [],
+        ratings: json.ratings ?? [],
+      });
       setLoading(false);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companionId]);
+
+  async function dismiss(ratingId: string, vote: number) {
+    if (!confirm("Dismiss this rating? The user can re-rate later if they want — this just removes the current vote and any comment.")) return;
+    setDismissing(ratingId);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/admin/watch-companion/${companionId}/ratings?ratingId=${encodeURIComponent(ratingId)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        alert("Couldn't dismiss the rating.");
+        return;
+      }
+      // Optimistic local update — drop the row + decrement the matching
+      // count so the panel stays accurate without a full refetch.
+      setData((prev) => prev ? {
+        ...prev,
+        upCount: vote === 1 ? Math.max(0, prev.upCount - 1) : prev.upCount,
+        downCount: vote === -1 ? Math.max(0, prev.downCount - 1) : prev.downCount,
+        ratings: prev.ratings.filter((r) => r.id !== ratingId),
+      } : prev);
+    } finally {
+      setDismissing(null);
+    }
+  }
 
   if (loading) return null;
   if (!data) return null;
@@ -1008,11 +1052,17 @@ function CompanionRatingsPanel({ companionId, getToken }: {
   const approval = total > 0 ? Math.round((data.upCount / total) * 100) : null;
 
   const filtered = data.ratings.filter((r) => {
+    if (seasonFilter !== null && r.seasonNumber !== seasonFilter) return false;
     if (filter === "up") return r.vote === 1;
     if (filter === "down") return r.vote === -1;
     if (filter === "comments") return !!r.comment;
     return true;
   });
+
+  // Helper for rendering a season label. Movies always sit in the
+  // seasonNumber=0 bucket and skip the label entirely; TV uses
+  // "Season N". Used in both the breakdown row and per-rating header.
+  const seasonLabel = (n: number) => mediaType === "tv" ? `Season ${n}` : "Movie";
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3">
@@ -1029,6 +1079,53 @@ function CompanionRatingsPanel({ companionId, getToken }: {
           <span className="text-[var(--foreground-muted)]">· {total} {total === 1 ? "vote" : "votes"}</span>
         </div>
       </div>
+
+      {/* Per-season breakdown — only meaningful for TV with more than
+         one season worth of ratings. Movies always have a single
+         seasonNumber=0 bucket so the row would just duplicate the
+         top-level totals. */}
+      {mediaType === "tv" && data.seasonBreakdown.length > 1 && (
+        <div className="bg-[var(--surface-2)]/60 border border-[var(--border)]/40 rounded p-2 space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">By season</p>
+          <div className="flex flex-col gap-0.5">
+            {data.seasonBreakdown.map((s) => {
+              const seasonTotal = s.upCount + s.downCount;
+              const seasonApproval = seasonTotal > 0 ? Math.round((s.upCount / seasonTotal) * 100) : null;
+              return (
+                <button
+                  key={s.seasonNumber}
+                  type="button"
+                  onClick={() => setSeasonFilter(seasonFilter === s.seasonNumber ? null : s.seasonNumber)}
+                  className={`flex items-center gap-3 text-[11px] px-2 py-1 rounded transition-colors text-left ${
+                    seasonFilter === s.seasonNumber
+                      ? "bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/40"
+                      : "hover:bg-[var(--surface)] border border-transparent"
+                  }`}
+                  title={seasonFilter === s.seasonNumber ? "Show all seasons" : `Filter to ${seasonLabel(s.seasonNumber)} ratings`}
+                >
+                  <span className="text-white shrink-0 w-20">{seasonLabel(s.seasonNumber)}</span>
+                  <span className="text-green-400 tabular-nums w-10">▲ {s.upCount}</span>
+                  <span className="text-red-400 tabular-nums w-10">▼ {s.downCount}</span>
+                  {seasonApproval !== null && (
+                    <span className={`tabular-nums font-semibold ${seasonApproval >= 70 ? "text-green-400" : seasonApproval <= 40 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+                      {seasonApproval}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {seasonFilter !== null && (
+              <button
+                type="button"
+                onClick={() => setSeasonFilter(null)}
+                className="text-[10px] text-[var(--foreground-muted)] hover:text-white text-left px-2"
+              >
+                Clear season filter →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {data.ratings.length === 0 ? (
         <p className="text-xs text-[var(--foreground-muted)] italic">No ratings yet.</p>
@@ -1060,13 +1157,28 @@ function CompanionRatingsPanel({ companionId, getToken }: {
               <li className="text-xs text-[var(--foreground-muted)] italic px-2 py-1">No ratings match the filter.</li>
             ) : filtered.map((r) => (
               <li key={r.id} className="bg-[var(--surface-2)]/60 border border-[var(--border)]/40 rounded p-2 text-xs">
-                <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] mb-1">
+                <div className="flex items-center gap-2 text-[10px] text-[var(--foreground-muted)] mb-1 flex-wrap">
                   <span className={r.vote === 1 ? "text-green-400" : "text-red-400"}>
                     {r.vote === 1 ? "▲ Thumbs up" : "▼ Thumbs down"}
                   </span>
+                  {mediaType === "tv" && (
+                    <>
+                      <span>·</span>
+                      <span className="text-[var(--foreground-muted)]">{seasonLabel(r.seasonNumber)}</span>
+                    </>
+                  )}
                   <span>·</span>
                   <span className="text-white">{r.userName}</span>
                   <span className="ml-auto">{new Date(r.updatedAt).toLocaleDateString()}</span>
+                  <button
+                    type="button"
+                    onClick={() => dismiss(r.id, r.vote)}
+                    disabled={dismissing === r.id}
+                    className="text-[10px] text-[var(--foreground-muted)] hover:text-red-400 disabled:opacity-40"
+                    title="Dismiss this rating (removes the vote and any comment)"
+                  >
+                    {dismissing === r.id ? "…" : "Dismiss"}
+                  </button>
                 </div>
                 {r.comment ? (
                   <p className="text-white whitespace-pre-wrap leading-snug">&ldquo;{r.comment}&rdquo;</p>

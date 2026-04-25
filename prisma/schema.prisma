@@ -2056,6 +2056,11 @@ model WatchCompanionRating {
   id          String   @id @default(cuid())
   companionId String   @map("companion_id")
   userId      String?  @map("user_id")
+  // Season scope. 0 for movies (no seasons), 1+ for TV seasons. Lets a
+  // viewer rate Season 1 of GoT positively and Season 2 negatively as
+  // independent votes — the unique constraint is per-season so the
+  // upsert in the rate endpoint targets the right row.
+  seasonNumber Int     @default(0) @map("season_number")
   vote        Int      // 1 (thumbs up) or -1 (thumbs down)
   comment     String?  @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
@@ -2064,8 +2069,8 @@ model WatchCompanionRating {
   companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
   user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@unique([companionId, userId])
-  @@index([companionId, vote])
+  @@unique([companionId, userId, seasonNumber])
+  @@index([companionId, seasonNumber, vote])
   @@map("watch_companion_ratings")
 }
 

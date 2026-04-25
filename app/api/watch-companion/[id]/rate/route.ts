@@ -9,24 +9,40 @@ export const dynamic = "force-dynamic";
 // this endpoint never returns an aggregate so a public page can't reveal
 // how many up/down votes a companion has accrued.
 
-// GET /api/watch-companion/:id/rate — returns the current user's vote
-// for this companion (or null), so the UI can highlight their existing
-// thumb when the page loads.
+// Season scoping: 0 = movie or "whole show" placeholder, 1+ = a TV
+// season. The widget passes the user's currently-viewed season for TV
+// companions and 0 for movies. Validate as a non-negative integer so a
+// malformed query string can't sneak through to Prisma.
+function parseSeason(raw: unknown): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
+  if (typeof raw === "string") {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
+// GET /api/watch-companion/:id/rate?season=N — returns the current
+// user's vote for that season (or null), so the UI can highlight their
+// existing thumb when the page loads. Movies pass season=0.
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ rating: null });
 
   const { id } = await ctx.params;
+  const seasonNumber = parseSeason(req.nextUrl.searchParams.get("season"));
   const rating = await prisma.watchCompanionRating.findUnique({
-    where: { companionId_userId: { companionId: id, userId: user.id } },
-    select: { vote: true, comment: true, updatedAt: true },
+    where: { companionId_userId_seasonNumber: { companionId: id, userId: user.id, seasonNumber } },
+    select: { vote: true, comment: true, seasonNumber: true, updatedAt: true },
   });
   return NextResponse.json({ rating });
 }
 
-// POST /api/watch-companion/:id/rate — body { vote: 1 | -1, comment?: string }
-//   Upserts the user's rating. Comment is optional; passing an empty
-//   string clears any previous comment, undefined leaves it unchanged.
+// POST /api/watch-companion/:id/rate
+//   body { vote: 1 | -1, comment?: string, seasonNumber?: number }
+//   Upserts the user's rating for the specified season (defaults to 0
+//   for movies). Comment is optional; passing an empty string clears
+//   any previous comment, undefined leaves it unchanged.
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in to rate this companion" }, { status: 401 });
@@ -41,10 +57,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   });
   if (!companion) return NextResponse.json({ error: "Companion not found" }, { status: 404 });
 
-  const body = await req.json().catch(() => null) as { vote?: unknown; comment?: unknown } | null;
+  const body = await req.json().catch(() => null) as { vote?: unknown; comment?: unknown; seasonNumber?: unknown } | null;
   const voteRaw = body?.vote;
   const vote = voteRaw === 1 || voteRaw === -1 ? voteRaw : null;
   if (vote === null) return NextResponse.json({ error: "vote must be 1 or -1" }, { status: 400 });
+  const seasonNumber = parseSeason(body?.seasonNumber);
 
   // Comment handling:
   //   string → save (trim + cap at 1000 chars)
@@ -61,10 +78,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   const rating = await prisma.watchCompanionRating.upsert({
-    where: { companionId_userId: { companionId: id, userId: user.id } },
+    where: { companionId_userId_seasonNumber: { companionId: id, userId: user.id, seasonNumber } },
     create: {
       companionId: id,
       userId: user.id,
+      seasonNumber,
       vote,
       comment: commentValue ?? null,
     },
@@ -72,7 +90,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       vote,
       ...(commentValue !== undefined ? { comment: commentValue } : {}),
     },
-    select: { vote: true, comment: true, updatedAt: true },
+    select: { vote: true, comment: true, seasonNumber: true, updatedAt: true },
   });
 
   return NextResponse.json({ ok: true, rating });
