@@ -160,27 +160,108 @@ export async function getTopRatedMovies(page = 1) {
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/top_rated", { page: String(page) });
 }
 
-export async function getNowPlayingMovies(page = 1) {
-  // /movie/now_playing is TMDB's curated list of films currently in
-  // theaters in the specified region — exactly what users expect from
-  // a "Now Playing" rail. /discover/movie was producing a global mix
-  // (international releases with theatrical dates anywhere in the
-  // window outranking actual US releases by popularity) because its
-  // `region` param only chooses which region's date is used, not which
-  // releases qualify.
-  //
-  // We then re-sort each fetched page by US theatrical release date
-  // descending so the newest US releases land at the top — TMDB's
-  // default ordering on this endpoint is popularity-within-window,
-  // which can push month-old hits ahead of yesterday's wide release.
-  const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", {
-    page: String(page),
-    region: "US",
-    language: "en-US",
+// How many days back from today we consider "now playing". US theatrical
+// runs are typically 30-90 days; 60 days is the sweet spot — old enough
+// to catch lingering wide releases, fresh enough to cut anniversary
+// re-releases (e.g., Fight Club showing up because TMDB has a recent
+// re-release date entry).
+const NOW_PLAYING_WINDOW_DAYS = 60;
+
+// How many pages of /movie/now_playing to combine when sorting. The
+// endpoint returns ~20 per page in TMDB's own curated order. Sorting
+// within one page only sorts those 20, so to get globally-correct
+// newest-first ordering we have to fetch a buffer of pages first. 5
+// pages = ~100 films, plenty to cover a 60-day theatrical window.
+const NOW_PLAYING_PAGES = 5;
+
+/** Strip out items that don't actually belong in a "now playing" view:
+ *  no release date, future-dated (TMDB sometimes pre-lists upcoming
+ *  films inside now_playing), or older than the theatrical window
+ *  (catches re-releases). */
+function filterNowPlayingResults(items: TMDBMovie[], today: string, windowStart: string): TMDBMovie[] {
+  return items.filter((m) => {
+    if (!m.release_date) return false;
+    if (m.release_date > today) return false;
+    if (m.release_date < windowStart) return false;
+    return true;
   });
+}
+
+/** Aggregate two complementary TMDB sources into a single deduped +
+ *  filtered + sorted-by-release-date-desc pool of currently-playing
+ *  films:
+ *
+ *   1. /movie/now_playing — TMDB's curated "what's in theaters now"
+ *      list. Strong on big-name wide releases, weaker on freshly-
+ *      released films TMDB hasn't yet promoted into the curated set.
+ *
+ *   2. /discover/movie with strict params (US region, theatrical-only
+ *      release type, last 60 days, English-language primary). Catches
+ *      legit US theatrical releases that haven't bubbled into curated
+ *      yet. Restricting to original_language=en keeps the noise down
+ *      from international films TMDB happens to date-stamp as US.
+ *
+ *  Both calls are 1-hour cached at the tmdbFetch layer, so the
+ *  effective cost is one fetch every hour per call site.
+ */
+async function loadNowPlayingPool(): Promise<TMDBMovie[]> {
+  const today = new Date().toISOString().split("T")[0];
+  const windowStart = new Date(Date.now() - NOW_PLAYING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  const nowPlayingPages = Promise.all(
+    Array.from({ length: NOW_PLAYING_PAGES }, (_, i) => i + 1).map((p) =>
+      tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", {
+        page: String(p),
+        region: "US",
+        language: "en-US",
+      }).catch(() => null),
+    ),
+  );
+
+  const discoverPages = Promise.all(
+    Array.from({ length: 3 }, (_, i) => i + 1).map((p) =>
+      tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", {
+        page: String(p),
+        region: "US",
+        with_release_type: "3",
+        "primary_release_date.gte": windowStart,
+        "primary_release_date.lte": today,
+        sort_by: "primary_release_date.desc",
+        with_original_language: "en",
+        "vote_count.gte": "0",
+      }).catch(() => null),
+    ),
+  );
+
+  const [npResults, discoverResults] = await Promise.all([nowPlayingPages, discoverPages]);
+  const seen = new Set<number>();
+  const merged: TMDBMovie[] = [];
+  for (const data of [...npResults, ...discoverResults]) {
+    if (!data) continue;
+    for (const m of data.results) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      merged.push(m);
+    }
+  }
+  return filterNowPlayingResults(merged, today, windowStart)
+    .sort((a, b) => (b.release_date ?? "").localeCompare(a.release_date ?? ""));
+}
+
+export async function getNowPlayingMovies(page = 1) {
+  // Home rail wants newest-first across the full theatrical window
+  // (not just within page 1 of TMDB's curated order — that ordering is
+  // popularity-weighted and pushes month-old hits ahead of fresh
+  // releases). We aggregate, filter, sort, then page-slice.
+  const pool = await loadNowPlayingPool();
+  const PAGE_SIZE = 20;
+  const start = (page - 1) * PAGE_SIZE;
+  const slice = pool.slice(start, start + PAGE_SIZE);
   return {
-    ...data,
-    results: [...data.results].sort((a, b) => (b.release_date ?? "").localeCompare(a.release_date ?? "")),
+    page,
+    results: slice,
+    total_results: pool.length,
+    total_pages: Math.max(1, Math.ceil(pool.length / PAGE_SIZE)),
   };
 }
 
@@ -285,16 +366,18 @@ export async function discoverMovies(options: {
   // qualifying theatrical date in the window still qualify, which is
   // why fresh US releases (Michael, etc.) were ranked behind older
   // foreign films. /movie/now_playing is the canonical "what's in US
-  // theaters right now" answer; we re-sort each page by sort option
-  // since the endpoint doesn't accept sort_by.
+  // theaters right now" answer.
+  //
+  // We aggregate the first NOW_PLAYING_PAGES of the endpoint, filter
+  // (drop future-dated and >60-day-old films), sort by the user's
+  // chosen sort, then page-slice. Aggregation is required for
+  // newest-first to be globally correct — without it, sorting within
+  // a single TMDB page would only rearrange those 20 items, leaving
+  // page 2's contents in TMDB's popularity order.
   if (options.releaseStatus === "now_playing") {
-    const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", {
-      page: String(options.page ?? 1),
-      region: "US",
-      language: "en-US",
-    });
-    const sortKey = options.sort ?? "popular";
-    const sorted = [...data.results].sort((a, b) => {
+    const pool = await loadNowPlayingPool();
+    const sortKey = options.sort ?? "newest";
+    const sorted = [...pool].sort((a, b) => {
       switch (sortKey) {
         case "newest":  return (b.release_date ?? "").localeCompare(a.release_date ?? "");
         case "oldest":  return (a.release_date ?? "").localeCompare(b.release_date ?? "");
@@ -305,7 +388,15 @@ export async function discoverMovies(options: {
         default: return (b.popularity ?? 0) - (a.popularity ?? 0);
       }
     });
-    return { ...data, results: sorted };
+    const PAGE_SIZE = 20;
+    const page = options.page ?? 1;
+    const start = (page - 1) * PAGE_SIZE;
+    return {
+      page,
+      results: sorted.slice(start, start + PAGE_SIZE),
+      total_results: sorted.length,
+      total_pages: Math.max(1, Math.ceil(sorted.length / PAGE_SIZE)),
+    };
   }
 
   const sortBy = SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";

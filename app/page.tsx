@@ -192,11 +192,12 @@ export default async function HomePage() {
         {/* Now Playing in Theaters — sourced from TMDB's curated
            /movie/now_playing endpoint (US region), so this rail reflects
            what's actually in theaters right now rather than a global mix
-           of recent theatrical dates. */}
+           of recent theatrical dates. View All scopes to movies-only +
+           newest-first since the rail itself is theatrical-movie-only. */}
         <MovieRow
           title="Now Playing in Theaters"
           movies={nowPlaying.results.slice(0, 12)}
-          viewAllHref="/movies?releaseStatus=now_playing"
+          viewAllHref="/movies?releaseStatus=now_playing&type=movie&sort=newest"
         />
 
         {/* Ad — between Now Playing and Tools */}
