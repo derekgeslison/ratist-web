@@ -18,12 +18,25 @@ const SYSTEM_PROMPT = `You are drafting the TIMELINE section of a Watch Companio
 
 Emit 8–20 beats per TV season / 6–12 per movie. This is NOT optional — a companion with an empty or 2-item timeline is a failure. Each episode of a serialized show has at least one memorable beat worth capturing.
 
-- "description" — a short, specific statement of what happened.
-- "characterNames" — an array of character names from the provided list who are directly involved.
+- "description" — a short, specific statement of what happened. WRAP every character mention in double parentheses with the EXACT full name from the character list: \`((Paul Atreides))\`, \`((Lady Jessica Atreides))\`, etc. The viewer turns those markers into clickable pills the audience can tap to jump to that character's card. Don't use partial names ("Paul" alone) — the pill lookup matches on the full string. Don't wrap non-character nouns (places, factions, items).
+- "characterNames" — same character names as a parallel array (also used by the timeline filter pills). Should be the SAME set as the names you wrapped in the description.
 - "importance" — 1 (minor reference) to 5 (saga-defining beat).
 - "visibleAfter" — when the beat clearly happens on screen.
 
 Only timeline events. Don't emit characters, facts, relationships, or glossary entries.
+
+### Example
+
+\`\`\`
+{
+  description: "((Paul Atreides)) survives the Gom Jabbar test. ((Reverend Mother Mohiam)) reveals to ((Lady Jessica Atreides)) that she defied Bene Gesserit orders by bearing a son instead of a daughter, making ((Paul Atreides)) an uncontrollable variable in their breeding program.",
+  characterNames: ["Paul Atreides", "Reverend Mother Mohiam", "Lady Jessica Atreides"],
+  importance: 5,
+  visibleAfter: { seconds: 1320 }
+}
+\`\`\`
+
+Notice ((Paul Atreides)) appears twice in the description and only once in characterNames — characterNames is a deduped set, not a list of mentions.
 
 ${VISIBLE_AFTER_GUIDANCE}
 

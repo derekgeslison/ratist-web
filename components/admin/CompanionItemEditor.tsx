@@ -769,9 +769,107 @@ function TimelineFields({ data, mediaType, characters, onChange }: {
   characters: Array<{ id: string; name: string }>;
   onChange: (d: TimelineDraft) => void;
 }) {
+  const descRef = useRef<HTMLTextAreaElement>(null);
+
+  // Insert ((Character Name)) at the textarea's current cursor position
+  // and bump the character into characterIds if it isn't already tagged.
+  // Falls back to appending when the ref isn't attached. The viewer
+  // turns ((Name)) markers into clickable pills inline in the
+  // description, while characterIds drive the timeline filter row —
+  // calling this keeps both in sync, so the user only has to think
+  // about "who's in this scene" once.
+  function insertMention(c: { id: string; name: string }) {
+    const ta = descRef.current;
+    const insertion = `((${c.name}))`;
+    let nextDescription: string;
+    let cursorAt: number | null = null;
+    if (ta) {
+      const start = ta.selectionStart ?? data.description.length;
+      const end = ta.selectionEnd ?? start;
+      const before = data.description.slice(0, start);
+      const after = data.description.slice(end);
+      nextDescription = `${before}${insertion}${after}`;
+      cursorAt = before.length + insertion.length;
+    } else {
+      nextDescription = data.description.length > 0
+        ? `${data.description} ${insertion}`
+        : insertion;
+    }
+    const nextIds = data.characterIds.includes(c.id)
+      ? data.characterIds
+      : [...data.characterIds, c.id];
+    onChange({ ...data, description: nextDescription, characterIds: nextIds });
+    if (ta && cursorAt !== null) {
+      // Restore focus + caret after React re-renders the textarea value.
+      // Without the rAF the selection range is set on the stale value.
+      requestAnimationFrame(() => {
+        ta.focus();
+        try { ta.setSelectionRange(cursorAt!, cursorAt!); } catch { /* ignore */ }
+      });
+    }
+  }
+
   return (
     <>
-      <LabelledTextarea label="Description" value={data.description} onChange={(v) => onChange({ ...data, description: v })} rows={3} />
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Description</label>
+        <textarea
+          ref={descRef}
+          value={data.description}
+          onChange={(e) => onChange({ ...data, description: e.target.value })}
+          rows={3}
+          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+        />
+        <p className="text-[10px] text-[var(--foreground-muted)] mt-1 leading-relaxed">
+          Wrap character mentions in double parens — e.g. <code className="text-[var(--ratist-red)]">((Paul Atreides))</code> — so they render as clickable pills. Use the buttons below to insert at the cursor.
+        </p>
+      </div>
+      <div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Tag characters · click to insert mention</label>
+        <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
+          {characters.map((c) => {
+            const selected = data.characterIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => insertMention(c)}
+                className={`px-2 py-0.5 text-[11px] rounded-full border transition-colors ${
+                  selected
+                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                    : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
+                }`}
+                title={selected ? `Tagged — click to insert another mention` : `Tag and insert mention`}
+              >
+                + {c.name}
+              </button>
+            );
+          })}
+        </div>
+        {data.characterIds.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[10px] text-[var(--foreground-muted)]">
+            <span>Currently tagged:</span>
+            {data.characterIds.map((id) => {
+              const ch = characters.find((c) => c.id === id);
+              if (!ch) return null;
+              return (
+                <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[var(--ratist-red)]/20 border border-[var(--ratist-red)]/30 text-white">
+                  {ch.name}
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...data, characterIds: data.characterIds.filter((x) => x !== id) })}
+                    className="text-[var(--foreground-muted)] hover:text-white"
+                    title="Untag this character (does not strip ((mentions)) from the description)"
+                    aria-label="Untag"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <div>
         <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Importance (1–5)</label>
         <input
@@ -782,33 +880,6 @@ function TimelineFields({ data, mediaType, characters, onChange }: {
           onChange={(e) => onChange({ ...data, importance: Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 3)) })}
           className="w-24 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
         />
-      </div>
-      <div>
-        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Characters involved</label>
-        <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
-          {characters.map((c) => {
-            const selected = data.characterIds.includes(c.id);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => onChange({
-                  ...data,
-                  characterIds: selected
-                    ? data.characterIds.filter((id) => id !== c.id)
-                    : [...data.characterIds, c.id],
-                })}
-                className={`px-2 py-0.5 text-[11px] rounded-full border transition-colors ${
-                  selected
-                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
-                    : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
-                }`}
-              >
-                {c.name}
-              </button>
-            );
-          })}
-        </div>
       </div>
       <VisibleAfterInput value={data.visibleAfter} mediaType={mediaType} onChange={(v) => onChange({ ...data, visibleAfter: v })} />
     </>
