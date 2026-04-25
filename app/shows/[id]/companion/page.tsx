@@ -226,6 +226,12 @@ export default async function ShowCompanionPage({ params }: Props) {
             url={`${SITE_URL}/shows/${id}/companion`}
             label="Share"
             cardImageUrl={`${SITE_URL}/api/og/watch-companion?id=${companion.id}`}
+            // The viewer keeps ?s= in sync with the user's selected season,
+            // so we forward it onto the share URL (?s=N for the page) and
+            // onto the OG card URL (&season=N for the API endpoint). Result:
+            // a viewer reading S1 shares /shows/123/companion?s=1 and the
+            // social card renders S1's stats + map.
+            forwardParams={[{ from: "s", toShare: "s", toCardImage: "season" }]}
           />
         </div>
       </header>

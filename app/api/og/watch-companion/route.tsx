@@ -122,11 +122,27 @@ export async function GET(request: Request) {
     // Pull just enough data for the abstract map. Cap to 20 nodes / 30 edges
     // — enough to give every group at least one representative without
     // making the ring unreadably dense.
-    const characters = await prisma.companionCharacter.findMany({
+    //
+    // After fetching, sort by group so faction members sit adjacent on
+    // the ring. Without this the public viewer's map (which clusters
+    // by group) and the OG card looked nothing alike — characters
+    // landed in arbitrary slots based on sortOrder. Ungrouped
+    // characters drift to the end.
+    const charactersRaw = await prisma.companionCharacter.findMany({
       where: { companionId: companion.id, ...seasonFilter },
-      select: { id: true, group: true },
+      select: { id: true, group: true, sortOrder: true },
       take: 20,
       orderBy: { sortOrder: "asc" },
+    });
+    const characters = [...charactersRaw].sort((a, b) => {
+      const aHas = !!(a.group && a.group.trim());
+      const bHas = !!(b.group && b.group.trim());
+      if (aHas !== bHas) return aHas ? -1 : 1; // grouped first
+      if (aHas && bHas) {
+        const cmp = (a.group ?? "").localeCompare(b.group ?? "");
+        if (cmp !== 0) return cmp;
+      }
+      return a.sortOrder - b.sortOrder; // stable secondary by original sortOrder
     });
     const idToIdx = new Map(characters.map((c, i) => [c.id, i]));
     const rels = await prisma.companionRelationship.findMany({

@@ -464,6 +464,21 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     } catch { /* storage full or disabled — ignore */ }
   }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds, selectedSeason]);
 
+  // Sync selectedSeason to ?s= in the URL bar (TV only) so sharing the
+  // page captures the season the user is currently looking at — without
+  // it, the OG card endpoint falls back to "latest season" and a viewer
+  // sharing while reading S1 would publish a card with S5 stats. Use
+  // history.replaceState so we don't push extra entries on the back stack
+  // or trigger a Next.js navigation; this is pure URL-bar state sync.
+  useEffect(() => {
+    if (!hydrated || mediaType !== "tv") return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("s", String(selectedSeason));
+      window.history.replaceState(null, "", url.toString());
+    } catch { /* ignore — non-fatal */ }
+  }, [hydrated, mediaType, selectedSeason]);
+
   // Fire the companion_view event once per mount. Put this after hydration
   // so session storage is respected for season pick.
   useEffect(() => {

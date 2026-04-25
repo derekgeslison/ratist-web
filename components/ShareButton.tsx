@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Share2, X, Copy, Check, Download, Image as ImageIcon } from "lucide-react";
 
 interface Props {
@@ -9,21 +9,60 @@ interface Props {
   label?: string;
   /** URL to the OG/card image endpoint — enables image preview and download */
   cardImageUrl?: string;
+  /** Query-param keys to forward from the live URL onto the share URL +
+   *  card image URL. Lets per-season pages (Watch Companion) share the
+   *  ?s=N the user is currently viewing without the parent component
+   *  having to plumb season state through props. The card image URL
+   *  uses the same value but under a different key — the OG endpoint
+   *  expects `season=N` while the page URL uses `s=N`, so the mapping
+   *  is also configurable per-key. */
+  forwardParams?: Array<{ from: string; toShare?: string; toCardImage?: string }>;
 }
 
-export default function ShareButton({ text, url, label = "Share", cardImageUrl }: Props) {
+export default function ShareButton({ text, url, label = "Share", cardImageUrl, forwardParams }: Props) {
   const [open, setOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  // The "live" URLs: prop URL plus any forwarded query params from the
+  // current window.location. Initialized to the prop URL so SSR-rendered
+  // markup is correct, then overwritten on mount with the live values.
+  const [liveUrl, setLiveUrl] = useState(url);
+  const [liveCardImageUrl, setLiveCardImageUrl] = useState(cardImageUrl);
 
-  const fullText = `${text}\n\n${url}`;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!forwardParams || forwardParams.length === 0) {
+      setLiveUrl(url);
+      setLiveCardImageUrl(cardImageUrl);
+      return;
+    }
+    try {
+      const liveParams = new URLSearchParams(window.location.search);
+      const shareUrl = new URL(url);
+      const cardUrl = cardImageUrl ? new URL(cardImageUrl) : null;
+      for (const p of forwardParams) {
+        const v = liveParams.get(p.from);
+        if (v === null) continue;
+        shareUrl.searchParams.set(p.toShare ?? p.from, v);
+        if (cardUrl) cardUrl.searchParams.set(p.toCardImage ?? p.from, v);
+      }
+      setLiveUrl(shareUrl.toString());
+      setLiveCardImageUrl(cardUrl ? cardUrl.toString() : cardImageUrl);
+    } catch {
+      // Bad URL or missing search support — fall back to prop URLs.
+      setLiveUrl(url);
+      setLiveCardImageUrl(cardImageUrl);
+    }
+  }, [url, cardImageUrl, forwardParams, open]);
+
+  const fullText = `${text}\n\n${liveUrl}`;
   const encodedText = encodeURIComponent(text);
-  const encodedUrl = encodeURIComponent(url);
+  const encodedUrl = encodeURIComponent(liveUrl);
 
   function handleCopyLink() {
-    navigator.clipboard.writeText(url).then(() => {
+    navigator.clipboard.writeText(liveUrl).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     });
@@ -37,10 +76,10 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
   }
 
   async function handleDownload() {
-    if (!cardImageUrl) return;
+    if (!liveCardImageUrl) return;
     setDownloading(true);
     try {
-      const res = await fetch(cardImageUrl);
+      const res = await fetch(liveCardImageUrl);
       if (!res.ok) throw new Error(`Image generation failed (${res.status})`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!contentType.includes("image")) throw new Error("Response is not an image");
@@ -55,7 +94,7 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error("Download failed:", err);
-      window.open(cardImageUrl, "_blank");
+      window.open(liveCardImageUrl, "_blank");
     }
     setDownloading(false);
   }
@@ -84,13 +123,13 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
             </div>
 
             {/* Card image preview */}
-            {cardImageUrl && (
+            {liveCardImageUrl && (
               <div className="mb-4">
                 {showPreview ? (
                   <div className="rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={cardImageUrl}
+                      src={liveCardImageUrl}
                       alt="Share card preview"
                       className="w-full h-auto"
                       onError={() => setShowPreview(false)}
@@ -153,7 +192,7 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
               </a>
 
               {/* Download card */}
-              {cardImageUrl && (
+              {liveCardImageUrl && (
                 <button
                   onClick={handleDownload}
                   disabled={downloading}
@@ -183,7 +222,7 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl }
             </div>
 
             {/* Tip */}
-            {cardImageUrl && (
+            {liveCardImageUrl && (
               <p className="text-xs text-[var(--foreground-muted)] text-center mt-4">
                 Save the image and copy the text above to share on Instagram or anywhere.
               </p>
