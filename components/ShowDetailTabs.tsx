@@ -700,7 +700,7 @@ export default function ShowDetailTabs({
                             <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">S{s.season_number}</div>
                           )}
                         </div>
-                        <p className="text-[10px] text-white line-clamp-1">{s.name}</p>
+                        <p className="text-[10px] text-white line-clamp-2" title={s.name}>{s.name}</p>
                         <p className="text-[9px] text-[var(--foreground-muted)]">{s.episode_count} ep{s.episode_count !== 1 ? "s" : ""}</p>
                       </button>
                     ))}
@@ -955,7 +955,7 @@ export default function ShowDetailTabs({
                         <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-2xl">&#x1f464;</div>
                       )}
                     </div>
-                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{member.name}</p>
+                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-2" title={member.name}>{member.name}</p>
                     <p className="text-xs text-[var(--foreground-muted)]">Creator</p>
                   </Link>
                 ))}
@@ -983,8 +983,8 @@ export default function ShowDetailTabs({
                         <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-2xl">&#x1f464;</div>
                       )}
                     </div>
-                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{member.name}</p>
-                    <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{member.roles?.[0]?.character}</p>
+                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-2" title={member.name}>{member.name}</p>
+                    <p className="text-xs text-[var(--foreground-muted)] line-clamp-2" title={member.roles?.[0]?.character}>{member.roles?.[0]?.character}</p>
                     <p className="text-[10px] text-[var(--foreground-muted)]">{member.total_episode_count} ep{member.total_episode_count !== 1 ? "s" : ""}</p>
                   </Link>
                 ))}

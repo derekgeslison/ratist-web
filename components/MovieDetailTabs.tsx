@@ -347,8 +347,8 @@ export default function MovieDetailTabs({
                           <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-2xl">👤</div>
                         )}
                       </div>
-                      <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{member.name}</p>
-                      <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{member.jobs.join(", ")}</p>
+                      <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-2" title={member.name}>{member.name}</p>
+                      <p className="text-xs text-[var(--foreground-muted)] line-clamp-2" title={member.jobs.join(", ")}>{member.jobs.join(", ")}</p>
                     </Link>
                   ))}
                 </div>
@@ -376,8 +376,8 @@ export default function MovieDetailTabs({
                         <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)] text-2xl">👤</div>
                       )}
                     </div>
-                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{member.name}</p>
-                    <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">{member.character}</p>
+                    <p className="text-xs font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-2" title={member.name}>{member.name}</p>
+                    <p className="text-xs text-[var(--foreground-muted)] line-clamp-2" title={member.character}>{member.character}</p>
                   </Link>
                 ))}
               </div>

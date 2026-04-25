@@ -66,7 +66,7 @@ export default function MovieListItem({ movie, characterName, streaming, rent, c
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{movie.title}</p>
+        <p className="font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-2" title={movie.title}>{movie.title}</p>
         <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
           {movie.release_date?.slice(0, 4) || "TBA"}
           {certification && <span className="ml-2 border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-semibold rounded text-white">{certification}</span>}

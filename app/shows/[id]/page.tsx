@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { getTVShowAwards } from "@/lib/awards";
 import { syncTVShowAwards } from "@/lib/awards-sync";
 import PageShare from "@/components/PageShare";
+import ZoomableImage from "@/components/ZoomableImage";
 import AdUnit from "@/components/AdUnit";
 
 interface Props {
@@ -383,14 +384,13 @@ export default async function ShowDetailPage({ params }: Props) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main info row */}
         <div className="flex gap-6 -mt-16 relative z-10 mb-8">
-          {/* Poster */}
+          {/* Poster — tap to zoom into a larger version. */}
           <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] self-start mt-16 sm:mt-20 lg:mt-24 rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
-            <Image
+            <ZoomableImage
               src={posterUrl(show.poster_path, "w342")}
+              zoomSrc={posterUrl(show.poster_path, "w780")}
               alt={show.name}
-              fill
               sizes="(max-width: 640px) 128px, (max-width: 1024px) 176px, 208px"
-              className="object-cover"
             />
           </div>
 

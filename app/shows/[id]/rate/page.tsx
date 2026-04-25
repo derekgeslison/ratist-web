@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 
@@ -293,6 +294,16 @@ export default function RateShowPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      {/* Top-of-form back link — quick exit without scrolling all the
+         way down to the bottom Cancel button. */}
+      <button
+        type="button"
+        onClick={() => { if (window.history.length <= 1) { router.push(`/shows/${id}`); } else { router.back(); } }}
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors mb-4"
+      >
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
+
       {/* Show header */}
       <div className="flex items-center gap-4 mb-6">
         {show?.poster_path && (

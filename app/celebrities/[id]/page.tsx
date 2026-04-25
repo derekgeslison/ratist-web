@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
 import PageShare from "@/components/PageShare";
+import ZoomableImage from "@/components/ZoomableImage";
 import AdUnit from "@/components/AdUnit";
 import { prisma } from "@/lib/prisma";
 import CelebrityBio from "./CelebrityBio";
@@ -363,15 +364,15 @@ export default async function CelebrityPage({ params }: Props) {
       </Link>
 
       <div className="flex flex-col sm:flex-row gap-8 mb-10">
-        {/* Photo */}
+        {/* Photo — tap to zoom into a larger version. */}
         <div className="relative w-40 h-60 sm:w-48 sm:h-72 shrink-0 rounded-xl overflow-hidden bg-[var(--surface-2)] border border-[var(--border)]">
           {person.profile_path ? (
-            <Image
+            <ZoomableImage
               src={`https://image.tmdb.org/t/p/w300${person.profile_path}`}
+              zoomSrc={`https://image.tmdb.org/t/p/h632${person.profile_path}`}
               alt={person.name}
-              fill
               sizes="192px"
-              className="object-cover object-top"
+              objectClassName="object-cover object-top"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-5xl">👤</div>

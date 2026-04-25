@@ -9,7 +9,7 @@ import { posterUrl } from "@/lib/tmdb";
 import LiveReview from "@/components/LiveReview";
 import Link from "next/link";
 import BackstagePassPopup from "@/components/BackstagePassPopup";
-import { Ticket } from "lucide-react";
+import { Ticket, ArrowLeft } from "lucide-react";
 
 type ReviewMode = "basic" | "standard" | "critic";
 
@@ -322,6 +322,18 @@ export default function RateMoviePage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      {/* Top-of-form back link. The Cancel button at the bottom of the
+         form covers the same intent but the form is long enough that
+         users were scrolling all the way down just to bail out — the
+         top link is the quick exit. */}
+      <button
+        type="button"
+        onClick={() => { if (window.history.length <= 1) { router.push(`/movies/${id}`); } else { router.back(); } }}
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors mb-4"
+      >
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
+
       {/* Movie header */}
       <div className="flex items-center gap-4 mb-6">
         {movie?.poster_path && (
