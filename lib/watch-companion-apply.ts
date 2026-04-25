@@ -49,6 +49,12 @@ export async function applySuggestion(suggestionId: string): Promise<void> {
   if (!suggestion) return;
 
   const { action, targetType, targetId, companionId } = suggestion;
+  // Recap alternatives are never applied. They exist as community
+  // alts under the canonical recap, ordered by upvote score; if an
+  // admin wants one promoted they can copy it into the recap editor
+  // by hand. Defensive guard in case the vote endpoint's no-auto-
+  // apply gate is ever bypassed.
+  if (targetType === "recap_installment" || targetType === "recap_series") return;
   const payload = (suggestion.payload ?? {}) as Record<string, unknown>;
 
   if (action === "remove") {

@@ -49,6 +49,9 @@ interface Companion {
   lastGeneratedAt: string | null; publishedAt: string | null;
   characters: Character[]; relationships: Relationship[];
   timeline: TimelineEvent[]; glossary: GlossaryTerm[];
+  /** Per-installment recap blob. Movies: { current: { installment, series } }.
+   *  TV: { "1": { installment, series }, "2": {...}, ... }. */
+  recaps: Record<string, unknown> | null;
 }
 
 interface SuggestionRow {
@@ -449,6 +452,18 @@ export default function ReviewCompanionPage() {
             companionId={companion.id}
             getToken={getToken}
             onRenamed={refetch}
+          />
+
+          {/* Recap editor — quick admin override for the AI-drafted
+             recap text. Doesn't trigger a regen; just rewrites the
+             slot in the companion's recaps JSON. Per-season for TV. */}
+          <CompanionRecapEditor
+            companionId={companion.id}
+            mediaType={companion.mediaType}
+            recaps={companion.recaps ?? {}}
+            seasonsGenerated={companion.seasonsGenerated}
+            getToken={getToken}
+            onSaved={refetch}
           />
 
           {/* Characters */}
@@ -1396,6 +1411,177 @@ function PendingSuggestionsList({
           );
         })}
       </ul>
+  );
+}
+
+// ── CompanionRecapEditor ────────────────────────────────────────────────
+// Two-textarea editor that overwrites the recap slot in the companion's
+// recaps JSON without triggering a regen. Per-season for TV. The field
+// shapes mirror what the AI pipeline writes — see lib/ai/watch-
+// companion-chunks/recap.ts and the persistDraft path in
+// watch-companion-generate.ts.
+
+function CompanionRecapEditor({
+  companionId, mediaType, recaps, seasonsGenerated, getToken, onSaved,
+}: {
+  companionId: string;
+  mediaType: "movie" | "tv";
+  recaps: Record<string, unknown>;
+  seasonsGenerated: number[];
+  getToken: () => Promise<string>;
+  onSaved: () => void;
+}) {
+  const isTv = mediaType === "tv";
+  const [season, setSeason] = useState<number>(seasonsGenerated[0] ?? 1);
+
+  // Resolve the slot for the currently-selected season (TV) or the
+  // single movie slot. Tolerates the legacy shape where slots were
+  // bare strings instead of { installment, series } objects.
+  function readSlot(): { installment: string; series: string } {
+    const empty = { installment: "", series: "" };
+    let raw: unknown;
+    if (isTv) {
+      raw = recaps[String(season)];
+    } else {
+      raw = (recaps as { current?: unknown }).current;
+    }
+    if (!raw) return empty;
+    if (typeof raw === "string") return { installment: raw, series: "" };
+    if (typeof raw === "object" && !Array.isArray(raw)) {
+      const r = raw as { installment?: unknown; series?: unknown; text?: unknown };
+      return {
+        installment: typeof r.installment === "string" ? r.installment : typeof r.text === "string" ? r.text : "",
+        series: typeof r.series === "string" ? r.series : "",
+      };
+    }
+    return empty;
+  }
+
+  const [installmentDraft, setInstallmentDraft] = useState("");
+  const [seriesDraft, setSeriesDraft] = useState("");
+  const [savingKind, setSavingKind] = useState<"installment" | "series" | null>(null);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState<"installment" | "series" | null>(null);
+
+  // Re-hydrate the textareas whenever the season changes (or the
+  // companion data refetches — recaps reference identity flips on
+  // refetch). Keeping them as controlled state lets the admin edit
+  // without losing keystrokes when the parent rerenders.
+  useEffect(() => {
+    const slot = readSlot();
+    setInstallmentDraft(slot.installment);
+    setSeriesDraft(slot.series);
+    setError("");
+    setSaved(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [season, recaps]);
+
+  async function save(kind: "installment" | "series", text: string) {
+    setSavingKind(kind);
+    setError("");
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/admin/watch-companion/${companionId}/recap`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind,
+          season: isTv ? season : null,
+          // Empty string = clear the slot; the API maps this to delete.
+          text: text.trim().length === 0 ? null : text.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.error ?? "Save failed");
+        return;
+      }
+      setSaved(kind);
+      setTimeout(() => setSaved(null), 1500);
+      onSaved();
+    } catch {
+      setError("Network error — try again");
+    } finally {
+      setSavingKind(null);
+    }
+  }
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-white">Recap</h3>
+        {isTv && seasonsGenerated.length > 1 && (
+          <select
+            value={season}
+            onChange={(e) => setSeason(parseInt(e.target.value, 10))}
+            className="bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+          >
+            {seasonsGenerated.map((n) => (
+              <option key={n} value={n}>Season {n}</option>
+            ))}
+          </select>
+        )}
+        <span className="text-[10px] text-[var(--foreground-muted)]">
+          Edits write directly — no regen, no token cost.
+        </span>
+      </div>
+
+      <div>
+        <label className="text-[10px] uppercase tracking-wider font-semibold text-[var(--foreground-muted)] mb-1 block">
+          Installment recap {isTv ? `(Season ${season} only)` : "(this movie)"}
+        </label>
+        <textarea
+          value={installmentDraft}
+          onChange={(e) => setInstallmentDraft(e.target.value)}
+          rows={6}
+          maxLength={4000}
+          placeholder="150-250 words on the events of this installment alone."
+          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+        />
+        <div className="flex items-center justify-end gap-2 mt-1.5 text-[10px] text-[var(--foreground-muted)]">
+          <span>{installmentDraft.length}/4000</span>
+          {saved === "installment" && <span className="text-green-400">Saved</span>}
+          <button
+            type="button"
+            onClick={() => save("installment", installmentDraft)}
+            disabled={savingKind !== null}
+            className="px-2.5 py-1 rounded bg-[var(--ratist-red)] text-white text-[11px] font-semibold hover:bg-[var(--ratist-red)]/80 disabled:opacity-50"
+          >
+            {savingKind === "installment" ? "Saving…" : "Save installment"}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[10px] uppercase tracking-wider font-semibold text-[var(--foreground-muted)] mb-1 block">
+          Series-so-far recap {isTv ? `(through Season ${season})` : "(franchise through this film)"}
+        </label>
+        <textarea
+          value={seriesDraft}
+          onChange={(e) => setSeriesDraft(e.target.value)}
+          rows={6}
+          maxLength={4000}
+          placeholder={isTv
+            ? `150-250 words covering every season through Season ${season}. Leave blank for Season 1.`
+            : "150-250 words covering every prior film + this one. Leave blank for standalone movies."}
+          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+        />
+        <div className="flex items-center justify-end gap-2 mt-1.5 text-[10px] text-[var(--foreground-muted)]">
+          <span>{seriesDraft.length}/4000</span>
+          {saved === "series" && <span className="text-green-400">Saved</span>}
+          <button
+            type="button"
+            onClick={() => save("series", seriesDraft)}
+            disabled={savingKind !== null}
+            className="px-2.5 py-1 rounded bg-[var(--ratist-red)] text-white text-[11px] font-semibold hover:bg-[var(--ratist-red)]/80 disabled:opacity-50"
+          >
+            {savingKind === "series" ? "Saving…" : "Save series"}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-red-400">{error}</p>}
+    </div>
   );
 }
 

@@ -5,7 +5,17 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 export const dynamic = "force-dynamic";
 
 const ACTIONS = ["add", "edit", "remove"] as const;
-const TARGET_TYPES = ["character", "fact", "relationship", "timeline", "glossary", "baseDescription"] as const;
+const TARGET_TYPES = [
+  "character", "fact", "relationship", "timeline", "glossary", "baseDescription",
+  // Recap alternatives — never auto-applied. They show up under the
+  // canonical recap as community alts sorted by upvote score. The
+  // payload carries { text, seasonNumber? } and the action is always
+  // "add". The vote + apply paths recognize these and skip the
+  // threshold-driven publish step.
+  "recap_installment",
+  "recap_series",
+] as const;
+const RECAP_TARGET_TYPES = ["recap_installment", "recap_series"] as const;
 
 // Submit a new suggestion
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -45,7 +55,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   if (!action) return NextResponse.json({ error: "action must be add/edit/remove" }, { status: 400 });
   if (!targetType) return NextResponse.json({ error: "targetType invalid" }, { status: 400 });
-  if (action !== "add" && !targetId) return NextResponse.json({ error: "targetId required for edit/remove" }, { status: 400 });
+
+  // Recap alternatives are always "add" — there's no item to edit or
+  // remove because they're freestanding alternative paragraphs, not
+  // edits to an existing row. Validate that here so a confused client
+  // can't sneak in an "edit" with a recap targetType.
+  const isRecapAlt = (RECAP_TARGET_TYPES as readonly string[]).includes(targetType);
+  if (isRecapAlt) {
+    if (action !== "add") return NextResponse.json({ error: "Recap alternatives must use action=add" }, { status: 400 });
+    const text = (payload as { text?: unknown }).text;
+    if (typeof text !== "string" || text.trim().length < 30) {
+      return NextResponse.json({ error: "Recap alternative must include text (≥30 chars) in payload" }, { status: 400 });
+    }
+  } else if (action !== "add" && !targetId) {
+    return NextResponse.json({ error: "targetId required for edit/remove" }, { status: 400 });
+  }
 
   // Verify companion exists
   const companion = await prisma.watchCompanion.findUnique({ where: { id }, select: { id: true, status: true } });

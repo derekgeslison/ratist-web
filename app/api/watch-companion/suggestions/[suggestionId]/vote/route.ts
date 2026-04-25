@@ -38,11 +38,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ suggestion
 
   const suggestion = await prisma.companionSuggestion.findUnique({
     where: { id: suggestionId },
-    select: { id: true, companionId: true, status: true, submitterId: true },
+    select: { id: true, companionId: true, status: true, submitterId: true, targetType: true },
   });
   if (!suggestion) return NextResponse.json({ error: "Suggestion not found" }, { status: 404 });
   if (suggestion.status !== "pending") return NextResponse.json({ error: "This suggestion has already been resolved" }, { status: 400 });
   if (suggestion.submitterId === user.id) return NextResponse.json({ error: "You can't vote on your own suggestion" }, { status: 400 });
+
+  // Recap alternatives never auto-resolve. They live alongside the
+  // canonical recap forever, sorted by upvote score, so the threshold
+  // logic that promotes a suggestion into the live data doesn't apply.
+  // Admin can dismiss spam manually.
+  const isRecapAlt = suggestion.targetType === "recap_installment" || suggestion.targetType === "recap_series";
 
   const isCritic = await isCriticUser(user.id);
   const weight = isCritic ? CRITIC_VOTE_WEIGHT : REGULAR_VOTE_WEIGHT;
@@ -68,8 +74,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ suggestion
     data: { upvoteScore: score.upvoteScore, voteCount: score.voteCount },
   });
 
-  // Auto-resolve?
+  // Auto-resolve? Recap alternatives skip this entirely.
   let autoResolved: "approved" | "dismissed" | null = null;
+  if (isRecapAlt) {
+    return NextResponse.json({ score, autoResolved });
+  }
   if (shouldAutoApprove(score)) {
     await prisma.companionSuggestion.update({
       where: { id: suggestionId },

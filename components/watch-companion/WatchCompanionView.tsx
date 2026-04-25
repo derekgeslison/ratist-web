@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2, ScrollText, EyeOff } from "lucide-react";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2, ScrollText, EyeOff, MessageSquare } from "lucide-react";
+import SignInLink from "@/components/SignInLink";
 import RelationshipMap from "./RelationshipMap";
 import RateCompanion from "./RateCompanion";
 import CompanionNotAvailable from "./CompanionNotAvailable";
@@ -1779,6 +1780,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       <h3 className="text-base font-semibold text-white">{installmentLabel}</h3>
                     </header>
                     <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{slot.installment}</p>
+                    <RecapAlternatives
+                      companionId={data.id}
+                      kind="recap_installment"
+                      mediaType={mediaType}
+                      seasonNumber={mediaType === "tv" ? selectedSeason : null}
+                      pendingSuggestions={pendingSuggestions}
+                      myVotes={myVotes}
+                      onChanged={onSuggestionChanged}
+                    />
                   </article>
                 )}
                 {slot.series && (
@@ -1788,6 +1798,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       <h3 className="text-base font-semibold text-white">{seriesLabel}</h3>
                     </header>
                     <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{slot.series}</p>
+                    <RecapAlternatives
+                      companionId={data.id}
+                      kind="recap_series"
+                      mediaType={mediaType}
+                      seasonNumber={mediaType === "tv" ? selectedSeason : null}
+                      pendingSuggestions={pendingSuggestions}
+                      myVotes={myVotes}
+                      onChanged={onSuggestionChanged}
+                    />
                   </article>
                 )}
               </>
@@ -1891,6 +1910,194 @@ function groupConnectionsForCard(
  * pending list (community-apply path) and renders as a real character card
  * elsewhere; the others stay grouped here until they resolve.
  */
+/**
+ * Community-alternatives section under each canonical recap block.
+ * Lists alternative recaps users have submitted, sorted by upvote
+ * score desc. Each alt is a full paragraph (not a popover bubble like
+ * other suggestions) since recaps are large prose blocks. Submitting
+ * a new alt expands an inline form; voting hits the same /vote
+ * endpoint as everything else but the server-side gate skips
+ * auto-apply for these target types.
+ *
+ * Filters by `kind` (recap_installment | recap_series) and, for TV,
+ * by payload.seasonNumber so S2's alternatives don't bleed into S3's
+ * Recap tab.
+ */
+function RecapAlternatives({
+  companionId, kind, mediaType, seasonNumber, pendingSuggestions, myVotes, onChanged,
+}: {
+  companionId: string;
+  kind: "recap_installment" | "recap_series";
+  mediaType: "movie" | "tv";
+  seasonNumber: number | null;
+  pendingSuggestions: SuggestionRow[];
+  myVotes: Record<string, number>;
+  onChanged: () => void;
+}) {
+  const { user } = useAuth();
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const alts = useMemo(() => {
+    return pendingSuggestions
+      .filter((s) => s.targetType === kind)
+      .filter((s) => {
+        if (mediaType !== "tv") return true;
+        const payloadSeason = (s.payload as { seasonNumber?: unknown } | null)?.seasonNumber;
+        return typeof payloadSeason === "number" && payloadSeason === seasonNumber;
+      })
+      .sort((a, b) => b.upvoteScore - a.upvoteScore);
+  }, [pendingSuggestions, kind, mediaType, seasonNumber]);
+
+  async function submitAlt() {
+    if (!user || draft.trim().length < 30) return;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/watch-companion/${companionId}/suggestions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          targetType: kind,
+          rationale: null,
+          payload: {
+            text: draft.trim(),
+            ...(mediaType === "tv" && seasonNumber != null ? { seasonNumber } : {}),
+          },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setSubmitError(err.error ?? "Couldn't submit. Try again.");
+        return;
+      }
+      setDraft("");
+      onChanged();
+    } catch {
+      setSubmitError("Network error — try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-[var(--border)]/40">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="inline-flex items-center gap-1.5 text-[11px] text-[var(--foreground-muted)] hover:text-white transition-colors"
+      >
+        <MessageSquare className="w-3 h-3" />
+        Community alternatives ({alts.length})
+        <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          {alts.length === 0 && (
+            <p className="text-xs text-[var(--foreground-muted)] italic">
+              No alternatives yet. {user ? "Be the first to suggest one below." : <><SignInLink className="text-[var(--ratist-red)] hover:underline">Sign in</SignInLink> to suggest one.</>}
+            </p>
+          )}
+          {alts.map((alt) => (
+            <RecapAlternativeRow
+              key={alt.id}
+              alt={alt}
+              myVote={myVotes[alt.id] ?? 0}
+              onChanged={onChanged}
+            />
+          ))}
+          {user && (
+            <div className="bg-[var(--surface-2)]/40 border border-[var(--border)]/60 rounded-lg p-2.5 space-y-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
+                rows={4}
+                placeholder="Suggest your own recap. ~150-250 words. Spoilers welcome."
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)]/50 focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+              />
+              <div className="flex items-center justify-end gap-2 text-[10px] text-[var(--foreground-muted)]">
+                {submitError && <span className="text-red-400 mr-auto">{submitError}</span>}
+                <span>{draft.length}/4000</span>
+                <button
+                  type="button"
+                  onClick={submitAlt}
+                  disabled={submitting || draft.trim().length < 30}
+                  className="px-2.5 py-1 rounded bg-[var(--ratist-red)] text-white text-[11px] font-semibold hover:bg-[var(--ratist-red)]/80 disabled:opacity-40"
+                >
+                  {submitting ? "Submitting…" : "Submit alternative"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecapAlternativeRow({ alt, myVote, onChanged }: {
+  alt: SuggestionRow;
+  myVote: number;
+  onChanged: () => void;
+}) {
+  const { user } = useAuth();
+  const [voting, setVoting] = useState<null | 1 | -1 | 0>(null);
+  const text = typeof (alt.payload as { text?: unknown } | null)?.text === "string"
+    ? ((alt.payload as { text: string }).text)
+    : "";
+
+  async function vote(next: 1 | -1) {
+    if (!user) return;
+    const target = myVote === next ? 0 : next;
+    setVoting(target);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/watch-companion/suggestions/${alt.id}/vote`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ vote: target }),
+      });
+      if (res.ok) onChanged();
+    } finally {
+      setVoting(null);
+    }
+  }
+
+  return (
+    <div className="bg-[var(--surface-2)]/40 border border-[var(--border)]/60 rounded-lg p-2.5 flex items-start gap-3">
+      <div className="flex-1 min-w-0 space-y-1">
+        <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{text}</p>
+        <p className="text-[10px] text-[var(--foreground-muted)]/70">by {alt.submitter.name}</p>
+      </div>
+      <div className="flex flex-col items-center gap-0.5 shrink-0">
+        <button
+          onClick={() => vote(1)}
+          disabled={!user || voting !== null}
+          className={`p-1 rounded transition-colors ${myVote === 1 ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"} disabled:opacity-30`}
+          aria-label="Upvote"
+        >
+          {voting === 1 ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3" />}
+        </button>
+        <span className={`text-[11px] font-bold tabular-nums ${alt.upvoteScore > 0 ? "text-green-400" : alt.upvoteScore < 0 ? "text-red-400" : "text-[var(--foreground-muted)]"}`}>
+          {alt.upvoteScore > 0 ? "+" : ""}{alt.upvoteScore}
+        </span>
+        <button
+          onClick={() => vote(-1)}
+          disabled={!user || voting !== null}
+          className={`p-1 rounded transition-colors ${myVote === -1 ? "text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400"} disabled:opacity-30`}
+          aria-label="Downvote"
+        >
+          {voting === -1 ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsDown className="w-3 h-3" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PendingCharacterAdds({
   suggestions, myVotes, mediaType, onChanged,
 }: {
