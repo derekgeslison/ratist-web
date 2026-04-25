@@ -11,6 +11,7 @@ import {
   normVisibleAfter,
   formatGroundingContext,
   formatPriorSeasonCanon,
+  formatEpisodeModeAddendum,
   callTool,
 } from "./shared";
 
@@ -68,11 +69,13 @@ export async function draftFacts(
   season: number | null,
   characters: DraftCharacter[],
   priorCanon: PriorSeasonCanon | null = null,
+  episode: number | null = null,
 ): Promise<DraftFact[]> {
   const charList = characters.map((c) => `- ${c.name}${c.actorName ? ` (played by ${c.actorName})` : ""}: ${c.baseDescription}`).join("\n");
-  const userMessage = formatGroundingContext(grounding, season)
+  const userMessage = formatGroundingContext(grounding, season, { episode })
     + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference these EXACTLY by name)\n\n${charList}`
+    + (episode !== null && season !== null ? formatEpisodeModeAddendum(season, episode, "facts") : "")
     + `\n\nEmit the facts now. 0–8 per character. Every characterName must match one of the names above exactly.`;
 
   const result = await callTool<{ facts: unknown[] }>({

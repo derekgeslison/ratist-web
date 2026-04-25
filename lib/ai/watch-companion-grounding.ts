@@ -138,7 +138,7 @@ export interface CompanionGroundingData {
   wikipediaEpisodes: string | null;
   tmdb: TMDBMovie | TMDBShow;
   cast: Array<{ tmdbId: number; name: string; character: string; order: number; profilePath: string | null }>;
-  seasons?: Array<{ seasonNumber: number; episodeCount: number; overview: string | null; episodes: Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null }> }>;
+  seasons?: Array<{ seasonNumber: number; episodeCount: number; overview: string | null; episodes: Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null; airDate: string | null }> }>;
   // One excerpt per fetch attempt that returned dialogue. Movies always
   // produce a single-element array; TV produces one entry per episode in
   // the target season that had subs available.
@@ -182,7 +182,18 @@ export async function loadGroundingForMovie(tmdbId: number): Promise<CompanionGr
   };
 }
 
-export async function loadGroundingForShow(tmdbId: number, seasonNumber: number): Promise<CompanionGroundingData> {
+export async function loadGroundingForShow(
+  tmdbId: number,
+  seasonNumber: number,
+  options?: {
+    /** When set, restrict the season's episodes (and per-episode subtitle
+     *  fetches) to this list. Used by the initial airing-season gen so the
+     *  AI only sees episodes that have cleared the 2-day eligibility
+     *  buffer — without this, training-data leakage could push the AI to
+     *  emit content for unaired episodes. */
+    episodeFilter?: number[];
+  },
+): Promise<CompanionGroundingData> {
   const tmdb = await getShowDetails(tmdbId);
   const year = tmdb.first_air_date ? parseInt(tmdb.first_air_date.slice(0, 4), 10) : null;
   const wiki = await fetchWikipediaPage(tmdb.name, year, "tv");
@@ -201,14 +212,20 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
       seasonNumber: s.season_number,
       episodeCount: s.episode_count ?? 0,
       overview: s.overview ?? null,
-      episodes: [] as Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null }>,
+      episodes: [] as Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null; airDate: string | null }>,
     }));
   // Fetch episode detail for the target season only (we only generate one
   // season at a time; other seasons show up as metadata).
   const targetSeason = seasons.find((s) => s.seasonNumber === seasonNumber);
   if (targetSeason) {
     const episodes = await fetchSeasonEpisodes(tmdbId, seasonNumber).catch(() => []);
-    targetSeason.episodes = episodes;
+    // For initial airing-season gen, restrict the AI's view to episodes
+    // already past the 2-day buffer. Episodes not in the filter never
+    // reach the prompt — neither as TMDB summaries nor as subtitle blocks.
+    const filterSet = options?.episodeFilter ? new Set(options.episodeFilter) : null;
+    targetSeason.episodes = filterSet
+      ? episodes.filter((e) => filterSet.has(e.episodeNumber))
+      : episodes;
   }
 
   // Pull subtitles for EVERY episode in the target season (was: just ep 1
@@ -217,6 +234,10 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
   // within ~30k chars total — the 18k single-episode default is fine for
   // a movie or a 1–2 episode pull, but a 10-episode season at 18k each
   // would drown the prompt.
+  //
+  // The episodeFilter (when present) has already trimmed targetSeason.episodes
+  // above, so this fetch naturally only hits eligible episodes for an
+  // initial airing-season gen.
   const targetEpisodes = targetSeason?.episodes ?? [];
   const episodeNumbers = targetEpisodes.length > 0
     ? targetEpisodes.map((e) => e.episodeNumber)
@@ -252,6 +273,84 @@ export async function loadGroundingForShow(tmdbId: number, seasonNumber: number)
     .map((r) => r.excerpt)
     .filter((e): e is SubtitleExcerpt => e !== null);
   const subtitleStatuses = fetched.map((r) => r.status);
+
+  return {
+    source: "tv",
+    title: tmdb.name,
+    year,
+    runtimeSeconds: null,
+    overview: tmdb.overview ?? "",
+    wikipedia: wiki,
+    wikipediaEpisodes: wikiEps,
+    tmdb,
+    cast,
+    seasons,
+    subtitleExcerpts,
+    subtitleStatuses,
+  };
+}
+
+/**
+ * Episode-scoped grounding for a TV companion that's in airing status.
+ * Same shape as loadGroundingForShow but the seasons[].episodes[] array
+ * for the target season is filtered to just the target episode (the
+ * AI chunks only need to know about that one episode), and only that
+ * episode's subtitle file is fetched. Failures on optional sources
+ * (Wikipedia, subtitles) are non-fatal — the companion can still be
+ * generated from TMDB metadata alone, which is the intentional failsafe
+ * for episodes whose recap/transcript info isn't yet online.
+ */
+export async function loadGroundingForEpisode(
+  tmdbId: number,
+  seasonNumber: number,
+  episodeNumber: number,
+): Promise<CompanionGroundingData> {
+  const tmdb = await getShowDetails(tmdbId);
+  const year = tmdb.first_air_date ? parseInt(tmdb.first_air_date.slice(0, 4), 10) : null;
+  const wiki = await fetchWikipediaPage(tmdb.name, year, "tv");
+  const wikiEps = await fetchWikipediaEpisodeList(tmdb.name, year);
+  const cast = (tmdb.aggregate_credits?.cast ?? []).slice(0, 35).map((c) => ({
+    tmdbId: c.id,
+    name: c.name,
+    character: Array.isArray(c.roles) && c.roles.length > 0 ? c.roles.map((r) => r.character).filter(Boolean).join(" / ") : "",
+    order: c.order ?? 0,
+    profilePath: c.profile_path ?? null,
+  }));
+
+  const seasons = (tmdb.seasons ?? [])
+    .filter((s) => s.season_number > 0)
+    .map((s) => ({
+      seasonNumber: s.season_number,
+      episodeCount: s.episode_count ?? 0,
+      overview: s.overview ?? null,
+      episodes: [] as Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null; airDate: string | null }>,
+    }));
+
+  const targetSeason = seasons.find((s) => s.seasonNumber === seasonNumber);
+  let targetEpisode: { episodeNumber: number; name: string; overview: string | null; runtime: number | null; airDate: string | null } | null = null;
+  if (targetSeason) {
+    const allEpisodes = await fetchSeasonEpisodes(tmdbId, seasonNumber).catch(() => []);
+    targetEpisode = allEpisodes.find((e) => e.episodeNumber === episodeNumber) ?? null;
+    // Only the target episode goes into the season's episodes[] array. The
+    // chunk prompts use "SEASON X EPISODES" to ground; trimming to one entry
+    // forces the AI to focus on this episode rather than re-emitting content
+    // for the whole season.
+    targetSeason.episodes = targetEpisode ? [targetEpisode] : [];
+  }
+
+  // Single subtitle fetch for the target episode. Use the show-level budget
+  // (18k chars) since we have just one episode of headroom — the per-season
+  // budget split doesn't apply here.
+  const fetched = await fetchSubtitleExcerpt(
+    tmdbId,
+    "tv",
+    seasonNumber,
+    episodeNumber,
+    18000,
+    targetEpisode?.name,
+  );
+  const subtitleExcerpts = fetched.excerpt ? [fetched.excerpt] : [];
+  const subtitleStatuses = [fetched.status];
 
   return {
     source: "tv",
@@ -338,12 +437,13 @@ async function fetchSeasonEpisodes(tmdbId: number, seasonNumber: number) {
       { next: { revalidate: 60 * 60 * 24 * 7 } },
     );
     if (!res.ok) return [];
-    const data = await res.json() as { episodes?: Array<{ episode_number: number; name: string; overview: string; runtime: number | null }> };
+    const data = await res.json() as { episodes?: Array<{ episode_number: number; name: string; overview: string; runtime: number | null; air_date: string | null }> };
     return (data.episodes ?? []).map((e) => ({
       episodeNumber: e.episode_number,
       name: e.name,
       overview: e.overview,
       runtime: e.runtime,
+      airDate: e.air_date ?? null,
     }));
   } catch {
     return [];

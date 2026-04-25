@@ -216,6 +216,11 @@ export function formatGroundingContext(grounding: CompanionGroundingData, season
    *  should keep this on; the characters chunk defaults it off since actor
    *  identity doesn't benefit from dialogue. */
   includeSubtitles?: boolean;
+  /** When set, the prompt frames the gen as an INCREMENTAL UPDATE for one
+   *  episode of an actively-airing season. Adds an explicit "GENERATING
+   *  EPISODE" line so each chunk's prompt nudges the AI to scope output
+   *  to that episode rather than re-emitting season-wide content. */
+  episode?: number | null;
 }): string {
   const opts = { includeCast: true, includeSeasonEpisodes: true, includeWikipediaEpisodes: true, includeSubtitles: true, ...options };
   const sections: string[] = [];
@@ -228,6 +233,9 @@ export function formatGroundingContext(grounding: CompanionGroundingData, season
   }
   if (season !== null) {
     sections.push(`GENERATING SEASON: ${season}`);
+  }
+  if (typeof opts.episode === "number" && opts.episode > 0 && season !== null) {
+    sections.push(`GENERATING EPISODE: S${season}E${opts.episode} (incremental update — append-only)`);
   }
   if (grounding.overview) {
     sections.push(`\nTMDB OVERVIEW:\n${grounding.overview}`);
@@ -312,6 +320,25 @@ export function formatPriorSeasonCanon(canon: PriorSeasonCanon | null): string {
   }
 
   return parts.join("\n");
+}
+
+// ── Episode-mode addendum (incremental update for actively-airing seasons) ─
+// When generating a single episode's worth of new content for a season
+// already partway through generation, every chunk's user message includes
+// this block. It tells the AI two things: (1) the canon already includes
+// content from earlier episodes in this same season, so don't re-emit
+// items that are already there; (2) every visibleAfter must point at this
+// episode or later — anything earlier should already exist in the canon
+// list and re-emitting it would create duplicates.
+export function formatEpisodeModeAddendum(season: number, episode: number, kind: "characters" | "facts" | "relationships" | "timeline" | "glossary"): string {
+  const itemNoun = {
+    characters: "character",
+    facts: "fact",
+    relationships: "relationship",
+    timeline: "timeline event",
+    glossary: "glossary term",
+  }[kind];
+  return `\n\n## INCREMENTAL UPDATE — S${season}E${episode} ONLY\n\nThis season is in airing status — earlier episodes (S${season}E1..S${season}E${episode - 1}) have ALREADY been generated and persisted. The "CANON FROM PRIOR SEASONS" block above includes both prior seasons AND earlier episodes of the current season — anything listed there ALREADY EXISTS in our database.\n\n- Do NOT re-emit any ${itemNoun} already in the canon list. Skip them entirely; they're already saved.\n- ONLY emit ${itemNoun}s that become audience-known AT or AFTER S${season}E${episode}.\n- Every visibleAfter you emit MUST be { season: ${season}, episode: ${episode}, ... } or later. Earlier visibleAfter values are forbidden — those items would already be in our DB.\n- If S${season}E${episode} introduces nothing new for your section, emit an empty list. That's fine — not every episode introduces new ${itemNoun}s.`;
 }
 
 // ── Shared visibleAfter guidance (inserted into each chunk's prompt) ───────

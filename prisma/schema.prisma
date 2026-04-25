@@ -128,6 +128,7 @@ model User {
   companionSuggestionVotes CompanionSuggestionVote[]
   companionSuggestionResolutions CompanionSuggestion[] @relation("suggestionResolver")
   watchCompanionRatings WatchCompanionRating[]
+  companionFollows     CompanionFollow[]
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -2057,6 +2058,8 @@ model WatchCompanion {
   glossary    CompanionGlossaryTerm[]
   suggestions CompanionSuggestion[]
   ratings     WatchCompanionRating[]
+  airingSeasons CompanionAiringSeason[]
+  follows     CompanionFollow[]
 
   @@unique([tmdbId, mediaType])
   @@index([status])
@@ -2337,4 +2340,61 @@ model CompanionSuggestionVote {
 
   @@unique([suggestionId, voterId])
   @@map("companion_suggestion_votes")
+}
+
+// Per-season airing tracker for TV companions whose latest episode is still
+// within (last_episode_air_date + 2 days > today). One row per (companion,
+// season) the moment the user/admin first triggers generation while that
+// season is mid-air. Drives the cron sweep, stores per-episode progress,
+// and graduates to status="completed" once all episodes are generated AND
+// the recap chunks have run for the season.
+model CompanionAiringSeason {
+  id           String   @id @default(cuid())
+  companionId  String   @map("companion_id")
+  seasonNumber Int      @map("season_number")
+  // Episode numbers already generated for this season. Initial gen seeds
+  // every episode whose air_date + 2 days <= today; the cron appends as
+  // additional episodes pass the buffer. Recap is intentionally NOT stored
+  // here — it runs once at finalization, writing into WatchCompanion.recaps.
+  episodesGenerated Int[] @default([]) @map("episodes_generated")
+  // "airing" while waiting for more episodes to become eligible;
+  // "completed" once last_episode + 2 days has passed AND recap chunks
+  // have run AND the season has been pushed into seasonsGenerated.
+  status       String   @default("airing")
+  // Stamped at the end of each cron pass so admins can see liveness.
+  lastSweepAt  DateTime? @map("last_sweep_at")
+  // Consecutive cron failures for the next pending episode. Resets on
+  // success. Powers the failsafe — after N retries the cron falls back
+  // to TMDB-overview-only generation for that episode and resets to 0.
+  failureCount Int      @default(0) @map("failure_count")
+  // Last error string captured by the cron, surfaced in admin UI.
+  lastError    String?  @db.Text @map("last_error")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  companion    WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+
+  @@unique([companionId, seasonNumber])
+  @@index([status])
+  @@map("companion_airing_seasons")
+}
+
+// User subscription to a companion. Meaningful while a companion has any
+// season in "airing" status — followers receive a notification when each
+// new episode's companion is generated. Survives season completion so the
+// user can keep the subscription for the next airing season of the same
+// show (a follow is per-companion, not per-season).
+model CompanionFollow {
+  id          String   @id @default(cuid())
+  companionId String   @map("companion_id")
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companionId, userId])
+  @@index([companionId])
+  @@index([userId])
+  @@map("companion_follows")
 }

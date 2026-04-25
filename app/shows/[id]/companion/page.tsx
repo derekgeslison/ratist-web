@@ -56,6 +56,10 @@ export default async function ShowCompanionPage({ params }: Props) {
       relationships: true,
       timeline: true,
       glossary: { orderBy: { sortOrder: "asc" } },
+      airingSeasons: {
+        select: { seasonNumber: true, episodesGenerated: true, status: true },
+        orderBy: { seasonNumber: "asc" },
+      },
     },
   });
 
@@ -165,6 +169,17 @@ export default async function ShowCompanionPage({ params }: Props) {
     }
   }
 
+  // Airing-season rows let the viewer surface "airing now" labels in the
+  // dropdown and a Follow button + 2-day-delay copy on airing seasons.
+  // Filter to "airing" status here — completed rows are already reflected
+  // in seasonsGenerated.
+  const airingSeasons = (companion.airingSeasons ?? [])
+    .filter((a) => a.status === "airing")
+    .map((a) => ({
+      seasonNumber: a.seasonNumber,
+      episodesGenerated: a.episodesGenerated,
+    }));
+
   const data: WatchCompanionData = {
     id: companion.id,
     tmdbId: companion.tmdbId,
@@ -172,6 +187,7 @@ export default async function ShowCompanionPage({ params }: Props) {
     mediaType: "tv",
     runtimeSeconds: null,
     seasonsGenerated: companion.seasonsGenerated,
+    airingSeasons: airingSeasons.length > 0 ? airingSeasons : undefined,
     communityItemIds: Array.from(communityItemIds),
     characters,
     relationships: companion.relationships.map((r) => ({ ...r, seasonNumber: r.seasonNumber, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),

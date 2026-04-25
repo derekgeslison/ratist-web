@@ -6,6 +6,7 @@ import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-comp
 import { checkWatchCompanionRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { notifyCompanionRequesters } from "@/lib/watch-companion-notify";
 import { isCompanionEligible } from "@/lib/companion-eligibility";
+import { decideAiringTrigger, AIRING_BUFFER_DAYS } from "@/lib/companion-airing";
 
 export const dynamic = "force-dynamic";
 // Same ceiling as the admin route — Vercel Pro max.
@@ -57,6 +58,25 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Airing detection. For TV: if the season's last episode + 2 day buffer
+  // is still in the future, we're in airing territory. We refuse to
+  // generate when no episodes have cleared the buffer yet (the AI has
+  // nothing to work with) but pass airingMode through when at least one
+  // episode is eligible.
+  let airingMode: { eligibleEpisodes: number[] } | undefined;
+  if (mediaType === "tv" && season !== null) {
+    const decision = await decideAiringTrigger(tmdbId, season);
+    if (decision.kind === "airing_too_early") {
+      return new Response(JSON.stringify({
+        error: `Season ${season} is currently airing but no episodes have cleared the ${AIRING_BUFFER_DAYS}-day buffer yet. Episode companions become available ~${AIRING_BUFFER_DAYS} days after each episode airs — try again soon.`,
+        airingTooEarly: true,
+      }), { status: 409 });
+    }
+    if (decision.kind === "airing_with_eligible") {
+      airingMode = { eligibleEpisodes: decision.status.eligibleEpisodes };
+    }
+  }
+
   const userId = userRecord.id;
 
   const stream = new ReadableStream({
@@ -71,6 +91,7 @@ export async function POST(req: NextRequest) {
           tmdbId,
           mediaType,
           season: mediaType === "tv" ? season! : undefined,
+          airingMode,
           generatedByUserId: userId,
         })) {
           // Warnings are admin-facing diagnostics (e.g., "OpenSubtitles

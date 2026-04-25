@@ -64,12 +64,13 @@ async function fetchSeasonEpisodes(tmdbId: number, seasonNumber: number) {
       `${TMDB_BASE}/tv/${tmdbId}/season/${seasonNumber}?api_key=${TMDB_API_KEY}&language=en-US`,
     );
     if (!res.ok) return [];
-    const data = await res.json() as { episodes?: Array<{ episode_number: number; name: string; overview: string; runtime: number | null }> };
+    const data = await res.json() as { episodes?: Array<{ episode_number: number; name: string; overview: string; runtime: number | null; air_date: string | null }> };
     return (data.episodes ?? []).map((e) => ({
       episodeNumber: e.episode_number,
       name: e.name,
       overview: e.overview,
       runtime: e.runtime,
+      airDate: e.air_date ?? null,
     }));
   } catch {
     return [];
@@ -111,7 +112,7 @@ async function buildSlimGroundingForShow(tmdbId: number, seasonNumber: number): 
       seasonNumber: s.season_number,
       episodeCount: s.episode_count ?? 0,
       overview: s.overview ?? null,
-      episodes: [] as Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null }>,
+      episodes: [] as Array<{ episodeNumber: number; name: string; overview: string | null; runtime: number | null; airDate: string | null }>,
     }));
   const targetSeason = seasons.find((s) => s.seasonNumber === seasonNumber);
   if (targetSeason) {

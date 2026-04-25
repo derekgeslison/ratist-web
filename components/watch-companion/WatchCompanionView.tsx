@@ -8,6 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import RelationshipMap from "./RelationshipMap";
 import RateCompanion from "./RateCompanion";
 import CompanionNotAvailable from "./CompanionNotAvailable";
+import FollowCompanionButton from "./FollowCompanionButton";
 import AdUnit from "@/components/AdUnit";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
 import ItemSuggestions, { type SuggestionRow } from "./ItemSuggestions";
@@ -70,6 +71,13 @@ export interface WatchCompanionData {
   mediaType: "movie" | "tv";
   runtimeSeconds: number | null;
   seasonsGenerated: number[];
+  /** Seasons currently in "airing" status — initial gen has run with content
+   *  for the eligible-episode batch, with more episodes coming in via the
+   *  daily cron sweep. The dropdown surfaces these with an "airing now"
+   *  label and the viewer renders a Follow button + 2-day-delay copy when
+   *  one of these is selected. Excluded once the season finalizes (it
+   *  flips into seasonsGenerated at that point). */
+  airingSeasons?: Array<{ seasonNumber: number; episodesGenerated: number[] }>;
   characters: Character[];
   relationships: Relationship[];
   timeline: TimelineEvent[];
@@ -316,16 +324,25 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   }
   const { mediaType, runtimeSeconds, seasonsGenerated } = data;
   const generatedSet = useMemo(() => new Set(seasonsGenerated), [seasonsGenerated]);
+  // Map seasonNumber → row for any season currently in airing status. The
+  // viewer treats airing seasons as having content (they do, for the
+  // eligible-episodes batch) but flags them in the dropdown + renders a
+  // Follow button + 2-day-delay banner.
+  const airingSeasonByNumber = useMemo(() => {
+    const map = new Map<number, { episodesGenerated: number[] }>();
+    for (const a of data.airingSeasons ?? []) map.set(a.seasonNumber, { episodesGenerated: a.episodesGenerated });
+    return map;
+  }, [data.airingSeasons]);
   // All seasons TMDB knows about for this show — the dropdown lists all of
   // them so the user can pick an ungenerated season and trigger gen from
   // inside the viewer. Falls back to just generated seasons for movies or
   // when seasonEpisodeCounts wasn't passed.
   const sortedSeasons = useMemo(() => {
     const allFromTmdb = Object.keys(data.seasonEpisodeCounts ?? {}).map(Number).filter((n) => n > 0);
-    const combined = new Set<number>([...allFromTmdb, ...seasonsGenerated]);
+    const combined = new Set<number>([...allFromTmdb, ...seasonsGenerated, ...Array.from(airingSeasonByNumber.keys())]);
     return Array.from(combined).sort((a, b) => a - b);
-  }, [seasonsGenerated, data.seasonEpisodeCounts]);
-  const defaultSeason = seasonsGenerated[0] ?? sortedSeasons[0] ?? 1;
+  }, [seasonsGenerated, data.seasonEpisodeCounts, airingSeasonByNumber]);
+  const defaultSeason = seasonsGenerated[0] ?? sortedSeasons.find((n) => airingSeasonByNumber.has(n)) ?? sortedSeasons[0] ?? 1;
 
   // Persist slider position + selected season per-companion in localStorage so
   // tapping an actor and coming back doesn't snap the viewer to the start of
@@ -388,8 +405,21 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     [mediaType, selectedSeason, data.seasonEpisodeCounts],
   );
 
-  // Restore on mount (client only; avoids hydration mismatch by deferring)
+  // Restore on mount (client only; avoids hydration mismatch by deferring).
+  // URL ?s=&e= takes precedence over localStorage so deep links from the
+  // follow-flow notifications ("S2E4 is ready!") jump straight to the
+  // right episode regardless of where the user last left the slider.
   useEffect(() => {
+    let urlSeason: number | null = null;
+    let urlEpisode: number | null = null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const s = parseInt(params.get("s") ?? "", 10);
+      if (Number.isFinite(s) && s > 0) urlSeason = s;
+      const e = parseInt(params.get("e") ?? "", 10);
+      if (Number.isFinite(e) && e > 0) urlEpisode = e;
+    } catch { /* ignore — fall through to localStorage */ }
+
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
@@ -402,6 +432,21 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         }
       }
     } catch { /* ignore */ }
+
+    // URL overrides — apply last so they win.
+    if (urlSeason !== null && sortedSeasons.includes(urlSeason)) {
+      setSelectedSeason(urlSeason);
+      // Reset episode-level positioning when jumping via deep link so the
+      // user doesn't land at a stale slot from a different season.
+      setEpisodeSeconds(0);
+      if (urlEpisode !== null) {
+        // The slot index for an episode is (episode - 1) within the season
+        // because buildEpisodeSlots produces one slot per episode in order.
+        setSlotIndex(Math.max(0, urlEpisode - 1));
+      } else {
+        setSlotIndex(0);
+      }
+    }
     setHydrated(true);
   }, [storageKey, sortedSeasons]);
 
@@ -663,7 +708,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   // If the user selects a season TMDB knows about but we haven't generated
   // yet, flip the body to the generate/request flow instead of showing empty
   // tabs. Movies don't have seasons so the check is TV-only.
-  const seasonIsGenerated = mediaType === "movie" || generatedSet.has(selectedSeason);
+  //
+  // Airing seasons count as "has content" for this branch — they have
+  // characters/facts/etc. for the eligible-episodes batch, just not the
+  // full season. The 2-day-delay banner explains the rest.
+  const seasonIsAiring = mediaType === "tv" && airingSeasonByNumber.has(selectedSeason);
+  const seasonIsGenerated = mediaType === "movie" || generatedSet.has(selectedSeason) || seasonIsAiring;
 
   // Thin-content detection for the "this companion is lightweight" banner.
   // Thresholds match the Cine-Q-style floor: fewer than 5 characters or
@@ -740,12 +790,43 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
             aria-label="Which season are you watching?"
           >
-            {sortedSeasons.map((n) => (
-              <option key={n} value={n}>
-                Season {n}{generatedSet.has(n) ? "" : " — not generated"}
-              </option>
-            ))}
+            {sortedSeasons.map((n) => {
+              // Three-state label: completed → no suffix; airing → "airing
+              // now"; ungenerated → "not generated". Airing checks are
+              // mutually exclusive with completed because finalization
+              // moves the season out of airingSeasons and into
+              // seasonsGenerated atomically.
+              const isCompleted = generatedSet.has(n);
+              const isAiring = !isCompleted && airingSeasonByNumber.has(n);
+              const suffix = isCompleted ? "" : isAiring ? " — airing now" : " — not generated";
+              return (
+                <option key={n} value={n}>
+                  Season {n}{suffix}
+                </option>
+              );
+            })}
           </select>
+        </div>
+      )}
+
+      {/* Airing-season banner — shows on a season currently in airing
+         status. Explains why some episodes' content might not be there
+         yet (2-day buffer post-airing) and offers the Follow button so
+         users get notified when the next episode's companion drops. */}
+      {seasonIsAiring && (
+        <div className="-mt-2 flex flex-col sm:flex-row sm:items-center gap-3 bg-[var(--ratist-red)]/5 border border-[var(--ratist-red)]/30 rounded-xl p-3 sm:p-4">
+          <div className="flex items-start gap-2 flex-1 min-w-0 text-xs sm:text-sm text-white leading-relaxed">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 mt-0.5 text-[var(--ratist-red)]" />
+            <span>
+              <span className="font-semibold">Season {selectedSeason} is airing now.</span>{" "}
+              <span className="text-[var(--foreground-muted)]">
+                New episode companions go live ~2 days after each episode airs (we wait for recaps and subtitles to be available online). Follow to get notified the moment the next episode&apos;s companion is ready.
+              </span>
+            </span>
+          </div>
+          <div className="shrink-0">
+            <FollowCompanionButton companionId={data.id} />
+          </div>
         </div>
       )}
 

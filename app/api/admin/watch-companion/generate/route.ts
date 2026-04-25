@@ -4,6 +4,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-companion-generate";
 import { logAiUsage } from "@/lib/ai/rate-limit";
+import { decideAiringTrigger, AIRING_BUFFER_DAYS } from "@/lib/companion-airing";
 
 export const dynamic = "force-dynamic";
 // Five sequential Sonnet calls + TMDB + Wikipedia + Prisma writes can still
@@ -37,6 +38,23 @@ export async function POST(req: NextRequest) {
   if (!mediaType) return new Response(JSON.stringify({ error: "mediaType must be 'movie' or 'tv'" }), { status: 400 });
   if (mediaType === "tv" && season === null) return new Response(JSON.stringify({ error: "season required for tv" }), { status: 400 });
 
+  // Airing detection — admin path mirrors the public path. Even admins can't
+  // generate an episode whose recap/transcript info isn't online yet (the AI
+  // would just hallucinate), so the 2-day buffer applies here too.
+  let airingMode: { eligibleEpisodes: number[] } | undefined;
+  if (mediaType === "tv" && season !== null) {
+    const decision = await decideAiringTrigger(tmdbId, season);
+    if (decision.kind === "airing_too_early") {
+      return new Response(JSON.stringify({
+        error: `Season ${season} is currently airing but no episodes have cleared the ${AIRING_BUFFER_DAYS}-day buffer yet.`,
+        airingTooEarly: true,
+      }), { status: 409 });
+    }
+    if (decision.kind === "airing_with_eligible") {
+      airingMode = { eligibleEpisodes: decision.status.eligibleEpisodes };
+    }
+  }
+
   const userId = user.id;
 
   // Stream the generator as Server-Sent Events. The admin UI parses each
@@ -53,6 +71,7 @@ export async function POST(req: NextRequest) {
           tmdbId,
           mediaType,
           season: mediaType === "tv" ? season! : undefined,
+          airingMode,
           generatedByUserId: userId,
         })) {
           send(evt);

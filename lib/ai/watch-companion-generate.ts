@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getAnthropic } from "./client";
 import { getMovieDetails, getCollectionDetails, type TMDBMovie } from "@/lib/tmdb";
-import { loadGroundingForMovie, loadGroundingForShow, type CompanionGroundingData } from "./watch-companion-grounding";
+import { loadGroundingForMovie, loadGroundingForShow, loadGroundingForEpisode, type CompanionGroundingData } from "./watch-companion-grounding";
 import { draftCharacters } from "./watch-companion-chunks/characters";
 import { draftFacts } from "./watch-companion-chunks/facts";
 import { draftRelationships } from "./watch-companion-chunks/relationships";
@@ -23,6 +23,20 @@ export interface GenerateInput {
   tmdbId: number;
   mediaType: "movie" | "tv";
   season?: number; // required for tv
+  // Episode-scoped generation for actively-airing seasons. When set, the
+  // pipeline loads grounding for that single episode, treats prior episodes
+  // of the current season as canon (don't re-emit), skips the recap chunk
+  // (recap runs once at season finalization), and APPENDS to existing rows
+  // rather than wiping the season. Only valid for tv + season. Used by the
+  // cron sweep for incremental episode updates.
+  episode?: number;
+  // Initial generation for an actively-airing season. Differs from episode
+  // mode in that it runs the season-mode pipeline (one Claude pass per
+  // chunk for the whole eligible-episodes batch), but with grounding
+  // filtered to only the episodes past the 2-day buffer. Recap is skipped.
+  // Persist creates a CompanionAiringSeason row instead of adding the
+  // season to seasonsGenerated. Only valid for tv + season.
+  airingMode?: { eligibleEpisodes: number[] };
   generatedByUserId: string;
 }
 
@@ -34,6 +48,15 @@ export interface GenerateResult {
   relationshipsAdded: number;
   timelineAdded: number;
   glossaryAdded: number;
+  // Populated when the gen entered airing mode (initial gen of an
+  // actively-airing season, or an incremental episode-mode update). The
+  // route handler uses this to drive the "you'll be notified when the
+  // next episode's companion is ready" UX.
+  airing?: {
+    seasonNumber: number;
+    episodesGenerated: number[];
+    status: "airing" | "completed";
+  };
 }
 
 // ── Progress events streamed from the orchestrator ────────────────────────
@@ -60,21 +83,46 @@ export type ProgressEvent =
  * chunk is its own ~4k call with focused guidance.
  */
 export async function* generateCompanionStream(input: GenerateInput): AsyncGenerator<ProgressEvent> {
-  const { tmdbId, mediaType, season, generatedByUserId } = input;
+  const { tmdbId, mediaType, season, episode, airingMode, generatedByUserId } = input;
   if (mediaType === "tv" && (season === undefined || season === null || season < 1)) {
     yield { kind: "error", message: "season (>= 1) is required for tv companions" };
     return;
   }
+  if (episode !== undefined && (mediaType !== "tv" || typeof season !== "number")) {
+    yield { kind: "error", message: "episode-scoped generation is only valid for tv with a season" };
+    return;
+  }
+  if (airingMode && (mediaType !== "tv" || typeof season !== "number")) {
+    yield { kind: "error", message: "airingMode is only valid for tv with a season" };
+    return;
+  }
+  if (airingMode && episode !== undefined) {
+    yield { kind: "error", message: "airingMode and episode are mutually exclusive — pick one" };
+    return;
+  }
+  const episodeArg = typeof episode === "number" && episode > 0 ? episode : null;
 
   const client = getAnthropic();
   let grounding: CompanionGroundingData;
 
-  // 1. Grounding
+  // 1. Grounding. Episode-scoped generation hits a leaner loader that only
+  // pulls metadata + subtitles for the target episode. Initial airing-
+  // season gen pulls full season grounding but with the episodes array
+  // filtered to only those past the 2-day buffer. Failures on optional
+  // sources (Wikipedia, subtitles) are non-fatal — for a brand-new episode
+  // those lookups frequently 404 for ~24h post-air, and the failsafe is to
+  // proceed with whatever TMDB metadata we do have.
   yield { kind: "step", step: "grounding", status: "running" };
   try {
-    grounding = mediaType === "movie"
-      ? await loadGroundingForMovie(tmdbId)
-      : await loadGroundingForShow(tmdbId, season!);
+    if (mediaType === "movie") {
+      grounding = await loadGroundingForMovie(tmdbId);
+    } else if (episodeArg !== null) {
+      grounding = await loadGroundingForEpisode(tmdbId, season!, episodeArg);
+    } else if (airingMode) {
+      grounding = await loadGroundingForShow(tmdbId, season!, { episodeFilter: airingMode.eligibleEpisodes });
+    } else {
+      grounding = await loadGroundingForShow(tmdbId, season!);
+    }
   } catch (err) {
     yield { kind: "error", message: `Grounding failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -116,9 +164,18 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   // same franchise/collection (movies like Dune 2 inheriting from Dune).
   // This is the "iterate on top of earlier content" mechanism that keeps
   // labels and wording consistent across a franchise.
+  //
+  // Episode-mode: canon also includes EARLIER EPISODES OF THE CURRENT
+  // SEASON. The chunks treat that canon as "already in our DB, don't
+  // re-emit", which is exactly the behavior we want for an incremental
+  // per-episode update appending to a partly-generated season.
   let priorCanon: PriorSeasonCanon | null = null;
-  if (mediaType === "tv" && seasonArg !== null && seasonArg > 1) {
-    priorCanon = await loadPriorSeasonCanon(tmdbId, seasonArg);
+  if (mediaType === "tv" && seasonArg !== null) {
+    if (episodeArg !== null) {
+      priorCanon = await loadPriorAndCurrentSeasonCanon(tmdbId, seasonArg);
+    } else if (seasonArg > 1) {
+      priorCanon = await loadPriorSeasonCanon(tmdbId, seasonArg);
+    }
   } else if (mediaType === "movie") {
     priorCanon = await loadFranchiseCanon(tmdbId);
   }
@@ -127,7 +184,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "characters", status: "running" };
   let characters: DraftCharacter[];
   try {
-    characters = await draftCharacters(client, grounding, seasonArg, priorCanon);
+    characters = await draftCharacters(client, grounding, seasonArg, priorCanon, episodeArg);
   } catch (err) {
     yield { kind: "error", message: `Characters draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -138,7 +195,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "facts", status: "running" };
   let facts: DraftFact[];
   try {
-    facts = await draftFacts(client, grounding, seasonArg, characters, priorCanon);
+    facts = await draftFacts(client, grounding, seasonArg, characters, priorCanon, episodeArg);
   } catch (err) {
     yield { kind: "error", message: `Facts draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -149,7 +206,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "relationships", status: "running" };
   let relationships: DraftRelationship[];
   try {
-    relationships = await draftRelationships(client, grounding, seasonArg, characters, priorCanon);
+    relationships = await draftRelationships(client, grounding, seasonArg, characters, priorCanon, episodeArg);
   } catch (err) {
     yield { kind: "error", message: `Relationships draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -160,7 +217,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "timeline", status: "running" };
   let timelineEvents: DraftTimelineEvent[];
   try {
-    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters, priorCanon);
+    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters, priorCanon, episodeArg);
   } catch (err) {
     yield { kind: "error", message: `Timeline draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -171,7 +228,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   yield { kind: "step", step: "glossary", status: "running" };
   let glossary: DraftGlossaryTerm[];
   try {
-    glossary = await draftGlossary(client, grounding, seasonArg, priorCanon);
+    glossary = await draftGlossary(client, grounding, seasonArg, priorCanon, episodeArg);
   } catch (err) {
     yield { kind: "error", message: `Glossary draft failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
@@ -194,16 +251,23 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   //
   // Failures are non-fatal: the recap field stays at whatever was
   // there before so a flaky AI call doesn't wipe a good prior recap.
-  yield { kind: "step", step: "recap", status: "running" };
+  //
+  // Episode-mode AND initial airing-season gen both skip this step. Recap
+  // fires once at season finalization (when the last episode + 2 day buffer
+  // has passed) so we can summarize the whole season in one shot rather
+  // than rewriting the recap every time a new episode drops.
   let recap: RecapResult | null = null;
-  try {
-    const { stored, missing } = await loadPriorContext(tmdbId, mediaType, seasonArg, grounding);
-    recap = await draftRecap(client, grounding, seasonArg, timelineEvents, stored, missing);
-  } catch (err) {
-    console.error("Recap draft failed (continuing without):", err);
-    recap = null;
+  if (episodeArg === null && !airingMode) {
+    yield { kind: "step", step: "recap", status: "running" };
+    try {
+      const { stored, missing } = await loadPriorContext(tmdbId, mediaType, seasonArg, grounding);
+      recap = await draftRecap(client, grounding, seasonArg, timelineEvents, stored, missing);
+    } catch (err) {
+      console.error("Recap draft failed (continuing without):", err);
+      recap = null;
+    }
+    yield { kind: "step", step: "recap", status: "done", count: recap ? (recap.series ? 2 : 1) : 0 };
   }
-  yield { kind: "step", step: "recap", status: "done", count: recap ? (recap.series ? 2 : 1) : 0 };
 
   // 8. Persist
   yield { kind: "step", step: "persist", status: "running" };
@@ -213,6 +277,8 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
       tmdbId,
       mediaType,
       season: seasonArg,
+      episode: episodeArg,
+      airingMode,
       title: grounding.title,
       year: grounding.year,
       runtimeSeconds: grounding.runtimeSeconds,
@@ -244,6 +310,18 @@ interface PersistInput {
   tmdbId: number;
   mediaType: "movie" | "tv";
   season: number | null;
+  // When set, this is an incremental per-episode update for an actively-
+  // airing season. Persist does NOT wipe the season's existing rows, does
+  // NOT add the season to seasonsGenerated (that happens at season
+  // finalization in the cron sweep), and dedupes characters by name
+  // against rows already on this companion+season.
+  episode: number | null;
+  // Initial gen for an actively-airing season — full-season pipeline ran
+  // with grounding scoped to eligibleEpisodes only. Persist creates a
+  // CompanionAiringSeason row, leaves seasonsGenerated alone (the season
+  // isn't fully done), and treats this as an authoritative replace of any
+  // prior content for the season (regen is allowed pre-completion).
+  airingMode: { eligibleEpisodes: number[] } | undefined;
   title: string;
   year: number | null;
   runtimeSeconds: number | null;
@@ -253,18 +331,29 @@ interface PersistInput {
 }
 
 async function persistDraft(input: PersistInput): Promise<GenerateResult> {
-  const { tmdbId, mediaType, season, title, year, runtimeSeconds, draft, recap, generatedByUserId } = input;
+  const { tmdbId, mediaType, season, episode, airingMode, title, year, runtimeSeconds, draft, recap, generatedByUserId } = input;
+  const isEpisodeMode = episode !== null && season !== null && mediaType === "tv";
+  const isInitialAiring = airingMode !== undefined && season !== null && mediaType === "tv";
 
   const existing = await prisma.watchCompanion.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType } },
   });
 
   const isNew = !existing;
-  const newSeasonsGenerated = existing && season !== null
-    ? Array.from(new Set([...existing.seasonsGenerated, season])).sort((a, b) => a - b)
-    : season !== null
-    ? [season]
-    : [];
+  // seasonsGenerated only flips when a season is FULLY done. Both episode
+  // mode and initial airing gen leave the season OUT of that list — the
+  // cron sweep adds it when the season finalizes (last episode generated +
+  // recap drafted + 2-day buffer past).
+  const seasonStaysOut = isEpisodeMode || isInitialAiring;
+  const newSeasonsGenerated = existing
+    ? (seasonStaysOut
+        ? existing.seasonsGenerated
+        : season !== null
+          ? Array.from(new Set([...existing.seasonsGenerated, season])).sort((a, b) => a - b)
+          : existing.seasonsGenerated)
+    : season !== null && !seasonStaysOut
+      ? [season]
+      : [];
 
   // Build the new recaps JSON.
   //
@@ -336,7 +425,10 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   // the wipe is a simple nuclear-by-companion since there's only ever one
   // generation. The prior implementation's nuclear wipe is what killed
   // Succession S1 when S2 got generated — don't bring it back.
-  if (!isNew) {
+  //
+  // Episode mode skips the wipe entirely — it's strictly additive over
+  // whatever earlier episodes already populated for this season.
+  if (!isNew && !isEpisodeMode) {
     if (mediaType === "movie") {
       await Promise.all([
         prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
@@ -357,10 +449,29 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   // Characters first so we have name → id for facts / relationships / timeline.
   // Every content row gets stamped with the seasonNumber being generated (or
   // null for movies) so regeneration can scope correctly later.
+  //
+  // Episode mode preloads every character already on this companion+season
+  // so the chunk's downstream references (facts, relationships, timeline)
+  // can resolve names that the AI references but didn't re-emit (per the
+  // append-only contract). Newly emitted characters are still inserted —
+  // we just dedupe by name against the preload first.
   const nameToId = new Map<string, string>();
   let charactersAdded = 0;
+  if (isEpisodeMode && season !== null) {
+    const existingChars = await prisma.companionCharacter.findMany({
+      where: { companionId: companion.id, seasonNumber: season },
+      select: { id: true, name: true },
+    });
+    for (const c of existingChars) nameToId.set(c.name, c.id);
+  }
 
   for (const [idx, c] of draft.characters.entries()) {
+    // In episode mode, skip any character whose name is already on this
+    // companion+season — the prompt instructed the AI not to re-emit
+    // existing characters, but if it slipped one through anyway we
+    // silently drop the duplicate rather than create a sibling row.
+    if (isEpisodeMode && nameToId.has(c.name)) continue;
+
     // Build the actors list. Always include the primary actor (actorName +
     // actorTmdbId on the char row) so the side-table row count reflects
     // reality even when the AI emitted an empty actors array for a single-
@@ -508,6 +619,67 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     glossaryAdded = draft.glossary.length;
   }
 
+  // Upsert the airing-season tracker. Initial airing gen seeds the row
+  // with status='airing' and episodesGenerated set to the eligible-episodes
+  // batch we just covered. Episode-mode appends the just-generated episode
+  // to the existing row. Both reset failureCount + lastError on success.
+  let airingSummary: GenerateResult["airing"];
+  if (isInitialAiring && season !== null && airingMode) {
+    const eligible = Array.from(new Set(airingMode.eligibleEpisodes)).sort((a, b) => a - b);
+    await prisma.companionAiringSeason.upsert({
+      where: { companionId_seasonNumber: { companionId: companion.id, seasonNumber: season } },
+      create: {
+        companionId: companion.id,
+        seasonNumber: season,
+        episodesGenerated: eligible,
+        status: "airing",
+        lastSweepAt: new Date(),
+        failureCount: 0,
+        lastError: null,
+      },
+      update: {
+        // Re-running the initial gen replaces episodesGenerated with the
+        // current eligible set — covers the case where an admin regenerates
+        // a partially-airing season after another episode aired.
+        episodesGenerated: eligible,
+        status: "airing",
+        lastSweepAt: new Date(),
+        failureCount: 0,
+        lastError: null,
+      },
+    });
+    airingSummary = { seasonNumber: season, episodesGenerated: eligible, status: "airing" };
+  } else if (isEpisodeMode && season !== null && episode !== null) {
+    const existingRow = await prisma.companionAiringSeason.findUnique({
+      where: { companionId_seasonNumber: { companionId: companion.id, seasonNumber: season } },
+      select: { episodesGenerated: true, status: true },
+    });
+    const merged = Array.from(new Set([...(existingRow?.episodesGenerated ?? []), episode])).sort((a, b) => a - b);
+    await prisma.companionAiringSeason.upsert({
+      where: { companionId_seasonNumber: { companionId: companion.id, seasonNumber: season } },
+      create: {
+        companionId: companion.id,
+        seasonNumber: season,
+        episodesGenerated: [episode],
+        status: "airing",
+        lastSweepAt: new Date(),
+        failureCount: 0,
+        lastError: null,
+      },
+      update: {
+        episodesGenerated: merged,
+        lastSweepAt: new Date(),
+        failureCount: 0,
+        lastError: null,
+      },
+    });
+    airingSummary = {
+      seasonNumber: season,
+      episodesGenerated: merged,
+      status: existingRow?.status === "completed" ? "completed" : "airing",
+    };
+  }
+
   return {
     companionId: companion.id,
     isNew,
@@ -516,6 +688,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     relationshipsAdded,
     timelineAdded,
     glossaryAdded,
+    ...(airingSummary ? { airing: airingSummary } : {}),
   };
 }
 
@@ -554,7 +727,7 @@ function serialize(v: VisibleAfter): { seconds?: number; season?: number; episod
  * series block in that case so we don't waste a Sonnet call writing a
  * duplicate of the installment recap.
  */
-async function loadPriorContext(
+export async function loadPriorContext(
   tmdbId: number,
   mediaType: "movie" | "tv",
   season: number | null,
@@ -648,6 +821,26 @@ async function loadPriorContext(
 }
 
 /**
+ * Episode-mode canon load. Same shape as loadPriorSeasonCanon but the
+ * filter is `seasonNumber: { lte: currentSeason }` instead of `lt`, so
+ * earlier-episode content already saved for the CURRENT season is included
+ * as canon. The chunk prompts treat the canon list as "already exists in
+ * our DB, do not re-emit", which is exactly what we want for an
+ * incremental per-episode update appending to a partly-generated season.
+ *
+ * Returns null when nothing has been generated yet (first episode of a
+ * brand-new airing season).
+ */
+async function loadPriorAndCurrentSeasonCanon(tmdbId: number, currentSeason: number): Promise<PriorSeasonCanon | null> {
+  const companion = await prisma.watchCompanion.findUnique({
+    where: { tmdbId_mediaType: { tmdbId, mediaType: "tv" } },
+    select: { id: true },
+  });
+  if (!companion) return null;
+  return loadCanonForCompanion(companion.id, { lte: currentSeason });
+}
+
+/**
  * Pulls a compact summary of all content that was canonicalized in seasons
  * before the one being generated. Used to keep wording consistent across
  * seasons (relationship labels especially — this is what stops Greg from
@@ -664,20 +857,32 @@ async function loadPriorSeasonCanon(tmdbId: number, currentSeason: number): Prom
     select: { id: true },
   });
   if (!companion) return null;
+  return loadCanonForCompanion(companion.id, { lt: currentSeason });
+}
 
+/**
+ * Shared body for loadPriorSeasonCanon (lt currentSeason, used for cross-
+ * season continuity) and loadPriorAndCurrentSeasonCanon (lte currentSeason,
+ * used for episode-mode incremental updates that need to dedupe against
+ * earlier episodes of the same season).
+ */
+async function loadCanonForCompanion(
+  companionId: string,
+  seasonFilter: { lt: number } | { lte: number },
+): Promise<PriorSeasonCanon | null> {
   const [characters, relationships, glossary] = await Promise.all([
     prisma.companionCharacter.findMany({
-      where: { companionId: companion.id, seasonNumber: { lt: currentSeason } },
+      where: { companionId, seasonNumber: seasonFilter },
       orderBy: [{ seasonNumber: "asc" }, { sortOrder: "asc" }],
       select: { name: true, baseDescription: true, group: true },
     }),
     prisma.companionRelationship.findMany({
-      where: { companionId: companion.id, seasonNumber: { lt: currentSeason } },
+      where: { companionId, seasonNumber: seasonFilter },
       orderBy: { seasonNumber: "asc" },
       include: { from: { select: { name: true } }, to: { select: { name: true } } },
     }),
     prisma.companionGlossaryTerm.findMany({
-      where: { companionId: companion.id, seasonNumber: { lt: currentSeason } },
+      where: { companionId, seasonNumber: seasonFilter },
       orderBy: [{ seasonNumber: "asc" }, { sortOrder: "asc" }],
       select: { term: true, definition: true },
     }),
@@ -711,6 +916,7 @@ async function loadPriorSeasonCanon(tmdbId: number, currentSeason: number): Prom
     glossCanon.push({ term: g.term, definition: g.definition });
   }
 
+  if (charCanon.length === 0 && relCanon.length === 0 && glossCanon.length === 0) return null;
   return { characters: charCanon, relationships: relCanon, glossary: glossCanon };
 }
 

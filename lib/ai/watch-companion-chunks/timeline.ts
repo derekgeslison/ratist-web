@@ -9,6 +9,7 @@ import {
   normVisibleAfter,
   formatGroundingContext,
   formatPriorSeasonCanon,
+  formatEpisodeModeAddendum,
   callTool,
 } from "./shared";
 
@@ -86,12 +87,14 @@ export async function draftTimeline(
   season: number | null,
   characters: DraftCharacter[],
   priorCanon: PriorSeasonCanon | null = null,
+  episode: number | null = null,
 ): Promise<DraftTimelineEvent[]> {
   const charList = characters.map((c) => `- ${c.name}`).join("\n");
-  const userMessage = formatGroundingContext(grounding, season, { includeCast: false })
+  const userMessage = formatGroundingContext(grounding, season, { includeCast: false, episode })
     + formatPriorSeasonCanon(priorCanon)
     + `\n\n## Characters already drafted (reference by exact name in characterNames)\n\n${charList}`
-    + `\n\nEmit the timeline now. Minimum 8 beats for a season, 6 for a movie.`;
+    + (episode !== null && season !== null ? formatEpisodeModeAddendum(season, episode, "timeline") : "")
+    + `\n\nEmit the timeline now. ${episode !== null && season !== null ? "1–4 beats for a single episode is typical — this is one episode of an actively-airing season." : "Minimum 8 beats for a season, 6 for a movie."}`;
 
   const result = await callTool<{ events: unknown[] }>({
     client,
