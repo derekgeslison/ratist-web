@@ -33,6 +33,21 @@ Aim for ~10–15 characters total (see Quality bar). Each one:
 
 Do NOT include facts, relationships, timeline events, or glossary entries — other calls handle those. ONLY characters.
 
+## Pattern reference — quick map of the special-case sections below
+
+Most movies don't trigger any of these — apply the defaults above. When a movie does feature one of these patterns, match each character to ALL applicable rules (a single character can hit multiple — e.g. Mr. Robot's Elliot is both an inverse twist AND uses cover identities). The most-confusable pairs are highlighted with ⚠.
+
+- ⚠ Multiple actors → ONE character (Murph at different ages, Olsen twins playing Michelle Tanner): **Multi-actor characters** / **Twins on ONE role**
+- ⚠ ONE actor → MULTIPLE characters (Lohan as twins, Vince Vaughn's two Nicks, Maslany's clones): **Same actor playing MULTIPLE distinct characters**
+- ⚠ Character's real name revealed mid-story (Khan, Kaiser Söze, Tyler Durden): **Twist-reveal names**
+- ⚠ Two seemingly-separate characters revealed to be one (Mr. Robot's Elliot/Mr. Robot, Donnie Darko's Frank): **Inverse twist**
+- Cover identity, persona, disguise, DID (Jackie Daytona, Sybil): **Cover identities, personas, disguises, multiple personalities**
+- ⚠ Body swap between two humans (Freaky Friday, Your Name): **Body swaps**
+- ⚠ Consciousness inhabits a separately-named vessel (Jumanji avatars, possession, mind transfers): **Vessel / avatar / possession variant**
+- Voice-only or unseen but plot-critical (Wilson the volleyball, Iron Giant, Samantha in Her): **Voice-only, unseen, or non-human**
+
+The ⚠ pairs flip into each other if you misread the situation — multi-actor consolidation is the OPPOSITE of same-actor splitting; twist-reveal collapses to one card while inverse-twist stays as two; body swaps and vessel inhabitance share machinery but the vessel variant has a separately-credited cast entry. When one of these triggers, read the matching section and the section it pairs with before drafting.
+
 ## Multi-actor characters (age variants, twins, recasts) — consolidate into ONE character
 
 When a single character is portrayed by multiple actors — young / adult / elderly versions, twins playing one role, or the show recast them mid-run — emit ONE character with all actors in the "actors" array. Do NOT split them into multiple character entries.
