@@ -5,7 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { use } from "react";
 import { useIsTyping } from "@/context/TypingGuardContext";
-import { ArrowLeft, Lock, Pin, Send, Trash2, ChevronDown, Bell, BellOff, Pencil, LockOpen } from "lucide-react";
+import { Lock, Pin, Send, Trash2, ChevronDown, Bell, BellOff, Pencil, LockOpen } from "lucide-react";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
@@ -444,12 +446,10 @@ export default function ThreadPage({ params }: Props) {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <Link
-        href="/forum"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-4 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Forums
-      </Link>
+      <NavEntryRegister title={thread.title} />
+      <div className="mb-4">
+        <SmartBackLink defaultHref="/forum" defaultLabel="Forums" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors" />
+      </div>
 
       {thread.hasSpoilers ? (
         <SpoilerGate>{threadContent}</SpoilerGate>

@@ -7,7 +7,9 @@ import CommentSection from "@/components/CommentSection";
 import PostLikeButton from "@/components/PostLikeButton";
 import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
 import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
-import { ArrowLeft, Calendar, Map } from "lucide-react";
+import { Calendar, Map } from "lucide-react";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 
@@ -88,9 +90,10 @@ export default async function MovieMapPostPage({ params }: Props) {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <Link href="/movie-maps" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Movie Maps
-      </Link>
+      <NavEntryRegister title={post.title} />
+      <div className="mb-6">
+        <SmartBackLink defaultHref="/movie-maps" defaultLabel="Movie Maps" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors" />
+      </div>
       <div className="flex items-center gap-2 text-[var(--ratist-red)] mb-3">
         <Map className="w-4 h-4" />
         <span className="text-xs font-semibold uppercase tracking-wider">Movie Map</span>

@@ -9,6 +9,7 @@ import PostSortBar from "@/components/PostSortBar";
 import AdUnit from "@/components/AdUnit";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 import SuggestIdeaButton from "@/components/SuggestIdeaButton";
+import NavEntryRegister from "@/components/NavEntryRegister";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,7 @@ export default async function TwoThumbsPage({ searchParams }: { searchParams: Pr
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      <NavEntryRegister title="Two Thumbs" />
       <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex items-center gap-3">
           <TwoThumbsIcon className="text-[var(--ratist-red)]" size={24} />

@@ -9,7 +9,9 @@ import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
 import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
 
 export const dynamic = "force-dynamic";
-import { Calendar, ArrowLeft } from "lucide-react";
+import { Calendar } from "lucide-react";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 
@@ -95,12 +97,10 @@ export default async function BlogPostPage({ params }: Props) {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <Link
-        href="/blog"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Blog
-      </Link>
+      <NavEntryRegister title={post.title} />
+      <div className="mb-6">
+        <SmartBackLink defaultHref="/blog" defaultLabel="Back to Blog" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors" />
+      </div>
 
       {post.coverImage && (
         <div className="relative w-full h-64 sm:h-80 rounded-xl overflow-hidden mb-8 bg-[var(--surface-2)]">

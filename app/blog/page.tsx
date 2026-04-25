@@ -9,6 +9,7 @@ import { BookOpen, Calendar, Eye, MessageCircle, Search } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 import AdUnit from "@/components/AdUnit";
+import NavEntryRegister from "@/components/NavEntryRegister";
 
 export default async function BlogPage({ searchParams }: { searchParams: Promise<{ sort?: string; q?: string }> }) {
   const { sort = "newest", q } = await searchParams;
@@ -67,6 +68,7 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      <NavEntryRegister title="Blog" />
       <div className="flex items-center gap-3 mb-2">
         <BookOpen className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Blog</h1>

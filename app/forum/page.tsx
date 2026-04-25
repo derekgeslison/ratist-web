@@ -6,6 +6,7 @@ import { MessageSquare, Search, ChevronDown, Bell } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ThreadCard from "@/components/forum/ThreadCard";
 import AdUnit from "@/components/AdUnit";
+import NavEntryRegister from "@/components/NavEntryRegister";
 
 const TYPES = [
   { value: "", label: "All" },
@@ -91,6 +92,7 @@ export default function ForumPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <NavEntryRegister title="Forums" />
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

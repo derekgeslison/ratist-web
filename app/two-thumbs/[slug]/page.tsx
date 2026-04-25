@@ -7,7 +7,9 @@ import CommentSection from "@/components/CommentSection";
 import PostLikeButton from "@/components/PostLikeButton";
 import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
 import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { Calendar } from "lucide-react";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
@@ -89,9 +91,10 @@ export default async function TwoThumbsPostPage({ params }: Props) {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <Link href="/two-thumbs" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Two Thumbs
-      </Link>
+      <NavEntryRegister title={post.title} />
+      <div className="mb-6">
+        <SmartBackLink defaultHref="/two-thumbs" defaultLabel="Two Thumbs" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors" />
+      </div>
       <div className="flex items-center gap-2 text-[var(--ratist-red)] mb-3">
         <TwoThumbsIcon size={16} />
         <span className="text-xs font-semibold uppercase tracking-wider">Two Thumbs</span>

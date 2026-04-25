@@ -8,7 +8,9 @@ import LinkedMediaRow from "@/components/forum/LinkedMediaRow";
 import LinkedPeopleRow from "@/components/forum/LinkedPeopleRow";
 
 export const dynamic = "force-dynamic";
-import { Calendar, ArrowLeft, ExternalLink } from "lucide-react";
+import { Calendar, ExternalLink } from "lucide-react";
+import SmartBackLink from "@/components/SmartBackLink";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 
@@ -94,9 +96,10 @@ export default async function NewsArticlePage({ params }: Props) {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(newsSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <Link href="/news" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] mb-6 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to News
-      </Link>
+      <NavEntryRegister title={item.title} />
+      <div className="mb-6">
+        <SmartBackLink defaultHref="/news" defaultLabel="Back to News" className="inline-flex items-center gap-1.5 text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors" />
+      </div>
 
       {/* Cover image */}
       {item.coverImage && (

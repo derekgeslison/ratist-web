@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Newspaper, Calendar, Eye, Film, Tv, Play } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import NewsTrailerCard from "@/components/NewsTrailerCard";
+import NavEntryRegister from "@/components/NavEntryRegister";
 
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ type?: string; page?: string }> }) {
   const { type, page: pageParam } = await searchParams;
@@ -52,6 +53,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      <NavEntryRegister title="News" />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">News</h1>
         <span className="text-sm text-[var(--foreground-muted)]">{total} article{total !== 1 ? "s" : ""}</span>
