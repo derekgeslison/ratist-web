@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { TMDBWatchProvider } from "@/lib/tmdb";
 import { getProviderUrl, getRentBuyUrl, getTrackerProviderKey } from "@/lib/affiliates";
 import AffiliateLink from "./AffiliateLink";
+import StreamingWatchToggle from "./StreamingWatchToggle";
 
 interface Props {
   streaming?: TMDBWatchProvider[];
@@ -56,22 +57,40 @@ function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent
 }
 
 export default function WatchProviders({ streaming, rent, contentTitle, contentType = "movie", tmdbId }: Props) {
-  if (!streaming?.length && !rent?.length) return null;
+  const hasStreaming = !!(streaming && streaming.length > 0);
+  const hasRent = !!(rent && rent.length > 0);
+  // Show the section whenever there's ANY data OR a tmdbId we can
+  // attach a streaming-watch alert to. Hiding the whole block when
+  // nothing's available used to bury the "notify me when streaming"
+  // toggle in cases where TMDB only had rent/buy data — exactly the
+  // case the user wants to be alerted about.
+  if (!hasStreaming && !hasRent && !tmdbId) return null;
 
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-white">Where to Watch</h3>
-      {streaming && streaming.length > 0 && (
+      {hasStreaming && (
         <div>
           <p className="text-xs text-[var(--foreground-muted)] mb-2">Stream</p>
-          <ProviderBadges providers={streaming} contentTitle={contentTitle} contentType={contentType} tmdbId={tmdbId} />
+          <ProviderBadges providers={streaming!} contentTitle={contentTitle} contentType={contentType} tmdbId={tmdbId} />
         </div>
       )}
-      {rent && rent.length > 0 && (
+      {hasRent && (
         <div>
           <p className="text-xs text-[var(--foreground-muted)] mb-2">Rent / Buy</p>
-          <ProviderBadges providers={rent} contentTitle={contentTitle} contentType={contentType} isRent tmdbId={tmdbId} />
+          <ProviderBadges providers={rent!} contentTitle={contentTitle} contentType={contentType} isRent tmdbId={tmdbId} />
         </div>
+      )}
+      {/* Streaming alert — only shown when the title isn't already
+         streaming. The toggle component itself self-hides when
+         isAlreadyStreaming is true; we still pass it explicitly so
+         the SSR markup matches a hydrated client. */}
+      {tmdbId && (
+        <StreamingWatchToggle
+          tmdbId={tmdbId}
+          mediaType={contentType}
+          isAlreadyStreaming={hasStreaming}
+        />
       )}
       <p className="text-[10px] text-[var(--foreground-muted)]/60">
         Streaming availability for US region, via JustWatch.

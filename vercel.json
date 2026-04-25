@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/companion-airing-sweep",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/streaming-watch-sweep",
+      "schedule": "0 13 * * *"
     }
   ]
 }

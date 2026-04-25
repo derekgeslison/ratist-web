@@ -130,6 +130,7 @@ model User {
   watchCompanionRatings WatchCompanionRating[]
   companionFollows     CompanionFollow[]
   affiliateClicks      AffiliateClick[]
+  streamingWatches     StreamingWatch[]
 
   // Soft delete
   deletedAt   DateTime? @map("deleted_at")
@@ -2355,6 +2356,35 @@ model CompanionSuggestionVote {
 // Lock key uses season=0 as the sentinel for movies, since a unique
 // constraint with NULL would treat each null as distinct in Postgres
 // (defeating the purpose).
+// User subscription to a "notify when this becomes streaming" alert. A
+// daily cron polls TMDB's watch-providers endpoint for each row whose
+// notifiedAt is null; once a flatrate (subscription streaming) entry
+// appears, it fires a notification and stamps notifiedAt to prevent
+// re-firing. Rows aren't deleted on notify so the user can see what
+// they were subscribed to in their account history; future re-watches
+// would create a new row.
+model StreamingWatch {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  tmdbId      Int       @map("tmdb_id")
+  mediaType   String    @map("media_type") // "movie" | "tv"
+  createdAt   DateTime  @default(now()) @map("created_at")
+  // Set when the streaming-availability notification has been delivered.
+  // Null = still watching. Non-null = already alerted, treated as
+  // resolved so the cron skips it.
+  notifiedAt  DateTime? @map("notified_at")
+  // Snapshot of the providers that triggered the notification — small
+  // diagnostic for the user ("Netflix is now streaming Hoppers!").
+  notifiedProviders String? @db.Text @map("notified_providers")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tmdbId, mediaType])
+  @@index([notifiedAt])
+  @@index([tmdbId, mediaType])
+  @@map("streaming_watches")
+}
+
 // Outbound affiliate click tracking. One row per click on a streaming
 // provider link (Netflix, Hulu, Prime), Fandango showtimes/tickets,
 // Spotify soundtrack, etc. The aggregate report drives partnership
