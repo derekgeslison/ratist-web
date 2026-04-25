@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Calendar, Tv, Globe, MonitorPlay, ArrowRight } from "lucide-react";
+import { Clock, Calendar, Tv, Globe, MonitorPlay, ArrowRight, Radio } from "lucide-react";
 import {
   getShowDetails,
   getShowWatchProviders,
@@ -469,6 +469,32 @@ export default async function ShowDetailPage({ params }: Props) {
             />
           </div>
         </div>
+
+        {/* Currently-airing banner. Surfaces when TMDB lists a future
+           next_episode_to_air on this show, so viewers know the season
+           is mid-broadcast and a Watch Companion follow flow is
+           available. The next-episode line shows when present; falls
+           back to a generic "currently airing" tagline when the air date
+           is unknown (TBA / not yet announced). */}
+        {show.next_episode_to_air && (() => {
+          const next = show.next_episode_to_air;
+          const date = next.air_date ? new Date(next.air_date) : null;
+          const dateStr = date && !Number.isNaN(date.getTime())
+            ? date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined })
+            : "TBA";
+          return (
+            <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/40 rounded-xl px-4 py-3 mb-4">
+              <Radio className="w-5 h-5 text-blue-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">Currently Airing</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Next episode: S{next.season_number}E{next.episode_number}
+                  {next.name ? ` "${next.name}"` : ""} · {dateStr}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Watch Companion banner — consistent tagline whether or not a
            companion exists yet. The /companion page handles the generate/

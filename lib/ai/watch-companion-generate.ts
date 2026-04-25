@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getAnthropic } from "./client";
 import { getMovieDetails, getCollectionDetails, type TMDBMovie } from "@/lib/tmdb";
 import { loadGroundingForMovie, loadGroundingForShow, loadGroundingForEpisode, type CompanionGroundingData } from "./watch-companion-grounding";
+import { acquireGenerationLock, releaseGenerationLock } from "@/lib/companion-generation-lock";
 import { draftCharacters } from "./watch-companion-chunks/characters";
 import { draftFacts } from "./watch-companion-chunks/facts";
 import { draftRelationships } from "./watch-companion-chunks/relationships";
@@ -101,9 +102,33 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
     return;
   }
   const episodeArg = typeof episode === "number" && episode > 0 ? episode : null;
+  const seasonForLock = mediaType === "tv" && typeof season === "number" ? season : null;
+
+  // Acquire the generation mutex. Two users hitting Generate within
+  // seconds of each other (or the cron racing a user-triggered gen)
+  // would otherwise double-spend Anthropic credits and corrupt the
+  // season's content via the wipe-then-insert race in persistDraft.
+  const lock = await acquireGenerationLock(tmdbId, mediaType, seasonForLock, generatedByUserId);
+  if (!lock.acquired) {
+    const targetLabel = mediaType === "tv" && season ? `${mediaType} S${season}` : mediaType;
+    const wait = lock.secondsRemaining > 0
+      ? ` Try again in ~${Math.ceil(lock.secondsRemaining / 60)} minute${lock.secondsRemaining > 60 ? "s" : ""}.`
+      : "";
+    yield {
+      kind: "error",
+      message: `Another Watch Companion generation is already running for this ${targetLabel}.${wait}`,
+    };
+    return;
+  }
+  const lockId = lock.lockId;
 
   const client = getAnthropic();
   let grounding: CompanionGroundingData;
+
+  // Wrap the rest in try/finally so the lock releases on every exit
+  // path — completion, error throw, or generator early-return when the
+  // SSE consumer disconnects.
+  try {
 
   // 1. Grounding. Episode-scoped generation hits a leaner loader that only
   // pulls metadata + subtitles for the target episode. Initial airing-
@@ -304,6 +329,16 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   } catch (err) {
     yield { kind: "error", message: `Persist failed: ${err instanceof Error ? err.message : String(err)}` };
     return;
+  }
+  } finally {
+    // Release the generation mutex on every exit path — successful
+    // completion, mid-stream error, or generator early-return when the
+    // SSE client disconnects. Generator try/finally fires on AsyncIterator
+    // .return() which Node's for-await loops always invoke on early
+    // termination, so this is reliable.
+    await releaseGenerationLock(lockId).catch(() => {
+      // Non-fatal — the stale-lock TTL (15 min) is the safety net.
+    });
   }
 }
 

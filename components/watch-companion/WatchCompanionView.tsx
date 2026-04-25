@@ -892,12 +892,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               aria-label="Episode position"
             />
             {slotIsBeyondAired && (
-              <p className="mt-1.5 text-[11px] text-amber-300 flex items-start gap-1.5 leading-relaxed">
-                <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+              <div className="mt-2 flex items-start gap-2 bg-amber-500/10 border border-amber-500/40 rounded-md px-3 py-2 text-xs text-amber-200 leading-relaxed">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-300" />
                 <span>
-                  S{currentSlot.season}E{currentSlot.episode} hasn&apos;t aired yet. The latest episode with companion content is S{currentSlot.season}E{maxAiredEpisode} — slide back to see what&apos;s unlocked. New episodes go live ~2 days after they air.
+                  <span className="font-semibold text-amber-100">S{currentSlot.season}E{currentSlot.episode} hasn&apos;t aired yet.</span>{" "}
+                  Latest episode with companion content is <span className="font-semibold text-white">S{currentSlot.season}E{maxAiredEpisode}</span> — slide back to see what&apos;s unlocked. New episode companions go live ~2 days after each episode airs.
                 </span>
-              </p>
+              </div>
             )}
             <div className="flex items-baseline justify-between mt-2 mb-1">
               <label className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold">

@@ -2342,6 +2342,33 @@ model CompanionSuggestionVote {
   @@map("companion_suggestion_votes")
 }
 
+// Mutex preventing concurrent Watch Companion generations on the same
+// target (tmdbId, mediaType, season). Two users hitting Generate within
+// seconds of each other would otherwise both run all six AI chunks (~2×
+// Anthropic spend) and then race in persistDraft's wipe-then-insert
+// sequence, producing a mishmash of both runs. The lock acquires at
+// stream start, releases on completion or error. Stale locks (>10 min,
+// from a crashed gen) are auto-overwritten by the next acquirer rather
+// than blocking forever.
+//
+// Lock key uses season=0 as the sentinel for movies, since a unique
+// constraint with NULL would treat each null as distinct in Postgres
+// (defeating the purpose).
+model CompanionGenerationLock {
+  id          String   @id @default(cuid())
+  tmdbId      Int      @map("tmdb_id")
+  mediaType   String   @map("media_type")
+  // 0 = movie sentinel, 1+ = TV season number.
+  season      Int
+  acquiredAt  DateTime @default(now()) @map("acquired_at")
+  // userId of whoever's generation currently holds the lock — useful for
+  // the "another generation is in progress" error message + diagnostics.
+  acquiredBy  String?  @map("acquired_by")
+
+  @@unique([tmdbId, mediaType, season])
+  @@map("companion_generation_locks")
+}
+
 // Per-season airing tracker for TV companions whose latest episode is still
 // within (last_episode_air_date + 2 days > today). One row per (companion,
 // season) the moment the user/admin first triggers generation while that

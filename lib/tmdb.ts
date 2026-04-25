@@ -168,7 +168,11 @@ export async function getNowPlayingMovies(page = 1) {
     sort_by: "popularity.desc",
     "primary_release_date.gte": daysAgo,
     "primary_release_date.lte": today,
-    "vote_count.gte": "5",
+    // No vote_count threshold — fresh theatrical releases haven't yet
+    // accrued user votes on TMDB and would otherwise be excluded for
+    // their first few days. Popularity sort already pushes well-known
+    // films to the top; a brand-new wide release will surface alongside
+    // the recent hits without needing the floor.
     with_release_type: "2|3",
     region: "US",
   });
@@ -270,10 +274,16 @@ export async function discoverMovies(options: {
 }) {
   const sortBy = SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";
   const isUpcoming = options.releaseStatus === "upcoming";
+  const isNowPlaying = options.releaseStatus === "now_playing";
   const params: Record<string, string> = {
     page: String(options.page ?? 1),
     sort_by: sortBy,
-    "vote_count.gte": isUpcoming ? "0" : options.sort === "top_rated" ? "200" : "10",
+    // Now-playing matches getNowPlayingMovies — no vote-count floor so
+    // brand-new theatrical releases (which don't yet have 10+ TMDB votes)
+    // surface immediately. Top-rated keeps a 200-vote floor so a single
+    // rating doesn't catapult an obscure film. Everything else uses the
+    // standard 10-vote floor as a quality filter.
+    "vote_count.gte": isUpcoming || isNowPlaying ? "0" : options.sort === "top_rated" ? "200" : "10",
   };
   if (options.query) params.with_text_query = options.query;
 
@@ -365,6 +375,30 @@ export interface TMDBShow {
   content_ratings?: { results: TMDBContentRating[] };
   images?: { backdrops: TMDBImage[]; posters: TMDBImage[] };
   external_ids?: { imdb_id?: string };
+  // The pair below drives the "currently airing" banner + per-season
+  // badge. next_episode_to_air is null for shows that have aired their
+  // last announced episode (Ended/Canceled, or on hiatus with no
+  // upcoming episodes scheduled in TMDB yet); when present, the show
+  // is treated as actively airing and its next-episode metadata is
+  // surfaced on the show page.
+  next_episode_to_air?: {
+    id: number;
+    name: string;
+    air_date: string | null;
+    episode_number: number;
+    season_number: number;
+    overview: string;
+    runtime: number | null;
+  } | null;
+  last_episode_to_air?: {
+    id: number;
+    name: string;
+    air_date: string | null;
+    episode_number: number;
+    season_number: number;
+    overview: string;
+    runtime: number | null;
+  } | null;
 }
 
 export interface TMDBSeason {

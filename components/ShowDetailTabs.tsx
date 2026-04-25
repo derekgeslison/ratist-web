@@ -104,6 +104,7 @@ function SeasonCard({
   onUpdateSeasonDate,
   isLoggedIn,
   aggregate,
+  isAiring,
 }: {
   season: TMDBSeason;
   showTmdbId: number;
@@ -114,6 +115,9 @@ function SeasonCard({
   onUpdateSeasonDate: (seasonNumber: number, episodes: TMDBEpisode[], date: string | null) => void;
   isLoggedIn: boolean;
   aggregate?: SeasonAggregate;
+  /** True when this season matches show.next_episode_to_air.season_number
+   *  — drives the "Currently Airing" pill on the row header. */
+  isAiring?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
@@ -169,7 +173,15 @@ function SeasonCard({
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white">{season.name}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-white">{season.name}</p>
+              {isAiring && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/40 text-blue-300 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" aria-hidden />
+                  Currently Airing
+                </span>
+              )}
+            </div>
             <p className="text-xs text-[var(--foreground-muted)]">
               {season.episode_count} episode{season.episode_count !== 1 ? "s" : ""}
               {season.air_date ? ` · ${season.air_date.slice(0, 4)}` : ""}
@@ -897,6 +909,7 @@ export default function ShowDetailTabs({
               onUpdateSeasonDate={updateSeasonDate}
               isLoggedIn={isLoggedIn}
               aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === s.season_number)}
+              isAiring={show.next_episode_to_air?.season_number === s.season_number}
             />
           ))}
           {specials && specials.episode_count > 0 && (
