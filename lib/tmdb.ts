@@ -161,21 +161,27 @@ export async function getTopRatedMovies(page = 1) {
 }
 
 export async function getNowPlayingMovies(page = 1) {
-  const today = new Date().toISOString().split("T")[0];
-  const daysAgo = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  return tmdbFetch<TMDBPageResult<TMDBMovie>>("/discover/movie", {
+  // /movie/now_playing is TMDB's curated list of films currently in
+  // theaters in the specified region — exactly what users expect from
+  // a "Now Playing" rail. /discover/movie was producing a global mix
+  // (international releases with theatrical dates anywhere in the
+  // window outranking actual US releases by popularity) because its
+  // `region` param only chooses which region's date is used, not which
+  // releases qualify.
+  //
+  // We then re-sort each fetched page by US theatrical release date
+  // descending so the newest US releases land at the top — TMDB's
+  // default ordering on this endpoint is popularity-within-window,
+  // which can push month-old hits ahead of yesterday's wide release.
+  const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", {
     page: String(page),
-    sort_by: "popularity.desc",
-    "primary_release_date.gte": daysAgo,
-    "primary_release_date.lte": today,
-    // No vote_count threshold — fresh theatrical releases haven't yet
-    // accrued user votes on TMDB and would otherwise be excluded for
-    // their first few days. Popularity sort already pushes well-known
-    // films to the top; a brand-new wide release will surface alongside
-    // the recent hits without needing the floor.
-    with_release_type: "2|3",
     region: "US",
+    language: "en-US",
   });
+  return {
+    ...data,
+    results: [...data.results].sort((a, b) => (b.release_date ?? "").localeCompare(a.release_date ?? "")),
+  };
 }
 
 export async function getUpcomingMovies(page = 1) {
@@ -272,18 +278,46 @@ export async function discoverMovies(options: {
   genre?: string;
   minRating?: string;
 }) {
+  // Now-playing routes through TMDB's curated /movie/now_playing endpoint
+  // rather than /discover/movie. The discover endpoint with region=US +
+  // with_release_type=2|3 returns a global mix because `region` only
+  // selects which region's date is checked — international films with a
+  // qualifying theatrical date in the window still qualify, which is
+  // why fresh US releases (Michael, etc.) were ranked behind older
+  // foreign films. /movie/now_playing is the canonical "what's in US
+  // theaters right now" answer; we re-sort each page by sort option
+  // since the endpoint doesn't accept sort_by.
+  if (options.releaseStatus === "now_playing") {
+    const data = await tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/now_playing", {
+      page: String(options.page ?? 1),
+      region: "US",
+      language: "en-US",
+    });
+    const sortKey = options.sort ?? "popular";
+    const sorted = [...data.results].sort((a, b) => {
+      switch (sortKey) {
+        case "newest":  return (b.release_date ?? "").localeCompare(a.release_date ?? "");
+        case "oldest":  return (a.release_date ?? "").localeCompare(b.release_date ?? "");
+        case "title_az": return (a.title ?? "").localeCompare(b.title ?? "");
+        case "title_za": return (b.title ?? "").localeCompare(a.title ?? "");
+        case "top_rated": return (b.vote_average ?? 0) - (a.vote_average ?? 0);
+        case "popular":
+        default: return (b.popularity ?? 0) - (a.popularity ?? 0);
+      }
+    });
+    return { ...data, results: sorted };
+  }
+
   const sortBy = SORT_MAP[options.sort ?? "popular"] ?? "popularity.desc";
   const isUpcoming = options.releaseStatus === "upcoming";
-  const isNowPlaying = options.releaseStatus === "now_playing";
   const params: Record<string, string> = {
     page: String(options.page ?? 1),
     sort_by: sortBy,
-    // Now-playing matches getNowPlayingMovies — no vote-count floor so
-    // brand-new theatrical releases (which don't yet have 10+ TMDB votes)
-    // surface immediately. Top-rated keeps a 200-vote floor so a single
-    // rating doesn't catapult an obscure film. Everything else uses the
-    // standard 10-vote floor as a quality filter.
-    "vote_count.gte": isUpcoming || isNowPlaying ? "0" : options.sort === "top_rated" ? "200" : "10",
+    // Upcoming opens up to vote_count=0 (unreleased films have no votes
+    // yet). Top-rated keeps a 200-vote floor so a single rating doesn't
+    // catapult an obscure film. Everything else uses the standard 10
+    // floor as a quality filter.
+    "vote_count.gte": isUpcoming ? "0" : options.sort === "top_rated" ? "200" : "10",
   };
   if (options.query) params.with_text_query = options.query;
 

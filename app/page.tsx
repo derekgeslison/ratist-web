@@ -189,9 +189,12 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* Now Playing & Streaming */}
+        {/* Now Playing in Theaters — sourced from TMDB's curated
+           /movie/now_playing endpoint (US region), so this rail reflects
+           what's actually in theaters right now rather than a global mix
+           of recent theatrical dates. */}
         <MovieRow
-          title="Now Playing & Streaming"
+          title="Now Playing in Theaters"
           movies={nowPlaying.results.slice(0, 12)}
           viewAllHref="/movies?releaseStatus=now_playing"
         />

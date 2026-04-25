@@ -358,8 +358,14 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   // because it intentionally contains full spoilers — it's the
   // "remind me what happened in the prior installments" tool, not a
   // slider-gated discovery surface. We keep this as session-scoped
-  // state so it resets on companion reload.
+  // state so it resets on companion reload AND when the user switches
+  // seasons (otherwise revealing S2's recap would silently uncover
+  // S3's recap on switch — see effect below).
   const [recapRevealed, setRecapRevealed] = useState(false);
+  // Recap reveal is per-season — switching seasons re-hides the recap
+  // so the spoiler-gate UX doesn't leak. We don't reset slider position
+  // or other persisted state since those aren't spoilers per se.
+  useEffect(() => { setRecapRevealed(false); }, [selectedSeason]);
   const [glossaryCategoryFilter, setGlossaryCategoryFilter] = useState<string | "all">("all");
   // Multi-select character filter for the Timeline tab. AND semantics —
   // events must include EVERY selected character to remain visible. With
