@@ -135,17 +135,30 @@ export default async function ShowCompanionPage({ params }: Props) {
     if (s.appliedItemId) communityItemIds.add(`${s.targetType}:${s.appliedItemId}`);
   }
 
-  // Extract per-season recap text from the companion's recaps JSON.
-  // Shape: { "1": "S1 recap", "2": "S2 recap", ... }. Filtered to
-  // entries that match a generated season; the viewer's Recap tab
-  // stacks them up to whichever season the user is currently viewing.
+  // Per-season recap content from the companion's recaps JSON. Each
+  // season's slot is { installment, series } where series is null
+  // for S1 (no prior seasons to compress). The viewer reads only the
+  // slot for the season the user is currently viewing — no stacking.
+  // Tolerates the legacy `{ "1": "string" }` shape from the prior
+  // schema by promoting bare strings into the installment field.
   const recapsBlob = (companion.recaps && typeof companion.recaps === "object" && !Array.isArray(companion.recaps))
     ? (companion.recaps as Record<string, unknown>)
     : null;
-  const seasonRecaps: Record<string, string> = {};
+  const seasonRecaps: Record<string, { installment: string; series: string | null }> = {};
   if (recapsBlob) {
     for (const [k, v] of Object.entries(recapsBlob)) {
-      if (typeof v === "string" && v.length > 0 && /^\d+$/.test(k)) seasonRecaps[k] = v;
+      if (!/^\d+$/.test(k)) continue;
+      if (typeof v === "string" && v.length > 0) {
+        seasonRecaps[k] = { installment: v, series: null };
+      } else if (v && typeof v === "object" && !Array.isArray(v)) {
+        const slot = v as { installment?: unknown; series?: unknown };
+        const installment = typeof slot.installment === "string" ? slot.installment : "";
+        if (installment.length === 0) continue;
+        seasonRecaps[k] = {
+          installment,
+          series: typeof slot.series === "string" && slot.series.length > 0 ? slot.series : null,
+        };
+      }
     }
   }
 
@@ -161,7 +174,7 @@ export default async function ShowCompanionPage({ params }: Props) {
     relationships: companion.relationships.map((r) => ({ ...r, seasonNumber: r.seasonNumber, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),
     timeline: companion.timeline.map((t) => ({ ...t, seasonNumber: t.seasonNumber, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
     glossary: companion.glossary.map((g) => ({ ...g, seasonNumber: g.seasonNumber, visibleAfter: g.visibleAfter as WatchCompanionData["glossary"][number]["visibleAfter"] })),
-    recaps: { bySeason: seasonRecaps },
+    recaps: Object.keys(seasonRecaps).length > 0 ? { bySeason: seasonRecaps } : undefined,
     seasonEpisodeCounts,
     defaultEpisodeRuntimeSeconds,
   };

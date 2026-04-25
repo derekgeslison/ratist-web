@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MonitorPlay } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getMovieDetails, getCollectionDetails, posterUrl } from "@/lib/tmdb";
+import { getMovieDetails, posterUrl } from "@/lib/tmdb";
 import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
 import ShareButton from "@/components/ShareButton";
 import CompanionNotAvailable from "@/components/watch-companion/CompanionNotAvailable";
@@ -117,12 +117,28 @@ export default async function MovieCompanionPage({ params }: Props) {
     if (s.appliedItemId) communityItemIds.add(`${s.targetType}:${s.appliedItemId}`);
   }
 
-  // Build the Recap-tab payload for movies — current film's recap plus
-  // any earlier franchise installments that have published recaps of
-  // their own. Ordered by release date so the user reads chronologically.
-  // Falls back to "just the current film" when the movie has no
-  // collection or no franchise siblings have published companions yet.
-  const recapMovies = await loadFranchiseRecaps(tmdbId, companion);
+  // Recap-tab payload for movies. The recap chunk now produces two
+  // blocks per generation — an installment recap for THIS film, and a
+  // series recap covering every prior franchise installment plus this
+  // one in a single 150-250 word paragraph. Both are stored in the
+  // current companion's `recaps.current` object; no cross-companion
+  // stitching needed at read time. Series block may be null for
+  // standalone films.
+  const recapBlob = (companion.recaps && typeof companion.recaps === "object" && !Array.isArray(companion.recaps))
+    ? (companion.recaps as { current?: { installment?: unknown; series?: unknown; text?: unknown } })
+    : null;
+  const movieRecap = recapBlob?.current
+    ? {
+        // Tolerate the legacy `text` shape (pre-installment/series split)
+        // by reading it as the installment block when present.
+        installment: typeof recapBlob.current.installment === "string"
+          ? recapBlob.current.installment
+          : typeof recapBlob.current.text === "string"
+            ? recapBlob.current.text
+            : "",
+        series: typeof recapBlob.current.series === "string" ? recapBlob.current.series : null,
+      }
+    : null;
 
   const data: WatchCompanionData = {
     id: companion.id,
@@ -136,7 +152,9 @@ export default async function MovieCompanionPage({ params }: Props) {
     relationships: companion.relationships.map((r) => ({ ...r, seasonNumber: r.seasonNumber, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),
     timeline: companion.timeline.map((t) => ({ ...t, seasonNumber: t.seasonNumber, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
     glossary: companion.glossary.map((g) => ({ ...g, seasonNumber: g.seasonNumber, visibleAfter: g.visibleAfter as WatchCompanionData["glossary"][number]["visibleAfter"] })),
-    recaps: { movies: recapMovies },
+    recaps: movieRecap && (movieRecap.installment.length > 0 || movieRecap.series)
+      ? { movie: { installment: movieRecap.installment, series: movieRecap.series } }
+      : undefined,
   };
 
   return (
@@ -162,102 +180,6 @@ export default async function MovieCompanionPage({ params }: Props) {
       <WatchCompanionView data={data} />
     </div>
   );
-}
-
-/**
- * Look up the current movie's TMDB collection (Spider-Man's MCU run,
- * Dune trilogy, etc.) and return ordered recap entries — earliest film
- * first, current film last. Each entry's text comes from the matching
- * franchise sibling's stored recap; films with no companion (or no
- * generated recap yet) are omitted. Always includes the current film
- * if its own recap exists.
- */
-async function loadFranchiseRecaps(
-  tmdbId: number,
-  current: { recaps: unknown },
-): Promise<Array<{ tmdbId: number; title: string; year: number | null; text: string }>> {
-  const out: Array<{ tmdbId: number; title: string; year: number | null; text: string }> = [];
-
-  type CurrentRecap = { current?: { title?: string; year?: number | null; text?: string } };
-  const currentBlob = (current.recaps && typeof current.recaps === "object" && !Array.isArray(current.recaps))
-    ? (current.recaps as CurrentRecap)
-    : null;
-  const currentText = currentBlob?.current?.text;
-  const currentTitle = currentBlob?.current?.title;
-  const currentYear = currentBlob?.current?.year ?? null;
-
-  let collectionParts: Array<{ id: number; title: string; release_date?: string }> = [];
-  let currentReleaseDate: string | null = null;
-  try {
-    const movie = await getMovieDetails(tmdbId);
-    currentReleaseDate = movie.release_date ?? null;
-    const collectionId = movie.belongs_to_collection?.id;
-    if (collectionId) {
-      const collection = await getCollectionDetails(collectionId);
-      collectionParts = collection.parts ?? [];
-    }
-  } catch {
-    // Collection lookup failed — fine, we just return current-only.
-  }
-
-  // Filter out franchise siblings released AFTER the current movie. A
-  // viewer on Dune (2021) shouldn't see a Dune: Part Two recap leaked
-  // into their tab — the recap is "what came before this", and "before"
-  // is by release date. The current movie itself stays included so it
-  // anchors the bottom of the stack.
-  if (currentReleaseDate) {
-    const currentTime = new Date(currentReleaseDate).getTime();
-    if (Number.isFinite(currentTime)) {
-      collectionParts = collectionParts.filter((p) => {
-        if (!p.release_date) return false; // unknown date — drop, can't reason about ordering
-        const pTime = new Date(p.release_date).getTime();
-        return Number.isFinite(pTime) && pTime <= currentTime;
-      });
-    }
-  }
-
-  if (collectionParts.length === 0) {
-    if (currentText && currentTitle) {
-      out.push({ tmdbId, title: currentTitle, year: currentYear, text: currentText });
-    }
-    return out;
-  }
-
-  // Pull every published companion that matches a part in the collection,
-  // in one query, then match each part to its companion entry. Skip parts
-  // without a published companion or without a stored recap. Sort by
-  // release date ascending so the viewer reads in chronological order.
-  const partIds = collectionParts.map((p) => p.id);
-  const companions = await prisma.watchCompanion.findMany({
-    where: { mediaType: "movie", status: "published", tmdbId: { in: partIds } },
-    select: { tmdbId: true, title: true, recaps: true },
-  });
-  const byTmdbId = new Map<number, { title: string; recaps: unknown }>();
-  for (const c of companions) byTmdbId.set(c.tmdbId, c);
-
-  type PartRecap = { current?: { title?: string; year?: number | null; text?: string } };
-  const sorted = [...collectionParts].sort((a, b) => {
-    const ay = a.release_date ?? "";
-    const by = b.release_date ?? "";
-    return ay.localeCompare(by);
-  });
-  for (const part of sorted) {
-    const c = byTmdbId.get(part.id);
-    if (!c) continue;
-    const blob = (c.recaps && typeof c.recaps === "object" && !Array.isArray(c.recaps))
-      ? (c.recaps as PartRecap)
-      : null;
-    const text = blob?.current?.text;
-    if (!text) continue;
-    const year = part.release_date ? parseInt(part.release_date.slice(0, 4), 10) : null;
-    out.push({
-      tmdbId: part.id,
-      title: blob?.current?.title ?? c.title ?? part.title,
-      year: blob?.current?.year ?? (Number.isFinite(year ?? NaN) ? year : null),
-      text,
-    });
-  }
-  return out;
 }
 
 async function getActorImageMap(actorIds: number[]): Promise<Map<number, string | null>> {

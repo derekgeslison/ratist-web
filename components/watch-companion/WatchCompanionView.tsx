@@ -60,13 +60,6 @@ interface GlossaryTerm {
   seasonNumber: number | null;
 }
 
-export interface RecapMovieEntry {
-  tmdbId: number;
-  title: string;
-  year: number | null;
-  text: string;
-}
-
 export interface WatchCompanionData {
   id: string;
   tmdbId: number; // needed for the inline generate-ungenerated-season flow
@@ -84,13 +77,22 @@ export interface WatchCompanionData {
    *  via a community-approved suggestion. Drives the community-sourced
    *  badge in the viewer. */
   communityItemIds?: string[];
-  /** Per-installment recaps surfaced on the Recap tab. Movies expose an
-   *  ordered (oldest-first) franchise list — the viewer stacks each
-   *  film's prose with a section header. TV exposes a per-season map
-   *  keyed by season number; the viewer stacks 1 → selectedSeason. */
+  /** Recap-tab content. Two blocks per page: an INSTALLMENT recap for
+   *  the current movie / season, and an optional SERIES recap that
+   *  compresses every prior installment plus the current one into a
+   *  single ~150–250 word block. The series block is null for the
+   *  first installment (S1, or a standalone movie) since it'd just
+   *  duplicate the installment recap.
+   *
+   *  - Movies: a single object describing the current film. Even when
+   *    the user navigates to Dune 2's companion, this is just Dune 2's
+   *    pair (the series block already includes prior films).
+   *  - TV: a per-season map keyed by season-number-as-string. The
+   *    viewer reads only the slot for the currently-viewed season; no
+   *    stacking, no concatenation. */
   recaps?: {
-    movies?: RecapMovieEntry[];
-    bySeason?: Record<string, string>;
+    movie?: { installment: string; series: string | null };
+    bySeason?: Record<string, { installment: string; series: string | null }>;
   };
 }
 
@@ -786,16 +788,16 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
            Hide entirely on ungenerated seasons (the body below renders the
            generate/request panel instead). */}
         {seasonIsGenerated && visibleCharacters.length > 0 && (() => {
-          // Recap tab is conditional on the companion having any recap
-          // text at all — movies need at least one franchise entry,
-          // TV needs at least one generated season's recap. Showing an
-          // empty Recap tab on a companion that hasn't had recap gen
-          // run yet (legacy data) would be misleading.
-          const movieRecaps = data.recaps?.movies ?? [];
-          const seasonRecaps = data.recaps?.bySeason ?? {};
-          const recapCount = mediaType === "movie"
-            ? movieRecaps.length
-            : Object.keys(seasonRecaps).filter((k) => parseInt(k, 10) <= selectedSeason).length;
+          // Recap tab is conditional on the companion having recap
+          // content for the currently-viewed installment. Movies hide
+          // it when there's no installment text on the slot; TV hides
+          // it when the current season's slot is missing or empty.
+          // Tab counter shows how many blocks the user will see (1
+          // for installment-only, 2 for installment + series).
+          const movieSlot = data.recaps?.movie ?? null;
+          const tvSlot = data.recaps?.bySeason?.[String(selectedSeason)] ?? null;
+          const slot = mediaType === "movie" ? movieSlot : tvSlot;
+          const recapCount = slot ? (slot.series ? 2 : slot.installment ? 1 : 0) : 0;
           const showRecapTab = recapCount > 0;
           // const-assert each entry so the discriminated union narrows
           // to "cast" | "map" | "glossary" | "timeline" | "recap" rather
@@ -1709,23 +1711,27 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
          first; TV stacks each season's prose from S1 up to whichever
          season the user is currently viewing. */}
       {seasonIsGenerated && activeTab === "recap" && (() => {
-        const movieRecaps = data.recaps?.movies ?? [];
-        const seasonRecaps = data.recaps?.bySeason ?? {};
-        const tvEntries = mediaType === "tv"
-          ? Object.keys(seasonRecaps)
-              .map((k) => parseInt(k, 10))
-              .filter((n) => Number.isFinite(n) && n > 0 && n <= selectedSeason)
-              .sort((a, b) => a - b)
-              .map((n) => ({ season: n, text: seasonRecaps[String(n)] }))
-          : [];
-        const hasContent = mediaType === "movie" ? movieRecaps.length > 0 : tvEntries.length > 0;
-        if (!hasContent) {
+        // Resolve the active recap pair — one slot per page. Movies
+        // have a single { installment, series }; TV picks the slot for
+        // the currently-viewed season. The series block is null for
+        // first installments (S1, standalone movies) and we hide that
+        // section entirely rather than rendering an empty card.
+        const slot = mediaType === "movie"
+          ? data.recaps?.movie ?? null
+          : data.recaps?.bySeason?.[String(selectedSeason)] ?? null;
+        if (!slot || (!slot.installment && !slot.series)) {
           return (
             <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">
-              No recap available yet for this companion. Regenerate to add one.
+              No recap available yet for this {mediaType === "movie" ? "movie" : "season"}. Regenerate to add one.
             </p>
           );
         }
+        const installmentLabel = mediaType === "movie"
+          ? data.title
+          : `Season ${selectedSeason}`;
+        const seriesLabel = mediaType === "movie"
+          ? `${data.title.split(":")[0].trim()} series`
+          : `${data.title} — through Season ${selectedSeason}`;
         return (
           <div className="space-y-4">
             {!recapRevealed ? (
@@ -1735,14 +1741,14 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                   <span className="text-xs uppercase tracking-wider font-semibold">Spoiler-heavy recap</span>
                 </div>
                 <p className="text-sm text-white leading-relaxed">
-                  This recap covers {mediaType === "movie"
-                    ? movieRecaps.length === 1
-                      ? "the full plot of this movie"
-                      : `the full plot of all ${movieRecaps.length} films in this series`
-                    : tvEntries.length === 1
-                      ? "the full season"
-                      : `every season from S1 through S${selectedSeason}`}
-                  {" "}— spoilers and all. It&apos;s designed for refreshing your memory before a new installment, not for first-time viewers.
+                  {slot.series
+                    ? mediaType === "movie"
+                      ? `Recap of ${data.title} plus a series-wide recap covering every prior film in the franchise — spoilers and all.`
+                      : `Recap of Season ${selectedSeason} plus a series-wide recap covering every season through this one — spoilers and all.`
+                    : mediaType === "movie"
+                      ? `Full plot recap of ${data.title} — spoilers and all.`
+                      : `Full plot recap of Season ${selectedSeason} — spoilers and all.`}
+                  {" "}It&apos;s designed for refreshing your memory before a new installment, not for first-time viewers.
                 </p>
                 <button
                   type="button"
@@ -1766,27 +1772,23 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     <EyeOff className="w-3 h-3" /> Hide recap
                   </button>
                 </div>
-                {mediaType === "movie" ? (
-                  movieRecaps.map((m, i) => (
-                    <article key={`${m.tmdbId}-${i}`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-                      <header className="mb-2">
-                        <h3 className="text-base font-semibold text-white">
-                          {m.title}
-                          {m.year && <span className="text-[var(--foreground-muted)] font-normal"> ({m.year})</span>}
-                        </h3>
-                      </header>
-                      <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{m.text}</p>
-                    </article>
-                  ))
-                ) : (
-                  tvEntries.map(({ season, text }) => (
-                    <article key={season} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-                      <header className="mb-2">
-                        <h3 className="text-base font-semibold text-white">Season {season}</h3>
-                      </header>
-                      <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{text}</p>
-                    </article>
-                  ))
+                {slot.installment && (
+                  <article className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                    <header className="mb-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)] font-semibold mb-0.5">This installment</p>
+                      <h3 className="text-base font-semibold text-white">{installmentLabel}</h3>
+                    </header>
+                    <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{slot.installment}</p>
+                  </article>
+                )}
+                {slot.series && (
+                  <article className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-4">
+                    <header className="mb-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--ratist-red)] font-semibold mb-0.5">Series so far</p>
+                      <h3 className="text-base font-semibold text-white">{seriesLabel}</h3>
+                    </header>
+                    <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{slot.series}</p>
+                  </article>
                 )}
               </>
             )}
