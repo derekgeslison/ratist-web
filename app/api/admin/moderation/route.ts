@@ -80,6 +80,32 @@ export async function GET(req: NextRequest) {
           });
           contentPreview = ll ? `${ll.name1} / ${ll.name2}` : "(deleted)";
           contentAuthor = ll?.creator ?? null;
+        } else if (r.targetType === "companion_suggestion") {
+          // Reported approved suggestion — show enough for an admin to
+          // judge it without leaving moderation. Author is the submitter
+          // (the person responsible for the bad content), so suspending
+          // them via the existing ban flow handles the troll case.
+          const sug = await prisma.companionSuggestion.findUnique({
+            where: { id: r.targetId },
+            select: {
+              action: true,
+              targetType: true,
+              rationale: true,
+              payload: true,
+              companion: { select: { title: true, mediaType: true } },
+              submitter: { select: { id: true, name: true, firebaseUid: true } },
+            },
+          });
+          if (sug) {
+            const payloadStr = sug.payload && typeof sug.payload === "object"
+              ? JSON.stringify(sug.payload).slice(0, 200)
+              : "(no payload)";
+            const rationale = sug.rationale ? ` — "${sug.rationale.slice(0, 100)}"` : "";
+            contentPreview = `${sug.action} ${sug.targetType} on "${sug.companion.title}": ${payloadStr}${rationale}`;
+            contentAuthor = sug.submitter;
+          } else {
+            contentPreview = "(suggestion deleted)";
+          }
         }
       } catch { /* content may not exist */ }
 
@@ -203,6 +229,13 @@ async function getContentAuthorId(targetType: string, targetId: string): Promise
     } else if (targetType === "looksLike") {
       const l = await prisma.looksLike.findUnique({ where: { id: targetId }, select: { creatorId: true } });
       return l?.creatorId ?? null;
+    } else if (targetType === "companion_suggestion") {
+      // Author of a reported companion suggestion is the submitter — the
+      // user who proposed (and got auto-approved or admin-approved into)
+      // the change. Banning them via the moderation flow blocks future
+      // suggestions.
+      const s = await prisma.companionSuggestion.findUnique({ where: { id: targetId }, select: { submitterId: true } });
+      return s?.submitterId ?? null;
     }
   } catch { /* ignore */ }
   return null;

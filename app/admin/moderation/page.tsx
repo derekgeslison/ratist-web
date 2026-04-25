@@ -38,6 +38,7 @@ const TYPE_LABELS: Record<string, string> = {
   hotTake: "Hot Take",
   recast: "Recast",
   looksLike: "Looks Like",
+  companion_suggestion: "Companion Suggestion",
 };
 
 export default function ModerationPage() {

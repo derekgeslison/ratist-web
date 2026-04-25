@@ -245,7 +245,7 @@ function ReportForm({ suggestionId, onSubmitted, onCancel }: {
  * identifiers (characterIds, companionId, etc.) and pretty-prints
  * visibleAfter into MM:SS / SxEy format.
  */
-function payloadToDisplay(payload: Record<string, unknown> | null, mediaType: "movie" | "tv"): Array<{ label: string; value: string }> {
+export function payloadToDisplay(payload: Record<string, unknown> | null, mediaType: "movie" | "tv"): Array<{ label: string; value: string }> {
   if (!payload) return [];
   const SKIP = new Set(["characterId", "companionId", "fromCharacterId", "toCharacterId", "seasonNumber", "freeText"]);
   const out: Array<{ label: string; value: string }> = [];

@@ -8,6 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import RelationshipMap from "./RelationshipMap";
 import RateCompanion from "./RateCompanion";
 import CompanionNotAvailable from "./CompanionNotAvailable";
+import CommunitySource from "./CommunitySource";
 import FollowCompanionButton from "./FollowCompanionButton";
 import AdUnit from "@/components/AdUnit";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
@@ -185,22 +186,6 @@ function buildEpisodeSlots(seasonsGenerated: number[], seasonEpisodeCounts: Reco
     for (let e = 1; e <= count; e++) slots.push({ season: s, episode: e });
   }
   return slots;
-}
-
-// Small "community-sourced" badge rendered on items that were created or
-// edited via a community-approved suggestion. Distinct from the pending
-// ItemSuggestions bubble (red) — uses a green checkmark badge so users
-// can tell "this content was vetted by the community" at a glance.
-function CommunityBadge({ compact = false }: { compact?: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 ${compact ? "text-[9px]" : "text-[10px]"} px-1.5 py-0.5 rounded-full bg-green-500/10 border border-green-500/30 text-green-400`}
-      title="Community-sourced — this was added or edited via a community suggestion"
-    >
-      <Users className={compact ? "w-2.5 h-2.5" : "w-3 h-3"} />
-      <Check className={compact ? "w-2 h-2 -ml-0.5" : "w-2.5 h-2.5 -ml-0.5"} />
-    </span>
-  );
 }
 
 // Small toggle pill used for the glossary category quick-filter row.
@@ -1216,7 +1201,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                        the community votes inline — auto-applies on
                        threshold, no admin gate. */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {isCommunitySourced("character", c.id) && <CommunityBadge compact />}
+                      {isCommunitySourced("character", c.id) && <CommunitySource companionId={data.id} targetType="character" itemId={c.id} mediaType={mediaType} compact />}
                       <ItemSuggestions
                         suggestions={[
                           ...suggestionsFor("character", c.id),
@@ -1358,7 +1343,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                                 </span>
                                 {f.fact}
                               </span>
-                              {isCommunitySourced("fact", f.id) && <CommunityBadge compact />}
+                              {isCommunitySourced("fact", f.id) && <CommunitySource companionId={data.id} targetType="fact" itemId={f.id} mediaType={mediaType} compact />}
                               <ItemSuggestions
                                 suggestions={suggestionsFor("fact", f.id)}
                                 myVotes={myVotes}
@@ -1615,7 +1600,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                     </div>
                   )}
                 </div>
-                {isCommunitySourced("timeline", t.id) && <CommunityBadge compact />}
+                {isCommunitySourced("timeline", t.id) && <CommunitySource companionId={data.id} targetType="timeline" itemId={t.id} mediaType={mediaType} compact />}
                 <ItemSuggestions
                   suggestions={suggestionsFor("timeline", t.id)}
                   myVotes={myVotes}
@@ -1821,7 +1806,7 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                       <dd className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">{g.definition}</dd>
                     </div>
                     <div className="flex items-start gap-1 shrink-0 mt-1">
-                      {isCommunitySourced("glossary", g.id) && <CommunityBadge compact />}
+                      {isCommunitySourced("glossary", g.id) && <CommunitySource companionId={data.id} targetType="glossary" itemId={g.id} mediaType={mediaType} compact />}
                       <ItemSuggestions
                         suggestions={suggestionsFor("glossary", g.id)}
                         myVotes={myVotes}
