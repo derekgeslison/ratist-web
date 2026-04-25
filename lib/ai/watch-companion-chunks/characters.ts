@@ -212,11 +212,24 @@ A common variation: the "body" the consciousness inhabits is itself a separately
 - **Possession** — Get Out's sunken-place body-takeovers, body-snatcher premises (Invasion of the Body Snatchers), demonic possession (The Exorcist).
 - **Mind transfers** — Self/Less, Altered Carbon (sleeves), Avatar (the human-Na'vi link).
 
-Apply the same rule as a Freaky Friday swap: ONE card per consciousness, NOT per vessel. The vessel's name goes in \`nameAliases\` with \`visibleAfter\` at the inhabit moment. The vessel actor goes in \`actors[]\` with \`note: "in [vessel name]'s body"\` and the same \`visibleAfter\`. Inherent traits of the vessel that the consciousness inherits while inside (Bravestone's strength, Mouse's zoology knowledge, Ruby's martial arts) become facts on the consciousness's card with \`visibleAfter\` at the inhabit moment.
+Apply the same rule as a Freaky Friday swap: ONE card per consciousness, NOT per vessel. The vessel's name goes in \`nameAliases\` with \`visibleAfter\` at the inhabit moment. The vessel actor goes in \`actors[]\` with the same \`visibleAfter\`. Inherent traits of the vessel that the consciousness inherits while inside (Bravestone's strength, Mouse's zoology knowledge, Ruby's martial arts) become facts on the consciousness's card with \`visibleAfter\` at the inhabit moment.
 
 ⚠️ The trap: TMDB will list the vessel as a separate character ("Dwayne Johnson as Dr. Smolder Bravestone" alongside "Alex Wolff as Spencer Gilpin"). The cast list is a casting credit, not a character list — collapse them under the consciousness card. For Jumanji the result is FOUR cards (Spencer, Bethany, Fridge, Martha), not eight.
 
-✅ CORRECT (Jumanji: Welcome to the Jungle — Spencer inhabits Bravestone):
+### Always include exit / revert entries
+
+When the consciousness returns to its original body (end of game in Jumanji, swap reverses in Freaky Friday, possession ends, etc.), you MUST add a final entry to BOTH \`actors[]\` and \`nameAliases\` resetting to the originals:
+
+- \`actors[]\` gets another entry with the original actor + the exit timestamp.
+- \`nameAliases\` gets another entry with the original \`name\` (the same string used in the card's top-level \`name\` field) + the exit timestamp.
+
+Without these revert entries the viewer stays stuck on the avatar/vessel name and actor for the rest of the runtime — even after the audience has watched the kids climb out of the game. The viewer always renders the LATEST unlocked entry, so the only way to revert is to write a later entry.
+
+### Skip redundant notes
+
+The \`note\` field on an \`actors[]\` entry already gets visual context from the alias rendering. If the alias is "Bravestone", the actor note doesn't also need to say "in Bravestone's avatar" — that's noise next to the alias. Use \`note\` only for distinctions the alias DOESN'T make, like "young" / "adult" / "elderly" on age-variant characters that have no aliases. For vessel/swap scenarios where the alias name already conveys "they're in someone else's body", leave \`note: null\`.
+
+✅ CORRECT (Jumanji: Welcome to the Jungle — Spencer inhabits Bravestone, then exits at the end of the movie):
 \`\`\`
 {
   name: "Spencer Gilpin",
@@ -226,15 +239,19 @@ Apply the same rule as a Freaky Friday swap: ONE card per consciousness, NOT per
   visibleAfter: { seconds: 0 },
   actors: [
     { actorName: "Alex Wolff",     actorTmdbId: 1284057, note: null, visibleAfter: { seconds: 0 } },
-    { actorName: "Dwayne Johnson", actorTmdbId: 18918,   note: "in Bravestone's avatar", visibleAfter: { seconds: 1100 } }
+    { actorName: "Dwayne Johnson", actorTmdbId: 18918,   note: null, visibleAfter: { seconds: 1100 } },
+    { actorName: "Alex Wolff",     actorTmdbId: 1284057, note: null, visibleAfter: { seconds: 6000 } }
   ],
   nameAliases: [
-    { name: "Dr. Smolder Bravestone", visibleAfter: { seconds: 1100 } }
+    { name: "Dr. Smolder Bravestone", visibleAfter: { seconds: 1100 } },
+    { name: "Spencer Gilpin",         visibleAfter: { seconds: 6000 } }
   ]
 }
 \`\`\`
 
-For Next Level's multi-swap (Eddie ends up in Mouse, Spencer ends up in Ming, etc., then they swap again mid-movie), each swap is just another \`actors[]\` entry + another \`nameAliases\` entry on the affected consciousness's card. Same machinery, more rows.
+Notice: the third entries close the loop. After the slider crosses 6000s, the viewer renders Spencer Gilpin played by Alex Wolff — exactly how the audience sees the character at the end of the movie. Do this for every kid in Jumanji, and for the consciousness on each side of any body swap.
+
+For Next Level's multi-swap (Eddie ends up in Mouse, Spencer ends up in Ming, etc., then they swap again mid-movie), each swap is just another \`actors[]\` entry + another \`nameAliases\` entry on the affected consciousness's card. Same machinery, more rows. Always close with the final state at the end of the movie.
 
 ## When NOT to create a card — bias toward fewer, denser characters
 

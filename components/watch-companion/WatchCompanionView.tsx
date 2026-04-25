@@ -755,7 +755,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
                               ) : (
                                 <span className="text-white font-semibold">{a.actorName}</span>
                               )}
-                              {a.note && <span className="text-[var(--foreground-muted)]/70"> ({a.note})</span>}
+                              {/* Suppress notes that just restate what the
+                                  alias already says. When the character's
+                                  display name has switched to an alias
+                                  (Bravestone), a note like "in Bravestone's
+                                  avatar" reads as redundant noise. Notes
+                                  still render on multi-actor cases without
+                                  aliases (Murph's "young" / "adult" /
+                                  "elderly"). */}
+                              {a.note && !hasAliasReveal && <span className="text-[var(--foreground-muted)]/70"> ({a.note})</span>}
                               {i < currentActors.length - 1 ? <span className="text-[var(--foreground-muted)]/70"> & </span> : null}
                             </span>
                           ))}
