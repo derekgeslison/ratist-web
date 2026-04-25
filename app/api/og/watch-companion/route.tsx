@@ -24,10 +24,18 @@ function abstractMapSvg(
   const nodeRadius = Math.max(6, size * 0.018);
 
   // Map groups to colors deterministically (first seen = index 0).
+  // Treat null, empty string, and whitespace-only strings as "no group"
+  // so legacy data with " " or "" keys can't sneak into the palette and
+  // pull GROUP_COLORS[0] (red) for what should be ungrouped characters.
   const groupColor = new Map<string, string>();
+  const groupKey = (g: string | null) => {
+    const trimmed = (g ?? "").trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
   for (const n of nodes) {
-    if (n.group && !groupColor.has(n.group)) {
-      groupColor.set(n.group, GROUP_COLORS[groupColor.size % GROUP_COLORS.length]);
+    const key = groupKey(n.group);
+    if (key && !groupColor.has(key)) {
+      groupColor.set(key, GROUP_COLORS[groupColor.size % GROUP_COLORS.length]);
     }
   }
 
@@ -58,7 +66,8 @@ function abstractMapSvg(
 
   const nodesSvg = nodes.map((n, i) => {
     const p = positions[i];
-    const color = n.group ? groupColor.get(n.group) ?? "#6b7280" : "#6b7280";
+    const key = groupKey(n.group);
+    const color = key ? groupColor.get(key) ?? "#6b7280" : "#6b7280";
     return `<circle cx="${p.x}" cy="${p.y}" r="${nodeRadius}" fill="${color}" stroke="${color}" stroke-width="1.5" />`;
   }).join("");
 
@@ -68,7 +77,7 @@ function abstractMapSvg(
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const companionId = searchParams.get("id") ?? "";
-  const season = searchParams.get("season"); // optional — formats label
+  const seasonParam = searchParams.get("season"); // optional — caller-specified season override
 
   try {
     const logoSrc = getLogoBase64();
@@ -80,20 +89,43 @@ export async function GET(request: Request) {
         tmdbId: true,
         mediaType: true,
         seasonsGenerated: true,
-        _count: {
-          select: { characters: true, relationships: true, timeline: true, glossary: true },
+        airingSeasons: {
+          select: { seasonNumber: true, status: true },
+          orderBy: { seasonNumber: "desc" },
         },
       },
     });
     if (!companion) return new Response("Not found", { status: 404 });
 
-    // Pull just enough data for the abstract map. Cap to 15 nodes / 20 edges
-    // so the SVG stays legible at card size.
-    const seasonFilter = season ? { seasonNumber: parseInt(season, 10) } : {};
+    // Pick a target season for TV companions. The OG card needs to reflect
+    // ONE season's reality — without a season filter, a multi-season show
+    // returns a hodgepodge of characters across seasons whose groups
+    // partially clash, which is what produced the "wrong-looking map +
+    // wrong group colors" cards. Default precedence:
+    //   1. ?season=N URL param (caller-specified)
+    //   2. Latest airing-status season (if any)
+    //   3. Latest fully-generated season
+    //   4. null (movie or no content yet)
+    let targetSeason: number | null = null;
+    if (companion.mediaType === "tv") {
+      const airingLatest = companion.airingSeasons.find((a) => a.status === "airing")?.seasonNumber;
+      const generatedLatest = companion.seasonsGenerated.length > 0
+        ? Math.max(...companion.seasonsGenerated)
+        : null;
+      const fromParam = seasonParam ? parseInt(seasonParam, 10) : NaN;
+      targetSeason = Number.isFinite(fromParam) && fromParam > 0
+        ? fromParam
+        : airingLatest ?? generatedLatest;
+    }
+    const seasonFilter = targetSeason !== null ? { seasonNumber: targetSeason } : {};
+
+    // Pull just enough data for the abstract map. Cap to 20 nodes / 30 edges
+    // — enough to give every group at least one representative without
+    // making the ring unreadably dense.
     const characters = await prisma.companionCharacter.findMany({
       where: { companionId: companion.id, ...seasonFilter },
       select: { id: true, group: true },
-      take: 15,
+      take: 20,
       orderBy: { sortOrder: "asc" },
     });
     const idToIdx = new Map(characters.map((c, i) => [c.id, i]));
@@ -107,6 +139,22 @@ export async function GET(request: Request) {
       select: { fromCharacterId: true, toCharacterId: true, relationshipType: true },
       take: 30,
     });
+
+    // Season-scoped stats. Using companion._count would aggregate across
+    // every season, which is misleading once we've picked a single
+    // season's worth of characters/relationships to draw.
+    const [charactersCount, relationshipsCount, timelineCount, glossaryCount] = await Promise.all([
+      prisma.companionCharacter.count({ where: { companionId: companion.id, ...seasonFilter } }),
+      prisma.companionRelationship.count({ where: { companionId: companion.id, ...seasonFilter } }),
+      prisma.companionTimelineEvent.count({ where: { companionId: companion.id, ...seasonFilter } }),
+      prisma.companionGlossaryTerm.count({ where: { companionId: companion.id, ...seasonFilter } }),
+    ]);
+    const stats = {
+      characters: charactersCount,
+      relationships: relationshipsCount,
+      timeline: timelineCount,
+      glossary: glossaryCount,
+    };
 
     const edges = rels
       .map((r) => {
@@ -170,10 +218,8 @@ export async function GET(request: Request) {
     const mapSvg = abstractMapSvg(characters, edges, 420);
     const mapDataUrl = `data:image/svg+xml;base64,${Buffer.from(mapSvg).toString("base64")}`;
 
-    const seasonLabel = companion.mediaType === "tv" && season
-      ? `Season ${season}`
-      : companion.mediaType === "tv" && companion.seasonsGenerated.length > 0
-      ? `S${companion.seasonsGenerated.join(", S")}`
+    const seasonLabel = companion.mediaType === "tv" && targetSeason !== null
+      ? `Season ${targetSeason}`
       : null;
 
     return new ImageResponse(
@@ -240,10 +286,10 @@ export async function GET(request: Request) {
             {/* Bottom block: big companion stats, fills the lower-left space */}
             <div style={{ display: "flex", gap: 36, marginTop: 24 }}>
               {[
-                { label: "Characters", value: String(companion._count.characters) },
-                { label: "Connections", value: String(companion._count.relationships) },
-                { label: "Plot beats", value: String(companion._count.timeline) },
-                { label: "Terms", value: String(companion._count.glossary) },
+                { label: "Characters", value: String(stats.characters) },
+                { label: "Connections", value: String(stats.relationships) },
+                { label: "Plot beats", value: String(stats.timeline) },
+                { label: "Terms", value: String(stats.glossary) },
               ].map((stat) => (
                 <div key={stat.label} style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ color: "white", fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{stat.value}</span>

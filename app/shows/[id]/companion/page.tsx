@@ -14,10 +14,12 @@ export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ s?: string }>;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { id } = await params;
+  const sp = searchParams ? await searchParams : undefined;
   const tmdbId = Number(id);
   try {
     const show = await getShowDetails(tmdbId);
@@ -25,7 +27,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       where: { tmdbId_mediaType: { tmdbId, mediaType: "tv" } },
       select: { id: true },
     });
-    const ogUrl = companion ? `${SITE_URL}/api/og/watch-companion?id=${companion.id}` : undefined;
+    // Pass the season query param through to the OG endpoint so shared
+    // deep-links (e.g., /shows/123/companion?s=5 from a follow-flow
+    // notification) render an OG card scoped to that season. When
+    // unspecified, the OG endpoint defaults to the latest airing or
+    // fully-generated season.
+    const seasonParam = sp?.s && /^\d+$/.test(sp.s) ? `&season=${sp.s}` : "";
+    const ogUrl = companion ? `${SITE_URL}/api/og/watch-companion?id=${companion.id}${seasonParam}` : undefined;
     return {
       title: `${show.name} — Watch Companion`,
       description: `Spoiler-safe reference guide for ${show.name}: characters, relationships, and plot points as you watch.`,

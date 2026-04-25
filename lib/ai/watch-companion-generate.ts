@@ -111,12 +111,13 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   const lock = await acquireGenerationLock(tmdbId, mediaType, seasonForLock, generatedByUserId);
   if (!lock.acquired) {
     const targetLabel = mediaType === "tv" && season ? `${mediaType} S${season}` : mediaType;
-    const wait = lock.secondsRemaining > 0
-      ? ` Try again in ~${Math.ceil(lock.secondsRemaining / 60)} minute${lock.secondsRemaining > 60 ? "s" : ""}.`
-      : "";
+    // Cap the retry hint at "~5 minutes" regardless of actual remaining
+    // TTL. A normal gen finishes in 2-4 minutes, so 5 is the right
+    // polling cadence; suggesting "~10 minutes" or higher reads as
+    // excessive even when the lock is genuinely fresh.
     yield {
       kind: "error",
-      message: `Another Watch Companion generation is already running for this ${targetLabel}.${wait}`,
+      message: `Another Watch Companion generation is already running for this ${targetLabel}. Try again in ~5 minutes.`,
     };
     return;
   }

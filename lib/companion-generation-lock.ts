@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 
 // How long a lock can be held before another acquirer is allowed to
-// overwrite it. A normal generation takes 2-4 minutes; 15 minutes gives
-// generous headroom (slow Anthropic responses, large seasons) while
-// still recovering from a crashed gen within the same workday.
-const STALE_LOCK_MS = 15 * 60 * 1000;
+// overwrite it. A normal generation takes 2-4 minutes; 10 minutes gives
+// 2.5× headroom for slow Anthropic responses or large seasons while
+// keeping the worst-case wait short. The user-facing retry message is
+// independently capped at "~5 minutes" — see the orchestrator — so we
+// don't suggest a 15-minute timeout that would irk impatient users.
+const STALE_LOCK_MS = 10 * 60 * 1000;
 
 // Movies don't have seasons; we use 0 as a sentinel so the unique
 // constraint on (tmdbId, mediaType, season) treats movies as a single
