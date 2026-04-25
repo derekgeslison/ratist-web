@@ -276,6 +276,7 @@ export default function ReviewCompanionPage() {
         relationships: "Drafting relationships…",
         timeline: "Drafting timeline…",
         glossary: "Drafting glossary…",
+        recap: "Drafting recap…",
         persist: "Saving…",
       };
 

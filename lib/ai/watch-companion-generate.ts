@@ -7,6 +7,7 @@ import { draftFacts } from "./watch-companion-chunks/facts";
 import { draftRelationships } from "./watch-companion-chunks/relationships";
 import { draftTimeline } from "./watch-companion-chunks/timeline";
 import { draftGlossary } from "./watch-companion-chunks/glossary";
+import { draftRecap } from "./watch-companion-chunks/recap";
 import type {
   CompanionDraft,
   DraftCharacter,
@@ -39,7 +40,7 @@ export interface GenerateResult {
 // Each step yields a "start" (status: running) then a "done" (status: done)
 // with the counts. The final "complete" event carries the GenerateResult.
 
-export type GenerationStep = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "persist";
+export type GenerationStep = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "recap" | "persist";
 
 export type ProgressEvent =
   | { kind: "step"; step: GenerationStep; status: "running" }
@@ -177,7 +178,23 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   }
   yield { kind: "step", step: "glossary", status: "done", count: glossary.length };
 
-  // 7. Persist
+  // 7. Recap. One paragraph "what happened previously" prose — the
+  // viewer's Recap tab gates this behind a reveal button so spoilers
+  // are fine. For TV we generate only the current season's slot;
+  // existing season recaps in the row's JSON are preserved by the
+  // persist step. Failures here are non-fatal — generation completes
+  // without a recap, viewer falls back to "no recap available".
+  yield { kind: "step", step: "recap", status: "running" };
+  let recapText: string | null = null;
+  try {
+    recapText = await draftRecap(client, grounding, seasonArg, timelineEvents);
+  } catch (err) {
+    console.error("Recap draft failed (continuing without):", err);
+    recapText = null;
+  }
+  yield { kind: "step", step: "recap", status: "done", count: recapText ? 1 : 0 };
+
+  // 8. Persist
   yield { kind: "step", step: "persist", status: "running" };
   try {
     const draft: CompanionDraft = { characters, facts, relationships, timelineEvents, glossary };
@@ -186,8 +203,10 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
       mediaType,
       season: seasonArg,
       title: grounding.title,
+      year: grounding.year,
       runtimeSeconds: grounding.runtimeSeconds,
       draft,
+      recapText,
       generatedByUserId,
     });
     yield { kind: "step", step: "persist", status: "done" };
@@ -215,13 +234,15 @@ interface PersistInput {
   mediaType: "movie" | "tv";
   season: number | null;
   title: string;
+  year: number | null;
   runtimeSeconds: number | null;
   draft: CompanionDraft;
+  recapText: string | null;
   generatedByUserId: string;
 }
 
 async function persistDraft(input: PersistInput): Promise<GenerateResult> {
-  const { tmdbId, mediaType, season, title, runtimeSeconds, draft, generatedByUserId } = input;
+  const { tmdbId, mediaType, season, title, year, runtimeSeconds, draft, recapText, generatedByUserId } = input;
 
   const existing = await prisma.watchCompanion.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType } },
@@ -234,6 +255,26 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     ? [season]
     : [];
 
+  // Build the new recaps JSON. For movies the shape is
+  //   { current: { title, year, text }, prior: [...] }
+  // — prior entries are pulled by the viewer at read time from
+  // franchise-sibling companions, so we only persist the current
+  // installment's text here. For TV we merge the current season's
+  // text into the existing { "1": ..., "2": ... } map, preserving
+  // any other seasons' recaps. Recap-step failure leaves the
+  // existing JSON alone rather than wiping it.
+  let nextRecaps: Record<string, unknown> | undefined;
+  if (recapText) {
+    if (mediaType === "movie") {
+      nextRecaps = { current: { title, year: year ?? null, text: recapText } };
+    } else {
+      const existingRecaps = (existing?.recaps && typeof existing.recaps === "object" && !Array.isArray(existing.recaps))
+        ? (existing.recaps as Record<string, unknown>)
+        : {};
+      nextRecaps = { ...existingRecaps, [String(season)]: recapText };
+    }
+  }
+
   const companion = await prisma.watchCompanion.upsert({
     where: { tmdbId_mediaType: { tmdbId, mediaType } },
     create: {
@@ -245,12 +286,22 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       status: "draft",
       generatedBy: generatedByUserId,
       lastGeneratedAt: new Date(),
+      // Prisma's InputJsonValue rejects Record<string, unknown> because
+      // unknown could in principle include non-JSON values. Cast through
+      // unknown to satisfy the type checker — the values we put in are
+      // always JSON-shaped (strings, nested objects with the same).
+      ...(nextRecaps !== undefined ? { recaps: nextRecaps as unknown as object } : {}),
     },
     update: {
       title,
       runtimeSeconds: runtimeSeconds ?? existing?.runtimeSeconds ?? null,
       seasonsGenerated: newSeasonsGenerated,
       lastGeneratedAt: new Date(),
+      // Prisma's InputJsonValue rejects Record<string, unknown> because
+      // unknown could in principle include non-JSON values. Cast through
+      // unknown to satisfy the type checker — the values we put in are
+      // always JSON-shaped (strings, nested objects with the same).
+      ...(nextRecaps !== undefined ? { recaps: nextRecaps as unknown as object } : {}),
     },
   });
 

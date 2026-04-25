@@ -135,6 +135,20 @@ export default async function ShowCompanionPage({ params }: Props) {
     if (s.appliedItemId) communityItemIds.add(`${s.targetType}:${s.appliedItemId}`);
   }
 
+  // Extract per-season recap text from the companion's recaps JSON.
+  // Shape: { "1": "S1 recap", "2": "S2 recap", ... }. Filtered to
+  // entries that match a generated season; the viewer's Recap tab
+  // stacks them up to whichever season the user is currently viewing.
+  const recapsBlob = (companion.recaps && typeof companion.recaps === "object" && !Array.isArray(companion.recaps))
+    ? (companion.recaps as Record<string, unknown>)
+    : null;
+  const seasonRecaps: Record<string, string> = {};
+  if (recapsBlob) {
+    for (const [k, v] of Object.entries(recapsBlob)) {
+      if (typeof v === "string" && v.length > 0 && /^\d+$/.test(k)) seasonRecaps[k] = v;
+    }
+  }
+
   const data: WatchCompanionData = {
     id: companion.id,
     tmdbId: companion.tmdbId,
@@ -147,6 +161,7 @@ export default async function ShowCompanionPage({ params }: Props) {
     relationships: companion.relationships.map((r) => ({ ...r, seasonNumber: r.seasonNumber, visibleAfter: r.visibleAfter as WatchCompanionData["relationships"][number]["visibleAfter"] })),
     timeline: companion.timeline.map((t) => ({ ...t, seasonNumber: t.seasonNumber, visibleAfter: t.visibleAfter as WatchCompanionData["timeline"][number]["visibleAfter"] })),
     glossary: companion.glossary.map((g) => ({ ...g, seasonNumber: g.seasonNumber, visibleAfter: g.visibleAfter as WatchCompanionData["glossary"][number]["visibleAfter"] })),
+    recaps: { bySeason: seasonRecaps },
     seasonEpisodeCounts,
     defaultEpisodeRuntimeSeconds,
   };

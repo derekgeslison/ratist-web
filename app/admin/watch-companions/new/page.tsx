@@ -14,7 +14,7 @@ interface MediaItem {
   posterPath: string | null;
 }
 
-type StepKey = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "persist";
+type StepKey = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "recap" | "persist";
 type StepState = "pending" | "running" | "done";
 
 const STEPS: Array<{ key: StepKey; label: string }> = [
@@ -24,6 +24,7 @@ const STEPS: Array<{ key: StepKey; label: string }> = [
   { key: "relationships", label: "Draft relationships" },
   { key: "timeline", label: "Draft timeline" },
   { key: "glossary", label: "Draft glossary" },
+  { key: "recap", label: "Draft recap" },
   { key: "persist", label: "Save to database" },
 ];
 
@@ -57,6 +58,7 @@ export default function NewCompanionPage() {
     relationships: "pending",
     timeline: "pending",
     glossary: "pending",
+    recap: "pending",
     persist: "pending",
   });
   const [stepCounts, setStepCounts] = useState<Partial<Record<StepKey, number>>>({});
@@ -122,6 +124,7 @@ export default function NewCompanionPage() {
       relationships: "pending",
       timeline: "pending",
       glossary: "pending",
+      recap: "pending",
       persist: "pending",
     });
     setStepCounts({});

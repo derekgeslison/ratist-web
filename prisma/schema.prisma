@@ -2040,6 +2040,16 @@ model WatchCompanion {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  // Recap blob for the "what happened previously" tab. Movies store
+  //   { current: { title, year, text }, prior: [{tmdbId, title, year, text}, ...] }
+  // (prior is empty for standalone movies, ordered chronologically).
+  // TV companions store per-season recaps keyed by season number as
+  //   { "1": "S1 recap", "2": "S2 recap", ... }
+  // Each season gen overwrites only its own slot. Hidden behind a
+  // reveal button on the public viewer because the recap intentionally
+  // contains full spoilers — it's a "catch me up before the next
+  // installment" tool, not a slider-gated discovery surface.
+  recaps      Json?
   generator   User? @relation("companionGenerator", fields: [generatedBy], references: [id], onDelete: SetNull)
   characters  CompanionCharacter[]
   relationships CompanionRelationship[]

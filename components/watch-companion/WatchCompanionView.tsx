@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
+import { Clock, Users, BookOpen, Lock, AlertCircle, ChevronDown, Heart, Briefcase, Swords, Handshake, GraduationCap, Link2, Sparkles, Network, Pencil, Plus, Check, ThumbsUp, ThumbsDown, Loader2, ScrollText, EyeOff } from "lucide-react";
 import RelationshipMap from "./RelationshipMap";
 import RateCompanion from "./RateCompanion";
 import CompanionNotAvailable from "./CompanionNotAvailable";
@@ -60,6 +60,13 @@ interface GlossaryTerm {
   seasonNumber: number | null;
 }
 
+export interface RecapMovieEntry {
+  tmdbId: number;
+  title: string;
+  year: number | null;
+  text: string;
+}
+
 export interface WatchCompanionData {
   id: string;
   tmdbId: number; // needed for the inline generate-ungenerated-season flow
@@ -77,6 +84,14 @@ export interface WatchCompanionData {
    *  via a community-approved suggestion. Drives the community-sourced
    *  badge in the viewer. */
   communityItemIds?: string[];
+  /** Per-installment recaps surfaced on the Recap tab. Movies expose an
+   *  ordered (oldest-first) franchise list — the viewer stacks each
+   *  film's prose with a section header. TV exposes a per-season map
+   *  keyed by season number; the viewer stacks 1 → selectedSeason. */
+  recaps?: {
+    movies?: RecapMovieEntry[];
+    bySeason?: Record<string, string>;
+  };
 }
 
 function isVisible(visibleAfter: VisibleAfter, position: WatchPosition, mediaType: "movie" | "tv"): boolean {
@@ -295,7 +310,13 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
   const [selectedSeason, setSelectedSeason] = useState<number>(defaultSeason);
   const [hydrated, setHydrated] = useState(false);
-  const [activeTab, setActiveTab] = useState<"cast" | "map" | "timeline" | "glossary">("cast");
+  const [activeTab, setActiveTab] = useState<"cast" | "map" | "timeline" | "glossary" | "recap">("cast");
+  // Recap content stays hidden behind a reveal button per-tab-visit
+  // because it intentionally contains full spoilers — it's the
+  // "remind me what happened in the prior installments" tool, not a
+  // slider-gated discovery surface. We keep this as session-scoped
+  // state so it resets on companion reload.
+  const [recapRevealed, setRecapRevealed] = useState(false);
   const [glossaryCategoryFilter, setGlossaryCategoryFilter] = useState<string | "all">("all");
   // Multi-select character filter for the Timeline tab. AND semantics —
   // events must include EVERY selected character to remain visible. With
@@ -764,14 +785,31 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
         {/* Tabs — part of the sticky cluster so they stay visible too.
            Hide entirely on ungenerated seasons (the body below renders the
            generate/request panel instead). */}
-        {seasonIsGenerated && visibleCharacters.length > 0 && (
+        {seasonIsGenerated && visibleCharacters.length > 0 && (() => {
+          // Recap tab is conditional on the companion having any recap
+          // text at all — movies need at least one franchise entry,
+          // TV needs at least one generated season's recap. Showing an
+          // empty Recap tab on a companion that hasn't had recap gen
+          // run yet (legacy data) would be misleading.
+          const movieRecaps = data.recaps?.movies ?? [];
+          const seasonRecaps = data.recaps?.bySeason ?? {};
+          const recapCount = mediaType === "movie"
+            ? movieRecaps.length
+            : Object.keys(seasonRecaps).filter((k) => parseInt(k, 10) <= selectedSeason).length;
+          const showRecapTab = recapCount > 0;
+          // const-assert each entry so the discriminated union narrows
+          // to "cast" | "map" | "glossary" | "timeline" | "recap" rather
+          // than collapsing to plain string.
+          const tabs: Array<{ key: "cast" | "map" | "glossary" | "timeline" | "recap"; label: string; icon: typeof Users; count: number }> = [
+            { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
+            { key: "map", label: "Map", icon: Network, count: visibleRelationships.length },
+            { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
+            { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
+            ...(showRecapTab ? [{ key: "recap" as const, label: "Recap", icon: ScrollText, count: recapCount }] : []),
+          ];
+          return (
           <nav className="flex gap-1 border-b border-[var(--border)] overflow-x-auto mt-2 -mb-2">
-            {([
-              { key: "cast", label: "Cast", icon: Users, count: visibleCharacters.length },
-              { key: "map", label: "Map", icon: Network, count: visibleRelationships.length },
-              { key: "glossary", label: "Glossary", icon: BookOpen, count: visibleGlossary.length },
-              { key: "timeline", label: "Timeline", icon: Clock, count: visibleTimeline.length },
-            ] as const).map(({ key, label, icon: Icon, count }) => (
+            {tabs.map(({ key, label, icon: Icon, count }) => (
               <button
                 key={key}
                 onClick={() => {
@@ -790,7 +828,8 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               </button>
             ))}
           </nav>
-        )}
+          );
+        })()}
       </div>
 
       {!seasonIsGenerated && (
@@ -1661,6 +1700,97 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
             )}
             {COMPANION_AD_SLOT && <AdUnit slot={COMPANION_AD_SLOT} format="auto" className="mt-4" />}
           </Section>
+        );
+      })()}
+
+      {/* Recap tab — gated behind a reveal button because the prose
+         contains full spoilers for every prior installment AND the
+         current one. Movies show stacked franchise entries oldest-
+         first; TV stacks each season's prose from S1 up to whichever
+         season the user is currently viewing. */}
+      {seasonIsGenerated && activeTab === "recap" && (() => {
+        const movieRecaps = data.recaps?.movies ?? [];
+        const seasonRecaps = data.recaps?.bySeason ?? {};
+        const tvEntries = mediaType === "tv"
+          ? Object.keys(seasonRecaps)
+              .map((k) => parseInt(k, 10))
+              .filter((n) => Number.isFinite(n) && n > 0 && n <= selectedSeason)
+              .sort((a, b) => a - b)
+              .map((n) => ({ season: n, text: seasonRecaps[String(n)] }))
+          : [];
+        const hasContent = mediaType === "movie" ? movieRecaps.length > 0 : tvEntries.length > 0;
+        if (!hasContent) {
+          return (
+            <p className="text-sm text-[var(--foreground-muted)] italic text-center py-8">
+              No recap available yet for this companion. Regenerate to add one.
+            </p>
+          );
+        }
+        return (
+          <div className="space-y-4">
+            {!recapRevealed ? (
+              <div className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-5 text-center space-y-3">
+                <div className="inline-flex items-center justify-center gap-2 text-[var(--ratist-red)]">
+                  <Lock className="w-4 h-4" />
+                  <span className="text-xs uppercase tracking-wider font-semibold">Spoiler-heavy recap</span>
+                </div>
+                <p className="text-sm text-white leading-relaxed">
+                  This recap covers {mediaType === "movie"
+                    ? movieRecaps.length === 1
+                      ? "the full plot of this movie"
+                      : `the full plot of all ${movieRecaps.length} films in this series`
+                    : tvEntries.length === 1
+                      ? "the full season"
+                      : `every season from S1 through S${selectedSeason}`}
+                  {" "}— spoilers and all. It&apos;s designed for refreshing your memory before a new installment, not for first-time viewers.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecapRevealed(true);
+                    track("companion_recap_reveal", { companion_id: data.id });
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--ratist-red)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--ratist-red)]/80 transition-colors"
+                >
+                  <ScrollText className="w-4 h-4" /> Reveal recap
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setRecapRevealed(false)}
+                    className="inline-flex items-center gap-1.5 text-[10px] text-[var(--foreground-muted)] hover:text-white"
+                  >
+                    <EyeOff className="w-3 h-3" /> Hide recap
+                  </button>
+                </div>
+                {mediaType === "movie" ? (
+                  movieRecaps.map((m, i) => (
+                    <article key={`${m.tmdbId}-${i}`} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                      <header className="mb-2">
+                        <h3 className="text-base font-semibold text-white">
+                          {m.title}
+                          {m.year && <span className="text-[var(--foreground-muted)] font-normal"> ({m.year})</span>}
+                        </h3>
+                      </header>
+                      <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                    </article>
+                  ))
+                ) : (
+                  tvEntries.map(({ season, text }) => (
+                    <article key={season} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+                      <header className="mb-2">
+                        <h3 className="text-base font-semibold text-white">Season {season}</h3>
+                      </header>
+                      <p className="text-sm text-[var(--foreground-muted)] leading-relaxed whitespace-pre-wrap">{text}</p>
+                    </article>
+                  ))
+                )}
+              </>
+            )}
+          </div>
         );
       })()}
 
