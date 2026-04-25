@@ -187,8 +187,10 @@ async function loadFranchiseRecaps(
   const currentYear = currentBlob?.current?.year ?? null;
 
   let collectionParts: Array<{ id: number; title: string; release_date?: string }> = [];
+  let currentReleaseDate: string | null = null;
   try {
     const movie = await getMovieDetails(tmdbId);
+    currentReleaseDate = movie.release_date ?? null;
     const collectionId = movie.belongs_to_collection?.id;
     if (collectionId) {
       const collection = await getCollectionDetails(collectionId);
@@ -196,6 +198,22 @@ async function loadFranchiseRecaps(
     }
   } catch {
     // Collection lookup failed — fine, we just return current-only.
+  }
+
+  // Filter out franchise siblings released AFTER the current movie. A
+  // viewer on Dune (2021) shouldn't see a Dune: Part Two recap leaked
+  // into their tab — the recap is "what came before this", and "before"
+  // is by release date. The current movie itself stays included so it
+  // anchors the bottom of the stack.
+  if (currentReleaseDate) {
+    const currentTime = new Date(currentReleaseDate).getTime();
+    if (Number.isFinite(currentTime)) {
+      collectionParts = collectionParts.filter((p) => {
+        if (!p.release_date) return false; // unknown date — drop, can't reason about ordering
+        const pTime = new Date(p.release_date).getTime();
+        return Number.isFinite(pTime) && pTime <= currentTime;
+      });
+    }
   }
 
   if (collectionParts.length === 0) {

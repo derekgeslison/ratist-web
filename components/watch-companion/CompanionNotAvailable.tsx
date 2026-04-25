@@ -17,7 +17,7 @@ interface Props {
   availableSeasons?: number[];
 }
 
-type StepKey = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "persist";
+type StepKey = "grounding" | "characters" | "facts" | "relationships" | "timeline" | "glossary" | "recap" | "persist";
 type StepState = "pending" | "running" | "done";
 
 // Step labels are templated on media type so users see "Fetching movie
@@ -31,6 +31,7 @@ function buildSteps(mediaType: "movie" | "tv"): Array<{ key: StepKey; label: str
     { key: "relationships", label: "Drafting relationships" },
     { key: "timeline", label: "Drafting timeline" },
     { key: "glossary", label: "Drafting glossary" },
+    { key: "recap", label: "Drafting recap" },
     { key: "persist", label: "Saving + publishing" },
   ];
 }
@@ -78,7 +79,8 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
   const [rationale, setRationale] = useState("");
   const [stepStates, setStepStates] = useState<Record<StepKey, StepState>>({
     grounding: "pending", characters: "pending", facts: "pending",
-    relationships: "pending", timeline: "pending", glossary: "pending", persist: "pending",
+    relationships: "pending", timeline: "pending", glossary: "pending",
+    recap: "pending", persist: "pending",
   });
   const [stepCounts, setStepCounts] = useState<Partial<Record<StepKey, number>>>({});
 
@@ -122,7 +124,8 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
   function resetSteps() {
     setStepStates({
       grounding: "pending", characters: "pending", facts: "pending",
-      relationships: "pending", timeline: "pending", glossary: "pending", persist: "pending",
+      relationships: "pending", timeline: "pending", glossary: "pending",
+      recap: "pending", persist: "pending",
     });
     setStepCounts({});
   }
