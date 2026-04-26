@@ -460,9 +460,15 @@ export default function ScreeningSessionPage() {
     pauseTimersRef.current = { dingTimer, expireTimer, requestedAt: activePause.requestedAt };
   }, [activePause, isPaused]);
 
-  // Auto-scroll chat (on new messages and new polls)
+  // Auto-scroll chat (on new messages and new polls). Important:
+  // we set scrollTop on the chat container directly instead of using
+  // scrollIntoView. scrollIntoView walks up scroll ancestors and ALSO
+  // scrolls the page itself, which was yanking the user to the bottom
+  // of the page every time the post-watch phase mounted (initial
+  // chatMessages/polls load fired this effect).
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const c = chatContainerRef.current;
+    if (c) c.scrollTop = c.scrollHeight;
   }, [chatMessages, session?.polls?.length]);
 
   // Countdown logic (with sound)
@@ -1252,7 +1258,10 @@ export default function ScreeningSessionPage() {
               })}
               <div ref={chatEndRef} />
               {showScrollBtn && (
-                <button onClick={() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" })}
+                <button onClick={() => {
+                  const c = chatContainerRef.current;
+                  if (c) c.scrollTo({ top: c.scrollHeight, behavior: "smooth" });
+                }}
                   className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-[var(--surface-2)] border border-[var(--border)] rounded-full p-2 shadow-lg z-10">
                   <ChevronDown className="w-3 h-3 text-white" />
                 </button>

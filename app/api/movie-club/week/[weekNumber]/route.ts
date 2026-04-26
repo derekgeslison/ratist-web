@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
 import { getSuperlatives } from "@/lib/movie-club";
+import { hasBackstagePass } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
     }
 
     const hasSubmitted = !!userRating;
-    const canSeeDiscussion = (week.status === "discussion" || week.status === "archived") && hasSubmitted;
+    // Backstage Pass members get to read past (archived) weeks'
+    // discussion rooms even if they didn't participate. Open weeks
+    // (discussion phase) still require a submitted rating — the
+    // ratings-first gate is part of the active-week experience and
+    // we don't want subscribers spoiling themselves on an in-progress
+    // discussion before they've watched.
+    const isBackstagePass = user ? await hasBackstagePass(user.id) : false;
+    const canSeeDiscussion =
+      (week.status === "discussion" && hasSubmitted) ||
+      (week.status === "archived" && (hasSubmitted || isBackstagePass));
     const avgRating = week.ratings.length > 0
       ? Math.round(week.ratings.reduce((s, r) => s + r.rating, 0) / week.ratings.length * 10) / 10
       : null;

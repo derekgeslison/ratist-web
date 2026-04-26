@@ -265,69 +265,72 @@ export default function HotTakesPage() {
                   </div>
                 )}
                 <div className="flex gap-3">
-                <div className="shrink-0 mt-0.5">
-                  {item.author.avatarUrl ? (
-                    <Image src={item.author.avatarUrl} alt={item.author.name} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-sm font-bold text-white">
-                      {(item.author.name || "?")[0].toUpperCase()}
+                  <div className="shrink-0 mt-0.5">
+                    {item.author.avatarUrl ? (
+                      <Image src={item.author.avatarUrl} alt={item.author.name} width={36} height={36} className="w-9 h-9 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-sm font-bold text-white">
+                        {(item.author.name || "?")[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Link href={`/profile/${item.author.firebaseUid}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{item.author.name}</Link>
+                      <span className="text-xs text-[var(--foreground-muted)]">{new Date(item.createdAt).toLocaleDateString()}</span>
+                      {isHot && item.score >= 5 && <Flame className="w-3.5 h-3.5 text-orange-400" />}
                     </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Link href={`/profile/${item.author.firebaseUid}`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)]">{item.author.name}</Link>
-                    <span className="text-xs text-[var(--foreground-muted)]">{new Date(item.createdAt).toLocaleDateString()}</span>
-                    {isHot && item.score >= 5 && <Flame className="w-3.5 h-3.5 text-orange-400" />}
+                    <p className="text-sm text-white/90 leading-relaxed">{item.content}</p>
                   </div>
-                  <p className="text-sm text-white/90 leading-relaxed">{item.content}</p>
-                  <div className="flex items-center gap-3 mt-3">
-                    <button
-                      onClick={() => vote(item.id, 1)}
-                      disabled={!user || votingId === item.id}
-                      className={`flex items-center gap-1 text-xs transition-colors ${userVote === 1 ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}
-                    >
-                      <ThumbsUp className="w-3.5 h-3.5" /> Hot
-                    </button>
-                    <span className={`text-sm font-bold ${item.score > 0 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
-                      {item.score > 0 ? "+" : ""}{item.score}
-                    </span>
-                    <button
-                      onClick={() => vote(item.id, -1)}
-                      disabled={!user || votingId === item.id}
-                      className={`flex items-center gap-1 text-xs transition-colors ${userVote === -1 ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
-                    >
-                      <ThumbsDown className="w-3.5 h-3.5" /> Not
-                    </button>
-                    {item.voterIds.length > 0 && (
-                      <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
-                    )}
-                    <button
-                      onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
-                      className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors ml-auto"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      {expandedComments === item.id ? "Hide" : "Comments"}
-                      {item.commentCount > 0 && (
-                        <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>
-                      )}
-                    </button>
-                    {canDelete && confirmingDeleteId !== item.id && (
-                      <button
-                        onClick={() => setConfirmingDeleteId(item.id)}
-                        className="p-1.5 text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <ReportButton targetType="hotTake" targetId={item.id} />
-                  </div>
-                  {expandedComments === item.id && (
-                    <CommentSection targetType="hottake" targetId={item.id} isAdmin={isAdmin} />
+                </div>
+                {/* Action row spans full card width — pulled out of
+                    the avatar+text flex column so it doesn't inherit
+                    the avatar's left-side indentation. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                  <button
+                    onClick={() => vote(item.id, 1)}
+                    disabled={!user || votingId === item.id}
+                    className={`flex items-center gap-1 text-xs transition-colors ${userVote === 1 ? "text-green-400" : "text-[var(--foreground-muted)] hover:text-green-400"}`}
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" /> Hot
+                  </button>
+                  <span className={`text-sm font-bold ${item.score > 0 ? "text-orange-400" : "text-[var(--foreground-muted)]"}`}>
+                    {item.score > 0 ? "+" : ""}{item.score}
+                  </span>
+                  <button
+                    onClick={() => vote(item.id, -1)}
+                    disabled={!user || votingId === item.id}
+                    className={`flex items-center gap-1 text-xs transition-colors ${userVote === -1 ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
+                  >
+                    <ThumbsDown className="w-3.5 h-3.5" /> Not
+                  </button>
+                  {item.voterIds.length > 0 && (
+                    <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                   )}
+                  <button
+                    onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
+                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors ml-auto"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {expandedComments === item.id ? "Hide" : "Comments"}
+                    {item.commentCount > 0 && (
+                      <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>
+                    )}
+                  </button>
+                  {canDelete && confirmingDeleteId !== item.id && (
+                    <button
+                      onClick={() => setConfirmingDeleteId(item.id)}
+                      className="p-1.5 text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <ReportButton targetType="hotTake" targetId={item.id} />
                 </div>
-                </div>
+                {expandedComments === item.id && (
+                  <CommentSection targetType="hottake" targetId={item.id} isAdmin={isAdmin} />
+                )}
               </div>
             );
           })}

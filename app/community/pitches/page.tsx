@@ -345,48 +345,52 @@ export default function PitchesPage() {
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-3">
-                      <button
-                        onClick={() => vote(item.id, 1)}
-                        disabled={!user || votingId === item.id}
-                        className={`flex items-center gap-1 text-xs transition-colors ${userVote === 1 ? "text-emerald-400" : "text-[var(--foreground-muted)] hover:text-emerald-400"}`}
-                      >
-                        <ThumbsUp className="w-3.5 h-3.5" /> I&apos;d Watch
-                      </button>
-                      <span className={`text-sm font-bold ${item.score > 0 ? "text-emerald-400" : "text-[var(--foreground-muted)]"}`}>
-                        {item.score > 0 ? "+" : ""}{item.score}
-                      </span>
-                      <button
-                        onClick={() => vote(item.id, -1)}
-                        disabled={!user || votingId === item.id}
-                        className={`flex items-center gap-1 text-xs transition-colors ${userVote === -1 ? "text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400"}`}
-                      >
-                        <ThumbsDown className="w-3.5 h-3.5" /> Pass
-                      </button>
-                      {item.voterIds.length > 0 && (
-                        <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
-                      )}
-                      <button
-                        onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
-                        className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors ml-auto"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        {expandedComments === item.id ? "Hide" : "Comments"}
-                        {item.commentCount > 0 && <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>}
-                      </button>
-                      {canDel && confirmingDeleteId !== item.id && (
-                        <button onClick={() => setConfirmingDeleteId(item.id)}
-                          className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5" /> Delete
-                        </button>
-                      )}
-                      <ReportButton targetType="pitch" targetId={item.id} />
-                    </div>
-                    {expandedComments === item.id && (
-                      <CommentSection targetType="pitch" targetId={item.id} isAdmin={isAdmin} />
-                    )}
                   </div>
                 </div>
+                {/* Action row spans full card width — pulled out of
+                    the avatar+text flex column so it doesn't inherit
+                    the avatar's left-side indentation. flex-wrap is
+                    a safety net for very narrow screens. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                  <button
+                    onClick={() => vote(item.id, 1)}
+                    disabled={!user || votingId === item.id}
+                    className={`flex items-center gap-1 text-xs transition-colors ${userVote === 1 ? "text-emerald-400" : "text-[var(--foreground-muted)] hover:text-emerald-400"}`}
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" /> I&apos;d Watch
+                  </button>
+                  <span className={`text-sm font-bold ${item.score > 0 ? "text-emerald-400" : "text-[var(--foreground-muted)]"}`}>
+                    {item.score > 0 ? "+" : ""}{item.score}
+                  </span>
+                  <button
+                    onClick={() => vote(item.id, -1)}
+                    disabled={!user || votingId === item.id}
+                    className={`flex items-center gap-1 text-xs transition-colors ${userVote === -1 ? "text-red-400" : "text-[var(--foreground-muted)] hover:text-red-400"}`}
+                  >
+                    <ThumbsDown className="w-3.5 h-3.5" /> Pass
+                  </button>
+                  {item.voterIds.length > 0 && (
+                    <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
+                  )}
+                  <button
+                    onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
+                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors ml-auto"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {expandedComments === item.id ? "Hide" : "Comments"}
+                    {item.commentCount > 0 && <span className="text-xs text-[var(--foreground-muted)]">({item.commentCount})</span>}
+                  </button>
+                  {canDel && confirmingDeleteId !== item.id && (
+                    <button onClick={() => setConfirmingDeleteId(item.id)}
+                      className="p-1.5 text-[var(--foreground-muted)] hover:text-red-400 transition-colors" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <ReportButton targetType="pitch" targetId={item.id} />
+                </div>
+                {expandedComments === item.id && (
+                  <CommentSection targetType="pitch" targetId={item.id} isAdmin={isAdmin} />
+                )}
               </div>
             );
           })}
