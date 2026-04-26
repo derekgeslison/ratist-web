@@ -41,25 +41,24 @@ body {
    hover. We sidestep that entirely by writing the rules explicitly here
    with our own `.tile-hover-parent` / `.tile-hover-overlay` markers. */
 
+/* !important is here as belt-and-suspenders. Tailwind v4's
+   layer/cascade ordering with `@import "tailwindcss"` was somehow
+   letting another rule (or an unscanned compiled utility) keep the
+   overlay visible on touch devices. !important forces our intent
+   to win regardless of specificity surprises. */
 .tile-hover-overlay {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
   transition: opacity 0.2s ease;
 }
-/* Specificity bump so a co-applied `transition-all` Tailwind utility
-   (used on watchlist tile buttons for color hover) doesn't override
-   our opacity transition. */
-.tile-hover-overlay.tile-hover-overlay {
-  transition-property: opacity, background-color, border-color, color;
-}
 .tile-hover-overlay.revealed {
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 @media (hover: hover) {
   .tile-hover-parent:hover .tile-hover-overlay {
-    opacity: 1;
-    pointer-events: auto;
+    opacity: 1 !important;
+    pointer-events: auto !important;
   }
 }
 
