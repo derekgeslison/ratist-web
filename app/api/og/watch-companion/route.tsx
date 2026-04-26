@@ -13,31 +13,30 @@ const GROUP_COLORS = ["#e53e3e", "#3182ce", "#38a169", "#d69e2e", "#805ad5", "#d
  * circles arranged in a ring, edges as thin curves connecting a subset of
  * them. NO NAMES anywhere — the card is shareable without spoiling who
  * appears in the show.
+ *
+ * `groupColor` is supplied by the caller because color assignment needs
+ * the FULL season's character set — not the truncated/sorted subset used
+ * for layout — to stay aligned with the live Map tab's palette. If we
+ * built the map locally over `nodes` (already sliced to 20 and re-sorted
+ * by group), the encounter order would diverge from the viewer and a
+ * faction that's red on the page would appear green on the share card.
  */
 function abstractMapSvg(
   nodes: Array<{ group: string | null }>,
   edges: Array<{ fromIdx: number; toIdx: number; type: string }>,
+  groupColor: Map<string, string>,
   size: number,
 ): string {
   const center = size / 2;
   const radius = size * 0.4;
   const nodeRadius = Math.max(6, size * 0.018);
 
-  // Map groups to colors deterministically (first seen = index 0).
-  // Treat null, empty string, and whitespace-only strings as "no group"
-  // so legacy data with " " or "" keys can't sneak into the palette and
-  // pull GROUP_COLORS[0] (red) for what should be ungrouped characters.
-  const groupColor = new Map<string, string>();
+  // Treat null, empty, and whitespace-only group strings as "no group"
+  // so legacy data with " " or "" keys can't sneak into the palette.
   const groupKey = (g: string | null) => {
     const trimmed = (g ?? "").trim();
     return trimmed.length > 0 ? trimmed : null;
   };
-  for (const n of nodes) {
-    const key = groupKey(n.group);
-    if (key && !groupColor.has(key)) {
-      groupColor.set(key, GROUP_COLORS[groupColor.size % GROUP_COLORS.length]);
-    }
-  }
 
   const positions = nodes.map((_, i) => {
     const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
@@ -119,21 +118,45 @@ export async function GET(request: Request) {
     }
     const seasonFilter = targetSeason !== null ? { seasonNumber: targetSeason } : {};
 
-    // Pull just enough data for the abstract map. Cap to 20 nodes / 30 edges
-    // — enough to give every group at least one representative without
-    // making the ring unreadably dense.
-    //
-    // After fetching, sort by group so faction members sit adjacent on
-    // the ring. Without this the public viewer's map (which clusters
-    // by group) and the OG card looked nothing alike — characters
-    // landed in arbitrary slots based on sortOrder. Ungrouped
-    // characters drift to the end.
-    const charactersRaw = await prisma.companionCharacter.findMany({
+    // Fetch ALL season-scoped characters (cheap fields only) so the
+    // group→color map can be built over the full set in the same
+    // sortOrder + groupHistory order the live viewer uses. If we
+    // capped the fetch at 20 here, factions whose only members lived
+    // beyond #20 would never be added to the palette — the live view
+    // and the OG would assign different colors to the same group.
+    const allCharacters = await prisma.companionCharacter.findMany({
       where: { companionId: companion.id, ...seasonFilter },
-      select: { id: true, group: true, sortOrder: true },
-      take: 20,
+      select: { id: true, group: true, groupHistory: true, sortOrder: true },
       orderBy: { sortOrder: "asc" },
     });
+
+    // Build the color map exactly like WatchCompanionView's
+    // `groupColors` memo: insertion-order over base group AND every
+    // groupHistory entry, with empty strings filtered out. This is
+    // load-bearing for visual parity — the OG must stay locked to
+    // the live palette for the share card not to lie.
+    const groupColor = new Map<string, string>();
+    const allGroupSet = new Set<string>();
+    for (const c of allCharacters) {
+      const base = (c.group ?? "").trim();
+      if (base) allGroupSet.add(base);
+      const history = Array.isArray(c.groupHistory)
+        ? (c.groupHistory as Array<{ group?: string }>)
+        : [];
+      for (const h of history) {
+        const g = (h?.group ?? "").trim();
+        if (g) allGroupSet.add(g);
+      }
+    }
+    Array.from(allGroupSet).forEach((g, i) => {
+      groupColor.set(g, GROUP_COLORS[i % GROUP_COLORS.length]);
+    });
+
+    // For the visual map: cap to 20 and cluster by group so faction
+    // members sit adjacent on the ring (matches viewer's clustered
+    // layout intent). Sort happens AFTER color assignment so encounter
+    // order — and therefore color — is unaffected.
+    const charactersRaw = allCharacters.slice(0, 20);
     const characters = [...charactersRaw].sort((a, b) => {
       const aHas = !!(a.group && a.group.trim());
       const bHas = !!(b.group && b.group.trim());
@@ -231,7 +254,7 @@ export async function GET(request: Request) {
     const pillsToShow = metaPills.slice(0, 5);
     const posterUrl = posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : null;
 
-    const mapSvg = abstractMapSvg(characters, edges, 420);
+    const mapSvg = abstractMapSvg(characters, edges, groupColor, 420);
     const mapDataUrl = `data:image/svg+xml;base64,${Buffer.from(mapSvg).toString("base64")}`;
 
     const seasonLabel = companion.mediaType === "tv" && targetSeason !== null
