@@ -46,6 +46,7 @@ interface WatchlistMovie {
   releaseDate: string | null;
   voteAverage: number | null;
   ratistRating: number | null;
+  mediaType?: "movie" | "tv";
 }
 
 interface SimilarUser {
@@ -132,14 +133,14 @@ interface Props {
   movieClubWeeksParticipated?: number;
 }
 
-const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Stats", "Rankings"] as const;
+const TABS = ["Overview", "Ratings", "Diary", "Watchlist", "Rankings", "Stats"] as const;
 type Tab = (typeof TABS)[number];
 
 function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile, isEmpty }: {
   name: string;
   movieCount: number;
   isPrivate: boolean;
-  movies: { tmdbId: number; title: string; posterPath: string | null }[];
+  movies: { tmdbId: number; title: string; posterPath: string | null; mediaType?: "movie" | "tv" }[];
   href?: string;
   isOwnProfile: boolean;
   isEmpty?: boolean;
@@ -176,9 +177,19 @@ function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile
       ) : movies.length > 0 ? (
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
           {movies.slice(0, 8).map((m) => (
-            <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="group">
+            <Link
+              key={`${m.mediaType ?? "movie"}-${m.tmdbId}`}
+              href={`/${m.mediaType === "tv" ? "shows" : "movies"}/${m.tmdbId}`}
+              className="group"
+            >
               <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
                 <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
+                {m.mediaType === "tv" && (
+                  <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
+                    <Tv className="w-2.5 h-2.5" />
+                    <span className="text-[8px] font-bold leading-none">TV</span>
+                  </div>
+                )}
               </div>
               <p className="text-[11px] text-[var(--foreground-muted)] line-clamp-1">{m.title}</p>
             </Link>
@@ -663,7 +674,11 @@ export default function ProfileTabs({
         <div>
           {isOwnProfile && (
             <div className="flex justify-between mb-3">
-              <Link href="/ratings" className="text-sm text-[var(--ratist-red)] hover:underline">
+              {/* Foreground (text) color rather than accent — when a
+                  user picks a low-contrast accent (e.g., black on
+                  dark gray), accent-colored text becomes unreadable.
+                  Profile-page nav links should always be legible. */}
+              <Link href="/ratings" className="text-sm text-[var(--foreground)] hover:underline">
                 View all ratings →
               </Link>
               <Link href="/profile/import" className="text-xs text-[var(--foreground-muted)] hover:text-white hover:underline">
@@ -753,8 +768,12 @@ export default function ProfileTabs({
       {/* ── WATCHLIST TAB ── */}
       {activeTab === "Watchlist" && (
         <div className="space-y-5">
-          {isOwnProfile && (watchlistMovies.length > 0 || userWatchlists.length > 0) && (
-            <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">
+          {isOwnProfile && (
+            // Always render this link for the owner — even on an
+            // empty watchlist they need a way to get to the manage
+            // page. Foreground color so it stays legible regardless
+            // of the user's chosen accent.
+            <Link href="/watchlist" className="text-sm text-[var(--foreground)] hover:underline">
               Manage watchlists →
             </Link>
           )}
@@ -957,6 +976,13 @@ export default function ProfileTabs({
         const rankingsUrl = `${siteUrl}/profile/${profileFirebaseUid}/rankings/${listKey}`;
         return (
         <div>
+          {isOwnProfile && (
+            <div className="mb-3">
+              <Link href={`/profile/${profileFirebaseUid}/rankings/${listKey}`} className="text-sm text-[var(--foreground)] hover:underline">
+                View all rankings →
+              </Link>
+            </div>
+          )}
           {displayRankings.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-[var(--foreground-muted)] mb-3">
@@ -976,7 +1002,7 @@ export default function ProfileTabs({
                 </p>
                 <div className="flex items-center gap-3 shrink-0">
                   {isOwnProfile && (
-                    <Link href="/tools/rankings" className="text-xs text-[var(--ratist-red)] hover:underline">
+                    <Link href="/tools/rankings" className="text-xs text-[var(--foreground)] hover:underline">
                       Reorder →
                     </Link>
                   )}

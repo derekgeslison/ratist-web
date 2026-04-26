@@ -145,30 +145,50 @@ export default async function ProfilePage({ params }: Props) {
       orderBy: { createdAt: "desc" },
     }),
     prisma.watchlist.findFirst({ where: { userId: user.id, isDefault: true } }).then(async (wl) => {
-      if (!wl) return { watchlist: null, movies: [] };
-      const movies = await prisma.watchlistMovie.findMany({
-        where: { watchlistId: wl.id },
-        include: {
-          movie: {
-            select: {
-              tmdbId: true, title: true, posterPath: true, releaseDate: true,
-              voteAverage: true,
-              ratings: { where: { userId: user.id }, select: { ratistRating: true }, take: 1 },
+      if (!wl) return { watchlist: null, movies: [], shows: [] };
+      const [movies, shows] = await Promise.all([
+        prisma.watchlistMovie.findMany({
+          where: { watchlistId: wl.id },
+          include: {
+            movie: {
+              select: {
+                tmdbId: true, title: true, posterPath: true, releaseDate: true,
+                voteAverage: true,
+                ratings: { where: { userId: user.id }, select: { ratistRating: true }, take: 1 },
+              },
             },
           },
-        },
-        orderBy: { addedAt: "desc" },
-      });
-      return { watchlist: wl, movies };
+          orderBy: { addedAt: "desc" },
+        }),
+        prisma.watchlistShow.findMany({
+          where: { watchlistId: wl.id },
+          include: {
+            tvShow: {
+              select: {
+                tmdbId: true, name: true, posterPath: true, firstAirDate: true,
+                voteAverage: true,
+                ratings: { where: { userId: user.id, ratingScope: "series" }, select: { ratistRating: true }, take: 1 },
+              },
+            },
+          },
+          orderBy: { addedAt: "desc" },
+        }),
+      ]);
+      return { watchlist: wl, movies, shows };
     }),
     prisma.watchlist.findMany({
       where: { userId: user.id, isDefault: false },
       include: {
-        _count: { select: { movies: true } },
+        _count: { select: { movies: true, shows: true } },
         movies: {
           take: 20,
           orderBy: { addedAt: "desc" },
           include: { movie: { select: { tmdbId: true, title: true, posterPath: true } } },
+        },
+        shows: {
+          take: 20,
+          orderBy: { addedAt: "desc" },
+          include: { tvShow: { select: { tmdbId: true, name: true, posterPath: true } } },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -498,14 +518,30 @@ export default async function ProfilePage({ params }: Props) {
             mediaType: "tv" as const,
           })),
         ].sort((a, b) => new Date(b.seenAt).getTime() - new Date(a.seenAt).getTime())}
-        watchlistMovies={defaultWatchlistData.movies.map((w) => ({
-          tmdbId: w.movie.tmdbId,
-          title: w.movie.title,
-          posterPath: w.movie.posterPath,
-          releaseDate: w.movie.releaseDate,
-          voteAverage: w.movie.voteAverage ?? null,
-          ratistRating: w.movie.ratings[0]?.ratistRating ?? null,
-        }))}
+        watchlistMovies={[
+          ...defaultWatchlistData.movies.map((w) => ({
+            tmdbId: w.movie.tmdbId,
+            title: w.movie.title,
+            posterPath: w.movie.posterPath,
+            releaseDate: w.movie.releaseDate,
+            voteAverage: w.movie.voteAverage ?? null,
+            ratistRating: w.movie.ratings[0]?.ratistRating ?? null,
+            mediaType: "movie" as const,
+            addedAt: w.addedAt.toISOString(),
+          })),
+          ...defaultWatchlistData.shows.map((w) => ({
+            tmdbId: w.tvShow.tmdbId,
+            title: w.tvShow.name,
+            posterPath: w.tvShow.posterPath,
+            releaseDate: w.tvShow.firstAirDate,
+            voteAverage: w.tvShow.voteAverage ?? null,
+            ratistRating: w.tvShow.ratings[0]?.ratistRating ?? null,
+            mediaType: "tv" as const,
+            addedAt: w.addedAt.toISOString(),
+          })),
+        ]
+          .sort((a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime())
+          .map(({ addedAt: _, ...rest }) => rest)}
         defaultWatchlistId={defaultWatchlistData.watchlist?.id ?? null}
         defaultWatchlistPrivate={defaultWatchlistData.watchlist?.isPrivate ?? false}
         userWatchlists={userWatchlists.map((wl) => ({
@@ -513,8 +549,28 @@ export default async function ProfilePage({ params }: Props) {
           name: wl.name,
           description: wl.description,
           isPrivate: wl.isPrivate,
-          movieCount: wl._count.movies,
-          previewMovies: wl.movies.map((m) => ({ tmdbId: m.movie.tmdbId, title: m.movie.title, posterPath: m.movie.posterPath })),
+          // Combined count so a list of all-shows still reports its
+          // size correctly (movies-only count was misleading).
+          movieCount: wl._count.movies + wl._count.shows,
+          previewMovies: [
+            ...wl.movies.map((m) => ({
+              tmdbId: m.movie.tmdbId,
+              title: m.movie.title,
+              posterPath: m.movie.posterPath,
+              mediaType: "movie" as const,
+              addedAt: m.addedAt.toISOString(),
+            })),
+            ...wl.shows.map((s) => ({
+              tmdbId: s.tvShow.tmdbId,
+              title: s.tvShow.name,
+              posterPath: s.tvShow.posterPath,
+              mediaType: "tv" as const,
+              addedAt: s.addedAt.toISOString(),
+            })),
+          ]
+            .sort((a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime())
+            .slice(0, 20)
+            .map(({ addedAt: _, ...rest }) => rest),
         }))}
         recommendations={recommendations}
         similarUsers={similarUsers}
