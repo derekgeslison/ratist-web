@@ -67,6 +67,9 @@ export default async function ShowReviewsPage({ params, searchParams }: Props) {
       tvShowId: dbShow.id,
       ...typeFilter,
       ...scopeFilter,
+      // Exclude drafts (text saved before required fields → no
+      // ratistRating computed).
+      ratistRating: { not: null },
       OR: [
         { reviewText: { not: null } },
         { ratistRating: { not: null } },

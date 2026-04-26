@@ -67,16 +67,19 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Regenerate — fetch a cross-section of reviews, prefer those with substantive text
+  // Regenerate — fetch a cross-section of reviews, prefer those with
+  // substantive text. ratistRating filter excludes drafts (text saved
+  // before all required fields filled) so the digest doesn't pull
+  // from incomplete entries.
   const reviews = mediaType === "movie"
     ? await prisma.movieRating.findMany({
-        where: { movieId: internalId, excluded: false, reviewText: { not: null } },
+        where: { movieId: internalId, excluded: false, reviewText: { not: null }, ratistRating: { not: null } },
         select: { ratistRating: true, reviewText: true },
         orderBy: { createdAt: "desc" },
         take: 40,
       })
     : await prisma.tVShowRating.findMany({
-        where: { tvShowId: internalId, excluded: false, ratingScope: "series", reviewText: { not: null } },
+        where: { tvShowId: internalId, excluded: false, ratingScope: "series", reviewText: { not: null }, ratistRating: { not: null } },
         select: { ratistRating: true, reviewText: true },
         orderBy: { createdAt: "desc" },
         take: 40,

@@ -58,6 +58,11 @@ export default async function MovieReviewsPage({ params, searchParams }: Props) 
     where: {
       movieId: dbMovie.id,
       ...typeFilter,
+      // Drafts (text saved without all required fields, so
+      // ratistRating never got computed) shouldn't appear here.
+      // Requiring ratistRating excludes them while still including
+      // numeric-only ratings without written text.
+      ratistRating: { not: null },
       OR: [
         { reviewText: { not: null } },
         { ratistRating: { not: null } },

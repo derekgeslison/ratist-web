@@ -41,6 +41,8 @@ export async function GET(req: NextRequest, { params }: Props) {
       where: {
         movieId: dbMovie.id,
         userId: { in: followingIds },
+        // Exclude drafts (no ratistRating computed yet).
+        ratistRating: { not: null },
         OR: [
           { reviewText: { not: null } },
           { ratistRating: { not: null } },

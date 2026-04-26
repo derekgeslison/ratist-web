@@ -190,6 +190,9 @@ export default async function ShowDetailPage({ params }: Props) {
           where: {
             tvShowId: dbShow.id,
             reviewText: { not: null },
+            // Exclude drafts (text saved before required fields → no
+            // ratistRating computed).
+            ratistRating: { not: null },
           },
           select: {
             id: true,

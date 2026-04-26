@@ -129,6 +129,12 @@ export default async function MovieDetailPage({ params }: Props) {
         where: {
           movieId: dbMovie.id,
           reviewText: { not: null },
+          // Exclude drafts. A complete review always has ratistRating
+          // set — basic reviews copy overallRating into it, standard
+          // and critic reviews compute it from required sub-fields.
+          // A draft (saved without all required fields) leaves
+          // ratistRating null.
+          ratistRating: { not: null },
         },
         select: {
           id: true,
