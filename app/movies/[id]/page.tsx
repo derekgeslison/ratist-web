@@ -25,6 +25,7 @@ import {
 } from "@/lib/tmdb";
 import UserMoviePanel from "@/components/UserMoviePanel";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
+import CommunityBreakdown from "@/components/CommunityBreakdown";
 import { upsertMovie } from "@/lib/tmdb-sync";
 import { getMovieAwards } from "@/lib/awards";
 import { syncMovieAwards } from "@/lib/awards-sync";
@@ -442,6 +443,13 @@ export default async function MovieDetailPage({ params }: Props) {
               tmdbScore={communityScore}
             />
           </div>
+        </div>
+
+        {/* Community ratings breakdown — full-width below the
+           poster row so the bars aren't squeezed into the narrow
+           right column on mobile. */}
+        <div className="mb-6">
+          <CommunityBreakdown tmdbId={movie.id} mediaType="movie" />
         </div>
 
         {/* Collection / Franchise */}

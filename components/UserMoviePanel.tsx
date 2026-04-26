@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
-import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, ChevronDown, ChevronUp, RotateCcw, Plus, CalendarDays } from "lucide-react";
+import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, RotateCcw, Plus, CalendarDays } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
@@ -21,31 +21,6 @@ interface CategoryAvg {
   count: number;
   fields?: Record<string, number | null>;
 }
-
-const CATEGORY_FIELDS: { label: string; scoreKey: string; fields: { key: string; label: string }[] }[] = [
-  { label: "Story", scoreKey: "storyScore", fields: [
-    { key: "plot", label: "Plot" }, { key: "premiseOriginality", label: "Originality" },
-    { key: "storytelling", label: "Storytelling" }, { key: "characterDev", label: "Character Dev" },
-    { key: "pacingClimax", label: "Pacing" },
-  ]},
-  { label: "Style", scoreKey: "styleScore", fields: [
-    { key: "cinematography", label: "Cinematography" }, { key: "locationCost", label: "Location & Costume" },
-    { key: "artisticEffect", label: "Artistic Effect" }, { key: "visualEffects", label: "Visual Effects" },
-    { key: "musicSound", label: "Music & Sound" },
-  ]},
-  { label: "Emotive", scoreKey: "emotiveScore", fields: [
-    { key: "overallEmotion", label: "Emotion" }, { key: "relatability", label: "Relatability" },
-    { key: "meaning", label: "Meaning" }, { key: "movingness", label: "Movingness" },
-  ]},
-  { label: "Acting", scoreKey: "actingScore", fields: [
-    { key: "casting", label: "Casting & Subjects" }, { key: "actingQuality", label: "Performance" },
-    { key: "dialogueScripting", label: "Writing" }, { key: "blockingChoreo", label: "Blocking & Choreo" },
-  ]},
-  { label: "Entertainment", scoreKey: "entertainScore", fields: [
-    { key: "appeal", label: "Appeal" }, { key: "superficialAllure", label: "Superficial Allure" },
-    { key: "choreography", label: "Choreography" },
-  ]},
-];
 
 interface UserRating {
   ratistRating: number | null;
@@ -85,7 +60,6 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
   const [togglingSeeen, setTogglingSeeen] = useState(false);
   const [togglingWatchlist, setTogglingWatchlist] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
   const [showRewatchModal, setShowRewatchModal] = useState(false);
   const [rewatchNotes, setRewatchNotes] = useState("");
   const [rewatchDate, setRewatchDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -615,61 +589,10 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
         </div>
       )}
 
-      {/* Community breakdown bars — expandable */}
-      {communityAvg && communityAvg.count > 0 && (
-        <div className="mt-2">
-          <p className="text-xs text-[var(--foreground-muted)] mb-2">
-            Community breakdown
-          </p>
-          {CATEGORY_FIELDS.map(({ label, scoreKey, fields }) => {
-            const catScore = (communityAvg as unknown as Record<string, number | null>)[scoreKey];
-            if (catScore == null) return null;
-            const isExpanded = expandedCats.has(label);
-            const fieldData = communityAvg.fields ?? {};
-            const hasFields = fields.some((f) => fieldData[f.key] != null);
-            return (
-              <div key={label} className="mb-1">
-                <button
-                  onClick={() => hasFields && setExpandedCats((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(label)) next.delete(label); else next.add(label);
-                    return next;
-                  })}
-                  className={`flex items-center gap-2 w-full group ${hasFields ? "cursor-pointer" : "cursor-default"}`}
-                >
-                  <span className="text-xs text-[var(--foreground-muted)] w-24 shrink-0 text-left">{label}</span>
-                  <div className="flex-1 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(catScore / 10) * 100}%`, backgroundColor: scoreColor(catScore) }} />
-                  </div>
-                  <span className="text-xs font-semibold w-7 text-right" style={{ color: scoreColor(catScore) }}>{catScore.toFixed(1)}</span>
-                  {hasFields && (
-                    isExpanded
-                      ? <ChevronUp className="w-3 h-3 text-[var(--foreground-muted)]" />
-                      : <ChevronDown className="w-3 h-3 text-[var(--foreground-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </button>
-                {isExpanded && (
-                  <div className="ml-6 mt-1 mb-2 space-y-1">
-                    {fields.map(({ key, label: fLabel }) => {
-                      const val = fieldData[key];
-                      if (val == null) return null;
-                      return (
-                        <div key={key} className="flex items-center gap-2">
-                          <span className="text-[10px] text-[var(--foreground-muted)] w-20 shrink-0">{fLabel}</span>
-                          <div className="flex-1 h-1 bg-[var(--surface-2)] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${(val / 10) * 100}%`, backgroundColor: scoreColor(val) }} />
-                          </div>
-                          <span className="text-[10px] font-semibold w-6 text-right" style={{ color: scoreColor(val) }}>{val.toFixed(1)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Community breakdown moved out of this panel — now rendered
+          full-width below the poster+details row by the page so the
+          bars aren't squeezed into the narrow right column on mobile.
+          See <CommunityBreakdown /> on /movies/[id]/page.tsx. */}
 
       {/* Sign-in prompt */}
       {!user && loaded && (

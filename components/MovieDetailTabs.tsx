@@ -173,37 +173,6 @@ export default function MovieDetailTabs({
                 </Link>
               </div>
 
-              {/* Review preview */}
-              {reviews.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-white">
-                      Community Reviews
-                      <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>
-                    </h3>
-                    <button onClick={() => setActiveTab("Reviews")} className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1">
-                      See all reviews <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <ReviewDigest mediaType="movie" tmdbId={movie.id} />
-                  {reviews.slice(0, 3).map((r) => (
-                    <ReviewCard
-                      key={r.id}
-                      review={{
-                        id: r.id, reviewText: r.reviewText, ratistRating: r.ratistRating,
-                        overallRating: r.overallRating, storyScore: null, styleScore: null,
-                        emotiveScore: null, actingScore: null, entertainScore: null,
-                        reviewType: r.reviewType, fieldComments: null, categoryComments: null,
-                        hasSpoilers: r.hasSpoilers, commentsDisabled: r.commentsDisabled,
-                        createdAt: r.createdAt, commentCount: r.commentCount, likeCount: r.likeCount,
-                        likedByMe: false, user: r.user,
-                      }}
-                      movieTmdbId={movie.id}
-                      compact
-                    />
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Right: facts + watch providers */}
@@ -219,6 +188,12 @@ export default function MovieDetailTabs({
                 )}
                 {composers.length > 0 && (
                   <FactRow label="Music" value={composers[0].name} />
+                )}
+                {movie.production_companies && movie.production_companies.length > 0 && (
+                  <FactRow
+                    label="Studio"
+                    value={movie.production_companies.slice(0, 3).map((c) => c.name).join(", ")}
+                  />
                 )}
                 {movie.budget ? (
                   <FactRow label="Budget" value={`$${movie.budget.toLocaleString()}`} />
@@ -237,6 +212,41 @@ export default function MovieDetailTabs({
               />
             </div>
           </div>
+
+          {/* Community Reviews — outside the grid so on mobile they
+              stack BELOW the right column (movie info + streaming),
+              giving the user the most-relevant pre-watch info first
+              and the social signal second. Matches ShowDetailTabs. */}
+          {reviews.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-white">
+                  Community Reviews
+                  <span className="ml-2 text-sm font-normal text-[var(--foreground-muted)]">({reviews.length})</span>
+                </h3>
+                <button onClick={() => setActiveTab("Reviews")} className="text-sm text-[var(--ratist-red)] hover:underline flex items-center gap-1">
+                  See all reviews <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <ReviewDigest mediaType="movie" tmdbId={movie.id} />
+              {reviews.slice(0, 3).map((r) => (
+                <ReviewCard
+                  key={r.id}
+                  review={{
+                    id: r.id, reviewText: r.reviewText, ratistRating: r.ratistRating,
+                    overallRating: r.overallRating, storyScore: null, styleScore: null,
+                    emotiveScore: null, actingScore: null, entertainScore: null,
+                    reviewType: r.reviewType, fieldComments: null, categoryComments: null,
+                    hasSpoilers: r.hasSpoilers, commentsDisabled: r.commentsDisabled,
+                    createdAt: r.createdAt, commentCount: r.commentCount, likeCount: r.likeCount,
+                    likedByMe: false, user: r.user,
+                  }}
+                  movieTmdbId={movie.id}
+                  compact
+                />
+              ))}
+            </div>
+          )}
 
           {/* Recommendations */}
           {recommendations.length > 0 && (

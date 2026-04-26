@@ -734,6 +734,12 @@ export default function ShowDetailTabs({
                 {show.networks && show.networks.length > 0 && (
                   <FactRow label="Network" value={show.networks.map((n) => n.name).join(", ")} />
                 )}
+                {show.production_companies && show.production_companies.length > 0 && (
+                  <FactRow
+                    label="Studio"
+                    value={show.production_companies.slice(0, 3).map((c) => c.name).join(", ")}
+                  />
+                )}
                 {show.number_of_seasons && (
                   <FactRow label="Seasons" value={String(show.number_of_seasons)} />
                 )}

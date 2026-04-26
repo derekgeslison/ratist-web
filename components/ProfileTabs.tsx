@@ -318,6 +318,19 @@ export default function ProfileTabs({
   const componentKeys = Object.keys(componentLabels);
   const genreKeys = Object.keys(genreLabels);
 
+  // Mirrors lib/profile.ts FOCUSED_CATEGORIES — the rating sub-fields
+  // that contribute to each component score. Used as a hint when the
+  // user taps a preference bar so they understand what "Narrative" or
+  // "Cinematic" actually represents.
+  const COMPONENT_CONTRIBUTORS: Record<string, readonly string[]> = {
+    narrativeFocused: ["Plot", "Storytelling", "Pacing", "Originality"],
+    characterFocused: ["Relatability", "Character development", "Dialogue"],
+    messageFocused: ["Emotion", "Meaning", "Movingness"],
+    cinematicFocused: ["Cinematography", "Artistic effect", "Visual effects", "Locations & costume", "Music & sound"],
+    performanceFocused: ["Casting", "Acting quality", "Blocking & choreography"],
+    entertainmentFocused: ["Appeal", "Pacing"],
+  };
+
   const topComponents = profile
     ? componentKeys
         .map((k) => ({ key: k, label: componentLabels[k], score: profile[k] as number ?? 0 }))
@@ -415,7 +428,12 @@ export default function ProfileTabs({
                 <h2 className="text-base font-semibold text-white mb-4">Movie Component Preferences</h2>
                 <div className="space-y-2">
                   {topComponents.map((c) => (
-                    <CategoryScoreBar key={c.key} label={c.label} score={c.score > 0 ? c.score : null} />
+                    <CategoryScoreBar
+                      key={c.key}
+                      label={c.label}
+                      score={c.score > 0 ? c.score : null}
+                      contributors={COMPONENT_CONTRIBUTORS[c.key]}
+                    />
                   ))}
                 </div>
               </section>

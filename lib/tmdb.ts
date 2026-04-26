@@ -30,6 +30,7 @@ export interface TMDBMovie {
   original_language?: string;
   genres?: { id: number; name: string }[];
   belongs_to_collection?: { id: number; name: string; poster_path: string | null; backdrop_path: string | null } | null;
+  production_companies?: { id: number; name: string; logo_path: string | null; origin_country: string }[];
   videos?: { results: TMDBVideo[] };
   credits?: { cast: TMDBCastMember[]; crew: TMDBCrewMember[] };
   release_dates?: { results: TMDBReleaseDateResult[] };
@@ -512,6 +513,7 @@ export interface TMDBShow {
   original_language?: string;
   genres?: { id: number; name: string }[];
   networks?: { id: number; name: string; logo_path: string | null }[];
+  production_companies?: { id: number; name: string; logo_path: string | null; origin_country: string }[];
   created_by?: { id: number; name: string; profile_path: string | null }[];
   seasons?: TMDBSeason[];
   videos?: { results: TMDBVideo[] };
