@@ -12,11 +12,20 @@ interface Props {
 export default function PageShare({ title, url }: Props) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const shareUrl = url ?? (typeof window !== "undefined" ? window.location.href : "");
+  // The URL captured when the user activates share (modal open OR
+  // native share). Read at CLICK time so it always reflects the page
+  // they're actually on. Capturing at render time was unreliable: in
+  // App Router soft-navigation, a parent may not re-render when the
+  // URL changes, leaving a closure with the prior page's href and
+  // sharing the wrong link.
+  const [shareUrl, setShareUrl] = useState("");
   const shareText = title;
   const encodedText = encodeURIComponent(shareText);
   const encodedUrl = encodeURIComponent(shareUrl);
+
+  function readCurrentUrl(): string {
+    return url ?? (typeof window !== "undefined" ? window.location.href : "");
+  }
 
   function handleCopy() {
     navigator.clipboard.writeText(shareUrl).then(() => {
@@ -26,11 +35,13 @@ export default function PageShare({ title, url }: Props) {
   }
 
   async function handleNativeShare() {
+    const live = readCurrentUrl();
+    setShareUrl(live);
     // Only attempt native share if the API exists AND we're likely on mobile
     // (navigator.share exists on some desktop browsers too but behaves differently)
     if (typeof navigator !== "undefined" && typeof navigator.share === "function" && "ontouchstart" in window) {
       try {
-        await navigator.share({ title: shareText, url: shareUrl });
+        await navigator.share({ title: shareText, url: live });
       } catch { /* user cancelled */ }
       return; // always return — don't also show the modal
     }
