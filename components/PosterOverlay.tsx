@@ -79,16 +79,14 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
   }
 
   const touch = useTouchReveal();
-  const overlayClass = touch.revealed
-    ? "opacity-100 pointer-events-auto"
-    : "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover/poster:opacity-100 [@media(hover:hover)]:group-hover/poster:pointer-events-auto";
+  const overlayClass = `tile-hover-overlay${touch.revealed ? " revealed" : ""}`;
 
   return (
-    <div className="group/poster" {...touch.containerProps}>
+    <div className="tile-hover-parent group/poster" {...touch.containerProps}>
       <div className="relative">
         {children}
         {user && (
-          <div className={`absolute inset-0 bg-black/50 transition-opacity flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg z-10 ${overlayClass}`}>
+          <div className={`${overlayClass} absolute inset-0 bg-black/50 flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg z-10`}>
             {seenError && (
               <div className="absolute top-1 left-1 right-1 bg-red-900/90 text-white text-[9px] rounded px-1.5 py-1 text-center z-20">
                 {seenError}

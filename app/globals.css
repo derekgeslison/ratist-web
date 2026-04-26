@@ -33,6 +33,46 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* ─── Tile action overlay (movie/show cards, watchlist tiles) ──────────────
+   Hover-reveal on devices with a real pointing device, long-press-reveal
+   on touch via JS-set `.revealed`. Tailwind v4's `hover` variant is gated
+   to (hover: hover) by default, but `group-hover` is NOT — so a class
+   like `group-hover:opacity-100` will fire on tap on Android via sticky
+   hover. We sidestep that entirely by writing the rules explicitly here
+   with our own `.tile-hover-parent` / `.tile-hover-overlay` markers. */
+
+.tile-hover-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+/* Specificity bump so a co-applied `transition-all` Tailwind utility
+   (used on watchlist tile buttons for color hover) doesn't override
+   our opacity transition. */
+.tile-hover-overlay.tile-hover-overlay {
+  transition-property: opacity, background-color, border-color, color;
+}
+.tile-hover-overlay.revealed {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .tile-hover-parent:hover .tile-hover-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Suppress the OS link callout/share menu on long-press for any
+   element marked as a touch-reveal target. -webkit-touch-callout
+   handles iOS; user-select + the React onContextMenu handler in
+   useTouchReveal handle Android. */
+.tile-hover-parent {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

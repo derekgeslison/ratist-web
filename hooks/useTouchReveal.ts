@@ -131,13 +131,18 @@ export function useTouchReveal() {
     }
   }, [cancelPress]);
 
-  // Suppress the iOS/Android long-press context menu (share sheet,
-  // image preview, "Add link to home screen") when we're going to
-  // intercept the gesture ourselves. Without this, the OS UI fights
-  // our overlay reveal.
+  // Suppress the OS long-press menu (Android's "Open in new tab /
+  // Share..." sheet, iOS's link callout) when the gesture came from
+  // a touch. We check matchMedia AT EVENT TIME rather than relying
+  // on the useState `isTouch` flag — that flag's update happens via
+  // useEffect and may not have flipped yet on the first interaction
+  // after page load, which is precisely when the user is most likely
+  // to long-press a tile. Reading matchMedia inline closes that gap.
   const onContextMenu = useCallback((e: React.MouseEvent) => {
-    if (isTouch) e.preventDefault();
-  }, [isTouch]);
+    if (typeof window !== "undefined" && window.matchMedia("(hover: none)").matches) {
+      e.preventDefault();
+    }
+  }, []);
 
   return {
     isTouch,

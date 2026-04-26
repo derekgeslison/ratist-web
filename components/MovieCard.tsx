@@ -65,15 +65,13 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
   // touch devices don't fire `:hover` on tap (the long-known sticky-
   // hover quirk that defeated the prior version of this fix).
   const touch = useTouchReveal();
-  const overlayClass = touch.revealed
-    ? "opacity-100 pointer-events-auto"
-    : "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto";
+  const overlayClass = `tile-hover-overlay${touch.revealed ? " revealed" : ""}`;
 
   return (
     <Link
       href={`/movies/${movie.id}`}
       {...touch.containerProps}
-      className="group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
+      className="tile-hover-parent group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
       data-seen-filter-id={`movie-${movie.id}`}
     >
       <div className="relative aspect-[2/3] overflow-hidden bg-[var(--surface-2)]">
@@ -85,7 +83,7 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
           className="object-cover group-hover:scale-105 transition-transform duration-300"
         />
         {user && (
-          <div className={`absolute inset-0 bg-black/50 transition-opacity flex flex-col items-center justify-end gap-2 pb-3 ${overlayClass}`}>
+          <div className={`${overlayClass} absolute inset-0 bg-black/50 flex flex-col items-center justify-end gap-2 pb-3`}>
             {seenError && (
               <div className="absolute top-2 left-2 right-2 bg-red-900/90 text-white text-[10px] rounded-lg px-2 py-1.5 text-center z-20">
                 {seenError}

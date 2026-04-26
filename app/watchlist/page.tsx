@@ -134,11 +134,9 @@ function WatchlistTileShell({
   children: (overlayClass: string) => React.ReactNode;
 }) {
   const touch = useTouchReveal();
-  const overlayClass = touch.revealed
-    ? "opacity-100 pointer-events-auto"
-    : "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto";
+  const overlayClass = `tile-hover-overlay${touch.revealed ? " revealed" : ""}`;
   return (
-    <div className="group flex flex-col relative" {...touch.containerProps}>
+    <div className="tile-hover-parent group flex flex-col relative" {...touch.containerProps}>
       {children(overlayClass)}
     </div>
   );
