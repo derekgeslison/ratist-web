@@ -87,7 +87,11 @@ export function useTouchReveal() {
   }, []);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isTouch) return;
+    // No isTouch gate: touch events only fire on devices that
+    // actually generate them, and the matchMedia-based isTouch flag
+    // doesn't flip until after the first useEffect runs — gating on
+    // it caused the very first interaction on a freshly-loaded page
+    // to fall through to the desktop hover path.
     const t = e.touches[0];
     if (!t) return;
     startPos.current = { x: t.clientX, y: t.clientY };
@@ -105,7 +109,7 @@ export function useTouchReveal() {
         }
       } catch { /* private mode — silently skip */ }
     }, PRESS_MS);
-  }, [isTouch]);
+  }, []);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (!startPos.current) return;

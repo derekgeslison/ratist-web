@@ -57,9 +57,9 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
     onWatchlistedChange: setWatchlistState,
   });
   const touch = useTouchReveal();
-  const overlayClass = touch.isTouch
-    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
-    : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto";
+  const overlayClass = touch.revealed
+    ? "opacity-100 pointer-events-auto"
+    : "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto";
 
   return (
     <Link

@@ -79,9 +79,9 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
   }
 
   const touch = useTouchReveal();
-  const overlayClass = touch.isTouch
-    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
-    : "opacity-0 pointer-events-none group-hover/poster:opacity-100 group-hover/poster:pointer-events-auto";
+  const overlayClass = touch.revealed
+    ? "opacity-100 pointer-events-auto"
+    : "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover/poster:opacity-100 [@media(hover:hover)]:group-hover/poster:pointer-events-auto";
 
   return (
     <div className="group/poster" {...touch.containerProps}>

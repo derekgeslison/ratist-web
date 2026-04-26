@@ -60,17 +60,14 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
     releaseDate: movie.release_date,
     onWatchlistedChange: setWatchlistState,
   });
-  // On touch devices, hover-reveal becomes long-press-reveal. The
-  // hook returns no-op props on mouse devices so desktop is
-  // unaffected.
+  // Long-press reveal on touch + hover reveal on desktop. The
+  // group-hover variants are gated behind [@media(hover:hover)] so
+  // touch devices don't fire `:hover` on tap (the long-known sticky-
+  // hover quirk that defeated the prior version of this fix).
   const touch = useTouchReveal();
-  // Overlay visibility — hover on desktop, revealed-state on touch.
-  // pointer-events flip is the load-bearing fix for the bug where
-  // tapping an "invisible" button on mobile fired the action
-  // instead of the link's navigation.
-  const overlayClass = touch.isTouch
-    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
-    : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto";
+  const overlayClass = touch.revealed
+    ? "opacity-100 pointer-events-auto"
+    : "opacity-0 pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto";
 
   return (
     <Link
