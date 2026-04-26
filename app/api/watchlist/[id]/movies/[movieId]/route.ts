@@ -85,14 +85,18 @@ export async function PATCH(req: NextRequest, { params }: Props) {
           await prisma.userFavoriteMovie.create({
             data: { userId: user.id, movieId: movieEntry.movieId, watchedDate },
           });
-          // Awaited (not fire-and-forget) so the response can
-          // accurately tell the client whether the active list lost
-          // this entry — used to drop the row after the date popup
-          // is dismissed.
-          await autoRemoveFromWatchlists(user.id, removeMode, { movieId: movieEntry.movieId });
-          autoRemoveFired = true;
         } else {
           watchedDate = existing.watchedDate;
+        }
+        // Auto-remove fires on every check-off, not just first-mark.
+        // The user's intent is "checking the box → clear from list,"
+        // so it shouldn't matter whether the seen record already
+        // existed (e.g., they marked it seen on the movie page first
+        // and then are now ticking the watchlist row off). Awaited so
+        // the response can accurately report removedFromActiveList.
+        if (removeMode !== "none") {
+          await autoRemoveFromWatchlists(user.id, removeMode, { movieId: movieEntry.movieId });
+          autoRemoveFired = true;
         }
       }
 
@@ -133,6 +137,11 @@ export async function PATCH(req: NextRequest, { params }: Props) {
         await prisma.userFavoriteShow.create({
           data: { userId: user.id, tvShowId: showEntry.tvShowId },
         });
+      }
+      // Same as movies: fire auto-remove on every check-off, not
+      // just the first-mark, so already-seen items still get
+      // cleared from the list when ticked off.
+      if (removeMode !== "none") {
         await autoRemoveFromWatchlists(user.id, removeMode, { tvShowId: showEntry.tvShowId });
         showAutoRemoveFired = true;
       }
