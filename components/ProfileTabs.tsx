@@ -117,6 +117,10 @@ interface Props {
   recommendations: Recommendation[];
   similarUsers: SimilarUser[];
   profile: Profile | null;
+  /** User's average score per movie-rating sub-field (plot,
+   *  storytelling, casting, etc.). Used to render per-field bars
+   *  inside the expanded view of each preference component. */
+  profileFieldAvgs?: Record<string, number | null>;
   stats: StatsData;
   componentLabels: Record<string, string>;
   genreLabels: Record<string, string>;
@@ -211,6 +215,7 @@ export default function ProfileTabs({
   recommendations,
   similarUsers,
   profile,
+  profileFieldAvgs,
   stats,
   componentLabels,
   genreLabels,
@@ -319,16 +324,44 @@ export default function ProfileTabs({
   const genreKeys = Object.keys(genreLabels);
 
   // Mirrors lib/profile.ts FOCUSED_CATEGORIES — the rating sub-fields
-  // that contribute to each component score. Used as a hint when the
-  // user taps a preference bar so they understand what "Narrative" or
-  // "Cinematic" actually represents.
-  const COMPONENT_CONTRIBUTORS: Record<string, readonly string[]> = {
-    narrativeFocused: ["Plot", "Storytelling", "Pacing", "Originality"],
-    characterFocused: ["Relatability", "Character development", "Dialogue"],
-    messageFocused: ["Emotion", "Meaning", "Movingness"],
-    cinematicFocused: ["Cinematography", "Artistic effect", "Visual effects", "Locations & costume", "Music & sound"],
-    performanceFocused: ["Casting", "Acting quality", "Blocking & choreography"],
-    entertainmentFocused: ["Appeal", "Pacing"],
+  // that contribute to each component score. Each entry pairs the
+  // database field name with a display label; the field name is
+  // looked up against profileFieldAvgs (the user's averages across
+  // all their ratings) so we can render the actual contributing
+  // score next to each label.
+  const COMPONENT_CONTRIBUTORS: Record<string, { key: string; label: string }[]> = {
+    narrativeFocused: [
+      { key: "plot", label: "Plot" },
+      { key: "storytelling", label: "Storytelling" },
+      { key: "pacingClimax", label: "Pacing & climax" },
+      { key: "premiseOriginality", label: "Originality" },
+    ],
+    characterFocused: [
+      { key: "relatability", label: "Relatability" },
+      { key: "characterDev", label: "Character development" },
+      { key: "dialogueScripting", label: "Dialogue & scripting" },
+    ],
+    messageFocused: [
+      { key: "overallEmotion", label: "Emotion" },
+      { key: "meaning", label: "Meaning" },
+      { key: "movingness", label: "Movingness" },
+    ],
+    cinematicFocused: [
+      { key: "cinematography", label: "Cinematography" },
+      { key: "artisticEffect", label: "Artistic effect" },
+      { key: "visualEffects", label: "Visual effects" },
+      { key: "locationCost", label: "Locations & costume" },
+      { key: "musicSound", label: "Music & sound" },
+    ],
+    performanceFocused: [
+      { key: "casting", label: "Casting" },
+      { key: "actingQuality", label: "Acting quality" },
+      { key: "blockingChoreo", label: "Blocking & choreography" },
+    ],
+    entertainmentFocused: [
+      { key: "appeal", label: "Appeal" },
+      { key: "pacingClimax", label: "Pacing & climax" },
+    ],
   };
 
   const topComponents = profile
@@ -427,14 +460,20 @@ export default function ProfileTabs({
               <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
                 <h2 className="text-base font-semibold text-white mb-4">Movie Component Preferences</h2>
                 <div className="space-y-2">
-                  {topComponents.map((c) => (
-                    <CategoryScoreBar
-                      key={c.key}
-                      label={c.label}
-                      score={c.score > 0 ? c.score : null}
-                      contributors={COMPONENT_CONTRIBUTORS[c.key]}
-                    />
-                  ))}
+                  {topComponents.map((c) => {
+                    const fields = COMPONENT_CONTRIBUTORS[c.key] ?? [];
+                    const subFields = fields
+                      .map((f) => ({ key: f.key, label: f.label, score: profileFieldAvgs?.[f.key] ?? null }))
+                      .filter((f) => f.score != null);
+                    return (
+                      <CategoryScoreBar
+                        key={c.key}
+                        label={c.label}
+                        score={c.score > 0 ? c.score : null}
+                        subFields={subFields.length > 0 ? subFields : undefined}
+                      />
+                    );
+                  })}
                 </div>
               </section>
             )}

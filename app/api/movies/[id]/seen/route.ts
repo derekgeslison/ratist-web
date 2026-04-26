@@ -128,39 +128,45 @@ export async function GET(req: NextRequest, { params }: Props) {
   try {
     const { id: tmdbId } = await params;
     const authorization = req.headers.get("authorization");
-    if (!authorization?.startsWith("Bearer ")) {
-      return NextResponse.json({ seen: false, rating: null, predictedRating: null });
-    }
 
-    const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
-    const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
-    if (!user) return NextResponse.json({ seen: false, rating: null, predictedRating: null });
+    // Auth is OPTIONAL here — community averages are public data, so
+    // an anonymous viewer should still get them. Personalized fields
+    // (seen, watchlisted, userRating, estimatedRating) just default
+    // to null/false when there's no logged-in user.
+    let user: Awaited<ReturnType<typeof prisma.user.findUnique>> = null;
+    if (authorization?.startsWith("Bearer ")) {
+      try {
+        const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
+        user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+      } catch { /* invalid token — treat as anonymous */ }
+    }
 
     const movie = await prisma.movie.findUnique({ where: { tmdbId: Number(tmdbId) } });
     if (!movie) return NextResponse.json({ seen: false, rating: null, predictedRating: null });
 
-    const [isSeen, isWatchlisted, userRating] = await Promise.all([
-      prisma.userFavoriteMovie.findUnique({
-        where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-      }),
-      prisma.watchlistMovie.findFirst({
-        where: { movieId: movie.id, watchlist: { userId: user.id } },
-      }),
-      prisma.movieRating.findUnique({
-        where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-        select: {
-          ratistRating: true, overallRating: true, storyScore: true, styleScore: true,
-          emotiveScore: true, actingScore: true, entertainScore: true,
-          // required fields for completeness check
-          plot: true, storytelling: true, pacingClimax: true,
-          cinematography: true, artisticEffect: true,
-          overallEmotion: true, relatability: true,
-          casting: true, actingQuality: true, appeal: true,
-          importSource: true,
-          reviewType: true,
-        },
-      }),
-    ]);
+    const [isSeen, isWatchlisted, userRating] = user
+      ? await Promise.all([
+          prisma.userFavoriteMovie.findUnique({
+            where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+          }),
+          prisma.watchlistMovie.findFirst({
+            where: { movieId: movie.id, watchlist: { userId: user.id } },
+          }),
+          prisma.movieRating.findUnique({
+            where: { userId_movieId: { userId: user.id, movieId: movie.id } },
+            select: {
+              ratistRating: true, overallRating: true, storyScore: true, styleScore: true,
+              emotiveScore: true, actingScore: true, entertainScore: true,
+              plot: true, storytelling: true, pacingClimax: true,
+              cinematography: true, artisticEffect: true,
+              overallEmotion: true, relatability: true,
+              casting: true, actingQuality: true, appeal: true,
+              importSource: true,
+              reviewType: true,
+            },
+          }),
+        ])
+      : [null, null, null];
 
     // Get community averages for this movie (only full Ratist reviews with category data)
     const aggregates = await prisma.movieRating.aggregate({
@@ -191,7 +197,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     } : null;
 
     // Compute estimate when user has no rating or their rating has no computed score yet
-    const estimatedRating = (!userRating || userRating.ratistRating == null)
+    const estimatedRating = user && (!userRating || userRating.ratistRating == null)
       ? await getScoreEstimate(user.id, movie.id)
       : null;
 

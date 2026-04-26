@@ -4,21 +4,26 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { scoreColor } from "@/lib/ratings";
 
+interface SubField {
+  key: string;
+  label: string;
+  score: number | null;
+}
+
 interface Props {
   label: string;
   score: number | null;
-  /** Optional sub-field labels that contribute to this category's
-   *  score. When provided, the bar becomes tappable and reveals
-   *  them. Used on profile preference cards so visitors can see
-   *  what "Narrative" or "Cinematic" actually means. */
-  contributors?: readonly string[];
+  /** Sub-field breakdown shown when the bar is expanded. Each entry
+   *  carries the user's average score for that field across all
+   *  their ratings. When omitted, the bar is non-interactive. */
+  subFields?: SubField[];
 }
 
-export default function CategoryScoreBar({ label, score, contributors }: Props) {
+export default function CategoryScoreBar({ label, score, subFields }: Props) {
   const [open, setOpen] = useState(false);
   const pct = score != null ? (score / 10) * 100 : 0;
   const color = score != null ? scoreColor(score) : "var(--border)";
-  const expandable = !!contributors && contributors.length > 0;
+  const expandable = !!subFields && subFields.length > 0;
 
   return (
     <div>
@@ -45,9 +50,24 @@ export default function CategoryScoreBar({ label, score, contributors }: Props) 
         )}
       </button>
       {open && expandable && (
-        <p className="text-xs text-[var(--foreground-muted)] mt-1.5 ml-1 leading-relaxed">
-          Calculated from: {contributors!.join(", ")}.
-        </p>
+        <div className="mt-2 mb-1 ml-2 sm:ml-6 space-y-1.5">
+          {subFields!.map((sf) => {
+            const val = sf.score;
+            if (val == null) return null;
+            const subColor = scoreColor(val);
+            return (
+              <div key={sf.key} className="flex items-center gap-3">
+                <span className="text-xs text-[var(--foreground-muted)] w-32 sm:w-36 shrink-0 text-left">{sf.label}</span>
+                <div className="flex-1 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(val / 10) * 100}%`, background: subColor }} />
+                </div>
+                <span className="text-xs font-semibold w-8 text-right" style={{ color: subColor }}>
+                  {val.toFixed(1)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

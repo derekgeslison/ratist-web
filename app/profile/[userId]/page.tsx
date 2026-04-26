@@ -88,6 +88,7 @@ export default async function ProfilePage({ params }: Props) {
     allTVRatings,
     episodesSeen,
     forumThreadCount,
+    profileFieldAvgs,
   ] = await Promise.all([
     prisma.movieRating.count({ where: { userId: user.id } }),
     prisma.movieRating.aggregate({
@@ -247,6 +248,19 @@ export default async function ProfilePage({ params }: Props) {
       orderBy: [{ watchedDate: "desc" }, { createdAt: "desc" }],
     }),
     prisma.forumThread.count({ where: { authorId: user.id } }),
+    // Per-sub-field averages from the user's actual ratings, used to
+    // populate the expanded view of each component-preference bar
+    // (Narrative, Cinematic, Performance, etc.) on the profile.
+    prisma.movieRating.aggregate({
+      where: { userId: user.id, ratistRating: { not: null } },
+      _avg: {
+        plot: true, premiseOriginality: true, storytelling: true, characterDev: true, pacingClimax: true,
+        cinematography: true, locationCost: true, artisticEffect: true, visualEffects: true, musicSound: true,
+        overallEmotion: true, relatability: true, meaning: true, movingness: true,
+        casting: true, actingQuality: true, dialogueScripting: true, blockingChoreo: true,
+        appeal: true, superficialAllure: true, choreography: true,
+      },
+    }),
   ]);
 
   // Cine-Q stats
@@ -576,6 +590,7 @@ export default async function ProfilePage({ params }: Props) {
         similarUsers={similarUsers}
         episodeGroups={episodeGroups}
         profile={user.profile as Record<string, number> | null}
+        profileFieldAvgs={profileFieldAvgs._avg as Record<string, number | null>}
         stats={{
           ratingCount: ratingCount + tvRatingCount,
           movieRatingCount: ratingCount,
