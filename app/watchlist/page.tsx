@@ -19,6 +19,7 @@ import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import WatchlistSettings from "@/components/WatchlistSettings";
 import { useTouchReveal } from "@/hooks/useTouchReveal";
+import TapHoldHint from "@/components/TapHoldHint";
 
 /* ── Types ── */
 interface WatchlistMeta {
@@ -1352,6 +1353,8 @@ export default function WatchlistPage() {
                     )}
                   </div>
                 ) : (
+                  <>
+                  <TapHoldHint />
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                     {filtered.map((movie) => (
                       <WatchlistTileShell key={movie.id}>
@@ -1452,6 +1455,7 @@ export default function WatchlistPage() {
                       </WatchlistTileShell>
                     ))}
                   </div>
+                  </>
                 )}
               </>
             )}

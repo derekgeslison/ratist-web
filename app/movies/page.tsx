@@ -11,6 +11,7 @@ import SeenFilterRunner from "@/components/SeenFilterRunner";
 import NavEntryRegister from "@/components/NavEntryRegister";
 import AdUnit from "@/components/AdUnit";
 import SpotlightCards from "@/components/SpotlightCards";
+import TapHoldHint from "@/components/TapHoldHint";
 import { prisma } from "@/lib/prisma";
 
 // Genre ID mappings between movie and TV (TMDB uses different IDs for equivalent genres)
@@ -530,6 +531,8 @@ export default async function MoviesPage({ searchParams }: Props) {
       />
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-4" />
+
+      <TapHoldHint />
 
       {/* Mixed results — when searching/filtering in "all" mode, interleave by relevance */}
       {isSearchMode && mixedResults.length > 0 && (

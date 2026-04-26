@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bookmark, Check, X, Loader2 } from "lucide-react";
+import { Bookmark, Check, X, Loader2, Plus, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface ListEntry {
@@ -168,11 +168,58 @@ export function useWatchlistFlow(opts: UseWatchlistFlowOptions): FlowResult {
     onWatchlistedChange?.(updated.some((l) => l.hasMovie));
   }
 
+  /**
+   * Create a brand-new watchlist FROM the picker, then add the
+   * current movie/show to it. Used when the user has a picker open
+   * but realizes none of their existing lists fit. Returns true on
+   * success so the picker UI can transition back to the list view.
+   */
+  async function createListAndAdd(opts: { name: string; description: string; isPrivate: boolean }): Promise<boolean> {
+    if (!user) return false;
+    const token = await user.getIdToken();
+    const createRes = await fetch("/api/watchlist", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: opts.name.trim(),
+        description: opts.description.trim() || null,
+        isPrivate: opts.isPrivate,
+      }),
+    });
+    if (!createRes.ok) return false;
+    const createData = await createRes.json();
+    const newList = createData.watchlist;
+    if (!newList?.id) return false;
+
+    // Add the current item to the brand-new list immediately.
+    const body: Record<string, unknown> = { tmdbId, title, posterPath, mediaType };
+    if (releaseDate !== undefined) body.releaseDate = releaseDate;
+    await fetch(`/api/watchlist/${newList.id}/movies`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    setLists((prev) => [
+      ...prev,
+      {
+        id: newList.id,
+        name: newList.name ?? opts.name.trim(),
+        isDefault: false,
+        isOwned: true,
+        hasMovie: true,
+      },
+    ]);
+    onWatchlistedChange?.(true);
+    return true;
+  }
+
   const picker = pickerOpen ? (
     <WatchlistPickerModal
       title={title}
       lists={lists}
       onToggle={toggleList}
+      onCreate={createListAndAdd}
       onClose={() => setPickerOpen(false)}
     />
   ) : null;
@@ -184,11 +231,36 @@ interface PickerProps {
   title: string;
   lists: ListEntry[];
   onToggle: (listId: string) => Promise<void>;
+  onCreate: (opts: { name: string; description: string; isPrivate: boolean }) => Promise<boolean>;
   onClose: () => void;
 }
 
-function WatchlistPickerModal({ title, lists, onToggle, onClose }: PickerProps) {
+function WatchlistPickerModal({ title, lists, onToggle, onCreate, onClose }: PickerProps) {
   const [busyListId, setBusyListId] = useState<string | null>(null);
+  // Inline create-list view inside the picker modal. Toggled via
+  // the "Create new list" button at the bottom of the list. Mirrors
+  // the /watchlist page's create form (name + description + private)
+  // so the experience is consistent across both entry points.
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newPrivate, setNewPrivate] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleCreateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!newName.trim() || submitting) return;
+    setSubmitting(true);
+    const ok = await onCreate({ name: newName, description: newDesc, isPrivate: newPrivate });
+    setSubmitting(false);
+    if (ok) {
+      setCreating(false);
+      setNewName("");
+      setNewDesc("");
+      setNewPrivate(false);
+    }
+  }
   // Mount the modal via a portal to document.body so it escapes the
   // <Link> ancestor that the cards use as their click target. Without
   // a portal the modal is rendered inside the anchor; clicks on the
@@ -231,38 +303,90 @@ function WatchlistPickerModal({ title, lists, onToggle, onClose }: PickerProps) 
             <X className="w-5 h-5" />
           </button>
         </div>
-        <ul className="space-y-1">
-          {lists.map((l) => (
-            <li key={l.id}>
+        {creating ? (
+          <form onSubmit={handleCreateSubmit} onClick={(e) => e.stopPropagation()} className="space-y-3">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="List name"
+              autoFocus
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+            />
+            <textarea
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              placeholder="Description (optional)"
+              rows={2}
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none"
+            />
+            <label className="flex items-center gap-2 text-xs text-[var(--foreground-muted)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newPrivate}
+                onChange={(e) => setNewPrivate(e.target.checked)}
+                className="accent-[var(--ratist-red)]"
+              />
+              <Lock className="w-3 h-3" /> Private list
+            </label>
+            <div className="flex gap-2 pt-1">
               <button
-                onClick={(e) => onClickList(l.id, e)}
-                disabled={busyListId === l.id}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
-                  l.hasMovie
-                    ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/40"
-                    : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--ratist-red)]/40"
-                }`}
+                type="submit"
+                disabled={!newName.trim() || submitting}
+                className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-50"
               >
-                <span className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${
-                  l.hasMovie
-                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
-                    : "border-[var(--border)]"
-                }`}>
-                  {busyListId === l.id ? <Loader2 className="w-3 h-3 animate-spin" /> : l.hasMovie ? <Check className="w-3 h-3" /> : null}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm text-white truncate">
-                    {l.name}
-                    {l.isDefault && <span className="text-[10px] text-[var(--foreground-muted)] ml-1.5">(default)</span>}
+                {submitting ? "Creating..." : `Create & add "${title}"`}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCreating(false); }}
+                className="px-4 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white text-sm rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <ul className="space-y-1">
+            {lists.map((l) => (
+              <li key={l.id}>
+                <button
+                  onClick={(e) => onClickList(l.id, e)}
+                  disabled={busyListId === l.id}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                    l.hasMovie
+                      ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/40"
+                      : "bg-[var(--surface)] border-[var(--border)] hover:border-[var(--ratist-red)]/40"
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 ${
+                    l.hasMovie
+                      ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                      : "border-[var(--border)]"
+                  }`}>
+                    {busyListId === l.id ? <Loader2 className="w-3 h-3 animate-spin" /> : l.hasMovie ? <Check className="w-3 h-3" /> : null}
                   </span>
-                  {!l.isOwned && l.ownerName && (
-                    <span className="block text-[10px] text-[var(--foreground-muted)]">Shared by {l.ownerName}</span>
-                  )}
-                </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm text-white truncate">
+                      {l.name}
+                      {l.isDefault && <span className="text-[10px] text-[var(--foreground-muted)] ml-1.5">(default)</span>}
+                    </span>
+                    {!l.isOwned && l.ownerName && (
+                      <span className="block text-[10px] text-[var(--foreground-muted)]">Shared by {l.ownerName}</span>
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
+            <li>
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCreating(true); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--ratist-red)]/60 text-[var(--foreground-muted)] hover:text-white text-sm transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Create new list
               </button>
             </li>
-          ))}
-        </ul>
+          </ul>
+        )}
       </div>
     </div>
   );

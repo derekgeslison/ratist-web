@@ -20,7 +20,7 @@ const STEPS = [
   { key: "genres", title: "What are you in the mood for?", subtitle: "Pick one or more genres, or skip for a mix of everything." },
   { key: "experience", title: "What kind of experience?", subtitle: "Select one or more, or skip for a random mix." },
   { key: "runtime", title: "How much time do you have?", subtitle: "Select one or more, or skip for any length." },
-  { key: "era", title: "Any era preference?", subtitle: "Select one or more, or skip for any era." },
+  { key: "era", title: "Any release-year preference?", subtitle: "Filter by when the movie or show was released. Select one or more, or skip for any year." },
   { key: "exclude", title: "Anything to avoid?", subtitle: "Tap genres you want excluded from results." },
 ] as const;
 
@@ -594,8 +594,8 @@ export default function RecommendPage() {
               <div className="grid sm:grid-cols-2 gap-3">
                 {[
                   { value: "recent", label: "Recent", desc: "Released in the last 3 years" },
-                  { value: "2000s", label: "2000s and newer", desc: "Modern era" },
-                  { value: "pre2000", label: "Pre-2000", desc: "90s, 80s, and earlier" },
+                  { value: "2000s", label: "2000s and newer", desc: "Released from 2000 onward" },
+                  { value: "pre2000", label: "Pre-2000", desc: "Released in the 90s, 80s, or earlier" },
                 ].map((opt) => (
                   <button key={opt.value} onClick={() => toggleSet(setEra, opt.value)}
                     className={`text-left p-4 rounded-xl border transition-colors ${era.has(opt.value) ? "border-[var(--ratist-red)] bg-[var(--ratist-red)]/10" : "border-[var(--border)] hover:border-[var(--ratist-red)]/50"}`}>
@@ -768,7 +768,7 @@ export default function RecommendPage() {
 
             {/* Era */}
             <div>
-              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Era</p>
+              <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-1.5">Release year</p>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { value: "recent", label: "Recent (3yr)" },

@@ -226,6 +226,43 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
     }
   }
 
+  // Inline create form state for the picker — mirrors the modal
+  // version in WatchlistFlow so the experience matches across cards
+  // and detail pages.
+  const [creatingNewList, setCreatingNewList] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [newListPrivate, setNewListPrivate] = useState(false);
+  const [creatingSubmitting, setCreatingSubmitting] = useState(false);
+
+  async function handleCreateAndAdd() {
+    if (!user || !newListName.trim() || creatingSubmitting) return;
+    setCreatingSubmitting(true);
+    try {
+      const token = await user.getIdToken();
+      const createRes = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newListName.trim(), description: null, isPrivate: newListPrivate }),
+      });
+      if (!createRes.ok) return;
+      const createData = await createRes.json();
+      const list = createData.watchlist;
+      if (!list?.id) return;
+      await fetch(`/api/watchlist/${list.id}/movies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ tmdbId, title: movieTitle, posterPath }),
+      });
+      setAllLists((prev) => [...prev, { id: list.id, name: list.name ?? newListName.trim(), isDefault: false, isOwned: true, hasMovie: true }]);
+      setWatchlisted(true);
+      setCreatingNewList(false);
+      setNewListName("");
+      setNewListPrivate(false);
+    } finally {
+      setCreatingSubmitting(false);
+    }
+  }
+
   async function toggleListMembership(listId: string) {
     if (!user) return;
     setTogglingListId(listId);
@@ -411,33 +448,78 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                 </button>
                 {/* List picker popup */}
                 {showListPicker && allLists.length > 0 && (
-                  <div className="absolute top-full left-0 mt-2 w-56 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl z-30 p-2">
-                    <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Manage watchlists</p>
-                    {allLists.map((list) => (
-                      <button
-                        key={list.id}
-                        onClick={() => toggleListMembership(list.id)}
-                        disabled={togglingListId === list.id}
-                        className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
-                      >
-                        <span className="text-white truncate">
-                          {list.name}
-                          {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
-                          {list.ownerName && <span className="text-[var(--foreground-muted)] text-xs ml-1">· {list.ownerName}</span>}
-                        </span>
-                        {list.hasMovie ? (
-                          <Check className="w-4 h-4 text-green-400 shrink-0" />
-                        ) : (
-                          <Plus className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
-                        )}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setShowListPicker(false)}
-                      className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-1 py-1 transition-colors"
-                    >
-                      Done
-                    </button>
+                  <div className="absolute top-full left-0 mt-2 w-64 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl z-30 p-2">
+                    {creatingNewList ? (
+                      <div className="space-y-2 p-1">
+                        <p className="text-xs text-[var(--foreground-muted)] px-1">New list</p>
+                        <input
+                          value={newListName}
+                          onChange={(e) => setNewListName(e.target.value)}
+                          placeholder="List name"
+                          autoFocus
+                          className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                        />
+                        <label className="flex items-center gap-1.5 text-[11px] text-[var(--foreground-muted)] cursor-pointer px-1">
+                          <input
+                            type="checkbox"
+                            checked={newListPrivate}
+                            onChange={(e) => setNewListPrivate(e.target.checked)}
+                            className="accent-[var(--ratist-red)]"
+                          />
+                          Private list
+                        </label>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={handleCreateAndAdd}
+                            disabled={!newListName.trim() || creatingSubmitting}
+                            className="flex-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-xs font-semibold py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {creatingSubmitting ? "..." : "Create & add"}
+                          </button>
+                          <button
+                            onClick={() => { setCreatingNewList(false); setNewListName(""); setNewListPrivate(false); }}
+                            className="px-2.5 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white text-xs rounded-lg transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs text-[var(--foreground-muted)] px-2 py-1 mb-1">Manage watchlists</p>
+                        {allLists.map((list) => (
+                          <button
+                            key={list.id}
+                            onClick={() => toggleListMembership(list.id)}
+                            disabled={togglingListId === list.id}
+                            className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
+                          >
+                            <span className="text-white truncate">
+                              {list.name}
+                              {list.isDefault && <span className="text-[var(--foreground-muted)] text-xs ml-1">(default)</span>}
+                              {list.ownerName && <span className="text-[var(--foreground-muted)] text-xs ml-1">· {list.ownerName}</span>}
+                            </span>
+                            {list.hasMovie ? (
+                              <Check className="w-4 h-4 text-green-400 shrink-0" />
+                            ) : (
+                              <Plus className="w-4 h-4 text-[var(--foreground-muted)] shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setCreatingNewList(true)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-lg hover:bg-[var(--surface)] text-[var(--foreground-muted)] hover:text-white transition-colors"
+                        >
+                          <Plus className="w-4 h-4" /> Create new list
+                        </button>
+                        <button
+                          onClick={() => setShowListPicker(false)}
+                          className="w-full text-center text-xs text-[var(--foreground-muted)] hover:text-white mt-1 py-1 transition-colors"
+                        >
+                          Done
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
