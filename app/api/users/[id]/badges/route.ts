@@ -66,6 +66,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       return {
         slug: e.slug,
         name: def?.name ?? e.slug,
+        description: def?.description ?? "",
         icon: def?.icon ?? "Award",
         category: def?.category ?? "meta",
         earnedAt: e.earnedAt.toISOString(),

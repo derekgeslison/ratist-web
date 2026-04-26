@@ -11,6 +11,7 @@ import { TIER_LABELS, TIER_COLORS, TOTAL_BADGES } from "@/lib/badge-defs";
 interface BadgeSummary {
   slug: string;
   name: string;
+  description: string;
   icon: string;
   category: string;
   earnedAt: string;
@@ -70,7 +71,7 @@ export default function BadgeTrophyCase({ profileFirebaseUid }: Props) {
             <BadgeCard
               slug={b.slug}
               name={b.name}
-              description=""
+              description={b.description}
               icon={b.icon}
               earned
               earnedAt={b.earnedAt}

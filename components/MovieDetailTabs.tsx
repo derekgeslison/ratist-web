@@ -154,7 +154,7 @@ export default function MovieDetailTabs({
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Left: overview + trailer + reviews */}
             <div className="lg:col-span-2 space-y-6">
-              <p className="text-[var(--foreground-muted)] leading-relaxed">{movie.overview}</p>
+              <p className="text-[var(--foreground-muted)] leading-relaxed break-words">{movie.overview}</p>
 
               <div className="flex flex-wrap items-center gap-3">
                 {trailerKey && (

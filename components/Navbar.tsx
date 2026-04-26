@@ -222,7 +222,17 @@ export default function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 pb-4 max-h-[calc(100vh-64px)] overflow-y-auto">
+        // 100dvh (dynamic viewport height) instead of 100vh so the
+        // menu shrinks when mobile browser chrome (URL bar, bottom
+        // nav) is visible, instead of letting the last items get
+        // covered. pb-[env(safe-area-inset-bottom)] adds extra
+        // padding for devices with home-indicator gestures, and the
+        // +24px tail ensures the last list item still has breathing
+        // room above whatever the OS draws over the bottom edge.
+        <div
+          className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 max-h-[calc(100dvh-64px)] overflow-y-auto"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+        >
           <div className="pt-3 pb-2">
             <QuickSearch
               inputClassName="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"

@@ -653,7 +653,7 @@ export default function ShowDetailTabs({
         <div className="space-y-10 pb-16">
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
-              <p className="text-[var(--foreground-muted)] leading-relaxed">{show.overview}</p>
+              <p className="text-[var(--foreground-muted)] leading-relaxed break-words">{show.overview}</p>
 
               <div className="flex flex-wrap items-center gap-3">
                 {trailerKey && (

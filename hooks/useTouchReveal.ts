@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const HINT_KEY = "ratist:touchRevealHintShown";
-const PRESS_MS = 500;
+const PRESS_MS = 350;
 const MOVE_TOLERANCE_PX = 8;
 const AUTO_DISMISS_MS = 6000;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Lock, Award } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 
@@ -18,13 +19,53 @@ export default function BadgeCard({ name, description, icon, earned, earnedAt, c
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const IconComponent = ((LucideIcons as any)[icon] ?? Award) as React.ComponentType<{ className?: string }>;
 
+  // Tap-to-explain popover for the compact pill (mobile) — addresses
+  // users mistaking the static circles for buttons. The popover
+  // dismisses on outside tap or scroll. Hover-tooltip on desktop is
+  // preserved via the title attribute.
+  const [popOpen, setPopOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!popOpen) return;
+    const close = (e: Event) => {
+      if (wrapRef.current && e.target instanceof Node && wrapRef.current.contains(e.target)) return;
+      setPopOpen(false);
+    };
+    document.addEventListener("pointerdown", close, true);
+    window.addEventListener("scroll", () => setPopOpen(false), { passive: true, once: true });
+    return () => document.removeEventListener("pointerdown", close, true);
+  }, [popOpen]);
+
   if (compact) {
+    const earnedLabel = earnedAt
+      ? `Earned ${new Date(earnedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+      : null;
     return (
-      <div
-        className="flex items-center justify-center w-9 h-9 rounded-full border border-[var(--border)] bg-[var(--surface)] shrink-0"
-        title={`${name}${earnedAt ? ` — earned ${new Date(earnedAt).toLocaleDateString()}` : ""}`}
-      >
-        <IconComponent className="w-4 h-4 text-[var(--foreground)]" />
+      <div ref={wrapRef} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => setPopOpen((v) => !v)}
+          aria-expanded={popOpen}
+          aria-label={name}
+          title={`${name}${earnedAt ? ` — earned ${new Date(earnedAt).toLocaleDateString()}` : ""}`}
+          className="flex items-center justify-center w-9 h-9 rounded-full border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--ratist-red)] transition-colors"
+        >
+          <IconComponent className="w-4 h-4 text-[var(--foreground)]" />
+        </button>
+        {popOpen && (
+          <div
+            className="absolute z-30 top-full left-1/2 -translate-x-1/2 mt-2 w-56 max-w-[80vw] bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl p-3"
+            role="dialog"
+          >
+            <p className="text-sm font-semibold text-white">{name}</p>
+            {description && (
+              <p className="text-xs text-[var(--foreground-muted)] mt-1 leading-snug">{description}</p>
+            )}
+            {earnedLabel && (
+              <p className="text-[10px] text-[var(--foreground-muted)] mt-2">{earnedLabel}</p>
+            )}
+          </div>
+        )}
       </div>
     );
   }
