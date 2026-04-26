@@ -25,23 +25,54 @@ const HINT_EVENT = "ratist:touchRevealFirstUse";
 export function useTouchReveal() {
   const [isTouch, setIsTouch] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  // State-backed ref so the contextmenu listener effect can run
+  // when the underlying DOM element changes. A plain useRef
+  // wouldn't trigger re-runs on attachment.
+  const [containerEl, setContainerEl] = useState<HTMLElement | null>(null);
   const containerRef = useRef<HTMLElement | null>(null);
   const pressTimer = useRef<number | null>(null);
   const startPos = useRef<{ x: number; y: number } | null>(null);
   const dismissTimer = useRef<number | null>(null);
   const longPressFired = useRef(false);
 
-  // Detect a hover-less device once on mount. The CSS media query
-  // `(hover: none)` is the modern check — fingers/styluses report no
-  // hover, mice report hover. More reliable than UA sniffing.
+  // Detect a hover-less device once on mount. We check BOTH
+  // `(hover: none)` and `(pointer: coarse)` — Android Chrome lies
+  // about hover on phones, but its pointer reporting is honest.
+  // Either condition being true means we treat the device as touch.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(hover: none)");
-    setIsTouch(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsTouch(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const isTouchDevice = () =>
+      window.matchMedia("(hover: none)").matches ||
+      window.matchMedia("(pointer: coarse)").matches;
+    setIsTouch(isTouchDevice());
+    const mqHover = window.matchMedia("(hover: none)");
+    const mqPointer = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setIsTouch(isTouchDevice());
+    mqHover.addEventListener("change", onChange);
+    mqPointer.addEventListener("change", onChange);
+    return () => {
+      mqHover.removeEventListener("change", onChange);
+      mqPointer.removeEventListener("change", onChange);
+    };
   }, []);
+
+  // Native contextmenu listener attached directly to the touched
+  // element. React's synthetic onContextMenu was reaching the
+  // handler but not actually preventing Android's share menu —
+  // likely because Next.js Link wraps the prop chain in a way that
+  // delays handling. A non-passive native listener calling
+  // preventDefault closes that gap.
+  useEffect(() => {
+    if (!containerEl) return;
+    const handler = (e: Event) => {
+      const isTouchDevice =
+        window.matchMedia("(hover: none)").matches ||
+        window.matchMedia("(pointer: coarse)").matches;
+      if (isTouchDevice) e.preventDefault();
+    };
+    containerEl.addEventListener("contextmenu", handler, { passive: false });
+    return () => containerEl.removeEventListener("contextmenu", handler);
+  }, [containerEl]);
 
   const dismiss = useCallback(() => {
     setRevealed(false);
@@ -144,13 +175,20 @@ export function useTouchReveal() {
     }
   }, []);
 
+  // Stable ref callback so React doesn't cycle null→node every
+  // render when the inline arrow function's identity changes.
+  const refSetter = useCallback((node: HTMLElement | null) => {
+    containerRef.current = node;
+    setContainerEl(node);
+  }, []);
+
   return {
     isTouch,
     revealed,
     dismiss,
     /** Spread onto the tile's root interactive element. */
     containerProps: {
-      ref: (node: HTMLElement | null) => { containerRef.current = node; },
+      ref: refSetter,
       onTouchStart,
       onTouchMove,
       onTouchEnd,

@@ -55,7 +55,12 @@ body {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
-@media (hover: hover) {
+/* `(hover: hover)` alone isn't safe — Android Chrome reports hover
+   support as true even on phones, which lets the rule fire when
+   `:hover` sticky-fires after a tap. Pairing with `(pointer: fine)`
+   restricts to actual mouse-class pointing devices: touch reports
+   `coarse` here, so the rule can't match on phones/tablets. */
+@media (hover: hover) and (pointer: fine) {
   .tile-hover-parent:hover .tile-hover-overlay {
     opacity: 1 !important;
     pointer-events: auto !important;
