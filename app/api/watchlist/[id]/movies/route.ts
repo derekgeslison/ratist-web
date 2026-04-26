@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { nextSortOrderForList } from "@/lib/watchlist-sort-order";
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -29,33 +30,37 @@ export async function POST(req: NextRequest, { params }: Props) {
     if (!tmdbId) return NextResponse.json({ error: "tmdbId required" }, { status: 400 });
 
     if (mediaType === "tv") {
-      // Ensure TV show exists in DB
       const tvShow = await prisma.tVShow.upsert({
         where: { tmdbId: Number(tmdbId) },
         create: { tmdbId: Number(tmdbId), name: title ?? "Unknown", posterPath: posterPath ?? null, firstAirDate: releaseDate ?? null },
         update: {},
       });
 
-      // Add to watchlist (ignore if already there)
-      await prisma.watchlistShow.upsert({
+      const existing = await prisma.watchlistShow.findUnique({
         where: { watchlistId_tvShowId: { watchlistId, tvShowId: tvShow.id } },
-        create: { watchlistId, tvShowId: tvShow.id },
-        update: {},
       });
+      if (!existing) {
+        const sortOrder = await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
+        await prisma.watchlistShow.create({
+          data: { watchlistId, tvShowId: tvShow.id, sortOrder },
+        });
+      }
     } else {
-      // Ensure movie exists in DB
       const movie = await prisma.movie.upsert({
         where: { tmdbId: Number(tmdbId) },
         create: { tmdbId: Number(tmdbId), title: title ?? "Unknown", posterPath: posterPath ?? null, releaseDate: releaseDate ?? null },
         update: {},
       });
 
-      // Add to watchlist (ignore if already there)
-      await prisma.watchlistMovie.upsert({
+      const existing = await prisma.watchlistMovie.findUnique({
         where: { watchlistId_movieId: { watchlistId, movieId: movie.id } },
-        create: { watchlistId, movieId: movie.id },
-        update: {},
       });
+      if (!existing) {
+        const sortOrder = await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
+        await prisma.watchlistMovie.create({
+          data: { watchlistId, movieId: movie.id, sortOrder },
+        });
+      }
     }
 
     return NextResponse.json({ added: true });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { autoRemoveFromWatchlists } from "@/lib/watchlist-auto-remove";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -68,6 +69,11 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.userFavoriteShow.create({
         data: { userId: user.id, tvShowId: tvShow.id },
       });
+      autoRemoveFromWatchlists(
+        user.id,
+        user.autoRemoveFromWatchlistOnSeen as "none" | "all" | "default",
+        { tvShowId: tvShow.id }
+      ).catch(() => {});
       return NextResponse.json({ seen: true });
     }
   } catch (err) {

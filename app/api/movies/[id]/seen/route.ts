@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getRatingStatus } from "@/lib/rating-status";
 import { getScoreEstimate } from "@/lib/profile";
 import { checkBadges, recheckBadges } from "@/lib/badges";
+import { autoRemoveFromWatchlists } from "@/lib/watchlist-auto-remove";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -66,6 +67,11 @@ export async function POST(req: NextRequest, { params }: Props) {
       }
       checkBadges(user.id, "seen").catch(() => {});
       if (watchedDate) checkBadges(user.id, "watchlog").catch(() => {});
+      autoRemoveFromWatchlists(
+        user.id,
+        user.autoRemoveFromWatchlistOnSeen as "none" | "all" | "default",
+        { movieId: movie.id }
+      ).catch(() => {});
       return NextResponse.json({ seen: true });
     }
   } catch (err) {

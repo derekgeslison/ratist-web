@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bookmark, Check, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -39,22 +40,22 @@ const MULTI_LIST_THRESHOLD = 2;
 
 /**
  * Watchlist add/manage flow used across cards, list items, and the
- * detail-page panel. Behavior:
+ * detail-page panel. Behavior is governed by the user's
+ * autoAddToDefaultWatchlist setting (default true):
  *
- *   - Not logged in: noop. Callers gate on user themselves.
- *   - User has 0 or 1 watchlists: POST the toggle endpoint directly.
- *     The endpoint creates a default list if absent, so 0 / 1 are the
- *     same code path. Single-list users never see a picker.
- *   - User has 2+ watchlists: open a picker modal listing every list
- *     (owned + collaborated as editor) with a checkbox per list. The
- *     user can toggle membership on multiple lists from here.
+ *   - autoAddToDefault = true (one-tap convenience):
+ *     * 1 list → toggle on default, no picker.
+ *     * 2+ lists → toggle on default AND open the picker so the
+ *       user can also add to other lists.
+ *   - autoAddToDefault = false (always pick explicitly):
+ *     * Always open the picker, regardless of list count. Nothing
+ *       is added until the user taps a list.
  *
- * Why a hook + drop-in modal instead of a wrapping component: the
- * cards have very different button styling (overlay on poster,
- * row-icon, panel button) and re-rendering the modal at the card
- * level would be inside a <Link>, which hijacks click events. The
- * modal portals visually outside the link via fixed positioning so
- * clicks on it don't trigger card navigation.
+ * Why a hook + drop-in modal: the cards have different button
+ * styling (overlay on poster, row-icon, panel button); a wrapping
+ * component would be too rigid. The picker modal portals to
+ * document.body so it escapes the <Link> ancestor that wraps cards,
+ * keeping click semantics clean.
  */
 export function useWatchlistFlow(opts: UseWatchlistFlowOptions): FlowResult {
   const { user } = useAuth();
@@ -65,11 +66,30 @@ export function useWatchlistFlow(opts: UseWatchlistFlowOptions): FlowResult {
 
   const apiBase = mediaType === "tv" ? `/api/shows/${tmdbId}` : `/api/movies/${tmdbId}`;
 
-  async function fetchLists(token: string): Promise<ListEntry[]> {
+  async function fetchListsWithSettings(token: string): Promise<{ lists: ListEntry[]; autoAddToDefault: boolean }> {
     const res = await fetch(`${apiBase}/watchlist`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return [];
+    if (!res.ok) return { lists: [], autoAddToDefault: true };
     const data = await res.json();
-    return data.lists ?? [];
+    return {
+      lists: data.lists ?? [],
+      // Defaults to true if the endpoint doesn't carry the setting
+      // (older clients, anonymous, etc.) — preserves the existing UX.
+      autoAddToDefault: data.userSettings?.autoAddToDefaultWatchlist ?? true,
+    };
+  }
+
+  async function toggleDefaultEndpoint(token: string): Promise<{ watchlisted: boolean } | null> {
+    const body: Record<string, unknown> = { title, poster_path: posterPath };
+    if (mediaType === "movie" && releaseDate !== undefined) body.release_date = releaseDate;
+    // Shows endpoint expects `name` instead of `title`.
+    if (mediaType === "tv") body.name = title;
+    const res = await fetch(`${apiBase}/watchlist`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return res.json();
   }
 
   async function handleClick(e: React.MouseEvent) {
@@ -79,26 +99,30 @@ export function useWatchlistFlow(opts: UseWatchlistFlowOptions): FlowResult {
     setBusy(true);
     try {
       const token = await user.getIdToken();
-      const fetched = await fetchLists(token);
+      const { lists: fetched, autoAddToDefault } = await fetchListsWithSettings(token);
 
-      if (fetched.length < MULTI_LIST_THRESHOLD) {
-        // 0 or 1 lists — toggle on the default. 0 case has the
-        // endpoint create a default first.
-        const body: Record<string, unknown> = { title, poster_path: posterPath };
-        if (mediaType === "movie" && releaseDate !== undefined) body.release_date = releaseDate;
-        const res = await fetch(`${apiBase}/watchlist`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (typeof data.watchlisted === "boolean") onWatchlistedChange?.(data.watchlisted);
+      if (autoAddToDefault) {
+        // Toggle the default list directly. Single-list users never
+        // see the picker; multi-list users get both the toggle AND
+        // a picker so they can add to other lists.
+        const data = await toggleDefaultEndpoint(token);
+        if (data && typeof data.watchlisted === "boolean") onWatchlistedChange?.(data.watchlisted);
+
+        if (fetched.length >= MULTI_LIST_THRESHOLD) {
+          // Reflect the just-toggled default state in the picker's
+          // local copy so the checkboxes are accurate without a
+          // refetch round-trip.
+          const defaultId = fetched.find((l) => l.isDefault)?.id;
+          const updated = fetched.map((l) => (
+            l.id === defaultId ? { ...l, hasMovie: !l.hasMovie } : l
+          ));
+          setLists(updated);
+          setPickerOpen(true);
         }
         return;
       }
 
-      // 2+ lists — open the picker.
+      // autoAddToDefault = false: always show the picker, no auto-add.
       setLists(fetched);
       setPickerOpen(true);
     } finally {
@@ -165,6 +189,15 @@ interface PickerProps {
 
 function WatchlistPickerModal({ title, lists, onToggle, onClose }: PickerProps) {
   const [busyListId, setBusyListId] = useState<string | null>(null);
+  // Mount the modal via a portal to document.body so it escapes the
+  // <Link> ancestor that the cards use as their click target. Without
+  // a portal the modal is rendered inside the anchor; clicks on the
+  // modal — even with stopPropagation — can still trigger the anchor's
+  // navigation because the click "happens" inside the anchor's
+  // descendant subtree from the browser's perspective. portaling out
+  // of the anchor removes the ambiguity entirely.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   async function onClickList(listId: string, e: React.MouseEvent) {
     e.preventDefault();
@@ -174,13 +207,15 @@ function WatchlistPickerModal({ title, lists, onToggle, onClose }: PickerProps) 
     try { await onToggle(listId); } finally { setBusyListId(null); }
   }
 
-  return (
+  if (!mounted) return null;
+
+  const modal = (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl p-5 max-h-[80vh] overflow-y-auto"
-           onClick={(e) => e.stopPropagation()}>
+           onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
         <div className="flex items-start justify-between mb-3 gap-3">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-white flex items-center gap-2">
@@ -189,7 +224,7 @@ function WatchlistPickerModal({ title, lists, onToggle, onClose }: PickerProps) 
             <p className="text-xs text-[var(--foreground-muted)] mt-0.5 truncate">{title}</p>
           </div>
           <button
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
             className="text-[var(--foreground-muted)] hover:text-white shrink-0"
             aria-label="Close"
           >
@@ -231,4 +266,6 @@ function WatchlistPickerModal({ title, lists, onToggle, onClose }: PickerProps) 
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

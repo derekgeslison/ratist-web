@@ -17,6 +17,7 @@ import ProviderLogos from "@/components/ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
+import WatchlistSettings from "@/components/WatchlistSettings";
 
 /* ── Types ── */
 interface WatchlistMeta {
@@ -145,30 +146,19 @@ export default function WatchlistPage() {
   const [genreFilter, setGenreFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  /* ── Auto-seen toggle ── */
-  const [autoSeenOnCheck, setAutoSeenOnCheck] = useState(false);
-
-  // Fetch user's auto-seen preference
+  // Apply user's defaultWatchlistFilter once on mount. The settings
+  // panel manages writes; this only seeds the initial filter so the
+  // page opens in the user's preferred view.
+  const [defaultFilterApplied, setDefaultFilterApplied] = useState(false);
   useEffect(() => {
-    if (!user) return;
+    if (!user || defaultFilterApplied) return;
     user.getIdToken().then((token) =>
-      fetch("/api/profile/me", { headers: { Authorization: `Bearer ${token}` } })
-    ).then((r) => r.json()).then((d) => {
-      if (d.user?.autoSeenOnWatchlistCheck != null) setAutoSeenOnCheck(d.user.autoSeenOnWatchlistCheck);
-    }).catch(() => {});
-  }, [user]);
-
-  async function toggleAutoSeen() {
-    if (!user) return;
-    const newVal = !autoSeenOnCheck;
-    setAutoSeenOnCheck(newVal);
-    const token = await user.getIdToken();
-    fetch("/api/profile/me", {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ autoSeenOnWatchlistCheck: newVal }),
-    }).catch(() => {});
-  }
+      fetch("/api/me/watchlist-settings", { headers: { Authorization: `Bearer ${token}` } })
+    ).then((r) => r.ok ? r.json() : null).then((d) => {
+      if (d?.defaultWatchlistFilter === "unwatched") setSeenFilter("unchecked");
+      setDefaultFilterApplied(true);
+    }).catch(() => setDefaultFilterApplied(true));
+  }, [user, defaultFilterApplied]);
 
   /* ── Reorder mode ── */
   const [reorderMode, setReorderMode] = useState(false);
@@ -735,22 +725,18 @@ export default function WatchlistPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-2">
-        <Bookmark className="w-6 h-6 text-[var(--ratist-red)]" />
-        <h1 className="text-2xl font-bold text-white">My Watchlists</h1>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-3">
+          <Bookmark className="w-6 h-6 text-[var(--ratist-red)]" />
+          <h1 className="text-2xl font-bold text-white">My Watchlists</h1>
+        </div>
+        <WatchlistSettings />
       </div>
       <p className="text-[var(--foreground-muted)] mb-1">Organize movies &amp; shows you want to watch.</p>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">
           View what you&apos;ve already seen &rarr;
         </Link>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <span className="text-xs text-[var(--foreground-muted)]">Mark as seen when checked off</span>
-          <button type="button" onClick={toggleAutoSeen}
-            className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${autoSeenOnCheck ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}>
-            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${autoSeenOnCheck ? "translate-x-4" : "translate-x-0"}`} />
-          </button>
-        </label>
       </div>
 
       {/* Error / success banners */}

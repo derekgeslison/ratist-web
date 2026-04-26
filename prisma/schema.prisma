@@ -92,6 +92,22 @@ model User {
   rankingLists   UserRankingList[]
   autoDateOnSeen          Boolean  @default(false) @map("auto_date_on_seen")
   autoSeenOnWatchlistCheck Boolean  @default(false) @map("auto_seen_on_watchlist_check")
+  // Watchlist settings — surfaced via the gear icon on /watchlist.
+  // autoAddToDefaultWatchlist: when true, tapping the watchlist button
+  //   on cards / detail pages auto-adds to the user's default
+  //   watchlist before opening the picker. Default true preserves
+  //   the existing one-tap-to-add UX for solo-list users.
+  // autoRemoveFromWatchlistOnSeen: when set, marking a movie/show as
+  //   seen also removes it from "all" watchlists or just the
+  //   "default" watchlist. "none" disables.
+  // defaultWatchlistFilter: which filter the /watchlist page lands
+  //   on by default ("all" or "unwatched").
+  // watchlistAddPosition: "top" | "bottom" — where new entries land
+  //   in the custom sortOrder when added to a list.
+  autoAddToDefaultWatchlist     Boolean @default(true)  @map("auto_add_to_default_watchlist")
+  autoRemoveFromWatchlistOnSeen String  @default("none") @map("auto_remove_from_watchlist_on_seen")
+  defaultWatchlistFilter        String  @default("all")  @map("default_watchlist_filter")
+  watchlistAddPosition          String  @default("top")  @map("watchlist_add_position")
   notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
   emailOptOut       Boolean  @default(false) @map("email_opt_out") // legacy — use emailPrefs instead
   emailPrefs        Json     @default("{\"promotional\":true,\"subscription\":true,\"activity\":true}") @map("email_prefs")

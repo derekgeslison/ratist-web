@@ -156,11 +156,10 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
   async function handleWatchlistClick() {
     if (!user) return;
-    // New behavior: don't auto-add to default. Fetch lists first; if
-    // exactly one exists, toggle it directly (no point asking). If
-    // multiple, open the picker so the user can pick which list(s).
-    // Also opens the picker when already-watchlisted so the user
-    // can manage memberships instead of needing a separate UI.
+    // Behavior governed by user's autoAddToDefaultWatchlist setting:
+    //   - true (default, one-tap convenience): toggle default. If 2+
+    //     lists, also open picker so user can add to others too.
+    //   - false (always pick): always open the picker, no auto-add.
     setTogglingWatchlist(true);
     try {
       const token = await user.getIdToken();
@@ -170,9 +169,12 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
       if (!listsRes.ok) return;
       const listsData = await listsRes.json();
       const lists = listsData.lists ?? [];
+      const autoAddToDefault: boolean = listsData.userSettings?.autoAddToDefaultWatchlist ?? true;
 
-      if (lists.length < 2) {
-        // 0 lists (endpoint creates default) or 1 list — toggle on default.
+      if (autoAddToDefault) {
+        // Toggle default list directly. Single-list users are done.
+        // Multi-list users get both the toggle AND the picker so they
+        // can add to other lists too.
         const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -182,9 +184,21 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
           const data = await res.json();
           setWatchlisted(data.watchlisted ?? true);
         }
+
+        if (lists.length >= 2) {
+          // Reflect the just-toggled default state locally so the
+          // picker checkboxes are accurate without a refetch.
+          const defaultId = lists.find((l: { isDefault: boolean; id: string }) => l.isDefault)?.id;
+          const updated = lists.map((l: { id: string; hasMovie: boolean }) => (
+            l.id === defaultId ? { ...l, hasMovie: !l.hasMovie } : l
+          ));
+          setAllLists(updated);
+          setShowListPicker(true);
+        }
         return;
       }
 
+      // autoAddToDefault = false: always show picker, no auto-add.
       setAllLists(lists);
       setShowListPicker(true);
     } finally {

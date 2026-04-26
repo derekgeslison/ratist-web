@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { autoRemoveFromWatchlists } from "@/lib/watchlist-auto-remove";
 
 interface Props { params: Promise<{ id: string; movieId: string }> }
 
@@ -77,6 +78,11 @@ export async function PATCH(req: NextRequest, { params }: Props) {
           await prisma.userFavoriteMovie.create({
             data: { userId: user.id, movieId: movieEntry.movieId, watchedDate: user.autoDateOnSeen ? new Date() : null },
           });
+          autoRemoveFromWatchlists(
+            user.id,
+            user.autoRemoveFromWatchlistOnSeen as "none" | "all" | "default",
+            { movieId: movieEntry.movieId }
+          ).catch(() => {});
         }
       }
 
@@ -102,6 +108,11 @@ export async function PATCH(req: NextRequest, { params }: Props) {
         await prisma.userFavoriteShow.create({
           data: { userId: user.id, tvShowId: showEntry.tvShowId },
         });
+        autoRemoveFromWatchlists(
+          user.id,
+          user.autoRemoveFromWatchlistOnSeen as "none" | "all" | "default",
+          { tvShowId: showEntry.tvShowId }
+        ).catch(() => {});
       }
     }
 

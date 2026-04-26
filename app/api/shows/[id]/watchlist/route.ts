@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { nextSortOrderForList } from "@/lib/watchlist-sort-order";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -43,6 +44,9 @@ export async function GET(req: NextRequest, { params }: Props) {
         ownerName: l.userId !== user.id ? l.user.name : undefined,
         hasMovie: (l.shows?.length ?? 0) > 0,
       })),
+      userSettings: {
+        autoAddToDefaultWatchlist: user.autoAddToDefaultWatchlist,
+      },
     });
   } catch (err) {
     console.error("Show watchlist lists error:", err);
@@ -86,8 +90,9 @@ export async function POST(req: NextRequest, { params }: Props) {
         where: { watchlistId_tvShowId: { watchlistId: defaultList.id, tvShowId: tvShow.id } },
       });
     } else {
+      const sortOrder = await nextSortOrderForList(defaultList.id, user.watchlistAddPosition);
       await prisma.watchlistShow.create({
-        data: { watchlistId: defaultList.id, tvShowId: tvShow.id },
+        data: { watchlistId: defaultList.id, tvShowId: tvShow.id, sortOrder },
       });
     }
 

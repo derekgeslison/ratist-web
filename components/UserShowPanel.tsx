@@ -117,10 +117,10 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
 
   async function handleWatchlistClick() {
     if (!user) return;
-    // New behavior: don't auto-add to default. Fetch lists first; if
-    // exactly one exists, toggle it directly. If multiple, open the
-    // picker. Also opens picker when already-watchlisted to manage
-    // memberships.
+    // Behavior governed by user's autoAddToDefaultWatchlist setting:
+    //   - true (default): toggle default. If 2+ lists, also open
+    //     picker so user can add to others.
+    //   - false: always open picker, no auto-add.
     setMarkingWL(true);
     try {
       const token = await user.getIdToken();
@@ -130,8 +130,9 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
       if (!listsRes.ok) return;
       const listsData = await listsRes.json();
       const lists = listsData.lists ?? [];
+      const autoAddToDefault: boolean = listsData.userSettings?.autoAddToDefaultWatchlist ?? true;
 
-      if (lists.length < 2) {
+      if (autoAddToDefault) {
         const res = await fetch(`/api/shows/${tmdbId}/watchlist`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -141,9 +142,19 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
           const data = await res.json();
           setWatchlisted(data.watchlisted ?? true);
         }
+
+        if (lists.length >= 2) {
+          const defaultId = lists.find((l: { isDefault: boolean; id: string }) => l.isDefault)?.id;
+          const updated = lists.map((l: { id: string; hasMovie: boolean }) => (
+            l.id === defaultId ? { ...l, hasMovie: !l.hasMovie } : l
+          ));
+          setAllLists(updated);
+          setShowListPicker(true);
+        }
         return;
       }
 
+      // autoAddToDefault = false: always show picker, no auto-add.
       setAllLists(lists);
       setShowListPicker(true);
     } finally {

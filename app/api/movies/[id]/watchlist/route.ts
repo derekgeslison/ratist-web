@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { nextSortOrderForList } from "@/lib/watchlist-sort-order";
 import { checkBadges, recheckBadges } from "@/lib/badges";
 
 interface Props {
@@ -44,6 +45,13 @@ export async function GET(req: NextRequest, { params }: Props) {
         ownerName: l.userId !== user.id ? l.user.name : undefined,
         hasMovie: (l.movies?.length ?? 0) > 0,
       })),
+      // Embed the watchlist settings the click-flow needs so the
+      // client reads lists + settings in one round-trip rather than
+      // making a separate /api/me/watchlist-settings call on every
+      // card tap.
+      userSettings: {
+        autoAddToDefaultWatchlist: user.autoAddToDefaultWatchlist,
+      },
     });
   } catch (err) {
     console.error("Watchlist lists error:", err);
@@ -88,13 +96,13 @@ export async function POST(req: NextRequest, { params }: Props) {
       });
       recheckBadges(user.id, "watchlist_add").catch(() => {});
     } else {
-      // Add at end of custom order
-      const maxOrder = await prisma.watchlistMovie.aggregate({
-        where: { watchlistId: defaultList.id },
-        _max: { sortOrder: true },
-      });
+      // Honor watchlistAddPosition: "top" sorts before existing
+      // entries (min - 1), "bottom" appends (max + 1). Both movie
+      // and show entries share sortOrder space, so we aggregate
+      // across the unified reorder ordering.
+      const sortOrder = await nextSortOrderForList(defaultList.id, user.watchlistAddPosition);
       await prisma.watchlistMovie.create({
-        data: { watchlistId: defaultList.id, movieId: movie.id, sortOrder: (maxOrder._max.sortOrder ?? -1) + 1 },
+        data: { watchlistId: defaultList.id, movieId: movie.id, sortOrder },
       });
     }
 
