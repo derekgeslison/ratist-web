@@ -164,6 +164,11 @@ export default function WatchlistPage() {
   }, [user, settingsApplied]);
 
   /* ── Reorder mode ── */
+  // Open by default; lets users (especially on mobile, where the
+  // sidebar stacks above the active list) hide the list switcher
+  // when they have many lists and want to focus on items below.
+  const [listsExpanded, setListsExpanded] = useState(true);
+
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderItems, setReorderItems] = useState<WatchlistMovie[]>([]);
   const reorderSensors = useSensors(
@@ -564,8 +569,59 @@ export default function WatchlistPage() {
       if (res.ok) {
         const data = await res.json();
         setMovies((prev) => prev.map((m) => m.id === movie.id ? { ...m, isChecked: data.isChecked, checkedAt: data.checkedAt } : m));
+
+        // When autoSeenOnWatchlistCheck fired (markedAsSeen=true),
+        // open the date prompt. For movies, lets the user override
+        // or clear the auto-set watch date. For shows, just shows
+        // a hint about season/episode tracking. The row is dropped
+        // (if applicable) only after the prompt is dismissed.
+        if (data.markedAsSeen) {
+          setSeenPrompt({
+            entryId: movie.id,
+            mediaType: data.mediaType,
+            tmdbId: data.tmdbId,
+            initialDate: data.watchedDate ? String(data.watchedDate).slice(0, 10) : "",
+            removedFromActiveList: !!data.removedFromActiveList,
+          });
+        }
       } else { showError("Failed to update watched status."); }
     } catch { showError("Failed to update watched status."); }
+  }
+
+  /* ── Date prompt after auto-mark-seen ── */
+  interface SeenPrompt {
+    entryId: string;
+    mediaType: "movie" | "tv";
+    tmdbId: number;
+    initialDate: string; // YYYY-MM-DD or ""
+    removedFromActiveList: boolean;
+  }
+  const [seenPrompt, setSeenPrompt] = useState<SeenPrompt | null>(null);
+
+  async function closeSeenPrompt(opts?: { saveDate?: string | null }) {
+    const prompt = seenPrompt;
+    if (!prompt) return;
+    setSeenPrompt(null);
+
+    // For movies, optionally PATCH the watch date the user picked.
+    // The server already created the favorite with autoDateOnSeen's
+    // value; this only matters if the user actually adjusted it.
+    if (prompt.mediaType === "movie" && opts && "saveDate" in opts) {
+      try {
+        const token = await getToken();
+        if (token) {
+          await fetch(`/api/movies/${prompt.tmdbId}/seen`, {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ watchedDate: opts.saveDate }),
+          });
+        }
+      } catch { /* non-critical */ }
+    }
+
+    if (prompt.removedFromActiveList) {
+      setMovies((prev) => prev.filter((m) => m.id !== prompt.entryId));
+    }
   }
 
   /* ── Add movie/show search ── */
@@ -779,11 +835,22 @@ export default function WatchlistPage() {
           {/* ── Sidebar: list switcher ── */}
           <div className="lg:w-56 shrink-0">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white">Lists</h2>
+              <button
+                onClick={() => setListsExpanded((v) => !v)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors"
+                aria-expanded={listsExpanded}
+                aria-controls="watchlist-sidebar-lists"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform ${listsExpanded ? "" : "-rotate-90"}`} />
+                Lists
+                <span className="text-xs font-normal text-[var(--foreground-muted)]">({watchlists.length})</span>
+              </button>
               <button onClick={() => setShowCreate(true)} className="text-[var(--ratist-red)] hover:text-white transition-colors" title="Create new list">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
+            {listsExpanded && (
+            <div id="watchlist-sidebar-lists">
             <div className="space-y-1">
               {watchlists.map((wl) => (
                 <button
@@ -854,6 +921,8 @@ export default function WatchlistPage() {
                   </div>
                 )}
               </div>
+            )}
+            </div>
             )}
 
             {/* Create new list modal */}
@@ -1491,6 +1560,81 @@ export default function WatchlistPage() {
           </div>
         </div>
       )}
+
+      {/* Mark-as-seen prompt: appears after a check-off when
+          autoSeenOnWatchlistCheck is enabled. Movies get a date
+          picker; shows get an info-only message because
+          UserFavoriteShow has no watchedDate column. Dismissing
+          via X / outside-click also drops the row from view if
+          auto-remove applies to the active list. */}
+      {seenPrompt && <SeenPromptModal prompt={seenPrompt} onClose={closeSeenPrompt} />}
+    </div>
+  );
+}
+
+function SeenPromptModal({
+  prompt,
+  onClose,
+}: {
+  prompt: { mediaType: "movie" | "tv"; initialDate: string };
+  onClose: (opts?: { saveDate?: string | null }) => void;
+}) {
+  const [date, setDate] = useState(prompt.initialDate);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl p-5">
+        <div className="flex items-start justify-between mb-3 gap-3">
+          <h3 className="text-base font-semibold text-white">Marked as seen</h3>
+          <button
+            onClick={() => onClose()}
+            className="text-[var(--foreground-muted)] hover:text-white shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {prompt.mediaType === "movie" ? (
+          <>
+            <p className="text-sm text-[var(--foreground-muted)] mb-3">Set or adjust the watch date.</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                autoFocus
+                className="flex-1 bg-[var(--surface)] border border-[var(--border)] focus:border-[var(--ratist-red)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none [color-scheme:dark]"
+              />
+              <button
+                onClick={() => onClose({ saveDate: date || null })}
+                className="text-green-400 hover:text-green-300 transition-colors p-2"
+                title="Save date"
+                aria-label="Save date"
+              >
+                <Check className="w-5 h-5" />
+              </button>
+              {date && (
+                <button
+                  onClick={() => onClose({ saveDate: null })}
+                  className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors p-2"
+                  title="Clear date"
+                  aria-label="Clear date"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Visit the show&rsquo;s page to mark season or episode watch dates.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
