@@ -104,10 +104,15 @@ model User {
   //   on by default ("all" or "unwatched").
   // watchlistAddPosition: "top" | "bottom" — where new entries land
   //   in the custom sortOrder when added to a list.
+  // pinCheckedToBottom: when true, items checked off (seen) are
+  //   secondary-sorted to the bottom of the active sort order on the
+  //   watchlist display. Doesn't mutate sortOrder; reorder mode
+  //   still shows true custom order.
   autoAddToDefaultWatchlist     Boolean @default(true)  @map("auto_add_to_default_watchlist")
   autoRemoveFromWatchlistOnSeen String  @default("none") @map("auto_remove_from_watchlist_on_seen")
   defaultWatchlistFilter        String  @default("all")  @map("default_watchlist_filter")
   watchlistAddPosition          String  @default("top")  @map("watchlist_add_position")
+  pinCheckedToBottom            Boolean @default(false) @map("pin_checked_to_bottom")
   notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
   emailOptOut       Boolean  @default(false) @map("email_opt_out") // legacy — use emailPrefs instead
   emailPrefs        Json     @default("{\"promotional\":true,\"subscription\":true,\"activity\":true}") @map("email_prefs")

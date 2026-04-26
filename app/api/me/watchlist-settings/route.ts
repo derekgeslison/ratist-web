@@ -14,6 +14,7 @@ interface SettingsShape {
   autoRemoveFromWatchlistOnSeen: "none" | "all" | "default";
   defaultWatchlistFilter: "all" | "unwatched";
   watchlistAddPosition: "top" | "bottom";
+  pinCheckedToBottom: boolean;
 }
 
 function defaults(): SettingsShape {
@@ -23,6 +24,7 @@ function defaults(): SettingsShape {
     autoRemoveFromWatchlistOnSeen: "none",
     defaultWatchlistFilter: "all",
     watchlistAddPosition: "top",
+    pinCheckedToBottom: false,
   };
 }
 
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
     autoRemoveFromWatchlistOnSeen: user.autoRemoveFromWatchlistOnSeen as SettingsShape["autoRemoveFromWatchlistOnSeen"],
     defaultWatchlistFilter: user.defaultWatchlistFilter as SettingsShape["defaultWatchlistFilter"],
     watchlistAddPosition: user.watchlistAddPosition as SettingsShape["watchlistAddPosition"],
+    pinCheckedToBottom: user.pinCheckedToBottom,
   });
 }
 
@@ -65,6 +68,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof body.watchlistAddPosition === "string" && POSITION_VALUES.has(body.watchlistAddPosition)) {
     data.watchlistAddPosition = body.watchlistAddPosition;
   }
+  if (typeof body.pinCheckedToBottom === "boolean") data.pinCheckedToBottom = body.pinCheckedToBottom;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });
@@ -79,6 +83,7 @@ export async function PATCH(req: NextRequest) {
       autoRemoveFromWatchlistOnSeen: true,
       defaultWatchlistFilter: true,
       watchlistAddPosition: true,
+      pinCheckedToBottom: true,
     },
   });
 

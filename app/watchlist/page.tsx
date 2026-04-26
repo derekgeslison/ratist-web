@@ -146,19 +146,22 @@ export default function WatchlistPage() {
   const [genreFilter, setGenreFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Apply user's defaultWatchlistFilter once on mount. The settings
-  // panel manages writes; this only seeds the initial filter so the
-  // page opens in the user's preferred view.
-  const [defaultFilterApplied, setDefaultFilterApplied] = useState(false);
+  // pinCheckedToBottom is a live setting (settings panel can flip it
+  // and we want the list to react). defaultWatchlistFilter is a
+  // mount-only seed — once the user is on the page we don't want to
+  // yank the filter back if they deliberately changed it in-session.
+  const [pinCheckedToBottom, setPinCheckedToBottom] = useState(false);
+  const [settingsApplied, setSettingsApplied] = useState(false);
   useEffect(() => {
-    if (!user || defaultFilterApplied) return;
+    if (!user || settingsApplied) return;
     user.getIdToken().then((token) =>
       fetch("/api/me/watchlist-settings", { headers: { Authorization: `Bearer ${token}` } })
     ).then((r) => r.ok ? r.json() : null).then((d) => {
       if (d?.defaultWatchlistFilter === "unwatched") setSeenFilter("unchecked");
-      setDefaultFilterApplied(true);
-    }).catch(() => setDefaultFilterApplied(true));
-  }, [user, defaultFilterApplied]);
+      if (typeof d?.pinCheckedToBottom === "boolean") setPinCheckedToBottom(d.pinCheckedToBottom);
+      setSettingsApplied(true);
+    }).catch(() => setSettingsApplied(true));
+  }, [user, settingsApplied]);
 
   /* ── Reorder mode ── */
   const [reorderMode, setReorderMode] = useState(false);
@@ -701,7 +704,18 @@ export default function WatchlistPage() {
       });
     }
 
+    // Secondary sort: pin checked items below unchecked ones,
+    // regardless of the active sort key. Skipped when the user is
+    // explicitly viewing only checked items (everything would be
+    // checked, so the pass is a no-op anyway). This is purely a
+    // display sort — sortOrder values on rows are untouched, so
+    // reorder mode still reflects the user's true custom order.
+    const applyPin = pinCheckedToBottom && seenFilter !== "checked";
+
     list = [...list].sort((a, b) => {
+      if (applyPin && a.isChecked !== b.isChecked) {
+        return a.isChecked ? 1 : -1;
+      }
       let cmp = 0;
       switch (sortKey) {
         case "custom": cmp = (a.sortOrder ?? 0) - (b.sortOrder ?? 0); break;
@@ -715,7 +729,7 @@ export default function WatchlistPage() {
     });
 
     return list;
-  }, [movies, query, seenFilter, mediaFilter, genreFilter, sortKey, sortAsc, selectedProviders, providerData]);
+  }, [movies, query, seenFilter, mediaFilter, genreFilter, sortKey, sortAsc, selectedProviders, providerData, pinCheckedToBottom]);
 
   const canEdit = activeList ? (activeList.isOwner || activeList.myRole === "editor") : false;
   const checkedCount = movies.filter((m) => m.isChecked).length;
@@ -730,7 +744,7 @@ export default function WatchlistPage() {
           <Bookmark className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl font-bold text-white">My Watchlists</h1>
         </div>
-        <WatchlistSettings />
+        <WatchlistSettings onChange={(s) => setPinCheckedToBottom(s.pinCheckedToBottom)} />
       </div>
       <p className="text-[var(--foreground-muted)] mb-1">Organize movies &amp; shows you want to watch.</p>
       <div className="mb-6">

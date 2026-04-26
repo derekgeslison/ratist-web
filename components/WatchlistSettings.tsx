@@ -11,6 +11,7 @@ export interface WatchlistSettingsValues {
   autoRemoveFromWatchlistOnSeen: "none" | "all" | "default";
   defaultWatchlistFilter: "all" | "unwatched";
   watchlistAddPosition: "top" | "bottom";
+  pinCheckedToBottom: boolean;
 }
 
 interface Props {
@@ -37,6 +38,7 @@ export default function WatchlistSettings({ onChange }: Props) {
     autoRemoveFromWatchlistOnSeen: "none",
     defaultWatchlistFilter: "all",
     watchlistAddPosition: "top",
+    pinCheckedToBottom: false,
   });
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -155,6 +157,14 @@ export default function WatchlistSettings({ onChange }: Props) {
               description="Open watchlists with the unwatched-only filter applied automatically."
               checked={values.defaultWatchlistFilter === "unwatched"}
               onChange={(v) => update({ defaultWatchlistFilter: v ? "unwatched" : "all" })}
+              disabled={busy}
+            />
+
+            <ToggleRow
+              label="Send checked items to the bottom"
+              description="Keep checked-off items visible but pushed below unchecked ones in any sort order. Doesn’t affect reorder mode."
+              checked={values.pinCheckedToBottom}
+              onChange={(v) => update({ pinCheckedToBottom: v })}
               disabled={busy}
             />
 
