@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { Check, Save, Upload, X, AlertTriangle, Download, Mail } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
+import AvatarCropModal from "@/components/AvatarCropModal";
+import { useUnsavedWarning } from "@/hooks/useUnsavedWarning";
 
 const GENRES = [
   { key: "genreAction", label: "Action / Adventure" },
@@ -46,11 +48,28 @@ export default function SettingsPage() {
   function showSuccess(msg: string) { setSuccess(msg); setTimeout(() => setSuccess(null), 3000); }
   function showError(msg: string) { setError(msg); setTimeout(() => setError(null), 5000); }
 
+  // Snapshot of fields as last loaded/saved. Used to detect unsaved
+  // changes for the leave-page warning. JSON-serializable subset is
+  // simpler than per-field equality checks.
+  const initialSnapshot = useRef<string>("");
+  function takeSnapshot() {
+    return JSON.stringify({
+      displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck,
+      publicTabs, notifPrefs, emailPrefs,
+      selectedGenres: Array.from(selectedGenres).sort(),
+      componentScores,
+    });
+  }
+
   // Account state
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  // Source URL passed to the crop modal — separate from preview
+  // because preview is the *cropped* result, while this is the
+  // original file's object URL used while cropping.
+  const [cropSource, setCropSource] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [autoDateOnSeen, setAutoDateOnSeen] = useState(false);
@@ -152,8 +171,27 @@ export default function SettingsPage() {
         setComponentScores(scores);
       }
       setLoading(false);
+      // Defer snapshot to next tick so all the setState calls above
+      // have flushed and our initial value reflects the loaded data,
+      // not the pre-load defaults.
+      requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
     }).catch(() => { showError("Failed to load settings"); setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({
+      displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck,
+      publicTabs, notifPrefs, emailPrefs,
+      selectedGenres: Array.from(selectedGenres).sort(),
+      componentScores,
+    }),
+    [displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs, notifPrefs, emailPrefs, selectedGenres, componentScores]
+  );
+  const isDirty = !loading
+    && initialSnapshot.current !== ""
+    && (currentSnapshot !== initialSnapshot.current || pendingFile !== null);
+  useUnsavedWarning(isDirty);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -168,8 +206,26 @@ export default function SettingsPage() {
       return;
     }
     setAccountError("");
+    // Open the crop modal first — pendingFile is set only after
+    // the user confirms a crop. Keeps the flow: pick → crop → save.
+    setCropSource(URL.createObjectURL(file));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleCropConfirm(blob: Blob, previewUrl: string) {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    if (cropSource) URL.revokeObjectURL(cropSource);
+    // Wrap the blob in a File so existing upload code (which expects
+    // .name and .type) still works. The cropper outputs JPEG.
+    const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
     setPendingFile(file);
-    setPendingPreview(URL.createObjectURL(file));
+    setPendingPreview(previewUrl);
+    setCropSource(null);
+  }
+
+  function handleCropCancel() {
+    if (cropSource) URL.revokeObjectURL(cropSource);
+    setCropSource(null);
   }
 
   function cancelPendingFile() {
@@ -234,6 +290,9 @@ export default function SettingsPage() {
         });
         setSavedAccount(true);
         setTimeout(() => setSavedAccount(false), 2500);
+        // Refresh the dirty-tracking baseline so the leave-page
+        // warning doesn't fire after a successful save.
+        requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
       } else {
         setAccountError("Failed to save. Please try again.");
       }
@@ -265,6 +324,7 @@ export default function SettingsPage() {
     setSavedPrefs(true);
     showSuccess("Preferences saved");
     setTimeout(() => setSavedPrefs(false), 2500);
+    requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
   }
 
   if (!user) {
@@ -287,6 +347,13 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
+      {cropSource && (
+        <AvatarCropModal
+          src={cropSource}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
       </div>
@@ -638,6 +705,7 @@ export default function SettingsPage() {
               setSavedNotif(true);
               showSuccess("Notification preferences saved");
               setTimeout(() => setSavedNotif(false), 3000);
+              requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
             }}
             disabled={savingNotif}
             className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-colors disabled:opacity-60"

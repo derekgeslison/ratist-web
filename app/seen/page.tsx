@@ -80,7 +80,7 @@ export default function SeenPage() {
   const [watchDateTo, setWatchDateTo] = useState("");
   const [rewatchFilter, setRewatchFilter] = useState<"all" | "first" | "rewatch">("all");
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const [view, setView] = useState<ViewMode>(restored.view ?? "month");
+  const [view, setView] = useState<ViewMode>(restored.view ?? "all");
   const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">(restored.mediaFilter ?? "all");
   const [sort, setSort] = useState<"date" | "title" | "rating">(restored.sort ?? "date");
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -456,9 +456,9 @@ export default function SeenPage() {
           <div className="flex flex-wrap items-center gap-3 mb-6">
             <div className="flex items-center border border-[var(--border)] rounded-lg overflow-hidden">
               {([
+                { mode: "all" as ViewMode, icon: ScrollText, label: "All" },
                 { mode: "month" as ViewMode, icon: List, label: "Month" },
                 { mode: "calendar" as ViewMode, icon: Calendar, label: "Calendar" },
-                { mode: "all" as ViewMode, icon: ScrollText, label: "All" },
               ]).map(({ mode, icon: Icon, label }) => (
                 <button key={mode} onClick={() => setView(mode)} title={label}
                   className={`p-2 transition-colors ${view === mode ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>

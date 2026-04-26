@@ -347,11 +347,10 @@ export default function PitchesPage() {
                     </div>
                   </div>
                 </div>
-                {/* Action row spans full card width — pulled out of
-                    the avatar+text flex column so it doesn't inherit
-                    the avatar's left-side indentation. flex-wrap is
-                    a safety net for very narrow screens. */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                {/* Two-row split — voting on row 1, comments and
+                    admin actions on row 2 — so a long comment count
+                    can't push the trash icon off-screen. */}
+                <div className="flex items-center gap-4 mt-3 flex-wrap">
                   <button
                     onClick={() => vote(item.id, 1)}
                     disabled={!user || votingId === item.id}
@@ -372,9 +371,11 @@ export default function PitchesPage() {
                   {item.voterIds.length > 0 && (
                     <span className="text-xs text-[var(--foreground-muted)]">{item.voterIds.length} vote{item.voterIds.length !== 1 ? "s" : ""}</span>
                   )}
+                </div>
+                <div className="flex items-center gap-4 mt-2 flex-wrap">
                   <button
                     onClick={() => setExpandedComments(expandedComments === item.id ? null : item.id)}
-                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors ml-auto"
+                    className="flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
                     {expandedComments === item.id ? "Hide" : "Comments"}
