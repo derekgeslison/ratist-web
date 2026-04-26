@@ -121,7 +121,13 @@ export async function POST(req: NextRequest) {
     await storageFile.makePublic();
 
     const bucketName = bucket.name;
-    const avatarUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+    // Cache-bust with a timestamp query because the file path is
+    // stable per user — without this, the browser, CDN, and any
+    // previously-cached <img> tags keep showing the prior avatar
+    // even though Firebase Storage has the new bytes. Query param
+    // doesn't affect the actual fetch (GCS ignores unknown params)
+    // but creates a fresh cache key.
+    const avatarUrl = `https://storage.googleapis.com/${bucketName}/${filePath}?v=${Date.now()}`;
 
     // Save URL to DB
     await prisma.user.update({
