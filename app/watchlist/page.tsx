@@ -132,13 +132,13 @@ function WatchlistSortableItem({ item, index, total, onMove }: { item: { id: str
 function WatchlistTileShell({
   children,
 }: {
-  children: (overlayClass: string) => React.ReactNode;
+  children: (overlayClass: string, revealed: boolean) => React.ReactNode;
 }) {
   const touch = useTouchReveal();
   const overlayClass = `tile-hover-overlay${touch.revealed ? " revealed" : ""}`;
   return (
     <div className="tile-hover-parent group flex flex-col relative" {...touch.containerProps}>
-      {children(overlayClass)}
+      {children(overlayClass, touch.revealed)}
     </div>
   );
 }
@@ -343,10 +343,40 @@ export default function WatchlistPage() {
         const data = await listRes.json();
         const inviteData = inviteRes.ok ? await inviteRes.json() : { invites: [] };
         setWatchlists(data.watchlists ?? []);
-        setMovies(data.defaultMovies ?? []);
         setPendingInvites(inviteData.invites ?? []);
-        const def = (data.watchlists ?? []).find((w: WatchlistMeta) => w.isDefault);
-        if (def) setActiveId(def.id);
+        // Honor the sessionStorage-restored activeId so navigating to
+        // a movie/show from inside a custom list and coming back lands
+        // the user where they left off, not on the default list.
+        // Falls through to the default when there's nothing
+        // persisted, when the persisted ID is stale (list was deleted
+        // / collaborator removed), or when the user is loading the
+        // page for the first time.
+        const lists: WatchlistMeta[] = data.watchlists ?? [];
+        const def = lists.find((w) => w.isDefault);
+        const persisted = activeId ? lists.find((w) => w.id === activeId) : null;
+        const target = persisted ?? def ?? null;
+        if (target) {
+          if (target.isDefault) {
+            setMovies(data.defaultMovies ?? []);
+            setActiveId(target.id);
+          } else {
+            // Need a separate fetch for non-default lists since the
+            // bulk endpoint only ships the default's items.
+            setActiveId(target.id);
+            setLoadingMovies(true);
+            try {
+              const detailRes = await fetch(`/api/watchlist/${target.id}`, { headers: { Authorization: `Bearer ${token}` } });
+              if (detailRes.ok) {
+                const detail = await detailRes.json();
+                setMovies(detail.movies ?? []);
+              }
+            } finally {
+              setLoadingMovies(false);
+            }
+          }
+        } else {
+          setMovies(data.defaultMovies ?? []);
+        }
       } catch { showError("Failed to load watchlists."); }
       setLoading(false);
     })();
@@ -1354,11 +1384,11 @@ export default function WatchlistPage() {
                   </div>
                 ) : (
                   <>
-                  <TapHoldHint />
+                  <TapHoldHint pageKey="watchlist" message="Tip: tap and hold a tile to reveal actions like checking it off or removing it." />
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                     {filtered.map((movie) => (
                       <WatchlistTileShell key={movie.id}>
-                        {(overlayClass) => (<>
+                        {(overlayClass, revealed) => (<>
                         {/* Confirm remove overlay */}
                         {canEdit && confirmingRemove === movie.id ? (
                           <div className="absolute inset-0 z-10 bg-black/80 rounded-lg flex flex-col items-center justify-center gap-2 p-2">
@@ -1374,19 +1404,19 @@ export default function WatchlistPage() {
                             <button
                               onClick={() => setConfirmingRemove(movie.id)}
                               disabled={removing.has(movie.id)}
-                              className={`absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center hover:bg-red-600 hover:border-red-600 transition-all ${overlayClass}`}
+                              className={`absolute -top-2 -right-2 z-20 w-9 h-9 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center hover:bg-red-600 hover:border-red-600 transition-all ${overlayClass}`}
                               title="Remove from list"
                             >
-                              <X className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
+                              <X className="w-5 h-5 text-[var(--foreground-muted)] hover:text-white" />
                             </button>
                             {/* Add to other lists — top center */}
                             {watchlists.length > 1 && (
                               <button
                                 onClick={() => openListPicker(movie)}
-                                className={`absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center hover:bg-blue-600 hover:border-blue-600 transition-all ${overlayClass}`}
+                                className={`absolute -top-2 left-1/2 -translate-x-1/2 z-20 w-9 h-9 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center hover:bg-blue-600 hover:border-blue-600 transition-all ${overlayClass}`}
                                 title="Add to other lists"
                               >
-                                <ListPlus className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
+                                <ListPlus className="w-5 h-5 text-[var(--foreground-muted)] hover:text-white" />
                               </button>
                             )}
                             {/* Check-off button. When already checked it
@@ -1396,14 +1426,14 @@ export default function WatchlistPage() {
                                 other corner buttons. */}
                             <button
                               onClick={() => toggleCheck(movie)}
-                              className={`absolute -top-1.5 -left-1.5 z-10 w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
+                              className={`absolute -top-2 -left-2 z-20 w-9 h-9 rounded-full border flex items-center justify-center transition-all ${
                                 movie.isChecked
                                   ? "bg-green-600 border-green-600 text-white opacity-100 pointer-events-auto"
                                   : `bg-[var(--surface-2)] border-[var(--border)] hover:bg-green-600 hover:border-green-600 ${overlayClass}`
                               }`}
                               title={movie.isChecked ? "Unmark as watched" : "Mark as watched"}
                             >
-                              <Check className={`w-3.5 h-3.5 ${movie.isChecked ? "text-white" : "text-[var(--foreground-muted)] hover:text-white"}`} />
+                              <Check className={`w-5 h-5 ${movie.isChecked ? "text-white" : "text-[var(--foreground-muted)] hover:text-white"}`} />
                             </button>
                           </>
                         ) : null}
@@ -1413,7 +1443,12 @@ export default function WatchlistPage() {
                             movie.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
                           }`}>
                             <Image src={movie.posterPath ? posterUrl(movie.posterPath, "w185") : "/placeholder-poster.svg"} alt={movie.title} fill sizes="120px" className="object-cover" />
-                            {movie.mediaType === "tv" && (
+                            {movie.mediaType === "tv" && !revealed && (
+                              // Hidden while the long-press overlay is
+                              // revealed because the check-off button
+                              // sits in the same top-left corner; the
+                              // overlap was making the TV chip look
+                              // like it was on top of the action.
                               <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
                                 <Tv className="w-2.5 h-2.5" />
                                 <span className="text-[8px] font-bold leading-none">TV</span>

@@ -532,7 +532,7 @@ export default async function MoviesPage({ searchParams }: Props) {
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-4" />
 
-      <TapHoldHint />
+      <TapHoldHint pageKey="movies" />
 
       {/* Mixed results — when searching/filtering in "all" mode, interleave by relevance */}
       {isSearchMode && mixedResults.length > 0 && (
