@@ -27,19 +27,6 @@ html {
   color-scheme: dark;
 }
 
-html, body {
-  /* Belt-and-suspenders against any descendant pushing the page
-     wider than the viewport (long unbroken strings, oversized
-     embeds, off-by-a-pixel rounding). overflow-x: clip — unlike
-     hidden — doesn't establish a containing block for absolutely-
-     positioned descendants, so fixed/absolute layouts stay correct.
-     Applied to BOTH html and body because some browsers (notably
-     mobile Chrome on Android) enforce overflow rules at the html
-     level for the viewport scrollbar — applying only to body
-     leaves html able to scroll horizontally. */
-  overflow-x: clip;
-  max-width: 100%;
-}
 body {
   background: var(--background);
   color: var(--foreground);
