@@ -9,6 +9,7 @@ import AccountStatusBanner from "@/components/AccountStatusBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import OnboardingGuard from "@/components/OnboardingGuard";
 import NavEntryAutoRegister from "@/components/NavEntryAutoRegister";
+import TouchHint from "@/components/TouchHint";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -89,6 +90,7 @@ gtag('config', '${GA_ID}');`}
           <OnboardingGuard>
             <main className="flex-1">{children}</main>
           </OnboardingGuard>
+          <TouchHint />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             <div className="flex items-center justify-center gap-4 mt-3">

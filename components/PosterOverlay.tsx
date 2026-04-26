@@ -5,6 +5,7 @@ import { Eye, EyeOff, Bookmark, BookmarkCheck, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 import { useShowUserState } from "@/hooks/useShowUserState";
+import { useTouchReveal } from "@/hooks/useTouchReveal";
 import RatingBadge from "./RatingBadge";
 
 interface Props {
@@ -77,12 +78,17 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
     setMarkingW(false);
   }
 
+  const touch = useTouchReveal();
+  const overlayClass = touch.isTouch
+    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
+    : "opacity-0 pointer-events-none group-hover/poster:opacity-100 group-hover/poster:pointer-events-auto";
+
   return (
-    <div className="group/poster">
+    <div className="group/poster" {...touch.containerProps}>
       <div className="relative">
         {children}
         {user && (
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/poster:opacity-100 transition-opacity flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg z-10">
+          <div className={`absolute inset-0 bg-black/50 transition-opacity flex flex-col items-center justify-end gap-1.5 pb-2 rounded-lg z-10 ${overlayClass}`}>
             {seenError && (
               <div className="absolute top-1 left-1 right-1 bg-red-900/90 text-white text-[9px] rounded px-1.5 py-1 text-center z-20">
                 {seenError}

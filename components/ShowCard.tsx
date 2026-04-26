@@ -9,6 +9,7 @@ import RatingBadge from "./RatingBadge";
 import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useShowUserState } from "@/hooks/useShowUserState";
+import { useTouchReveal } from "@/hooks/useTouchReveal";
 import { useWatchlistFlow } from "./WatchlistFlow";
 
 interface Props {
@@ -55,10 +56,15 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
     posterPath: show.poster_path,
     onWatchlistedChange: setWatchlistState,
   });
+  const touch = useTouchReveal();
+  const overlayClass = touch.isTouch
+    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
+    : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto";
 
   return (
     <Link
       href={`/shows/${show.id}`}
+      {...touch.containerProps}
       className="group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
       data-seen-filter-id={`tv-${show.id}`}
     >
@@ -76,7 +82,7 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
           <span className="text-[8px] font-bold leading-none">TV</span>
         </div>
         {user && (
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-end gap-2 pb-3">
+          <div className={`absolute inset-0 bg-black/50 transition-opacity flex flex-col items-center justify-end gap-2 pb-3 ${overlayClass}`}>
             {seenError && (
               <div className="absolute top-2 left-2 right-2 bg-red-900/90 text-white text-[10px] rounded-lg px-2 py-1.5 text-center z-20">
                 {seenError}

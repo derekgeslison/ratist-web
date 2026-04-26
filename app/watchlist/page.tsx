@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import WatchlistSettings from "@/components/WatchlistSettings";
+import { useTouchReveal } from "@/hooks/useTouchReveal";
 
 /* ── Types ── */
 interface WatchlistMeta {
@@ -116,6 +117,29 @@ function WatchlistSortableItem({ item, index, total, onMove }: { item: { id: str
         <input value={inputVal} onChange={(e) => setInputVal(e.target.value)} placeholder="#"
           className="w-10 bg-[var(--surface-2)] border border-[var(--border)] rounded px-1.5 py-1 text-xs text-white text-center focus:outline-none focus:border-[var(--ratist-red)]" />
       </form>
+    </div>
+  );
+}
+
+/**
+ * Render-prop shell for a watchlist grid tile. Owns the long-press
+ * reveal behavior (and the corresponding pointer-events flip) so the
+ * .map can stay readable. The child receives the `overlayClass` to
+ * splat onto each of the three corner buttons — keeps the existing
+ * tile JSX intact while gating it on hover OR long-press.
+ */
+function WatchlistTileShell({
+  children,
+}: {
+  children: (overlayClass: string) => React.ReactNode;
+}) {
+  const touch = useTouchReveal();
+  const overlayClass = touch.isTouch
+    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
+    : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto";
+  return (
+    <div className="group flex flex-col relative" {...touch.containerProps}>
+      {children(overlayClass)}
     </div>
   );
 }
@@ -1332,7 +1356,8 @@ export default function WatchlistPage() {
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                     {filtered.map((movie) => (
-                      <div key={movie.id} className="group flex flex-col relative">
+                      <WatchlistTileShell key={movie.id}>
+                        {(overlayClass) => (<>
                         {/* Confirm remove overlay */}
                         {canEdit && confirmingRemove === movie.id ? (
                           <div className="absolute inset-0 z-10 bg-black/80 rounded-lg flex flex-col items-center justify-center gap-2 p-2">
@@ -1348,7 +1373,7 @@ export default function WatchlistPage() {
                             <button
                               onClick={() => setConfirmingRemove(movie.id)}
                               disabled={removing.has(movie.id)}
-                              className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-600 hover:border-red-600 transition-all"
+                              className={`absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center hover:bg-red-600 hover:border-red-600 transition-all ${overlayClass}`}
                               title="Remove from list"
                             >
                               <X className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
@@ -1357,19 +1382,23 @@ export default function WatchlistPage() {
                             {watchlists.length > 1 && (
                               <button
                                 onClick={() => openListPicker(movie)}
-                                className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-blue-600 hover:border-blue-600 transition-all"
+                                className={`absolute -top-1.5 left-1/2 -translate-x-1/2 z-10 w-6 h-6 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center hover:bg-blue-600 hover:border-blue-600 transition-all ${overlayClass}`}
                                 title="Add to other lists"
                               >
                                 <ListPlus className="w-3.5 h-3.5 text-[var(--foreground-muted)] hover:text-white" />
                               </button>
                             )}
-                            {/* Check-off button */}
+                            {/* Check-off button. When already checked it
+                                stays visible as a status indicator
+                                regardless of hover/long-press; otherwise
+                                follows the same reveal rule as the
+                                other corner buttons. */}
                             <button
                               onClick={() => toggleCheck(movie)}
-                              className={`absolute -top-1.5 -left-1.5 z-10 w-6 h-6 rounded-full border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${
+                              className={`absolute -top-1.5 -left-1.5 z-10 w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
                                 movie.isChecked
-                                  ? "bg-green-600 border-green-600 text-white opacity-100"
-                                  : "bg-[var(--surface-2)] border-[var(--border)] hover:bg-green-600 hover:border-green-600"
+                                  ? "bg-green-600 border-green-600 text-white opacity-100 pointer-events-auto"
+                                  : `bg-[var(--surface-2)] border-[var(--border)] hover:bg-green-600 hover:border-green-600 ${overlayClass}`
                               }`}
                               title={movie.isChecked ? "Unmark as watched" : "Mark as watched"}
                             >
@@ -1421,7 +1450,8 @@ export default function WatchlistPage() {
                             ) : null;
                           })()}
                         </Link>
-                      </div>
+                        </>)}
+                      </WatchlistTileShell>
                     ))}
                   </div>
                 )}

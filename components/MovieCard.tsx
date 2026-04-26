@@ -9,6 +9,7 @@ import RatingBadge from "./RatingBadge";
 import ProviderLogos, { type ProviderInfo } from "./ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
+import { useTouchReveal } from "@/hooks/useTouchReveal";
 import { useWatchlistFlow } from "./WatchlistFlow";
 
 interface Props {
@@ -59,10 +60,22 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
     releaseDate: movie.release_date,
     onWatchlistedChange: setWatchlistState,
   });
+  // On touch devices, hover-reveal becomes long-press-reveal. The
+  // hook returns no-op props on mouse devices so desktop is
+  // unaffected.
+  const touch = useTouchReveal();
+  // Overlay visibility — hover on desktop, revealed-state on touch.
+  // pointer-events flip is the load-bearing fix for the bug where
+  // tapping an "invisible" button on mobile fired the action
+  // instead of the link's navigation.
+  const overlayClass = touch.isTouch
+    ? (touch.revealed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none")
+    : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto";
 
   return (
     <Link
       href={`/movies/${movie.id}`}
+      {...touch.containerProps}
       className="group flex flex-col bg-[var(--surface)] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors relative"
       data-seen-filter-id={`movie-${movie.id}`}
     >
@@ -75,7 +88,7 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
           className="object-cover group-hover:scale-105 transition-transform duration-300"
         />
         {user && (
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-end gap-2 pb-3">
+          <div className={`absolute inset-0 bg-black/50 transition-opacity flex flex-col items-center justify-end gap-2 pb-3 ${overlayClass}`}>
             {seenError && (
               <div className="absolute top-2 left-2 right-2 bg-red-900/90 text-white text-[10px] rounded-lg px-2 py-1.5 text-center z-20">
                 {seenError}
