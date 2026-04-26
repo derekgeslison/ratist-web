@@ -650,9 +650,14 @@ export default function ShowDetailTabs({
 
       {/* ── OVERVIEW TAB ── */}
       {activeTab === "Overview" && (
-        <div className="space-y-10 pb-16">
-          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-10 pb-16 min-w-0">
+          <div className="grid lg:grid-cols-3 gap-8 min-w-0">
+            {/* min-w-0 on grid items is load-bearing on mobile — CSS
+               Grid items default to min-width: auto which resolves to
+               min-content, so a wide nested element (the season-poster
+               strip with overflow-x-auto, for example) was blowing the
+               column out past the viewport. */}
+            <div className="lg:col-span-2 space-y-6 min-w-0">
               <p className="text-[var(--foreground-muted)] leading-relaxed break-words">{show.overview}</p>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -710,7 +715,7 @@ export default function ShowDetailTabs({
             </div>
 
             {/* Right: facts + watch providers */}
-            <div className="space-y-6">
+            <div className="space-y-6 min-w-0">
               <div className="space-y-3">
                 <FactRow label="Status" value={show.status} />
                 <FactRow label="First Aired" value={show.first_air_date} />

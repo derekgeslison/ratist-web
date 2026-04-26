@@ -150,10 +150,10 @@ export default function MovieDetailTabs({
 
       {/* ── OVERVIEW TAB ── */}
       {activeTab === "Overview" && (
-        <div className="space-y-10 pb-16">
-          <div className="grid lg:grid-cols-3 gap-8">
+        <div className="space-y-10 pb-16 min-w-0">
+          <div className="grid lg:grid-cols-3 gap-8 min-w-0">
             {/* Left: overview + trailer + reviews */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-6 min-w-0">
               <p className="text-[var(--foreground-muted)] leading-relaxed break-words">{movie.overview}</p>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -207,7 +207,7 @@ export default function MovieDetailTabs({
             </div>
 
             {/* Right: facts + watch providers */}
-            <div className="space-y-6">
+            <div className="space-y-6 min-w-0">
               <div className="space-y-3">
                 <FactRow label="Status" value={movie.status} />
                 <FactRow label="Release Date" value={movie.release_date} />
