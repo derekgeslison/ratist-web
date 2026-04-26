@@ -174,6 +174,12 @@ export default function AvatarCropModal({ src, outputSize = 512, onConfirm, onCa
                 top: offset.y,
                 width: imgSize.w * baseScale * scale,
                 height: imgSize.h * baseScale * scale,
+                // Override Tailwind's preflight `img { max-width: 100% }`
+                // — without this, the image's width gets clamped to the
+                // viewport's 280px while height grows freely, so the
+                // zoom slider appears to scale only the Y axis.
+                maxWidth: "none",
+                maxHeight: "none",
                 userSelect: "none",
                 pointerEvents: "none",
               }}

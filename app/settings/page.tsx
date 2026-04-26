@@ -50,21 +50,16 @@ export default function SettingsPage() {
 
   // Snapshot of fields as last loaded/saved. Used to detect unsaved
   // changes for the leave-page warning. JSON-serializable subset is
-  // simpler than per-field equality checks.
+  // simpler than per-field equality checks. Stored in a ref so a
+  // save-handler that updates it doesn't trigger a re-render.
   const initialSnapshot = useRef<string>("");
-  function takeSnapshot() {
-    return JSON.stringify({
-      displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck,
-      publicTabs, notifPrefs, emailPrefs,
-      selectedGenres: Array.from(selectedGenres).sort(),
-      componentScores,
-    });
-  }
 
   // Account state
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  // pendingPreview is briefly set during the in-flight upload to
+  // give the user immediate visual feedback before the real
+  // avatarUrl comes back from the server.
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   // Source URL passed to the crop modal — separate from preview
   // because preview is the *cropped* result, while this is the
@@ -171,12 +166,7 @@ export default function SettingsPage() {
         setComponentScores(scores);
       }
       setLoading(false);
-      // Defer snapshot to next tick so all the setState calls above
-      // have flushed and our initial value reflects the loaded data,
-      // not the pre-load defaults.
-      requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
     }).catch(() => { showError("Failed to load settings"); setLoading(false); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const currentSnapshot = useMemo(
@@ -188,9 +178,21 @@ export default function SettingsPage() {
     }),
     [displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs, notifPrefs, emailPrefs, selectedGenres, componentScores]
   );
+
+  // Snapshot the loaded values once loading flips false. Done in an
+  // effect (not via rAF inside the load handler) so the closure
+  // captures the post-update render's values rather than the
+  // pre-update mount-render's. Save handlers also reassign this ref
+  // directly to extend "saved == loaded" forward in time.
+  useEffect(() => {
+    if (loading) return;
+    if (initialSnapshot.current !== "") return;
+    initialSnapshot.current = currentSnapshot;
+  }, [loading, currentSnapshot]);
+
   const isDirty = !loading
     && initialSnapshot.current !== ""
-    && (currentSnapshot !== initialSnapshot.current || pendingFile !== null);
+    && currentSnapshot !== initialSnapshot.current;
   useUnsavedWarning(isDirty);
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -212,27 +214,51 @@ export default function SettingsPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function handleCropConfirm(blob: Blob, previewUrl: string) {
+  async function handleCropConfirm(blob: Blob, previewUrl: string) {
     if (pendingPreview) URL.revokeObjectURL(pendingPreview);
     if (cropSource) URL.revokeObjectURL(cropSource);
-    // Wrap the blob in a File so existing upload code (which expects
-    // .name and .type) still works. The cropper outputs JPEG.
-    const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
-    setPendingFile(file);
-    setPendingPreview(previewUrl);
     setCropSource(null);
+    // Show the cropped result optimistically while we upload.
+    setPendingPreview(previewUrl);
+
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch("/api/profile/avatar", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await uploadRes.json();
+      if (!uploadRes.ok) {
+        // Roll back the optimistic preview on failure so the user
+        // doesn't see a "saved" state for a photo that didn't upload.
+        setPendingPreview(null);
+        URL.revokeObjectURL(previewUrl);
+        setAccountError(data.error ?? "Image upload failed.");
+        return;
+      }
+      setAvatarUrl(data.avatarUrl);
+      // Sync to Firebase Auth so the new photo persists across
+      // tabs/refresh without waiting for a separate Save Account.
+      await updateProfile(user, { photoURL: data.avatarUrl }).catch(() => null);
+      // Clear the local preview now that the real URL is live.
+      URL.revokeObjectURL(previewUrl);
+      setPendingPreview(null);
+      showSuccess("Profile picture updated");
+    } catch {
+      setPendingPreview(null);
+      URL.revokeObjectURL(previewUrl);
+      setAccountError("An unexpected error occurred uploading your photo.");
+    }
   }
 
   function handleCropCancel() {
     if (cropSource) URL.revokeObjectURL(cropSource);
     setCropSource(null);
-  }
-
-  function cancelPendingFile() {
-    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
-    setPendingFile(null);
-    setPendingPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function toggleGenre(key: string) {
@@ -250,32 +276,18 @@ export default function SettingsPage() {
     setSavingAccount(true);
     setSavedAccount(false);
     setAccountError("");
+    // Capture the snapshot at click time. If the user makes more
+    // changes while the save is in flight, those should still be
+    // detected as unsaved on success.
+    const snapshotBeingSaved = currentSnapshot;
 
     try {
       const token = await user.getIdToken();
 
-      // If there's a pending file, upload it first
-      let finalAvatarUrl = avatarUrl;
-      if (pendingFile) {
-        const formData = new FormData();
-        formData.append("file", pendingFile);
-        const uploadRes = await fetch("/api/profile/avatar", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) {
-          setAccountError(uploadData.error ?? "Image upload failed.");
-          setSavingAccount(false);
-          return;
-        }
-        finalAvatarUrl = uploadData.avatarUrl;
-        setAvatarUrl(finalAvatarUrl);
-        cancelPendingFile();
-      }
+      // Avatar uploads happen at crop-confirm time now (autosave),
+      // so this handler only persists name / bio / preferences.
+      const finalAvatarUrl = avatarUrl;
 
-      // Save name, bio (avatar already saved by upload endpoint)
       const res = await fetch("/api/profile/me", {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -290,9 +302,7 @@ export default function SettingsPage() {
         });
         setSavedAccount(true);
         setTimeout(() => setSavedAccount(false), 2500);
-        // Refresh the dirty-tracking baseline so the leave-page
-        // warning doesn't fire after a successful save.
-        requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
+        initialSnapshot.current = snapshotBeingSaved;
       } else {
         setAccountError("Failed to save. Please try again.");
       }
@@ -324,7 +334,7 @@ export default function SettingsPage() {
     setSavedPrefs(true);
     showSuccess("Preferences saved");
     setTimeout(() => setSavedPrefs(false), 2500);
-    requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
+    initialSnapshot.current = currentSnapshot;
   }
 
   if (!user) {
@@ -412,20 +422,10 @@ export default function SettingsPage() {
                   className="inline-flex items-center gap-2 bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm px-4 py-2 rounded-lg transition-colors"
                 >
                   <Upload className="w-4 h-4" />
-                  {pendingFile ? "Change photo" : "Upload photo"}
+                  {avatarUrl ? "Change photo" : "Upload photo"}
                 </button>
-                {pendingFile && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--foreground-muted)] truncate max-w-[180px]">
-                      {pendingFile.name}
-                    </span>
-                    <button type="button" onClick={cancelPendingFile} className="text-[var(--foreground-muted)] hover:text-white">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
                 <p className="text-xs text-[var(--foreground-muted)]">
-                  JPEG, PNG, WebP or GIF · max 5 MB
+                  JPEG, PNG, WebP or GIF · max 5 MB · saved automatically
                 </p>
               </div>
             </div>
@@ -548,7 +548,7 @@ export default function SettingsPage() {
             className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-colors disabled:opacity-60"
           >
             <Save className="w-4 h-4" />
-            {savingAccount ? (pendingFile ? "Uploading…" : "Saving…") : "Save Account"}
+            {savingAccount ? "Saving…" : "Save Account"}
           </button>
           {savedAccount && (
             <span className="flex items-center gap-1.5 text-sm text-green-400">
@@ -705,7 +705,7 @@ export default function SettingsPage() {
               setSavedNotif(true);
               showSuccess("Notification preferences saved");
               setTimeout(() => setSavedNotif(false), 3000);
-              requestAnimationFrame(() => { initialSnapshot.current = takeSnapshot(); });
+              initialSnapshot.current = currentSnapshot;
             }}
             disabled={savingNotif}
             className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-6 py-2.5 rounded-full transition-colors disabled:opacity-60"
