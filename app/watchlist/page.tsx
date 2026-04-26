@@ -791,6 +791,25 @@ export default function WatchlistPage() {
   const checkedCount = movies.filter((m) => m.isChecked).length;
   const uncheckedCount = movies.length - checkedCount;
 
+  // Count of currently-applied filters. Surfaced as a badge on the
+  // filter button so users (especially those with the "default to
+  // unwatched" setting on) don't get confused when items appear to
+  // be missing. Search query is intentionally excluded — the input
+  // is always visible, hard to forget about.
+  const activeFilterCount =
+    (seenFilter !== "all" ? 1 : 0) +
+    (mediaFilter !== "all" ? 1 : 0) +
+    (genreFilter ? 1 : 0) +
+    (selectedProviders.size > 0 ? 1 : 0);
+
+  function clearAllFilters() {
+    setSeenFilter("all");
+    setMediaFilter("all");
+    setGenreFilter("");
+    setSelectedProviders(new Set());
+    setShowStreaming(false);
+  }
+
   /* ── Render ── */
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1153,11 +1172,27 @@ export default function WatchlistPage() {
 
                     <button
                       onClick={() => setShowFilters(!showFilters)}
-                      className={`p-2 border rounded-xl transition-colors ${showFilters ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-[var(--ratist-red)]" : "bg-[var(--surface)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
-                      title="Filters"
+                      className={`relative p-2 border rounded-xl transition-colors ${showFilters || activeFilterCount > 0 ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-[var(--ratist-red)]" : "bg-[var(--surface)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+                      title={activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} applied` : "Filters"}
                     >
                       <SlidersHorizontal className="w-4 h-4" />
+                      {activeFilterCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-[var(--ratist-red)] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none">
+                          {activeFilterCount}
+                        </span>
+                      )}
                     </button>
+
+                    {activeFilterCount > 0 && (
+                      <button
+                        onClick={clearAllFilters}
+                        className="p-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:border-[var(--ratist-red)]/40 transition-colors"
+                        title="Clear filters"
+                        aria-label="Clear filters"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -1244,8 +1279,8 @@ export default function WatchlistPage() {
                         ))}
                       </div>
                     </div>
-                    {(seenFilter !== "all" || genreFilter || mediaFilter !== "all" || selectedProviders.size > 0) && (
-                      <button onClick={() => { setSeenFilter("all"); setGenreFilter(""); setMediaFilter("all"); setSelectedProviders(new Set()); setShowStreaming(false); }} className="self-end text-xs text-[var(--ratist-red)] hover:underline pb-1">
+                    {activeFilterCount > 0 && (
+                      <button onClick={clearAllFilters} className="self-end text-xs text-[var(--ratist-red)] hover:underline pb-1">
                         Clear filters
                       </button>
                     )}

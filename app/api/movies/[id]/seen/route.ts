@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: Props) {
         user.autoRemoveFromWatchlistOnSeen as "none" | "all" | "default",
         { movieId: movie.id }
       ).catch(() => {});
-      return NextResponse.json({ seen: true });
+      return NextResponse.json({ seen: true, watchedDate: watchedDate ? watchedDate.toISOString() : null });
     }
   } catch (err) {
     console.error("Seen toggle error:", err);
@@ -197,6 +197,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     return NextResponse.json({
       seen: !!isSeen,
+      watchedDate: isSeen?.watchedDate ? isSeen.watchedDate.toISOString() : null,
       watchlisted: !!isWatchlisted,
       rating: ratingForClient,
       ratingStatus,

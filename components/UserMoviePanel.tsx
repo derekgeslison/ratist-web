@@ -104,6 +104,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
         .then((r) => r.json())
         .then((data) => {
           setSeen(data.seen ?? false);
+          if (data.watchedDate) setSeenDate(String(data.watchedDate).slice(0, 10));
           setWatchlisted(data.watchlisted ?? false);
           setUserRating(data.rating ?? null);
           setRatingStatus(data.ratingStatus ?? null);
@@ -150,6 +151,14 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
     } else {
       const data = await res.json();
       setSeen(data.seen ?? !seen);
+      // Reflect the server-set watch date (today if autoDateOnSeen,
+      // null otherwise) so the calendar opens to the right value.
+      // On un-mark, watchedDate isn't returned — clear local state.
+      if (data.seen) {
+        setSeenDate(data.watchedDate ? String(data.watchedDate).slice(0, 10) : "");
+      } else {
+        setSeenDate("");
+      }
     }
     setTogglingSeeen(false);
   }
