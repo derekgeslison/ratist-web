@@ -6,8 +6,6 @@ import EmojiButton from "./EmojiButton";
 type NativeTextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 interface Props extends NativeTextareaProps {
-  /** Where the picker popover floats. Default top-right (above the button). */
-  emojiPosition?: "top-right" | "top-left" | "bottom-right" | "bottom-left";
   /** Override the absolute placement of the emoji button itself. Default
    *  bottom-right corner of the textarea. */
   emojiButtonClassName?: string;
@@ -20,7 +18,7 @@ interface Props extends NativeTextareaProps {
  * auto-grow `onInput` handlers fire normally.
  */
 const TextareaWithEmoji = forwardRef<HTMLTextAreaElement, Props>(function TextareaWithEmoji(
-  { className, emojiPosition = "top-right", emojiButtonClassName, ...rest },
+  { className, emojiButtonClassName, ...rest },
   externalRef,
 ) {
   const internalRef = useRef<HTMLTextAreaElement | null>(null);
@@ -53,11 +51,14 @@ const TextareaWithEmoji = forwardRef<HTMLTextAreaElement, Props>(function Textar
     });
   }
 
-  // Reserve a bit of right-padding so emoji stays out of the typed text.
-  // Caller's className wins on conflict (last in wins for Tailwind, but
-  // since we put theirs last it can override).
+  // Wrapper needs to grow inside flex parents — most callers pass
+  // `flex-1` for the textarea, but with the wrapper in between, that
+  // class lands on the textarea where it does nothing. `flex-1 min-w-0`
+  // here lets the wrapper take the remaining space; `w-full` keeps it
+  // sane in non-flex parents. Reserve right-padding on the textarea so
+  // the overlaid emoji button doesn't cover typed text.
   return (
-    <div className="relative w-full">
+    <div className="relative w-full flex-1 min-w-0">
       <textarea
         ref={internalRef}
         className={`pr-10 ${className ?? ""}`}
@@ -65,7 +66,6 @@ const TextareaWithEmoji = forwardRef<HTMLTextAreaElement, Props>(function Textar
       />
       <EmojiButton
         onSelect={handleEmoji}
-        position={emojiPosition}
         className={emojiButtonClassName ?? "absolute bottom-1 right-1"}
       />
     </div>

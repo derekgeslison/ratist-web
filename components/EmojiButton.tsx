@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { Smile } from "lucide-react";
 
@@ -18,21 +19,68 @@ const EmojiPicker = dynamic(() => import("emoji-picker-react"), {
 
 interface Props {
   onSelect: (emoji: string) => void;
-  /** Where the popover anchors relative to the button. Defaults to "top-right". */
-  position?: "top-right" | "top-left" | "bottom-right" | "bottom-left";
   className?: string;
 }
 
-export default function EmojiButton({ onSelect, position = "top-right", className }: Props) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+const PICKER_WIDTH = 300;
+const PICKER_HEIGHT = 380;
+const MARGIN = 8;
 
-  // Close on outside click + Escape so the popover can't strand itself
-  // open when users navigate away with mouse or keyboard.
+interface Pos { top: number; left: number }
+
+export default function EmojiButton({ onSelect, className }: Props) {
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<Pos>({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Compute position when opening, on resize, or on scroll. The popover
+  // anchors above-and-right of the button by default and flips below /
+  // shifts horizontally if it would clip the viewport. Width is capped
+  // at the viewport so phones with very narrow widths don't get cut.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function reposition() {
+      const btn = buttonRef.current;
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const w = Math.min(PICKER_WIDTH, vw - MARGIN * 2);
+      const h = Math.min(PICKER_HEIGHT, vh - MARGIN * 2);
+
+      let top = rect.top - h - MARGIN;
+      // Flip below the button if there isn't room above.
+      if (top < MARGIN) top = rect.bottom + MARGIN;
+
+      let left = rect.right - w;
+      if (left < MARGIN) left = MARGIN;
+      if (left + w > vw - MARGIN) left = vw - w - MARGIN;
+
+      setPos({ top, left });
+    }
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open]);
+
+  // Close on outside click + Escape. Outside = anywhere that isn't the
+  // button or the popover content (which lives in a portal, so we check
+  // both refs explicitly).
   useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (buttonRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -45,40 +93,37 @@ export default function EmojiButton({ onSelect, position = "top-right", classNam
     };
   }, [open]);
 
-  // Position classes — pick whichever corner has the most room. Comments
-  // render at the bottom of pages most often, so top-right is the default.
-  const popPos =
-    position === "top-right" ? "bottom-full mb-2 right-0"
-    : position === "top-left" ? "bottom-full mb-2 left-0"
-    : position === "bottom-right" ? "top-full mt-2 right-0"
-    : "top-full mt-2 left-0";
-
   return (
-    <div ref={wrapperRef} className={`relative ${className ?? ""}`}>
+    <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="p-1.5 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+        className={`p-1.5 text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors ${className ?? ""}`}
         title="Add emoji"
         aria-label="Add emoji"
       >
         <Smile className="w-4 h-4" />
       </button>
-      {open && (
-        <div className={`absolute z-50 ${popPos}`}>
+      {mounted && open && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 100 }}
+        >
           <EmojiPicker
             onEmojiClick={(data) => {
               onSelect(data.emoji);
               setOpen(false);
             }}
             theme={"dark" as never /* runtime accepts the string; SSR types are fussy */}
-            width={300}
-            height={380}
+            width={Math.min(PICKER_WIDTH, typeof window !== "undefined" ? window.innerWidth - MARGIN * 2 : PICKER_WIDTH)}
+            height={Math.min(PICKER_HEIGHT, typeof window !== "undefined" ? window.innerHeight - MARGIN * 2 : PICKER_HEIGHT)}
             lazyLoadEmojis
             previewConfig={{ showPreview: false }}
           />
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
