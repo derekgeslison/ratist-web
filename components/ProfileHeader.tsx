@@ -196,7 +196,10 @@ export default function ProfileHeader({
             disabled={followLoading}
             className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
               followStatus === "accepted"
-                ? "border-[var(--ratist-red)]/40 bg-[var(--ratist-red)]/10 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/20"
+                // Foreground (not accent) so themed profiles with a
+                // low-contrast accent don't make the "Following"
+                // text/icon disappear into the background.
+                ? "border-[var(--ratist-red)]/40 bg-[var(--ratist-red)]/10 text-[var(--foreground)] hover:bg-[var(--ratist-red)]/20"
                 : followStatus === "pending"
                 ? "border-[var(--foreground-muted)]/40 bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)]"
                 : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground)] hover:border-[var(--ratist-red)]"

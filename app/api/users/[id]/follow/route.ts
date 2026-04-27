@@ -157,6 +157,13 @@ async function createFollowRequestNotification(actorId: string, actorName: strin
 }
 
 async function createFollowNotification(actorId: string, actorName: string, targetUserId: string) {
+  // Resolve actor's firebaseUid so the notification can deep-link
+  // to their profile when tapped. Milestone notifications skip the
+  // link — there's no single profile to navigate to.
+  const actor = await prisma.user.findUnique({
+    where: { id: actorId },
+    select: { firebaseUid: true },
+  });
   // Check target's notification preferences
   const target = await prisma.user.findUnique({
     where: { id: targetUserId },
@@ -201,6 +208,10 @@ async function createFollowNotification(actorId: string, actorName: string, targ
       actorId,
       type: "follow",
       message,
+      // Milestone notifications ("you have 50 followers") have no
+      // single destination — tapping them just clears them. Single-
+      // follower notifications link to that follower's profile.
+      link: isMilestone ? null : (actor ? `/profile/${actor.firebaseUid}` : null),
     },
   });
 }

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Search" };
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Film, User, Tv, Tag } from "lucide-react";
+import { Search, Film, User, Tv, Tag, Newspaper, BookOpen, MessageSquare, Map as MapIcon, ThumbsUp } from "lucide-react";
 import { type TMDBMovie as LibTMDBMovie, searchKeywords, discoverMovies, discoverShows, getGenres } from "@/lib/tmdb";
 import { generateFuzzyVariants } from "@/lib/fuzzy-search";
+import { searchEditorial } from "@/lib/search-editorial";
 import SearchFilters from "./SearchFilters";
 import MovieListItem from "@/components/MovieListItem";
 import MovieCard from "@/components/MovieCard";
@@ -202,6 +203,20 @@ export default async function SearchPage({ searchParams }: Props) {
   else if (sortMode === "za") contentItems.sort((a, b) => b.title.localeCompare(a.title));
   else contentItems.sort((a, b) => b.popularity - a.popularity); // relevance = popularity
 
+  // Editorial search: also pull blog posts, two thumbs, movie maps,
+  // news, and forum threads that either match the query string or
+  // are tagged with one of the top entity matches above. Top 5
+  // movie + show + person ids form the tag-cohort for each.
+  const taggedMovieIds = contentItems.filter((c) => c.type === "movie").slice(0, 5).map((c) => c.id);
+  const taggedShowIds = contentItems.filter((c) => c.type === "tv").slice(0, 5).map((c) => c.id);
+  const taggedMediaIds = [...taggedMovieIds, ...taggedShowIds];
+  const taggedPersonIds = usePeople.slice(0, 5).map((p) => p.id);
+  const editorial = q.trim()
+    ? await searchEditorial(q, taggedMediaIds, taggedPersonIds).catch(() => ({
+        blogPosts: [], twoThumbs: [], movieMaps: [], news: [], forumThreads: [], forumTotalCount: 0,
+      }))
+    : { blogPosts: [], twoThumbs: [], movieMaps: [], news: [], forumThreads: [], forumTotalCount: 0 };
+
   // Batch-lookup cached certifications from DB
   const certMap = new Map<string, string>();
   try {
@@ -345,6 +360,75 @@ export default async function SearchPage({ searchParams }: Props) {
         </section>
       )}
 
+      {/* Editorial: news, blog, two-thumbs, movie maps, forum.
+         Forum sits last because it's the highest-volume long-term
+         and is more discovery-than-result for the typical search. */}
+      {editorial.news.length > 0 && (
+        <EditorialSection
+          icon={<Newspaper className="w-5 h-5 text-[var(--ratist-red)]" />}
+          title="News"
+          items={editorial.news}
+          hrefBase="/news"
+        />
+      )}
+      {editorial.blogPosts.length > 0 && (
+        <EditorialSection
+          icon={<BookOpen className="w-5 h-5 text-[var(--ratist-red)]" />}
+          title="Blog"
+          items={editorial.blogPosts}
+          hrefBase="/blog"
+        />
+      )}
+      {editorial.twoThumbs.length > 0 && (
+        <EditorialSection
+          icon={<ThumbsUp className="w-5 h-5 text-[var(--ratist-red)]" />}
+          title="Two Thumbs"
+          items={editorial.twoThumbs}
+          hrefBase="/two-thumbs"
+        />
+      )}
+      {editorial.movieMaps.length > 0 && (
+        <EditorialSection
+          icon={<MapIcon className="w-5 h-5 text-[var(--ratist-red)]" />}
+          title="Movie Maps"
+          items={editorial.movieMaps}
+          hrefBase="/movie-maps"
+        />
+      )}
+      {editorial.forumThreads.length > 0 && (
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-[var(--ratist-red)]" /> Forum
+              <span className="text-sm font-normal text-[var(--foreground-muted)]">
+                ({editorial.forumTotalCount} thread{editorial.forumTotalCount === 1 ? "" : "s"})
+              </span>
+            </h2>
+            {editorial.forumTotalCount > editorial.forumThreads.length && (
+              <Link href={`/forum?q=${encodeURIComponent(q)}`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                View all →
+              </Link>
+            )}
+          </div>
+          <div className="flex flex-col divide-y divide-[var(--border)]">
+            {editorial.forumThreads.map((t) => (
+              <Link
+                key={t.id}
+                href={`/forum/t/${t.slug}`}
+                className="flex items-center gap-3 py-3 hover:bg-[var(--surface)] transition-colors px-2 -mx-2 rounded-lg"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{t.title}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">
+                    {t.threadType} · {t.authorName} · {t.postCount} {t.postCount === 1 ? "reply" : "replies"}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Keyword-based results */}
       {uniqueKeywordResults.length > 0 && (
         <section className="mt-10">
@@ -366,5 +450,59 @@ export default async function SearchPage({ searchParams }: Props) {
          ?seenStatus= and the user's seen list. */}
       <SeenFilterRunner />
     </div>
+  );
+}
+
+interface EditorialItem {
+  id: string;
+  title: string;
+  slug: string | null;
+  excerpt: string | null;
+  coverImage: string | null;
+  publishedAt: string | null;
+  authorName: string | null;
+}
+
+function EditorialSection({
+  icon,
+  title,
+  items,
+  hrefBase,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: EditorialItem[];
+  hrefBase: string;
+}) {
+  return (
+    <section className="mt-10">
+      <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        {icon} {title}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((item) => (
+          <Link
+            key={item.id}
+            href={item.slug ? `${hrefBase}/${item.slug}` : hrefBase}
+            className="flex gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 hover:border-[var(--ratist-red)]/40 transition-colors"
+          >
+            {item.coverImage ? (
+              <div className="relative w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-[var(--surface-2)]">
+                <Image src={item.coverImage} alt="" fill sizes="80px" className="object-cover" />
+              </div>
+            ) : null}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white line-clamp-2">{item.title}</p>
+              {item.excerpt && (
+                <p className="text-xs text-[var(--foreground-muted)] line-clamp-2 mt-1">{item.excerpt}</p>
+              )}
+              <p className="text-[10px] text-[var(--foreground-muted)] mt-1">
+                {item.authorName}{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }

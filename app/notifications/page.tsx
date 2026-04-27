@@ -90,6 +90,10 @@ export default function NotificationsPage() {
     if (!n.read) {
       await markRead(n.id);
     }
+    // Grouped/milestone notifications (e.g. "You have 50 new
+    // followers") deliberately store no link — tapping just marks
+    // them read. Per-actor notifications carry a link to the actor's
+    // page or relevant content.
     if (n.link) router.push(n.link);
   }
 
