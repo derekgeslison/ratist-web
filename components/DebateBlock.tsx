@@ -5,6 +5,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, type ReactNodeViewProps } from 
 import { useState } from "react";
 import { ThumbsUp, ThumbsDown, ArrowUp, ArrowDown, Trash2, Plus, Pencil, Eye } from "lucide-react";
 import TwoThumbsDebate, { type DebateMessage } from "./TwoThumbsDebate";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 
 function DebateBlockComponent({ node, updateAttributes, deleteNode, editor }: ReactNodeViewProps) {
   const messages = (node.attrs.messages as DebateMessage[] | null) ?? [];
@@ -99,7 +100,7 @@ function DebateBlockComponent({ node, updateAttributes, deleteNode, editor }: Re
                       >
                         {isUp ? <ThumbsUp className="w-4 h-4 text-white" /> : <ThumbsDown className="w-4 h-4 text-white" />}
                       </button>
-                      <textarea
+                      <TextareaWithEmoji
                         value={msg.content}
                         onChange={(e) => updateMessage(idx, { content: e.target.value })}
                         placeholder={isUp ? "In favor..." : "Against..."}

@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import MovieCard from "./MovieCard";
 import ShowCard from "./ShowCard";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 
 interface PreviewItem {
   mediaType: "movie" | "tv";
@@ -300,7 +301,7 @@ export default function CustomCollectionsSection() {
                 maxLength={80}
                 className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
               />
-              <textarea
+              <TextareaWithEmoji
                 value={saveDescription}
                 onChange={(e) => setSaveDescription(e.target.value)}
                 placeholder="Description (optional)"

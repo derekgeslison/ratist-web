@@ -6,6 +6,7 @@ import { X, Send, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import MediaLinker from "@/components/forum/MediaLinker";
 import PersonLinker from "@/components/forum/PersonLinker";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 interface Media {
   tmdbId: number;
@@ -103,7 +104,7 @@ export default function PostIdeaSubmitModal({ type, label, onClose }: Props) {
               <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">
                 Your idea <span className="text-xs opacity-60">(required, min 10 characters)</span>
               </label>
-              <textarea
+              <TextareaWithEmoji
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={type === "PUNCH_AND_JUDY"

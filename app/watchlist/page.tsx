@@ -20,6 +20,7 @@ import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import WatchlistSettings from "@/components/WatchlistSettings";
 import WatchlistStats from "@/components/WatchlistStats";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import { useTouchReveal } from "@/hooks/useTouchReveal";
 import TapHoldHint from "@/components/TapHoldHint";
 
@@ -1073,7 +1074,7 @@ export default function WatchlistPage() {
                     className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] mb-3"
                     autoFocus
                   />
-                  <textarea
+                  <TextareaWithEmoji
                     value={newDesc}
                     onChange={(e) => setNewDesc(e.target.value)}
                     placeholder="Description (optional)"
@@ -1593,7 +1594,7 @@ export default function WatchlistPage() {
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] mb-3"
               autoFocus
             />
-            <textarea
+            <TextareaWithEmoji
               value={editDesc}
               onChange={(e) => setEditDesc(e.target.value)}
               placeholder="Description (optional)"

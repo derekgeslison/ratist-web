@@ -9,6 +9,7 @@ import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, Mes
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 interface HotTakeItem {
   id: string;
@@ -164,7 +165,7 @@ export default function HotTakesPage() {
               <X className="w-5 h-5 text-[var(--foreground-muted)]" />
             </button>
           </div>
-          <textarea
+          <TextareaWithEmoji
             value={newTake}
             onChange={(e) => setNewTake(e.target.value.slice(0, 280))}
             placeholder="Your spiciest movie opinion… (max 280 chars)"

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { Heart, Reply, Trash2, ChevronDown, ChevronUp, Send } from "lucide-react";
 import ReportButton from "./ReportButton";
-import EmojiButton from "./EmojiButton";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 import { useAuth } from "@/context/AuthContext";
 
 interface CommentUser {
@@ -60,36 +60,6 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const isAdmin = isAdminProp ?? adminStatus;
-
-  // Refs to the live textareas so the emoji picker can insert at the
-  // current caret position rather than always appending to the end.
-  const newTextRef = useRef<HTMLTextAreaElement | null>(null);
-  const replyTextRef = useRef<HTMLTextAreaElement | null>(null);
-
-  function insertEmojiInto(
-    ref: React.RefObject<HTMLTextAreaElement | null>,
-    current: string,
-    setter: (next: string) => void,
-    emoji: string,
-  ) {
-    const ta = ref.current;
-    if (!ta) { setter(current + emoji); return; }
-    const start = ta.selectionStart ?? current.length;
-    const end = ta.selectionEnd ?? current.length;
-    const next = current.slice(0, start) + emoji + current.slice(end);
-    setter(next);
-    // Restore caret after React re-renders. RAF lands after the value
-    // commit so setSelectionRange targets the right spot.
-    requestAnimationFrame(() => {
-      ta.focus();
-      const pos = start + emoji.length;
-      ta.setSelectionRange(pos, pos);
-      // Re-fire the auto-grow logic so a multi-line emoji insert doesn't
-      // leave the textarea visually clipped.
-      ta.style.height = "auto";
-      ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
-    });
-  }
 
   const getToken = useCallback(async () => {
     if (!user) return null;
@@ -317,8 +287,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
             {/* Reply input — shows on the comment that replyTo points to */}
             {replyingTo === comment.id && (
               <div className="flex gap-2 mt-2 items-end">
-                <textarea
-                  ref={replyTextRef}
+                <TextareaWithEmoji
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder={`Reply to ${comment.user.name}...`}
@@ -328,10 +297,6 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                   onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitComment(comment.id); } }}
                   onFocus={(e) => { const len = e.target.value.length; e.target.setSelectionRange(len, len); }}
                   autoFocus
-                />
-                <EmojiButton
-                  onSelect={(emoji) => insertEmojiInto(replyTextRef, replyText, setReplyText, emoji)}
-                  position="top-right"
                 />
                 <button
                   onClick={() => submitComment(comment.id)}
@@ -379,8 +344,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
 
           {user && !disabled ? (
             <div className="flex gap-2 mt-3 items-end">
-              <textarea
-                ref={newTextRef}
+              <TextareaWithEmoji
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
                 placeholder="Add a comment..."
@@ -388,10 +352,6 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                 className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
                 onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitComment(); } }}
-              />
-              <EmojiButton
-                onSelect={(emoji) => insertEmojiInto(newTextRef, newText, setNewText, emoji)}
-                position="top-right"
               />
               <button
                 onClick={() => submitComment()}

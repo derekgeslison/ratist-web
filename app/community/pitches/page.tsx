@@ -9,6 +9,7 @@ import { ArrowLeft, Lightbulb, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp,
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 interface PitchItem {
   id: string;
@@ -196,7 +197,7 @@ export default function PitchesPage() {
             placeholder="Your pitch title…"
             className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder-[var(--foreground-muted)] focus:outline-none focus:border-emerald-400 mb-3"
           />
-          <textarea
+          <TextareaWithEmoji
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value.slice(0, 5000))}
             placeholder="Describe your idea — premise, characters, tone, what makes it unique…"

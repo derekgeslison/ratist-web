@@ -9,6 +9,7 @@ import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 import ShareButton from "./ShareButton";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 
 interface CategoryAvg {
   ratistRating: number | null;
@@ -541,7 +542,7 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
                     className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
                   />
                 </div>
-                <textarea
+                <TextareaWithEmoji
                   value={rewatchNotes}
                   onChange={(e) => setRewatchNotes(e.target.value)}
                   placeholder="Any thoughts on this rewatch? (optional)"

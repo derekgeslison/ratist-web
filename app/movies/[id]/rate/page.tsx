@@ -9,6 +9,7 @@ import { posterUrl } from "@/lib/tmdb";
 import LiveReview from "@/components/LiveReview";
 import Link from "next/link";
 import BackstagePassPopup from "@/components/BackstagePassPopup";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import { Ticket, ArrowLeft } from "lucide-react";
 
 type ReviewMode = "basic" | "standard" | "critic";
@@ -502,7 +503,7 @@ export default function RateMoviePage() {
                         </div>
                         {/* Critic mode: per-field comment */}
                         {mode === "critic" && (
-                          <textarea
+                          <TextareaWithEmoji
                             value={fieldComments[field.key] ?? ""}
                             onChange={(e) => setFieldComments((c) => ({ ...c, [field.key]: e.target.value }))}
                             placeholder={`Your thoughts on ${field.label.toLowerCase()}...`}
@@ -519,7 +520,7 @@ export default function RateMoviePage() {
                         <label className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider block mb-2">
                           {catName} — Summary
                         </label>
-                        <textarea
+                        <TextareaWithEmoji
                           value={categoryComments[cat.key] ?? ""}
                           onChange={(e) => setCategoryComments((c) => ({ ...c, [cat.key]: e.target.value }))}
                           placeholder={`Summarize your thoughts on ${catName.toLowerCase()}...`}
@@ -574,7 +575,7 @@ export default function RateMoviePage() {
         {/* Review text — always shown */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
           <label className="block text-sm font-semibold text-white mb-2">Written Review <span className="text-[var(--foreground-muted)] font-normal text-xs">(optional)</span></label>
-          <textarea
+          <TextareaWithEmoji
             value={reviewText}
             onChange={(e) => setReviewText(e.target.value)}
             placeholder="Share your thoughts on this movie..."

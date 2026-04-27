@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bookmark, Check, X, Loader2, Plus, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 
 interface ListEntry {
   id: string;
@@ -312,7 +313,7 @@ function WatchlistPickerModal({ title, lists, onToggle, onCreate, onClose }: Pic
               autoFocus
               className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
             />
-            <textarea
+            <TextareaWithEmoji
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
               placeholder="Description (optional)"

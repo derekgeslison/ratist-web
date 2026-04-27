@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, MessageCircle, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 const CATEGORIES = [
   { value: "bug", label: "Bug Report" },
@@ -108,7 +109,7 @@ export default function FeedbackPage() {
         {/* Message */}
         <div>
           <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">Your Feedback</label>
-          <textarea
+          <TextareaWithEmoji
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Describe the issue, suggestion, or feedback in detail..."

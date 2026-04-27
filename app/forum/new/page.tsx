@@ -11,6 +11,7 @@ import MediaLinker from "@/components/forum/MediaLinker";
 import PersonLinker from "@/components/forum/PersonLinker";
 import TagInput from "@/components/forum/TagInput";
 import PollBuilder from "@/components/forum/PollBuilder";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 const THREAD_TYPES = [
   { value: "discussion", label: "Discussion", desc: "General movie or TV discussion" },
@@ -154,7 +155,7 @@ function NewThreadForm() {
         {/* Content */}
         <div>
           <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">Content</label>
-          <textarea
+          <TextareaWithEmoji
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Share your thoughts..."

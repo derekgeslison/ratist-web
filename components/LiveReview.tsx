@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Pause, RotateCcw, Bookmark, ChevronDown, ChevronUp, Clock, Trash2, ArrowRight, StickyNote } from "lucide-react";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 
 interface BookmarkEntry {
   id: string;
@@ -287,7 +288,7 @@ export default function LiveReview({ movieId }: Props) {
               <StickyNote className="w-3 h-3 text-[var(--foreground-muted)]" />
               <span className="text-[10px] text-[var(--foreground-muted)]">General Notes</span>
             </div>
-            <textarea
+            <TextareaWithEmoji
               value={generalNotes} onChange={(e) => setGeneralNotes(e.target.value)}
               placeholder="Overall thoughts, themes, anything you want to remember..."
               rows={2}

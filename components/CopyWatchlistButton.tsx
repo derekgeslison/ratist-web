@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Copy, X, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import SignInLink from "./SignInLink";
+import TextareaWithEmoji from "./TextareaWithEmoji";
 
 interface Props {
   sourceId: string;
@@ -91,7 +92,7 @@ export default function CopyWatchlistButton({ sourceId, sourceName, ownerFirebas
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">Description <span className="text-xs opacity-60">(optional)</span></label>
-                <textarea
+                <TextareaWithEmoji
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}

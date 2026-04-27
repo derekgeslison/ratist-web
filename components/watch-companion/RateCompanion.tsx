@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ThumbsUp, ThumbsDown, Check, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import SignInLink from "@/components/SignInLink";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 interface Props {
   companionId: string;
@@ -187,7 +188,7 @@ export default function RateCompanion({ companionId, seasonNumber, seasonLabel }
          stays in sync with the saved value. */}
       {rating && (
         <div className="mt-2 pt-2 border-t border-[var(--border)]/40 space-y-2">
-          <textarea
+          <TextareaWithEmoji
             value={comment}
             onChange={(e) => { setComment(e.target.value.slice(0, 1000)); setCommentSaved(false); }}
             rows={2}

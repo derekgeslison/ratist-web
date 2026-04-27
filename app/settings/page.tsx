@@ -6,6 +6,7 @@ import { Check, Save, Upload, X, AlertTriangle, Download, Mail } from "lucide-re
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
 import AvatarCropModal from "@/components/AvatarCropModal";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import { useUnsavedWarning } from "@/hooks/useUnsavedWarning";
 
 const GENRES = [
@@ -446,7 +447,7 @@ export default function SettingsPage() {
           {/* Bio */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">Bio</label>
-            <textarea
+            <TextareaWithEmoji
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               rows={3}

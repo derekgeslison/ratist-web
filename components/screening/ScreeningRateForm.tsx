@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { scoreColor } from "@/lib/ratings";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 
 type ReviewMode = "basic" | "standard";
 
@@ -169,7 +170,7 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
       )}
 
       {/* Review text */}
-      <textarea
+      <TextareaWithEmoji
         value={reviewText} onChange={(e) => setReviewText(e.target.value)}
         placeholder="Any thoughts? (optional)"
         rows={2}

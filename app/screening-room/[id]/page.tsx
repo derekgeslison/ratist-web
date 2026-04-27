@@ -13,6 +13,7 @@ import { rtdbPaths, type RTDBChatMessage, playDing, playDoubleDing, playCountdow
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import ScreeningRatingCompare from "@/components/screening/ScreeningRatingCompare";
 import ScreeningSuperlatives from "@/components/screening/ScreeningSuperlatives";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import ScreeningHeatmap from "@/components/screening/ScreeningHeatmap";
 import ScreeningTrivia from "@/components/screening/ScreeningTrivia";
 import ScreeningMovieSuggestions from "@/components/screening/ScreeningMovieSuggestions";
@@ -1041,7 +1042,7 @@ export default function ScreeningSessionPage() {
             <h2 className="text-sm font-semibold text-white mb-3">Pre-Watch Predictions</h2>
             <p className="text-xs text-[var(--foreground-muted)] mb-3">Your predictions will be hidden until after the {session.mediaType === "tv" ? "show" : "movie"}.</p>
             <div className="space-y-3">
-              <textarea
+              <TextareaWithEmoji
                 value={plotGuess} onChange={(e) => { setPlotGuess(e.target.value); setPredictionSaved(false); }}
                 placeholder="What do you think will happen? Any plot predictions?"
                 rows={2}

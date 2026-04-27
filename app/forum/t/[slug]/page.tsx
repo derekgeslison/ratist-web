@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ReportButton from "@/components/ReportButton";
 import CommentSection from "@/components/CommentSection";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import AdUnit from "@/components/AdUnit";
 import TypeBadge from "@/components/forum/TypeBadge";
 import AuthorFlair from "@/components/forum/AuthorFlair";
@@ -320,7 +321,7 @@ export default function ThreadPage({ params }: Props) {
             </div>
             {editingPostId === op.id ? (
               <div>
-                <textarea
+                <TextareaWithEmoji
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={6}
@@ -406,7 +407,7 @@ export default function ThreadPage({ params }: Props) {
                   : "Your Turn"}
               </h3>
               <form onSubmit={submitReply}>
-                <textarea
+                <TextareaWithEmoji
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
                   placeholder="Write your argument..."

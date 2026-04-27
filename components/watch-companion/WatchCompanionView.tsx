@@ -11,6 +11,7 @@ import CompanionNotAvailable from "./CompanionNotAvailable";
 import CommunitySource from "./CommunitySource";
 import FollowCompanionButton from "./FollowCompanionButton";
 import AdUnit from "@/components/AdUnit";
+import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import CompanionItemEditor, { type EditorDraft } from "@/components/admin/CompanionItemEditor";
 import ItemSuggestions, { type SuggestionRow } from "./ItemSuggestions";
 import { useAuth } from "@/context/AuthContext";
@@ -2177,7 +2178,7 @@ function RecapAlternatives({
           ))}
           {user && (
             <div className="bg-[var(--surface-2)]/40 border border-[var(--border)]/60 rounded-lg p-2.5 space-y-2">
-              <textarea
+              <TextareaWithEmoji
                 value={draft}
                 onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
                 rows={4}
