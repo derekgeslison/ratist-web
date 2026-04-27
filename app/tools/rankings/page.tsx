@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -178,7 +178,19 @@ function SortableItem({
   );
 }
 
+// Wrap the inner component that calls `useSearchParams` in a Suspense
+// boundary. Next.js bails the page out of static prerendering otherwise —
+// any client component reading the URL has to declare a fallback so the
+// build can produce a valid initial HTML shell.
 export default function RankingsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 text-[var(--foreground-muted)]">Loading...</div>}>
+      <RankingsPageInner />
+    </Suspense>
+  );
+}
+
+function RankingsPageInner() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
