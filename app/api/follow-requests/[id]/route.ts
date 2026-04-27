@@ -59,14 +59,20 @@ export async function PATCH(req: NextRequest, { params }: Props) {
     });
     checkBadges(request.followerId, "follow").catch(() => {});
     checkBadges(user.id, "got_followed").catch(() => {});
-    // Notify the requester that they're now following.
+    // Notify the requester that they're now following. Link to the
+    // owner's profile since that's now unlocked for them.
     try {
+      const owner = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { firebaseUid: true },
+      });
       await prisma.notification.create({
         data: {
           userId: request.followerId,
           actorId: user.id,
           type: "follow_request_accepted",
           message: `${user.name} accepted your follow request`,
+          link: owner ? `/profile/${owner.firebaseUid}` : null,
         },
       });
     } catch { /* non-critical */ }

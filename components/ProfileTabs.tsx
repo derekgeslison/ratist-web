@@ -457,8 +457,13 @@ export default function ProfileTabs({
         ))}
       </div>
 
-      {/* ── PRIVATE GATE ── */}
-      {!isOwnProfile && (isPrivate || visibleTabs.length === 0) ? (
+      {/* ── PRIVATE GATE ──
+          Triggered when there's nothing to show. visibleTabs is
+          already empty for unapproved viewers of a private profile;
+          accepted followers fall through to the public-tab filter
+          and only hit the gate if the owner has hidden every single
+          tab from followers via publicTabs. */}
+      {!isOwnProfile && visibleTabs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-14 h-14 rounded-full bg-[var(--surface-2)] border border-[var(--border)] flex items-center justify-center mb-4">
             <svg className="w-6 h-6 text-[var(--foreground-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">

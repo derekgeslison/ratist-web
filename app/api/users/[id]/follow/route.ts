@@ -138,6 +138,7 @@ async function createFollowRequestNotification(actorId: string, actorName: strin
       actorId,
       type: "follow_request",
       message: `${actorName} requested to follow you`,
+      link: "/connections?tab=requests",
     },
   });
 }

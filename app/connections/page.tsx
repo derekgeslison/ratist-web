@@ -31,7 +31,13 @@ interface FollowRequest {
 
 export default function ConnectionsPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"following" | "followers" | "requests">("following");
+  const [tab, setTab] = useState<"following" | "followers" | "requests">(() => {
+    if (typeof window === "undefined") return "following";
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("tab");
+    if (t === "followers" || t === "requests") return t;
+    return "following";
+  });
   const [followers, setFollowers] = useState<UserItem[]>([]);
   const [following, setFollowing] = useState<UserItem[]>([]);
   const [requests, setRequests] = useState<FollowRequest[]>([]);
