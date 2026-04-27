@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-companion-generate";
 import { logAiUsage } from "@/lib/ai/rate-limit";
 import { decideAiringTrigger, AIRING_BUFFER_DAYS } from "@/lib/companion-airing";
+import { notifyCompanionRequesters } from "@/lib/watch-companion-notify";
 
 export const dynamic = "force-dynamic";
 // Five sequential Sonnet calls + TMDB + Wikipedia + Prisma writes can still
@@ -82,6 +83,38 @@ export async function POST(req: NextRequest) {
           if (evt.kind === "complete") {
             // Log usage AFTER success; match the old route's behavior.
             try { await logAiUsage(userId, "watch_companion_generate"); } catch { /* non-fatal */ }
+            // If this generation was triggered by (or fulfills) one or
+            // more open user requests, auto-publish the companion and
+            // notify the requesters. Admins running a request through
+            // the generator expect users to see the result, not have
+            // it sit in `draft` waiting on a separate publish click —
+            // that gap was why request notifications were silent.
+            try {
+              const companionId = evt.result.companionId;
+              const requestMatch = await prisma.companionGenerationRequest.findFirst({
+                where: {
+                  tmdbId,
+                  mediaType,
+                  // Movies have no season, TV requests can be season-less
+                  // (matches any) or season-specific (must match).
+                  ...(mediaType === "tv"
+                    ? { OR: [{ season: null }, { season }] }
+                    : {}),
+                  status: { in: ["pending", "approved"] },
+                  notifiedAt: null,
+                },
+                select: { id: true },
+              });
+              if (requestMatch) {
+                await prisma.watchCompanion.update({
+                  where: { id: companionId },
+                  data: { status: "published", publishedAt: new Date() },
+                });
+                await notifyCompanionRequesters(companionId, userId);
+              }
+            } catch (err) {
+              console.error("Auto-publish/notify on generate failed (non-fatal):", err);
+            }
             controller.close();
             return;
           }
