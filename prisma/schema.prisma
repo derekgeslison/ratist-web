@@ -143,6 +143,8 @@ model User {
   adminLogs        AdminLog[] @relation("adminLogs")
   followers        UserFollow[] @relation("following")
   following        UserFollow[] @relation("followers")
+  blocksMade       UserBlock[]  @relation("blocker")
+  blocksReceived   UserBlock[]  @relation("blocked")
   userBadges       UserBadge[]
   companionsGenerated  WatchCompanion[]          @relation("companionGenerator")
   companionSuggestions CompanionSuggestion[]     @relation("suggestionAuthor")
@@ -185,6 +187,23 @@ model UserFollow {
   @@index([followingId])
   @@index([followingId, status])
   @@map("user_follows")
+}
+
+// One-way block: blocker can no longer be followed/seen by blocked,
+// and blocked can no longer follow/see blocker. Bi-directionally
+// hides the two users from each other's content/search/feeds.
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
 }
 
 model SiteConfig {

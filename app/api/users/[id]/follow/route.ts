@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { checkBadges, recheckBadges } from "@/lib/badges";
+import { isMutuallyBlocked } from "@/lib/blocks";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -29,16 +30,29 @@ export async function GET(req: NextRequest, { params }: Props) {
   ]);
 
   const user = await getUser(req);
-  let followStatus: "none" | "pending" | "accepted" = "none";
+  let followStatus: "none" | "pending" | "accepted" | "blocked" = "none";
+  let blockedByMe = false;
   if (user && user.id !== target.id) {
-    const existing = await prisma.userFollow.findUnique({
-      where: { followerId_followingId: { followerId: user.id, followingId: target.id } },
-    });
-    if (existing) followStatus = existing.status === "pending" ? "pending" : "accepted";
+    if (await isMutuallyBlocked(user.id, target.id)) {
+      followStatus = "blocked";
+      // Only flag blockedByMe so the UI can offer Unblock — we don't
+      // expose whether the OTHER party blocked us.
+      const myBlock = await prisma.userBlock.findUnique({
+        where: { blockerId_blockedId: { blockerId: user.id, blockedId: target.id } },
+        select: { id: true },
+      });
+      blockedByMe = !!myBlock;
+    } else {
+      const existing = await prisma.userFollow.findUnique({
+        where: { followerId_followingId: { followerId: user.id, followingId: target.id } },
+      });
+      if (existing) followStatus = existing.status === "pending" ? "pending" : "accepted";
+    }
   }
 
   return NextResponse.json({
     followStatus,
+    blockedByMe,
     // Legacy field for any client still reading isFollowing.
     isFollowing: followStatus === "accepted",
     followerCount,
@@ -64,6 +78,14 @@ export async function POST(req: NextRequest, { params }: Props) {
   });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (target.id === user.id) return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
+
+  // Block enforcement: a block in either direction prevents new
+  // follows from being created. The follow row itself was already
+  // deleted at block-time, so this is just the "don't let them
+  // re-follow" guard.
+  if (await isMutuallyBlocked(user.id, target.id)) {
+    return NextResponse.json({ error: "Blocked" }, { status: 403 });
+  }
 
   const existing = await prisma.userFollow.findUnique({
     where: { followerId_followingId: { followerId: user.id, followingId: target.id } },

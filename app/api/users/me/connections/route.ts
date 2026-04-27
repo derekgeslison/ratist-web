@@ -17,9 +17,26 @@ export async function GET(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Block-aware: filter out anyone blocked in either direction so a
+  // blocked user doesn't appear in your followers/following list.
+  const blocks = await prisma.userBlock.findMany({
+    where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+    select: { blockerId: true, blockedId: true },
+  });
+  const blockedIds = new Set<string>();
+  for (const b of blocks) {
+    if (b.blockerId !== user.id) blockedIds.add(b.blockerId);
+    if (b.blockedId !== user.id) blockedIds.add(b.blockedId);
+  }
+  const blockedArray = Array.from(blockedIds);
+
   const [followers, following] = await Promise.all([
     prisma.userFollow.findMany({
-      where: { followingId: user.id, status: "accepted" },
+      where: {
+        followingId: user.id,
+        status: "accepted",
+        ...(blockedArray.length > 0 ? { followerId: { notIn: blockedArray } } : {}),
+      },
       include: {
         follower: {
           select: {
@@ -31,7 +48,11 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     }),
     prisma.userFollow.findMany({
-      where: { followerId: user.id, status: "accepted" },
+      where: {
+        followerId: user.id,
+        status: "accepted",
+        ...(blockedArray.length > 0 ? { followingId: { notIn: blockedArray } } : {}),
+      },
       include: {
         following: {
           select: {

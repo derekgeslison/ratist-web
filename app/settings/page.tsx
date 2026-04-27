@@ -6,6 +6,7 @@ import { Check, Save, Upload, X, AlertTriangle, Download, Mail } from "lucide-re
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
 import AvatarCropModal from "@/components/AvatarCropModal";
+import BlockedUsersSection from "@/components/BlockedUsersSection";
 import { useUnsavedWarning } from "@/hooks/useUnsavedWarning";
 
 const GENRES = [
@@ -561,6 +562,11 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      <div className="border-t border-[var(--border)]" />
+
+      {/* ── BLOCKED USERS ── */}
+      <BlockedUsersSection />
 
       {ratistReviewCount < 10 && (<>
       <div className="border-t border-[var(--border)]" />

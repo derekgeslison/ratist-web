@@ -41,11 +41,23 @@ export async function GET(req: NextRequest) {
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // --- 1. Following Activity ---
+    // Pulls accepted follows minus mutual blocks. A user the viewer
+    // already follows but later blocks (in either direction) gets
+    // dropped here so their content doesn't keep appearing in feed.
+    const blocks = await prisma.userBlock.findMany({
+      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+      select: { blockerId: true, blockedId: true },
+    });
+    const blockedIds = new Set<string>();
+    for (const b of blocks) {
+      if (b.blockerId !== user.id) blockedIds.add(b.blockerId);
+      if (b.blockedId !== user.id) blockedIds.add(b.blockedId);
+    }
     const following = await prisma.userFollow.findMany({
       where: { followerId: user.id, status: "accepted" },
       select: { followingId: true },
     });
-    const followingIds = following.map((f) => f.followingId);
+    const followingIds = following.map((f) => f.followingId).filter((id) => !blockedIds.has(id));
 
     let followActivity: unknown[] = [];
     if (followingIds.length > 0) {

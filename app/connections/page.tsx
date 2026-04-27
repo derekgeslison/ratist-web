@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
-import { Users, UserPlus, ArrowLeft, Check, X } from "lucide-react";
+import { Users, UserPlus, ArrowLeft, Check, X, UserX } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AdUnit from "@/components/AdUnit";
 
@@ -51,6 +51,20 @@ export default function ConnectionsPage() {
       setLoading(false);
     });
   }, [user]);
+
+  async function removeFollower(firebaseUid: string) {
+    if (!user) return;
+    const ok = window.confirm("Remove this follower? They can re-follow you afterwards.");
+    if (!ok) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/users/${firebaseUid}/remove-follower`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) {
+      setFollowers((prev) => prev.filter((f) => f.firebaseUid !== firebaseUid));
+    }
+  }
 
   async function actOnRequest(requestId: string, action: "accept" | "decline") {
     if (!user || actingOn) return;
@@ -202,25 +216,32 @@ export default function ConnectionsPage() {
       ) : (
         <div className="space-y-2">
           {list.map((u) => (
-            <Link
-              key={u.id}
-              href={`/profile/${u.firebaseUid}`}
-              className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 hover:border-[var(--foreground-muted)]/30 transition-colors"
-            >
-              <div className="relative w-10 h-10 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
-                {u.avatarUrl ? (
-                  <Image src={u.avatarUrl} alt="" fill sizes="40px" className="object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white bg-[var(--ratist-red)]">
-                    {u.name[0]?.toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{u.name}</p>
-                <p className="text-xs text-[var(--foreground-muted)]">{u._count.ratings} ratings</p>
-              </div>
-            </Link>
+            <div key={u.id} className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 hover:border-[var(--foreground-muted)]/30 transition-colors">
+              <Link href={`/profile/${u.firebaseUid}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="relative w-10 h-10 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
+                  {u.avatarUrl ? (
+                    <Image src={u.avatarUrl} alt="" fill sizes="40px" className="object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white bg-[var(--ratist-red)]">
+                      {u.name[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{u.name}</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">{u._count.ratings} ratings</p>
+                </div>
+              </Link>
+              {tab === "followers" && (
+                <button
+                  onClick={() => removeFollower(u.firebaseUid)}
+                  className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-2)] flex items-center gap-1.5 shrink-0"
+                  title="Remove follower"
+                >
+                  <UserX className="w-3.5 h-3.5" /> Remove
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}

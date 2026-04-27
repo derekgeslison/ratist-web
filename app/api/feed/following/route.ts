@@ -11,12 +11,22 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ items: [] });
 
     // Get followed user IDs (accepted-only — pending requests don't
-    // grant access to the followee's content yet).
+    // grant access to the followee's content yet). Drop any user
+    // mutually blocked so their content doesn't show in the feed.
+    const blocks = await prisma.userBlock.findMany({
+      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+      select: { blockerId: true, blockedId: true },
+    });
+    const blockedIds = new Set<string>();
+    for (const b of blocks) {
+      if (b.blockerId !== user.id) blockedIds.add(b.blockerId);
+      if (b.blockedId !== user.id) blockedIds.add(b.blockedId);
+    }
     const following = await prisma.userFollow.findMany({
       where: { followerId: user.id, status: "accepted" },
       select: { followingId: true },
     });
-    const followingIds = following.map((f) => f.followingId);
+    const followingIds = following.map((f) => f.followingId).filter((id) => !blockedIds.has(id));
     if (followingIds.length === 0) return NextResponse.json({ items: [] });
 
     // Fetch recent movie ratings from followed users (last 30 days)
