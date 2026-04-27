@@ -63,19 +63,26 @@ function HorizontalBars({ items, max }: { items: BucketStat[]; max: number }) {
   );
 }
 
+// Mirrors the movie/show RatingDistribution: each bar sits inside a
+// fixed-height wrapper (h-16) so the % height resolves against a real
+// pixel height instead of collapsing to content.
 function RatingDistribution({ distribution }: { distribution: Record<string, number> }) {
   const max = Math.max(1, ...Object.values(distribution));
   const buckets = Array.from({ length: 10 }, (_, i) => i + 1);
   return (
-    <div className="flex items-end gap-1 h-16">
+    <div className="flex items-end gap-1">
       {buckets.map((b) => {
         const count = distribution[String(b)] ?? distribution[b] ?? 0;
-        const heightPct = (count / max) * 100;
+        const pct = (count / max) * 100;
+        const color = b <= 3 ? "bg-red-500" : b <= 5 ? "bg-orange-500" : b <= 7 ? "bg-yellow-500" : "bg-green-500";
         return (
-          <div key={b} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full bg-[var(--ratist-red)]/80 rounded-t" style={{ height: `${Math.max(heightPct, count > 0 ? 4 : 0)}%`, minHeight: count > 0 ? 2 : 0 }}
-              title={`${b}: ${count}`} />
-            <span className="text-[9px] text-[var(--foreground-muted)] leading-none">{b}</span>
+          <div key={b} className="flex-1 flex flex-col items-center gap-1 group relative">
+            <div className="w-full flex flex-col items-center justify-end h-16">
+              <div className={`w-full rounded-t ${color} transition-all duration-300 min-h-[2px]`}
+                style={{ height: `${Math.max(pct, count > 0 ? 3 : 0)}%` }}
+                title={`${b}: ${count}`} />
+            </div>
+            <span className="text-[10px] text-[var(--foreground-muted)] leading-none">{b}</span>
           </div>
         );
       })}

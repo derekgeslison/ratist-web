@@ -132,11 +132,16 @@ export async function GET(req: NextRequest, { params }: Props) {
       ? ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length
       : null;
 
-    // 1–10 distribution. Bucket by Math.round so 7.4 → 7, 7.5 → 8.
+    // 1–10 distribution. Match the displayed-rating bucketing used by the
+    // movie/show distribution endpoint (lib: round to 1 decimal first, then
+    // floor). Without this, 8.5 displays as "8.5" but Math.round(8.5)
+    // pushes it to the "9" bucket — visibly wrong to a user looking at
+    // their own rating.
     const distribution: Record<number, number> = {};
     for (let i = 1; i <= 10; i++) distribution[i] = 0;
     for (const v of ratingValues) {
-      const bucket = Math.max(1, Math.min(10, Math.round(v)));
+      const displayed = Math.round(v * 10) / 10; // matches toFixed(1)
+      const bucket = Math.max(1, Math.min(10, Math.floor(displayed)));
       distribution[bucket]++;
     }
 
