@@ -276,6 +276,12 @@ model Movie {
   status       String?
   watchProviders    Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
   providersUpdatedAt DateTime? @map("providers_updated_at")
+  // TMDB belongs_to_collection — drives franchise aggregations on
+  // /box-office/franchises. Stored inline rather than via a separate
+  // Collection table; we only need id + name for grouping and label
+  // rendering, and TMDB collection metadata is otherwise unused.
+  tmdbCollectionId   Int?      @map("tmdb_collection_id")
+  tmdbCollectionName String?   @map("tmdb_collection_name")
   cachedAt     DateTime? @map("cached_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -295,6 +301,7 @@ model Movie {
   awards            AwardNomination[] @relation("movieAwards")
   awardForWork      AwardNomination[] @relation("forWorkMovie")
 
+  @@index([tmdbCollectionId])
   @@map("movies")
 }
 

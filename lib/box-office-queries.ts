@@ -179,6 +179,78 @@ export function formatDateYMD(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// ─── Franchises (TMDB collections) ──────────────────────────────────────
+
+export interface FranchiseRow {
+  collectionId: number;
+  name: string;
+  filmCount: number;
+  totalRevenue: number;
+  topPosterPath: string | null;
+}
+
+/** Top grossing franchises sorted by total lifetime gross across every
+ *  movie in the franchise. The HAVING clause excludes one-film
+ *  "franchises" — TMDB sometimes assigns a collection to a single
+ *  film that was never sequelized, and those single-entry rows would
+ *  otherwise crowd out real franchises with comparable solo grosses. */
+export async function getTopFranchises(limit: number = 50): Promise<FranchiseRow[]> {
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    collection_id: number;
+    name: string;
+    film_count: bigint;
+    total_revenue: bigint;
+    top_poster_path: string | null;
+  }>>(
+    `SELECT
+       m.tmdb_collection_id   AS collection_id,
+       MAX(m.tmdb_collection_name) AS name,
+       COUNT(DISTINCT m.id)::bigint AS film_count,
+       SUM(m.revenue)::bigint AS total_revenue,
+       (SELECT m2.poster_path
+          FROM movies m2
+         WHERE m2.tmdb_collection_id = m.tmdb_collection_id
+           AND m2.revenue IS NOT NULL
+           AND m2.poster_path IS NOT NULL
+         ORDER BY m2.revenue DESC
+         LIMIT 1) AS top_poster_path
+       FROM movies m
+      WHERE m.tmdb_collection_id IS NOT NULL
+        AND m.revenue >= $1
+      GROUP BY m.tmdb_collection_id
+     HAVING COUNT(DISTINCT m.id) >= 2
+      ORDER BY total_revenue DESC
+      LIMIT $2`,
+    Number(BOX_OFFICE_FLOOR),
+    limit,
+  );
+
+  return rows.map((r) => ({
+    collectionId: r.collection_id,
+    name: r.name,
+    filmCount: Number(r.film_count),
+    totalRevenue: Number(r.total_revenue),
+    topPosterPath: r.top_poster_path,
+  }));
+}
+
+/** All movies in a single franchise, ordered by release date. Used by
+ *  the /box-office/franchises/[id] detail page. */
+export async function getFranchiseMovies(collectionId: number): Promise<{
+  name: string | null;
+  movies: BoxOfficeRow[];
+}> {
+  const rows = await prisma.movie.findMany({
+    where: { tmdbCollectionId: collectionId },
+    orderBy: { releaseDate: "asc" },
+    select: { ...BASE_SELECT, tmdbCollectionName: true },
+  });
+  return {
+    name: rows[0]?.tmdbCollectionName ?? null,
+    movies: rows.map(toBoxOfficeRow),
+  };
+}
+
 /** Top grossing within a single TMDB genre id. Used by /box-office/by-genre.
  *  We constrain via the MovieGenre junction so the index does most of
  *  the work; the genre filter comes first in the WHERE clause for the

@@ -26,6 +26,10 @@ export interface TMDBMovieForSync {
   vote_count?: number | null;
   status?: string | null;
   imdb_id?: string | null;
+  // TMDB returns the franchise/collection a movie belongs to as a
+  // sub-object on the movie detail response; null for standalone
+  // films. Used by /box-office/franchises aggregation.
+  belongs_to_collection?: { id: number; name: string; poster_path?: string | null } | null;
   genres?: { id: number; name: string }[];
   credits?: {
     cast?: TMDBCastForSync[];
@@ -121,6 +125,8 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       voteCount: tmdb.vote_count ?? null,
       trailerKey,
       status: tmdb.status ?? null,
+      tmdbCollectionId: tmdb.belongs_to_collection?.id ?? null,
+      tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
       cachedAt: new Date(),
     },
     update: {
@@ -140,6 +146,8 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       voteCount: tmdb.vote_count ?? null,
       trailerKey,
       status: tmdb.status ?? null,
+      tmdbCollectionId: tmdb.belongs_to_collection?.id ?? null,
+      tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
       cachedAt: new Date(),
     },
     select: { id: true },
