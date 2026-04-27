@@ -1,0 +1,88 @@
+/**
+ * Curated list of studios + production companies for the /movies and
+ * /search filter UIs. TMDB's full company list is thousands long and
+ * messy (regional variants, defunct subsidiaries, "Universal Pictures"
+ * vs "Universal Studios Productions") — this whitelist is what users
+ * recognize and want to browse by.
+ *
+ * IDs are TMDB company IDs. Verified against /search/company at the
+ * time of writing; if any drift wrong, the filter for that one entry
+ * just returns weird/empty results — easy to spot and fix in this
+ * file without a deploy of anything else.
+ *
+ * `popular: true` flags entries we surface above the alphabetical list
+ * in the filter dropdown — the ~10 most-clicked households-name
+ * studios that benefit from one-tap selection.
+ */
+
+export interface StudioEntry {
+  id: number;
+  name: string;
+  popular?: boolean;
+}
+
+export const STUDIOS: StudioEntry[] = [
+  // Major / household-name studios — surface at top of dropdown.
+  { id: 174,   name: "Warner Bros. Pictures",  popular: true },
+  { id: 33,    name: "Universal Pictures",     popular: true },
+  { id: 4,     name: "Paramount Pictures",     popular: true },
+  { id: 5,     name: "Columbia Pictures",      popular: true },
+  { id: 2,     name: "Walt Disney Pictures",   popular: true },
+  { id: 420,   name: "Marvel Studios",         popular: true },
+  { id: 1,     name: "Lucasfilm",              popular: true },
+  { id: 3,     name: "Pixar",                  popular: true },
+  { id: 41077, name: "A24",                    popular: true },
+  { id: 90733, name: "NEON",                   popular: true },
+  { id: 1632,  name: "Lionsgate",              popular: true },
+
+  // Disney-adjacent
+  { id: 127928, name: "20th Century Studios" },
+  { id: 127929, name: "Searchlight Pictures" },
+  { id: 6125,   name: "Skydance Media" },
+
+  // Warner-adjacent
+  { id: 12, name: "New Line Cinema" },
+  { id: 9993, name: "DC Studios" },
+  { id: 79, name: "Village Roadshow Pictures" },
+  { id: 923, name: "Legendary Entertainment" },
+
+  // Universal-adjacent
+  { id: 10146, name: "Focus Features" },
+  { id: 6704,  name: "Illumination" },
+  { id: 521,   name: "DreamWorks Animation" },
+  { id: 3172,  name: "Blumhouse Productions" },
+  { id: 7,     name: "DreamWorks Pictures" },
+  { id: 11461, name: "Bad Robot" },
+  { id: 81,    name: "Plan B Entertainment" },
+
+  // Sony-adjacent
+  { id: 559,  name: "TriStar Pictures" },
+  { id: 2251, name: "Sony Pictures Animation" },
+
+  // Lionsgate-adjacent
+  { id: 491,  name: "Summit Entertainment" },
+
+  // Indie / arthouse
+  { id: 47346, name: "Annapurna Pictures" },
+  { id: 32171, name: "Bleecker Street" },
+  { id: 307,   name: "IFC Films" },
+  { id: 1030,  name: "Magnolia Pictures" },
+  { id: 23449, name: "Open Road Films" },
+
+  // Streaming-era studios
+  { id: 178464, name: "Netflix" },
+  { id: 194232, name: "Apple Studios" },
+  { id: 20580,  name: "Amazon Studios" },
+
+  // Animation / international
+  { id: 10342, name: "Studio Ghibli" },
+  { id: 10163, name: "Working Title Films" },
+
+  // Legacy majors
+  { id: 21, name: "Metro-Goldwyn-Mayer" },
+  { id: 14, name: "Miramax" },
+];
+
+export function getStudioById(id: number): StudioEntry | undefined {
+  return STUDIOS.find((s) => s.id === id);
+}

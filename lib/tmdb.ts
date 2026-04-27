@@ -369,6 +369,9 @@ export async function discoverMovies(options: {
   ratingGte?: string;
   ratingLte?: string;
   providers?: string[];
+  /** TMDB production company IDs (e.g. ["41077", "90733"] for A24/Neon).
+   *  Pipe-joined → OR semantics: returns titles from any of them. */
+  companies?: string[];
   language?: string;
   keywords?: string;
   releaseStatus?: string;
@@ -472,6 +475,10 @@ export async function discoverMovies(options: {
   }
   if (options.language) params.with_original_language = options.language;
   if (options.keywords) params.with_keywords = options.keywords;
+  if (options.companies && options.companies.length > 0) {
+    // `|` for OR — picking A24 + Neon means "from either," not "joint productions."
+    params.with_companies = options.companies.join("|");
+  }
   if (options.minRuntime != null) params["with_runtime.gte"] = String(options.minRuntime);
   if (options.maxRuntime != null) params["with_runtime.lte"] = String(options.maxRuntime);
 
@@ -676,6 +683,8 @@ export async function discoverShows(options: {
   ratingGte?: string;
   ratingLte?: string;
   providers?: string[];
+  /** TMDB production company IDs. Pipe-joined → OR semantics. */
+  companies?: string[];
   language?: string;
   keywords?: string;
   releaseStatus?: string;
@@ -726,6 +735,9 @@ export async function discoverShows(options: {
   }
   if (options.language) params.with_original_language = options.language;
   if (options.keywords) params.with_keywords = options.keywords;
+  if (options.companies && options.companies.length > 0) {
+    params.with_companies = options.companies.join("|");
+  }
 
   return tmdbFetch<TMDBPageResult<TMDBShow>>("/discover/tv", params);
 }

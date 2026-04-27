@@ -78,6 +78,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   const showProviders = params.showProviders === "1";
   const language = params.language;
   const keywords = params.keywords;
+  const companies = params.companies?.split(",").filter(Boolean);
 
   // AI-powered hidden filters (applied as post-filters after TMDB fetch).
   // Surfaced to the user as a single removable "AI filter" pill; the specific
@@ -113,6 +114,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     mpaaRatings.length ||
     params.ratingVal ||
     providers?.length ||
+    companies?.length ||
     language ||
     keywords ||
     releaseStatus ||
@@ -183,6 +185,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
     ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
     providers,
+    companies,
     language,
     keywords,
     releaseStatus,
@@ -256,6 +259,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       ratingGte: discoverOptions.ratingGte,
       ratingLte: discoverOptions.ratingLte,
       providers: discoverOptions.providers,
+      companies: discoverOptions.companies,
       language: discoverOptions.language,
       keywords: discoverOptions.keywords,
       releaseStatus,

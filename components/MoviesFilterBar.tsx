@@ -7,6 +7,7 @@ import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, 
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
 import { STREAMING_PROVIDERS, IMAGE_BASE_URL, LANGUAGES } from "@/lib/tmdb";
+import { STUDIOS } from "@/lib/studios";
 
 const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"];
 const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"];
@@ -66,7 +67,7 @@ const SORT_OPTIONS = [
 const FILTER_URL_KEYS = new Set([
   "genres", "cast", "castLabels", "keywords", "keywordLabels",
   "yearFrom", "yearTo", "mpaa", "ratingOp", "ratingVal",
-  "releaseStatus", "providers", "language", "seenStatus",
+  "releaseStatus", "providers", "companies", "language", "seenStatus",
 ]);
 
 const SEEN_OPTIONS = [
@@ -117,6 +118,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
   const currentProviders = searchParams.get("providers")?.split(",").filter(Boolean) ?? [];
   const currentShowProviders = searchParams.get("showProviders") === "1";
   const currentLanguage = searchParams.get("language") ?? "";
+  const currentCompanies = searchParams.get("companies")?.split(",").filter(Boolean) ?? [];
   const currentKeywordIds = searchParams.get("keywords")?.split(",").filter(Boolean) ?? [];
   const currentKeywordLabels = searchParams.get("keywordLabels")?.split(",").filter(Boolean) ?? [];
   const currentSeenStatus = searchParams.get("seenStatus") ?? "";
@@ -182,6 +184,7 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     currentRatingVal,
     currentReleaseStatus,
     currentProviders.length > 0,
+    currentCompanies.length > 0,
     currentLanguage,
     currentSeenStatus,
     hasAiFilter,
@@ -256,6 +259,13 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     if (next.length > 0 && !currentShowProviders) updates.showProviders = "1";
     if (next.length === 0) updates.showProviders = null;
     update(updates);
+  }
+
+  function toggleCompany(id: string) {
+    const next = currentCompanies.includes(id)
+      ? currentCompanies.filter((c) => c !== id)
+      : [...currentCompanies, id];
+    update({ companies: next.length > 0 ? next.join(",") : null });
   }
 
   function addCast(actor: ActorOption) {
@@ -520,6 +530,15 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               <button onClick={() => update({ language: null })}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
             </span>
           )}
+          {currentCompanies.map((cid) => {
+            const studio = STUDIOS.find((s) => String(s.id) === cid);
+            return (
+              <span key={cid} className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
+                {studio?.name ?? `Studio ${cid}`}
+                <button onClick={() => toggleCompany(cid)}><X className="w-2.5 h-2.5 text-[var(--foreground-muted)] hover:text-white" /></button>
+              </span>
+            );
+          })}
           {currentSeenStatus && (
             <span className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-full px-2.5 py-1 text-xs text-white">
               {currentSeenStatus === "seen" ? "Seen" : "Haven't seen"}
@@ -603,6 +622,13 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
               ))}
             </div>
           </div>
+
+          {/* Studio */}
+          <StudioFilter
+            selectedIds={currentCompanies}
+            onToggle={toggleCompany}
+            onClear={() => update({ companies: null })}
+          />
 
           {/* Original Language */}
           <div>
@@ -853,6 +879,131 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function StudioFilter({
+  selectedIds,
+  onToggle,
+  onClear,
+}: {
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", close, true);
+    return () => document.removeEventListener("pointerdown", close, true);
+  }, [open]);
+
+  const trimmed = query.trim().toLowerCase();
+  const filtered = trimmed
+    ? STUDIOS.filter((s) => s.name.toLowerCase().includes(trimmed))
+    : STUDIOS;
+  // Popular studios first when no search query, then alphabetical.
+  const sorted = trimmed
+    ? filtered
+    : [...filtered].sort((a, b) => {
+        if (a.popular !== b.popular) return a.popular ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+  const selectedNames = STUDIOS
+    .filter((s) => selectedIds.includes(String(s.id)))
+    .map((s) => s.name);
+
+  return (
+    <div>
+      <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Studio</p>
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`flex items-center justify-between gap-2 bg-[var(--surface-2)] border text-sm rounded px-3 py-1.5 min-w-[200px] max-w-full focus:outline-none ${
+            selectedIds.length > 0 ? "border-[var(--ratist-red)]/50 text-white" : "border-[var(--border)] text-[var(--foreground-muted)]"
+          }`}
+        >
+          <span className="truncate text-left">
+            {selectedIds.length === 0
+              ? "Any studio"
+              : selectedIds.length === 1
+              ? selectedNames[0] ?? "1 studio"
+              : `${selectedIds.length} studios`}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+        </button>
+
+        {open && (
+          <div className="absolute left-0 top-full mt-1 z-30 w-72 max-w-[calc(100vw-2rem)] bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-xl">
+            <div className="p-2 border-b border-[var(--border)]">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Filter studios..."
+                autoFocus
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+              />
+            </div>
+            <ul className="max-h-72 overflow-y-auto py-1">
+              {sorted.length === 0 ? (
+                <li className="text-xs text-[var(--foreground-muted)] px-3 py-2">No studios match.</li>
+              ) : (
+                sorted.map((s) => {
+                  const checked = selectedIds.includes(String(s.id));
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => onToggle(String(s.id))}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors ${
+                          checked ? "bg-[var(--ratist-red)]/10 text-white" : "text-[var(--foreground-muted)] hover:bg-[var(--surface)] hover:text-white"
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                          checked ? "bg-[var(--ratist-red)] border-[var(--ratist-red)]" : "border-[var(--border)]"
+                        }`}>
+                          {checked && (
+                            <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                              <path d="M20 6L9 17l-5-5" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="truncate">{s.name}</span>
+                        {s.popular && !trimmed && (
+                          <span className="ml-auto text-[9px] uppercase tracking-wider text-[var(--foreground-muted)] shrink-0">Popular</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+            {selectedIds.length > 0 && (
+              <div className="p-2 border-t border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => { onClear(); setQuery(""); }}
+                  className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  Clear all studios
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
