@@ -142,8 +142,11 @@ export default function Navbar() {
 
             {user ? (
               <div className="flex items-center gap-3">
-                {/* Notification bell */}
-                <Link href="/notifications" className="relative hidden sm:block text-[var(--foreground-muted)] hover:text-white transition-colors">
+                {/* Notification bell — visible at all breakpoints. On
+                    mobile it sits next to the hamburger button so a
+                    glance at the unread count doesn't require opening
+                    the menu. */}
+                <Link href="/notifications" className="relative text-[var(--foreground-muted)] hover:text-white transition-colors">
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
@@ -260,9 +263,8 @@ export default function Navbar() {
                 <Link href="/ratings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Star className="w-4 h-4" /> My Ratings</Link>
                 <Link href="/watchlist" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Bookmark className="w-4 h-4" /> My Watchlists</Link>
                 <Link href="/tools/rankings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><ListOrdered className="w-4 h-4" /> My Rankings</Link>
-                <Link href="/notifications" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors">
-                  <Bell className="w-4 h-4" /> Notifications{unreadCount > 0 && <span className="bg-[var(--ratist-red)] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ml-1">{unreadCount > 9 ? "9+" : unreadCount}</span>}
-                </Link>
+                {/* Notifications is no longer in this menu — the bell now
+                    lives in the header bar at all breakpoints. */}
                 <Link href="/settings" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Settings className="w-4 h-4" /> Settings</Link>
                 {!hasPass && (
                   <Link href="/backstage-pass" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"><Ticket className="w-4 h-4" /> Backstage Pass</Link>
