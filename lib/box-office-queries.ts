@@ -146,3 +146,78 @@ export async function getTopProfit(limit: number = 10): Promise<BoxOfficeRow[]> 
 export function getLastCompleteYear(now: Date = new Date()): string {
   return String(now.getUTCFullYear() - 1);
 }
+
+/** Top grossing within a single TMDB genre id. Used by /box-office/by-genre.
+ *  We constrain via the MovieGenre junction so the index does most of
+ *  the work; the genre filter comes first in the WHERE clause for the
+ *  same reason. */
+export async function getTopGrossingByGenre(genreId: number, limit: number = 10): Promise<BoxOfficeRow[]> {
+  const rows = await prisma.movie.findMany({
+    where: {
+      genres: { some: { genreId } },
+      revenue: { gte: BOX_OFFICE_FLOOR },
+    },
+    orderBy: { revenue: "desc" },
+    take: limit,
+    select: BASE_SELECT,
+  });
+  return rows.map(toBoxOfficeRow);
+}
+
+/** Top grossing for an MPA cert code. Used by /box-office/by-rating. */
+export async function getTopGrossingByMpa(mpaaRating: string, limit: number = 10): Promise<BoxOfficeRow[]> {
+  const rows = await prisma.movie.findMany({
+    where: {
+      mpaaRating,
+      revenue: { gte: BOX_OFFICE_FLOOR },
+    },
+    orderBy: { revenue: "desc" },
+    take: limit,
+    select: BASE_SELECT,
+  });
+  return rows.map(toBoxOfficeRow);
+}
+
+/** Top grossing within a release-window window — same month/day range
+ *  every year. The runtime filter walks every candidate row, so we cap
+ *  the candidate pool by pre-filtering on revenue and ordering at the
+ *  DB. The result is sliced to `limit` after filtering in JS. The
+ *  window-style filter is hard to express purely in SQL because TMDB
+ *  release_date is stored as a string, not a date. */
+export async function getTopGrossingByReleaseWindow(
+  windowStart: { month: number; day: number },
+  windowEnd: { month: number; day: number },
+  limit: number = 10,
+): Promise<BoxOfficeRow[]> {
+  // Pull a wide candidate set and filter in app. Empirically, a
+  // ~14-day window like Christmas matches ~6% of all movies with
+  // revenue ≥ $1k (smoke-tested 318 of 5000), so we'd need at least
+  // a 150× over-fetch to comfortably hit 10 results. We just take
+  // the top 5,000 by revenue across the board — the fetch is fast
+  // (revenue index, single ORDER BY) and the filtering is in-memory.
+  const overFetch = 5000;
+  const candidates = await prisma.movie.findMany({
+    where: {
+      revenue: { gte: BOX_OFFICE_FLOOR },
+      releaseDate: { not: null },
+    },
+    orderBy: { revenue: "desc" },
+    take: overFetch,
+    select: BASE_SELECT,
+  });
+
+  const startMd = windowStart.month * 100 + windowStart.day;
+  const endMd = windowEnd.month * 100 + windowEnd.day;
+  const filtered = candidates.filter((m) => {
+    if (!m.releaseDate) return false;
+    const parts = m.releaseDate.split("-");
+    if (parts.length < 3) return false;
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+    if (Number.isNaN(month) || Number.isNaN(day)) return false;
+    const md = month * 100 + day;
+    return md >= startMd && md <= endMd;
+  });
+
+  return filtered.slice(0, limit).map(toBoxOfficeRow);
+}

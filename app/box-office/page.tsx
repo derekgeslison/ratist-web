@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
-import { TrendingUp, DollarSign, BarChart3, AlertTriangle, Coins, Calendar, Filter, Info } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, AlertTriangle, Coins, Calendar, Filter, Info, Layers } from "lucide-react";
 import {
   getTopGrossing,
   getHighestBudget,
@@ -9,11 +8,7 @@ import {
   getTopProfit,
   getLastCompleteYear,
 } from "@/lib/box-office-queries";
-import {
-  formatBoxOffice,
-  formatROI,
-  type BoxOfficeRow,
-} from "@/lib/box-office";
+import { Leaderboard } from "@/components/box-office/Leaderboard";
 
 export const metadata: Metadata = {
   title: "Box Office Insights",
@@ -85,6 +80,34 @@ export default async function BoxOfficePage() {
           <Filter className="w-4 h-4" />
           Browse the full list
         </Link>
+        <Link
+          href="/box-office/by-decade"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Calendar className="w-4 h-4" />
+          By decade
+        </Link>
+        <Link
+          href="/box-office/holidays"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Calendar className="w-4 h-4" />
+          Holiday releases
+        </Link>
+        <Link
+          href="/box-office/by-genre"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Layers className="w-4 h-4" />
+          By genre
+        </Link>
+        <Link
+          href="/box-office/by-rating"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Layers className="w-4 h-4" />
+          By MPA rating
+        </Link>
       </div>
 
       {/* Leaderboard grid */}
@@ -136,96 +159,3 @@ export default async function BoxOfficePage() {
   );
 }
 
-interface LeaderboardProps {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  subtitle: string;
-  rows: BoxOfficeRow[];
-  /** Which derived value to print in the right-hand column. */
-  metric: "revenue" | "budget" | "profit" | "roi";
-}
-
-function Leaderboard({ icon: Icon, title, subtitle, rows, metric }: LeaderboardProps) {
-  return (
-    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-      <header className="flex items-start gap-3 px-4 py-3 border-b border-[var(--border)]">
-        <Icon className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-white truncate">{title}</h2>
-          <p className="text-xs text-[var(--foreground-muted)] truncate">{subtitle}</p>
-        </div>
-      </header>
-      <ol className="divide-y divide-[var(--border)]">
-        {rows.length === 0 ? (
-          <li className="px-4 py-6 text-xs text-[var(--foreground-muted)] text-center">
-            Not enough data yet for this leaderboard.
-          </li>
-        ) : (
-          rows.map((row, idx) => (
-            <LeaderboardRow key={row.tmdbId} row={row} rank={idx + 1} metric={metric} />
-          ))
-        )}
-      </ol>
-    </section>
-  );
-}
-
-function LeaderboardRow({
-  row,
-  rank,
-  metric,
-}: {
-  row: BoxOfficeRow;
-  rank: number;
-  metric: "revenue" | "budget" | "profit" | "roi";
-}) {
-  // The rendered metric value depends on which leaderboard the row is
-  // part of — the same row appears in multiple boards and we don't
-  // want to repeat the same number twice. Profit can legitimately be
-  // negative for bombs; we still format it so the row reads "-$200M".
-  const value =
-    metric === "roi"
-      ? formatROI(row.roi)
-      : metric === "profit"
-        ? row.profit != null
-          ? row.profit < 0
-            ? `−${formatBoxOffice(Math.abs(row.profit))}`
-            : formatBoxOffice(row.profit)
-          : null
-        : metric === "budget"
-          ? formatBoxOffice(row.budget)
-          : formatBoxOffice(row.revenue);
-
-  const year = row.releaseDate?.slice(0, 4) ?? "—";
-
-  return (
-    <li>
-      <Link
-        href={`/movies/${row.tmdbId}`}
-        className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-colors"
-      >
-        <span className="text-sm font-bold text-[var(--foreground-muted)] w-5 text-right tabular-nums shrink-0">
-          {rank}
-        </span>
-        <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--background)]">
-          {row.posterPath ? (
-            <Image
-              src={`https://image.tmdb.org/t/p/w92${row.posterPath}`}
-              alt=""
-              fill
-              sizes="32px"
-              className="object-cover"
-            />
-          ) : null}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white truncate">{row.title}</p>
-          <p className="text-[11px] text-[var(--foreground-muted)]">{year}</p>
-        </div>
-        <span className="text-sm font-semibold text-white tabular-nums shrink-0">
-          {value ?? "—"}
-        </span>
-      </Link>
-    </li>
-  );
-}
