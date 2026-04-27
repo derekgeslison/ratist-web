@@ -19,18 +19,59 @@ export async function GET(req: NextRequest) {
     const filter = req.nextUrl.searchParams.get("filter") ?? "all";
     const listKey = filter === "all" ? "all-time" : filter;
 
-    // Check for saved rankings first
-    const savedRankings = await prisma.userMovieRanking.findMany({
-      where: { userId: user.id, listKey },
-      include: {
-        movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } },
-        tvShow: { select: { id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true } },
-      },
-      orderBy: { sortOrder: "asc" },
+    // Check for saved rankings first. Saved rows are filtered against
+    // the user's current seen + rated sets so that an item that the
+    // user has since unseen and unrated drops out of the list — the
+    // toggle endpoints clean up on mutation, but pre-fix orphans
+    // (e.g. an unmark-seen that happened before that cascade shipped)
+    // would otherwise linger in the saved-order rows. Orphan rows are
+    // also dropped opportunistically below so the DB self-heals.
+    const [savedRankings, allUserMovieSeen, allUserMovieRated, allUserShowSeen, allUserShowRated] = await Promise.all([
+      prisma.userMovieRanking.findMany({
+        where: { userId: user.id, listKey },
+        include: {
+          movie: { select: { id: true, tmdbId: true, title: true, posterPath: true, releaseDate: true } },
+          tvShow: { select: { id: true, tmdbId: true, name: true, posterPath: true, firstAirDate: true } },
+        },
+        orderBy: { sortOrder: "asc" },
+      }),
+      prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movieId: true } }),
+      prisma.movieRating.findMany({ where: { userId: user.id }, select: { movieId: true } }),
+      prisma.userFavoriteShow.findMany({ where: { userId: user.id }, select: { tvShowId: true } }),
+      prisma.tVShowRating.findMany({ where: { userId: user.id }, select: { tvShowId: true } }),
+    ]);
+
+    const validMovieIds = new Set<string>([
+      ...allUserMovieSeen.map((m) => m.movieId),
+      ...allUserMovieRated.map((m) => m.movieId),
+    ]);
+    const validShowIds = new Set<string>([
+      ...allUserShowSeen.map((s) => s.tvShowId),
+      ...allUserShowRated.map((s) => s.tvShowId),
+    ]);
+
+    const orphanRankingIds: string[] = [];
+    const liveSavedRankings = savedRankings.filter((r) => {
+      if (r.movieId && !validMovieIds.has(r.movieId)) {
+        orphanRankingIds.push(r.id);
+        return false;
+      }
+      if (r.tvShowId && !validShowIds.has(r.tvShowId)) {
+        orphanRankingIds.push(r.id);
+        return false;
+      }
+      return true;
     });
 
-    if (savedRankings.length > 0) {
-      const movieIds = new Set(savedRankings.filter((r) => r.movieId).map((r) => r.movieId!));
+    if (orphanRankingIds.length > 0) {
+      // Fire-and-forget self-heal. Safe: the rows are already excluded
+      // from the response, so a failed delete just means we re-filter
+      // them on the next read.
+      prisma.userMovieRanking.deleteMany({ where: { id: { in: orphanRankingIds } } }).catch(() => {});
+    }
+
+    if (liveSavedRankings.length > 0) {
+      const movieIds = new Set(liveSavedRankings.filter((r) => r.movieId).map((r) => r.movieId!));
 
       // Fetch ratings for saved movies
       const ratings = await prisma.movieRating.findMany({
@@ -39,7 +80,7 @@ export async function GET(req: NextRequest) {
       });
       const ratingMap = new Map(ratings.map((r) => [r.movieId, r.ratistRating]));
 
-      const movies = savedRankings.map((r, idx) => {
+      const movies = liveSavedRankings.map((r, idx) => {
         if (r.tvShow) {
           return {
             id: r.tvShowId!,
