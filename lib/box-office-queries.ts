@@ -147,6 +147,38 @@ export function getLastCompleteYear(now: Date = new Date()): string {
   return String(now.getUTCFullYear() - 1);
 }
 
+/** Top grossing within an arbitrary release-date window. Distinct from
+ *  getTopGrossing's year-bound flavor because YTD and rolling-90-day
+ *  ranges need exact YYYY-MM-DD bounds, not whole years. The releaseDate
+ *  column is a string in TMDB-format (YYYY-MM-DD) so lexicographic
+ *  comparison matches chronological order. */
+export async function getTopGrossingByDateRange(
+  dateFrom: string,
+  dateTo: string,
+  limit: number = 10,
+): Promise<BoxOfficeRow[]> {
+  const rows = await prisma.movie.findMany({
+    where: {
+      revenue: { gte: BOX_OFFICE_FLOOR },
+      releaseDate: { gte: dateFrom, lte: dateTo },
+    },
+    orderBy: { revenue: "desc" },
+    take: limit,
+    select: BASE_SELECT,
+  });
+  return rows.map(toBoxOfficeRow);
+}
+
+/** Format Date as YYYY-MM-DD using UTC components, matching the
+ *  TMDB releaseDate column format. UTC avoids edge cases around
+ *  month boundaries when local time differs from UTC. */
+export function formatDateYMD(d: Date): string {
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 /** Top grossing within a single TMDB genre id. Used by /box-office/by-genre.
  *  We constrain via the MovieGenre junction so the index does most of
  *  the work; the genre filter comes first in the WHERE clause for the
