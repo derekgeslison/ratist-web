@@ -387,13 +387,40 @@ If the cast list says "Dayleigh Nelson — Acting Double for Nick", IGNORE that 
 
 This is especially important when one actor plays multiple distinct characters (the rule above): the cast list often lists doubles as "double for Nick" or "double for Hallie", and those entries can mislead the model into thinking a separate person plays the role. They don't — the lead actor plays both.
 
+## How many distinct factions / groups?
+
+The cast tab and relationships map color-code by \`group\` from a palette of 8 colors. Beyond 8 distinct group values across the whole cast, colors repeat — two factions wearing the same color is visually broken.
+
+Aim for **3–6 distinct factions** for most works. **Up to 8** is fine for genuinely sprawling political-faction stories (Game of Thrones houses, Star Wars factions, MCU teams). Don't exceed 8 — at that point, the audience is getting more visual noise than orientation.
+
+Bias toward **merging or omitting** rather than minting:
+- Merge close-kin factions when the audience reads them as one bloc. Avengers + S.H.I.E.L.D. agents who are operationally on the same side → "Avengers". Smaller Star Wars Rebellion cells → "Rebellion".
+- Use \`null\` for one-off, unaffiliated, or independent characters (lone bounty hunters, civilians, freelancers, characters whose faction is "themselves"). The cast tab handles null-group characters with a neutral gray, not a wasted palette slot.
+- Don't spin up factions for one or two characters who happen to share a workplace if the audience doesn't track them as a faction. ("Daily Planet staff" is not a faction unless the show makes it one.)
+- Don't create a faction just to label a single character. If only one card would carry the label, set their \`group: null\` and either skip the label entirely or encode the workplace as a fact.
+
+✅ Good faction sets:
+- Star Wars (OT): Rebellion, Empire — 2.
+- The Avengers: Avengers, [villain force du jour] — 2 most films.
+- Avengers: Endgame: Avengers, Guardians, Wakanda, Asgard, Thanos's forces — 5.
+- Game of Thrones: Stark, Lannister, Targaryen, Baratheon, Night's Watch, Wildlings, White Walkers, Greyjoy — 8 (the upper bound).
+
+❌ Avoid:
+- 10+ factions where half are minor sub-cliques.
+- A unique faction per family in a small-cast drama. Most family dramas use 0 factions and \`null\` for everyone.
+
 ${VISIBLE_AFTER_GUIDANCE}
 
 ## Quality bar
 
 - Use ONLY information that appears in the grounding data (TMDB cast + overview, Wikipedia summary, episode summaries).
-- ~10–15 cards is a soft target, not a hard cap. Most movies land in 8–12. Standard ensemble shows (Succession, Yellowstone) sit around 15. Truly sprawling ensembles (Game of Thrones, The Wire, Lost) can run 20–25+ — that's fine when every card is a character the audience actively tracks across the season. The criterion is "audience tracks" not "TMDB lists".
-- The failure mode is pulling in tertiary characters to pad the list, not refusing to add a 16th genuinely-tracked one. When in doubt about a borderline character, encode their role as a timeline event + an optional character event on a MAJOR character instead of giving them a card.`;
+- ~10–15 cards is a soft target, not a hard cap. Match the count to the ensemble actually present in the work:
+  - **Most standard movies** (single-protagonist, small supporting cast): 8–12. Most rom-coms, most thrillers, most dramas land here.
+  - **Standard ensemble shows** (Succession, Yellowstone, The Bear): around 15.
+  - **Sprawling-ensemble movies** — superhero crossovers (Avengers: Infinity War, Endgame, Captain America: Civil War), heist ensembles (Ocean's Eleven through Thirteen), whodunits (Knives Out, Glass Onion, Clue, Murder on the Orient Express), epic trilogy entries (LOTR Fellowship/Two Towers/Return of the King, Dune Part Two), Tarantino tapestries (Pulp Fiction, Inglourious Basterds), and Magnolia / Crash / Love Actually-style braided ensembles — 18–25+. These movies' value to the audience IS the breadth of tracked characters; cap too low and the cast tab fails its job.
+  - **Sprawling-ensemble shows** (Game of Thrones, The Wire, Lost, House of the Dragon, Westworld): 20–25+ across the season.
+- That's fine when every card is a character the audience actively tracks. The criterion is "audience tracks" not "TMDB lists".
+- The failure mode is pulling in tertiary characters to pad the list, not refusing to add a 16th genuinely-tracked one. When the work is genuinely sprawling, lean toward the higher end — the audience needs all the leads. When in doubt about a borderline character, encode their role as a timeline event + an optional character event on a MAJOR character instead of giving them a card.`;
 
 const TOOL: Anthropic.Tool = {
   name: "emit_characters",

@@ -1015,7 +1015,12 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
               // Drives the card border, the faction badge label, and the
               // swim-lane lane color downstream.
               const currentGroup = currentGroupOf(c, position, mediaType);
-              const color = currentGroup ? groupColors.get(currentGroup) ?? GROUP_COLORS[0] : GROUP_COLORS[0];
+              // Match the Relationships map + Timeline lanes: ungrouped
+              // characters render with neutral gray, NOT the first
+              // palette slot (red). Falling through to GROUP_COLORS[0]
+              // made null-group characters look like they belonged to
+              // whichever faction happened to land in slot 0.
+              const color = currentGroup ? groupColors.get(currentGroup) ?? "#6b7280" : "#6b7280";
               const visibleFacts = c.facts.filter((f) => isVisible(f.visibleAfter, position, mediaType));
               const connections = relationshipsByCharacter.get(c.id) ?? [];
 
