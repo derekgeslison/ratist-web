@@ -76,11 +76,12 @@ export async function GET(req: NextRequest, { params }: Props) {
     const movieIds = movieEntries.map((e) => e.movie.id);
     const showIds = showEntries.map((e) => e.tvShow.id);
 
-    // Owner's ratings, owner's rewatches, and director credits in parallel.
-    // ratingScope: "series" so we only count series-level TV ratings — per-
-    // season ratings would inflate the rated % if a user rated multiple
-    // seasons of the same show.
-    const [movieRatings, showRatings, rewatchLogs, directorCredits] = await Promise.all([
+    // Owner's ratings, owner's rewatches, and credits in parallel. ratingScope:
+    // "series" so we only count series-level TV ratings — per-season ratings
+    // would inflate the rated % if a user rated multiple seasons of the same
+    // show. For actors we cap castOrder ≤ 3 to focus on leads — billed cast
+    // gets very long for ensemble pieces and would noise out top-by-count.
+    const [movieRatings, showRatings, rewatchLogs, directorCredits, actorCredits] = await Promise.all([
       movieIds.length
         ? prisma.movieRating.findMany({
             where: { userId: ownerId, movieId: { in: movieIds } },
@@ -104,6 +105,12 @@ export async function GET(req: NextRequest, { params }: Props) {
             select: { celebrity: { select: { name: true } } },
           })
         : Promise.resolve([] as { celebrity: { name: string } }[]),
+      movieIds.length
+        ? prisma.movieCast.findMany({
+            where: { movieId: { in: movieIds }, creditType: "cast", castOrder: { lte: 3 } },
+            select: { movieId: true, celebrity: { select: { name: true } } },
+          })
+        : Promise.resolve([] as { movieId: string; celebrity: { name: string } }[]),
     ]);
 
     // ── Totals ──
@@ -192,6 +199,24 @@ export async function GET(req: NextRequest, { params }: Props) {
       .slice(0, 5)
       .map(([name, count]) => ({ name, count }));
 
+    // De-dupe actor credits per movie before counting — a single film can
+    // surface the same actor in multiple cast rows occasionally (alt names,
+    // partial backfills) and we don't want that to inflate their count.
+    const actorPerMovie = new Map<string, Set<string>>();
+    for (const c of actorCredits) {
+      let set = actorPerMovie.get(c.movieId);
+      if (!set) { set = new Set(); actorPerMovie.set(c.movieId, set); }
+      set.add(c.celebrity.name);
+    }
+    const actorCounts = new Map<string, number>();
+    for (const set of actorPerMovie.values()) {
+      for (const name of set) actorCounts.set(name, (actorCounts.get(name) ?? 0) + 1);
+    }
+    const topActors = [...actorCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
     return NextResponse.json({
       totals: { items: totalItems, movies: totalMovies, shows: totalShows },
       watched: {
@@ -209,6 +234,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       topGenres,
       topDecades,
       topDirectors,
+      topActors,
     });
   } catch (err) {
     console.error("Watchlist stats error:", err);

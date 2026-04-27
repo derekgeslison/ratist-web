@@ -14,6 +14,7 @@ interface Stats {
   topGenres: BucketStat[];
   topDecades: BucketStat[];
   topDirectors: BucketStat[];
+  topActors: BucketStat[];
 }
 
 function formatRuntime(mins: number): string {
@@ -197,8 +198,11 @@ export default function WatchlistStats({ watchlistId, open, onClose }: Props) {
                 </div>
               )}
 
-              {/* Top genres / decades / directors */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Top genres / decades / directors / actors — 2x2 so the
+                  label column has enough room to render full names without
+                  truncation. Three columns squeezed names like "Thriller"
+                  down to "Thril..." even on tablet widths. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
                   <div className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Top genres</div>
                   <HorizontalBars items={stats.topGenres} max={Math.max(1, ...stats.topGenres.map((g) => g.count))} />
@@ -210,6 +214,10 @@ export default function WatchlistStats({ watchlistId, open, onClose }: Props) {
                 <div>
                   <div className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Top directors</div>
                   <HorizontalBars items={stats.topDirectors} max={Math.max(1, ...stats.topDirectors.map((d) => d.count))} />
+                </div>
+                <div>
+                  <div className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-2">Top actors</div>
+                  <HorizontalBars items={stats.topActors} max={Math.max(1, ...stats.topActors.map((a) => a.count))} />
                 </div>
               </div>
             </>
