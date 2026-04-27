@@ -921,7 +921,7 @@ export default function ShowDetailTabs({
               onUpdateSeasonDate={updateSeasonDate}
               isLoggedIn={isLoggedIn}
               aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === s.season_number)}
-              isAiring={show.next_episode_to_air?.season_number === s.season_number}
+              isAiring={show.next_episode_to_air?.season_number === s.season_number && (s.episode_count ?? 0) > 1}
             />
           ))}
           {specials && specials.episode_count > 0 && (

@@ -103,17 +103,36 @@ export function useWatchlistFlow(opts: UseWatchlistFlowOptions): FlowResult {
       const { lists: fetched, autoAddToDefault } = await fetchListsWithSettings(token);
 
       if (autoAddToDefault) {
-        // Toggle the default list directly. Single-list users never
-        // see the picker; multi-list users get both the toggle AND
-        // a picker so they can add to other lists.
+        // Tap behavior splits four ways:
+        //   - Single list, NOT on default → add to default, no picker
+        //     (one-tap convenience path).
+        //   - Single list, on default → remove from default AND open
+        //     picker so the user can undo or branch into a new list
+        //     without leaving the page.
+        //   - Multi list, NOT on default → add to default + open
+        //     picker so the user can also add to other lists.
+        //   - Multi list, on default → DON'T toggle default; just open
+        //     the picker. Multi-list users likely care which list
+        //     holds an item, so a single tap shouldn't quietly strip
+        //     it from default — they manage removal explicitly.
+        const defaultList = fetched.find((l) => l.isDefault);
+        const isOnDefault = !!defaultList?.hasMovie;
+        const isMultiList = fetched.length >= MULTI_LIST_THRESHOLD;
+
+        if (isMultiList && isOnDefault) {
+          setLists(fetched);
+          setPickerOpen(true);
+          return;
+        }
+
         const data = await toggleDefaultEndpoint(token);
         if (data && typeof data.watchlisted === "boolean") onWatchlistedChange?.(data.watchlisted);
 
-        if (fetched.length >= MULTI_LIST_THRESHOLD) {
+        if (isMultiList || isOnDefault) {
           // Reflect the just-toggled default state in the picker's
           // local copy so the checkboxes are accurate without a
           // refetch round-trip.
-          const defaultId = fetched.find((l) => l.isDefault)?.id;
+          const defaultId = defaultList?.id;
           const updated = fetched.map((l) => (
             l.id === defaultId ? { ...l, hasMovie: !l.hasMovie } : l
           ));

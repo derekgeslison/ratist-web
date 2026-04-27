@@ -14,8 +14,20 @@ interface CreditsResponse {
   crew: { id: number; name: string; profile_path: string | null; job: string }[];
 }
 interface CombinedCreditsResponse {
-  cast: { id: number; title?: string; name?: string; media_type: string; poster_path: string | null; release_date?: string; first_air_date?: string; character?: string }[];
-  crew: { id: number; title?: string; name?: string; media_type: string; poster_path: string | null; release_date?: string; first_air_date?: string; job: string }[];
+  cast: { id: number; title?: string; name?: string; media_type: string; poster_path: string | null; release_date?: string; first_air_date?: string; character?: string; genre_ids?: number[] }[];
+  crew: { id: number; title?: string; name?: string; media_type: string; poster_path: string | null; release_date?: string; first_air_date?: string; job: string; genre_ids?: number[] }[];
+}
+
+// TMDB TV genre IDs. Talk/news shows accumulate huge guest lists across
+// the same actors and directors (late-night appearances, press tours),
+// which would otherwise flood People → find shared works with spurious
+// matches that aren't really "shared work" in any meaningful sense.
+const TV_GENRE_NEWS = 10763;
+const TV_GENRE_TALK = 10767;
+function isTalkOrNewsTv(mediaType: string, genreIds?: number[]): boolean {
+  if (mediaType !== "tv") return false;
+  const ids = genreIds ?? [];
+  return ids.includes(TV_GENRE_NEWS) || ids.includes(TV_GENRE_TALK);
 }
 
 export async function POST(req: NextRequest) {
@@ -91,6 +103,7 @@ export async function POST(req: NextRequest) {
         const seenForThisPerson = new Set<number>();
 
         for (const m of credits.cast) {
+          if (isTalkOrNewsTv(m.media_type, m.genre_ids)) continue;
           if (!seenForThisPerson.has(m.id)) {
             seenForThisPerson.add(m.id);
             const title = m.title ?? m.name ?? "";
@@ -101,6 +114,7 @@ export async function POST(req: NextRequest) {
           }
         }
         for (const m of credits.crew) {
+          if (isTalkOrNewsTv(m.media_type, m.genre_ids)) continue;
           if (!seenForThisPerson.has(m.id)) {
             seenForThisPerson.add(m.id);
             const title = m.title ?? m.name ?? "";

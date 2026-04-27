@@ -487,9 +487,17 @@ export default async function ShowDetailPage({ params }: Props) {
            is mid-broadcast and a Watch Companion follow flow is
            available. The next-episode line shows when present; falls
            back to a generic "currently airing" tagline when the air date
-           is unknown (TBA / not yet announced). */}
-        {show.next_episode_to_air && (() => {
+           is unknown (TBA / not yet announced).
+
+           Annual events (e.g. The Oscars, /shows/27023) list each year's
+           ceremony as its own season with a single scheduled episode,
+           which would otherwise flag the show as airing 11+ months out.
+           Suppress when the next_episode's season has ≤1 episode. */}
+        {(() => {
+          if (!show.next_episode_to_air) return null;
           const next = show.next_episode_to_air;
+          const targetSeason = seasons.find((s) => s.season_number === next.season_number);
+          if (targetSeason && (targetSeason.episode_count ?? 0) <= 1) return null;
           const date = next.air_date ? new Date(next.air_date) : null;
           const dateStr = date && !Number.isNaN(date.getTime())
             ? date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined })
