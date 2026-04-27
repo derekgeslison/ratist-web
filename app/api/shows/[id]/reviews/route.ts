@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     if (!user) return NextResponse.json({ reviews: [] });
 
     const following = await prisma.userFollow.findMany({
-      where: { followerId: user.id },
+      where: { followerId: user.id, status: "accepted" },
       select: { followingId: true },
     });
     const followingIds = following.map((f) => f.followingId);

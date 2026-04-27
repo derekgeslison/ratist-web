@@ -483,12 +483,12 @@ async function checkValedictorian(userId: string): Promise<boolean> {
 }
 
 async function checkFirstFollow(userId: string): Promise<boolean> {
-  const count = await prisma.userFollow.count({ where: { followerId: userId } });
+  const count = await prisma.userFollow.count({ where: { followerId: userId, status: "accepted" } });
   return count >= 1;
 }
 
 async function checkInfluencer(userId: string): Promise<boolean> {
-  const count = await prisma.userFollow.count({ where: { followingId: userId } });
+  const count = await prisma.userFollow.count({ where: { followingId: userId, status: "accepted" } });
   return count >= 50;
 }
 

@@ -288,10 +288,10 @@ async function checkAllBadgesForUser(userId: string): Promise<string[]> {
   if (Number(valedResult[0]?.total ?? 0) >= 20000) await award("valedictorian");
 
   // Social
-  const followingCount = await prisma.userFollow.count({ where: { followerId: userId } });
+  const followingCount = await prisma.userFollow.count({ where: { followerId: userId, status: "accepted" } });
   if (followingCount >= 1) await award("first-follow");
 
-  const followerCount = await prisma.userFollow.count({ where: { followingId: userId } });
+  const followerCount = await prisma.userFollow.count({ where: { followingId: userId, status: "accepted" } });
   if (followerCount >= 50) await award("influencer");
 
   // Watchlist

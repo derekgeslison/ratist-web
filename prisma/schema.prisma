@@ -169,6 +169,13 @@ model UserFollow {
   id          String   @id @default(cuid())
   followerId  String   @map("follower_id")
   followingId String   @map("following_id")
+  // "accepted" = follow is live; the follower can see the followee's
+  // protected content and counts toward follower stats.
+  // "pending"  = the followee is private and has not yet approved
+  // the request; nothing else applies until they accept.
+  // Existing rows default to "accepted" so the migration is a no-op
+  // for already-active follows.
+  status      String   @default("accepted") @map("status")
   createdAt   DateTime @default(now()) @map("created_at")
 
   follower  User @relation("followers", fields: [followerId], references: [id], onDelete: Cascade)
@@ -176,6 +183,7 @@ model UserFollow {
 
   @@unique([followerId, followingId])
   @@index([followingId])
+  @@index([followingId, status])
   @@map("user_follows")
 }
 

@@ -474,12 +474,17 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {/* Per-tab visibility (only shown when profile is NOT fully private) */}
-          {!isPrivate && (
-            <div className="pt-2">
-              <p className="text-sm font-medium text-white mb-1">Visible to others</p>
+          {/* Per-tab visibility — shown regardless of profile
+              privacy, since private accounts can still gate which
+              tabs their accepted followers see. */}
+          <div className="pt-2">
+              <p className="text-sm font-medium text-white mb-1">
+                {isPrivate ? "Visible to followers" : "Visible to others"}
+              </p>
               <p className="text-xs text-[var(--foreground-muted)] mb-3">
-                Choose which tabs visitors can see on your profile.
+                {isPrivate
+                  ? "Even with a private profile, you can hide individual tabs from your approved followers."
+                  : "Choose which tabs visitors can see on your profile."}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {[
@@ -518,7 +523,6 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
-          )}
         </div>
 
           {/* Auto-date on seen */}

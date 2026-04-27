@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const [followers, following] = await Promise.all([
     prisma.userFollow.findMany({
-      where: { followingId: user.id },
+      where: { followingId: user.id, status: "accepted" },
       include: {
         follower: {
           select: {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     }),
     prisma.userFollow.findMany({
-      where: { followerId: user.id },
+      where: { followerId: user.id, status: "accepted" },
       include: {
         following: {
           select: {

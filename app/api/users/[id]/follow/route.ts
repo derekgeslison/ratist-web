@@ -15,36 +15,53 @@ async function getUser(req: NextRequest) {
   return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, firebaseUid: true, name: true } });
 }
 
-// GET: check if current user follows target, plus counts
+// GET: check current user's follow state with target, plus counts.
+// Counts only include accepted follows so a private user with five
+// pending requests still reads as "0 followers" until they approve.
 export async function GET(req: NextRequest, { params }: Props) {
   const { id: targetFirebaseUid } = await params;
   const target = await prisma.user.findUnique({ where: { firebaseUid: targetFirebaseUid }, select: { id: true } });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const [followerCount, followingCount] = await Promise.all([
-    prisma.userFollow.count({ where: { followingId: target.id } }),
-    prisma.userFollow.count({ where: { followerId: target.id } }),
+    prisma.userFollow.count({ where: { followingId: target.id, status: "accepted" } }),
+    prisma.userFollow.count({ where: { followerId: target.id, status: "accepted" } }),
   ]);
 
   const user = await getUser(req);
-  let isFollowing = false;
+  let followStatus: "none" | "pending" | "accepted" = "none";
   if (user && user.id !== target.id) {
     const existing = await prisma.userFollow.findUnique({
       where: { followerId_followingId: { followerId: user.id, followingId: target.id } },
     });
-    isFollowing = !!existing;
+    if (existing) followStatus = existing.status === "pending" ? "pending" : "accepted";
   }
 
-  return NextResponse.json({ isFollowing, followerCount, followingCount });
+  return NextResponse.json({
+    followStatus,
+    // Legacy field for any client still reading isFollowing.
+    isFollowing: followStatus === "accepted",
+    followerCount,
+    followingCount,
+  });
 }
 
-// POST: toggle follow/unfollow
+// POST: toggle follow / cancel-request / unfollow.
+//
+// New behavior:
+//   - Public target → create row with status "accepted" (immediate).
+//   - Private target → create with status "pending"; the target sees
+//     it in their requests inbox and accepts/declines from there.
+//   - Existing row → delete (covers both unfollow AND cancel-pending).
 export async function POST(req: NextRequest, { params }: Props) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: targetFirebaseUid } = await params;
-  const target = await prisma.user.findUnique({ where: { firebaseUid: targetFirebaseUid }, select: { id: true, firebaseUid: true, name: true } });
+  const target = await prisma.user.findUnique({
+    where: { firebaseUid: targetFirebaseUid },
+    select: { id: true, firebaseUid: true, name: true, isPrivate: true },
+  });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (target.id === user.id) return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
 
@@ -55,23 +72,52 @@ export async function POST(req: NextRequest, { params }: Props) {
   if (existing) {
     await prisma.userFollow.delete({ where: { id: existing.id } });
     recheckBadges(target.id, "got_followed").catch(() => {});
-    const followerCount = await prisma.userFollow.count({ where: { followingId: target.id } });
-    return NextResponse.json({ following: false, followerCount });
+    const followerCount = await prisma.userFollow.count({ where: { followingId: target.id, status: "accepted" } });
+    return NextResponse.json({ followStatus: "none", following: false, followerCount });
   } else {
+    const status = target.isPrivate ? "pending" : "accepted";
     await prisma.userFollow.create({
-      data: { followerId: user.id, followingId: target.id },
+      data: { followerId: user.id, followingId: target.id, status },
     });
 
-    // Create notification for the followed user (with cooldown logic)
     try {
-      await createFollowNotification(user.id, user.name, target.id);
+      if (status === "accepted") {
+        await createFollowNotification(user.id, user.name, target.id);
+      } else {
+        await createFollowRequestNotification(user.id, user.name, target.id);
+      }
     } catch { /* don't fail the follow */ }
 
-    const followerCount = await prisma.userFollow.count({ where: { followingId: target.id } });
-    checkBadges(user.id, "follow").catch(() => {});
-    checkBadges(target.id, "got_followed").catch(() => {});
-    return NextResponse.json({ following: true, followerCount });
+    const followerCount = await prisma.userFollow.count({ where: { followingId: target.id, status: "accepted" } });
+    if (status === "accepted") {
+      checkBadges(user.id, "follow").catch(() => {});
+      checkBadges(target.id, "got_followed").catch(() => {});
+    }
+    return NextResponse.json({ followStatus: status, following: status === "accepted", followerCount });
   }
+}
+
+async function createFollowRequestNotification(actorId: string, actorName: string, targetUserId: string) {
+  // Pending follow requests are always notified (no milestone cooldown
+  // — there's an action to take). One per actor; don't spam if they
+  // toggle follow/unfollow repeatedly.
+  const recent = await prisma.notification.findFirst({
+    where: {
+      userId: targetUserId,
+      actorId,
+      type: "follow_request",
+      createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+    },
+  });
+  if (recent) return;
+  await prisma.notification.create({
+    data: {
+      userId: targetUserId,
+      actorId,
+      type: "follow_request",
+      message: `${actorName} requested to follow you`,
+    },
+  });
 }
 
 async function createFollowNotification(actorId: string, actorName: string, targetUserId: string) {
@@ -84,7 +130,7 @@ async function createFollowNotification(actorId: string, actorName: string, targ
   if (prefs.follows === false) return;
 
   // Check follower count for milestone-based notifications
-  const totalFollowers = await prisma.userFollow.count({ where: { followingId: targetUserId } });
+  const totalFollowers = await prisma.userFollow.count({ where: { followingId: targetUserId, status: "accepted" } });
 
   // After 1000 followers, stop individual follow notifications
   if (totalFollowers > 1000) return;

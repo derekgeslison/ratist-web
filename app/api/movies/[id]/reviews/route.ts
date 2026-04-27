@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     // Get IDs of users this person follows
     const following = await prisma.userFollow.findMany({
-      where: { followerId: user.id },
+      where: { followerId: user.id, status: "accepted" },
       select: { followingId: true },
     });
     const followingIds = following.map((f) => f.followingId);

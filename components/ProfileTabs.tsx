@@ -234,19 +234,38 @@ export default function ProfileTabs({
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
 
+  // Live follow status for the current viewer. Drives whether a
+  // private-profile visitor sees content (accepted followers do)
+  // and which set of tab toggles is applied. Refetched whenever the
+  // Firebase user reference changes (sign-in / out / different user).
+  const [isAcceptedFollower, setIsAcceptedFollower] = useState(false);
+  useEffect(() => {
+    if (!user || isOwnProfile) { setIsAcceptedFollower(false); return; }
+    let cancelled = false;
+    user.getIdToken().then((token) =>
+      fetch(`/api/users/${profileFirebaseUid}/follow`, { headers: { Authorization: `Bearer ${token}` } })
+    ).then((r) => r.ok ? r.json() : null).then((data) => {
+      if (!cancelled) setIsAcceptedFollower(data?.followStatus === "accepted");
+    }).catch(() => null);
+    return () => { cancelled = true; };
+  }, [user, profileFirebaseUid, isOwnProfile]);
+
   // Default all tabs to public, then apply user overrides
   const defaultPublic: Record<string, boolean> = { overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true };
   const tabVisibility: Record<string, boolean> = { ...defaultPublic, ...publicTabs };
 
   // For visitors (not own profile), filter to only public tabs. Owner sees all.
+  // Accepted followers of a private profile use the same publicTabs
+  // gate as visitors to a public profile would — owner can still
+  // hide individual tabs from followers via their privacy toggles.
   const TAB_KEY_MAP: Record<Tab, string> = {
     Overview: "overview", Ratings: "ratings", Diary: "diary",
     Watchlist: "watchlist", Stats: "stats", Rankings: "rankings",
   };
   const visibleTabs = isOwnProfile
     ? TABS
-    : isPrivate
-      ? [] // fully private = no tabs
+    : isPrivate && !isAcceptedFollower
+      ? [] // private profile, viewer not approved → no tabs
       : TABS.filter((t) => tabVisibility[TAB_KEY_MAP[t]]);
 
   function tabFromHash(): Tab {

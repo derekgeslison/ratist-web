@@ -10,9 +10,10 @@ export async function GET(req: NextRequest) {
     const user = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true } });
     if (!user) return NextResponse.json({ items: [] });
 
-    // Get followed user IDs
+    // Get followed user IDs (accepted-only — pending requests don't
+    // grant access to the followee's content yet).
     const following = await prisma.userFollow.findMany({
-      where: { followerId: user.id },
+      where: { followerId: user.id, status: "accepted" },
       select: { followingId: true },
     });
     const followingIds = following.map((f) => f.followingId);

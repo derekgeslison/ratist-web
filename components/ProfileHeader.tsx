@@ -32,12 +32,19 @@ export default function ProfileHeader({
 }: Props) {
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
-  const showStats = isOwnProfile || !isPrivate;
   const [copied, setCopied] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
+  // Three-state follow: "none" / "pending" (request sent, awaiting
+  // approval) / "accepted" (live follow). Drives both the button
+  // label and whether private-profile content is unlocked.
+  const [followStatus, setFollowStatus] = useState<"none" | "pending" | "accepted">("none");
   const [followerCount, setFollowerCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
+
+  // Approved followers of a private profile see the same stats and
+  // bio as a public profile (subject to the per-tab toggles handled
+  // downstream in ProfileTabs).
+  const showStats = isOwnProfile || !isPrivate || followStatus === "accepted";
 
   useEffect(() => {
     if (user) {
@@ -47,7 +54,7 @@ export default function ProfileHeader({
         })
           .then((r) => r.json())
           .then((data) => {
-            setIsFollowing(data.isFollowing ?? false);
+            setFollowStatus(data.followStatus ?? (data.isFollowing ? "accepted" : "none"));
             setFollowerCount(data.followerCount ?? 0);
             setFollowingCount(data.followingCount ?? 0);
           })
@@ -74,7 +81,7 @@ export default function ProfileHeader({
     }).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
-      setIsFollowing(data.following);
+      setFollowStatus(data.followStatus ?? (data.following ? "accepted" : "none"));
       setFollowerCount(data.followerCount);
     }
     setFollowLoading(false);
@@ -97,12 +104,22 @@ export default function ProfileHeader({
             onClick={toggleFollow}
             disabled={followLoading}
             className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-              isFollowing
+              followStatus === "accepted"
                 ? "border-[var(--ratist-red)]/40 bg-[var(--ratist-red)]/10 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/20"
+                : followStatus === "pending"
+                ? "border-[var(--foreground-muted)]/40 bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)]"
                 : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground)] hover:border-[var(--ratist-red)]"
             }`}
           >
-            {isFollowing ? <><UserCheck className="w-3.5 h-3.5" /> Following</> : <><UserPlus className="w-3.5 h-3.5" /> Follow</>}
+            {followStatus === "accepted" ? (
+              <><UserCheck className="w-3.5 h-3.5" /> Following</>
+            ) : followStatus === "pending" ? (
+              <><UserPlus className="w-3.5 h-3.5" /> Requested</>
+            ) : isPrivate ? (
+              <><UserPlus className="w-3.5 h-3.5" /> Request</>
+            ) : (
+              <><UserPlus className="w-3.5 h-3.5" /> Follow</>
+            )}
           </button>
         )}
         {isOwnProfile && (

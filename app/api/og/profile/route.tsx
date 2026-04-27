@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         orderBy: { ratistRating: "desc" },
         take: 5,
       }),
-      prisma.userFollow.count({ where: { followingId: user.id } }),
+      prisma.userFollow.count({ where: { followingId: user.id, status: "accepted" } }),
     ]);
 
     const totalRated = ratingCount + tvRatingCount;
