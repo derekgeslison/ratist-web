@@ -17,16 +17,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const isPrivate = Boolean(body.isPrivate);
+  // includeChecked=true means "duplicate the entire list" (used by the
+  // owner's own Duplicate flow). Default false preserves the original
+  // CopyWatchlistButton behavior of copying someone else's list minus the
+  // items they've already marked as watched.
+  const includeChecked = body.includeChecked === true;
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (name.length > 80) return NextResponse.json({ error: "Name is too long (max 80 characters)" }, { status: 400 });
 
+  const itemFilter = includeChecked ? {} : { isChecked: false };
   const source = await prisma.watchlist.findUnique({
     where: { id },
     include: {
       collaborators: { select: { userId: true, status: true } },
-      movies: { where: { isChecked: false }, select: { movieId: true, sortOrder: true } },
-      shows: { where: { isChecked: false }, select: { tvShowId: true, sortOrder: true } },
+      movies: { where: itemFilter, select: { movieId: true, sortOrder: true, isChecked: true, checkedAt: true } },
+      shows: { where: itemFilter, select: { tvShowId: true, sortOrder: true, isChecked: true, checkedAt: true } },
     },
   });
   if (!source) return NextResponse.json({ error: "Watchlist not found" }, { status: 404 });
@@ -54,10 +60,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       description: description || null,
       isPrivate,
       movies: {
-        create: source.movies.map((m) => ({ movieId: m.movieId, sortOrder: m.sortOrder })),
+        create: source.movies.map((m) => ({
+          movieId: m.movieId,
+          sortOrder: m.sortOrder,
+          // Carry watched status into the duplicate when the user asked for
+          // a full copy. Without this, "duplicate" would silently un-check
+          // every item the owner already marked watched.
+          ...(includeChecked ? { isChecked: m.isChecked, checkedAt: m.checkedAt } : {}),
+        })),
       },
       shows: {
-        create: source.shows.map((s) => ({ tvShowId: s.tvShowId, sortOrder: s.sortOrder })),
+        create: source.shows.map((s) => ({
+          tvShowId: s.tvShowId,
+          sortOrder: s.sortOrder,
+          ...(includeChecked ? { isChecked: s.isChecked, checkedAt: s.checkedAt } : {}),
+        })),
       },
     },
     select: { id: true, slug: true, name: true },

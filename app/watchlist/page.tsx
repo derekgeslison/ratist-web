@@ -10,14 +10,16 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
-  Film, Tv, Monitor, ListOrdered, GripVertical,
+  Film, Tv, Monitor, ListOrdered, GripVertical, Copy,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
 import ProviderLogos from "@/components/ProviderLogos";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import WatchlistSettings from "@/components/WatchlistSettings";
+import WatchlistStats from "@/components/WatchlistStats";
 import { useTouchReveal } from "@/hooks/useTouchReveal";
 import TapHoldHint from "@/components/TapHoldHint";
 
@@ -102,7 +104,8 @@ function WatchlistSortableItem({ item, index, total, onMove }: { item: { id: str
         <button onClick={() => index < total - 1 && onMove(index, index + 1)} disabled={index === total - 1}
           className="text-[var(--foreground-muted)] hover:text-white disabled:opacity-20 transition-colors p-0.5 text-xs">▼</button>
       </div>
-      <button {...attributes} {...listeners} className="hidden sm:block text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none">
+      <button {...attributes} {...listeners} className="text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none p-1"
+        aria-label="Drag to reorder">
         <GripVertical className="w-4 h-4" />
       </button>
       {item.posterPath && (
@@ -299,6 +302,16 @@ export default function WatchlistPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editPrivate, setEditPrivate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Duplicate flow — copies the entire list (incl. checked items) into a
+  // brand-new watchlist owned by the current user. Works on the default
+  // list too, unlike Edit/Delete which are gated behind isDefault.
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [dupName, setDupName] = useState("");
+  const [dupPrivate, setDupPrivate] = useState(false);
+  const [dupIncludeChecked, setDupIncludeChecked] = useState(true);
+  const [dupSubmitting, setDupSubmitting] = useState(false);
+  const [dupError, setDupError] = useState("");
+  const router = useRouter();
   const [showCollaborators, setShowCollaborators] = useState(false);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [inviteCode, setInviteCode] = useState("");
@@ -569,6 +582,46 @@ export default function WatchlistPage() {
       const def = watchlists.find((w) => w.isDefault);
       if (def) { setActiveId(def.id); loadList(def.id); }
     } catch { showError("Failed to leave list."); }
+  }
+
+  /* ── Duplicate (copy entire list incl. checked items) ── */
+  function openDuplicate() {
+    if (!activeList) return;
+    setDupName(`Copy of ${activeList.name}`);
+    setDupPrivate(activeList.isPrivate);
+    setDupIncludeChecked(true);
+    setDupError("");
+    setShowDuplicate(true);
+  }
+  async function submitDuplicate() {
+    if (!activeList || !user || dupSubmitting) return;
+    if (!dupName.trim()) { setDupError("Name is required"); return; }
+    setDupSubmitting(true);
+    setDupError("");
+    try {
+      const token = await getToken();
+      if (!token) { setDupError("Sign in required"); setDupSubmitting(false); return; }
+      const res = await fetch(`/api/watchlist/${activeList.id}/copy`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: dupName.trim(),
+          isPrivate: dupPrivate,
+          includeChecked: dupIncludeChecked,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setDupError(data.error ?? `Failed to duplicate (${res.status})`); setDupSubmitting(false); return; }
+      setShowDuplicate(false);
+      // Land on the new list. setActiveId persists to sessionStorage so a
+      // subsequent reload (or back from a movie detail) returns here.
+      setActiveId(data.watchlist.id);
+      router.refresh();
+    } catch {
+      setDupError("Network error — please try again.");
+    } finally {
+      setDupSubmitting(false);
+    }
   }
 
   /* ── Export to rankings ── */
@@ -1074,9 +1127,18 @@ export default function WatchlistPage() {
                       {uncheckedCount > 0 && <span>{uncheckedCount} to go</span>}
                     </div>
                   </div>
-                  {!activeList.isDefault && (
+                  {(activeList.isOwner || !activeList.isDefault) && (
                     <div className="flex gap-2">
                       {activeList.isOwner && (
+                        <button
+                          onClick={openDuplicate}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
+                          title="Duplicate list"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      )}
+                      {activeList.isOwner && !activeList.isDefault && (
                         <>
                           <button
                             onClick={() => { setEditingList(true); setEditName(activeList.name); setEditDesc(activeList.description ?? ""); setEditPrivate(activeList.isPrivate); }}
@@ -1115,7 +1177,7 @@ export default function WatchlistPage() {
                           </button>
                         </>
                       )}
-                      {!activeList.isOwner && (
+                      {!activeList.isOwner && !activeList.isDefault && (
                         <button
                           onClick={leaveList}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
@@ -1176,6 +1238,11 @@ export default function WatchlistPage() {
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* Stats panel — collapsed by default; loads on first expand. */}
+                {!reorderMode && movies.length > 0 && (
+                  <WatchlistStats watchlistId={activeList.id} />
                 )}
 
                 {/* Search + filter bar */}
@@ -1645,6 +1712,61 @@ export default function WatchlistPage() {
             <button onClick={() => setShowCollaborators(false)} className="w-full text-center text-sm text-[var(--foreground-muted)] hover:text-white mt-4 py-2 transition-colors">
               Done
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate modal */}
+      {showDuplicate && activeList && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget && !dupSubmitting) setShowDuplicate(false); }}>
+          <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                <Copy className="w-4 h-4 text-[var(--ratist-red)]" /> Duplicate watchlist
+              </h2>
+              <button onClick={() => !dupSubmitting && setShowDuplicate(false)} className="text-[var(--foreground-muted)] hover:text-white" disabled={dupSubmitting}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Creates a new list on your account with the items from &ldquo;{activeList.name}&rdquo;.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground-muted)] mb-1.5">Name</label>
+                <input
+                  value={dupName}
+                  onChange={(e) => setDupName(e.target.value)}
+                  maxLength={80}
+                  autoFocus
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] text-sm text-white rounded-lg px-3 py-2 focus:outline-none focus:border-[var(--ratist-red)]"
+                />
+              </div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={dupIncludeChecked} onChange={(e) => setDupIncludeChecked(e.target.checked)}
+                  className="accent-[var(--ratist-red)] w-3.5 h-3.5 mt-0.5" />
+                <span className="text-sm text-[var(--foreground-muted)]">
+                  Include items already marked watched
+                  <span className="block text-[11px] opacity-70">Uncheck to copy only the unwatched items.</span>
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={dupPrivate} onChange={(e) => setDupPrivate(e.target.checked)}
+                  className="accent-[var(--ratist-red)] w-3.5 h-3.5" />
+                <span className="text-sm text-[var(--foreground-muted)]">Make private</span>
+              </label>
+              {dupError && <p className="text-sm text-red-400">{dupError}</p>}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+                <button onClick={() => setShowDuplicate(false)} disabled={dupSubmitting}
+                  className="px-3 py-1.5 text-sm text-[var(--foreground-muted)] hover:text-white disabled:opacity-40">Cancel</button>
+                <button onClick={submitDuplicate} disabled={dupSubmitting || !dupName.trim()}
+                  className="flex items-center gap-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors disabled:opacity-40">
+                  <Check className="w-3.5 h-3.5" />
+                  {dupSubmitting ? "Duplicating..." : "Create copy"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

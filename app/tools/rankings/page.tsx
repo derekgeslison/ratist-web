@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import SignInLink from "@/components/SignInLink";
-import { GripVertical, Star, ChevronUp, ChevronDown, Plus, Search, X, Trash2, Pencil } from "lucide-react";
+import { GripVertical, Star, ChevronUp, ChevronDown, Plus, Search, X, Trash2, Pencil, LayoutGrid, List as ListIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 interface RankedMovie {
@@ -32,6 +33,68 @@ interface CustomList {
 
 const CURRENT_YEAR = new Date().getFullYear();
 const PRESET_YEARS = Array.from({ length: CURRENT_YEAR - 2023 + 1 }, (_, i) => String(CURRENT_YEAR - i));
+
+function SortableGridItem({
+  movie,
+  index,
+  total,
+  onMoveTo,
+  onRemove,
+}: {
+  movie: RankedMovie;
+  index: number;
+  total: number;
+  onMoveTo: (from: number, to: number) => void;
+  onRemove?: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: movie.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div ref={setNodeRef} style={style} className="relative group">
+      <Link href={movie.mediaType === "tv" ? `/shows/${movie.tmdbId}` : `/movies/${movie.tmdbId}`}
+        className="block aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)]/60 transition-colors">
+        {movie.posterPath ? (
+          <Image src={posterUrl(movie.posterPath, "w342")} alt={movie.title} fill sizes="(max-width: 640px) 33vw, 200px" className="object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">{movie.title}</div>
+        )}
+        {/* Rank badge */}
+        <span className="absolute top-1.5 left-1.5 bg-black/80 text-white text-xs font-bold px-1.5 py-0.5 rounded">#{index + 1}</span>
+        {/* TV chip */}
+        {movie.mediaType === "tv" && (
+          <span className="absolute top-1.5 right-1.5 text-[9px] font-bold text-blue-300 bg-blue-600/90 px-1 py-0.5 rounded leading-none">TV</span>
+        )}
+        {movie.ratistRating != null && (
+          <span className="absolute bottom-1.5 right-1.5 text-[11px] font-bold text-white bg-[var(--ratist-red)] px-1.5 py-0.5 rounded">{movie.ratistRating.toFixed(1)}</span>
+        )}
+      </Link>
+      {/* Drag handle — long-press on mobile, click-and-drag on desktop. */}
+      <button {...attributes} {...listeners}
+        className="absolute bottom-1.5 left-1.5 bg-black/80 text-white p-1 rounded touch-none cursor-grab active:cursor-grabbing"
+        aria-label="Drag to reorder">
+        <GripVertical className="w-3.5 h-3.5" />
+      </button>
+      {/* Up/down nudgers for keyboard / accessibility */}
+      <div className="absolute top-1/2 -translate-y-1/2 right-1 flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={(e) => { e.preventDefault(); index > 0 && onMoveTo(index, index - 1); }} disabled={index === 0}
+          className="bg-black/80 text-white disabled:opacity-30 p-0.5 rounded-t" aria-label="Move up">
+          <ChevronUp className="w-3 h-3" />
+        </button>
+        <button onClick={(e) => { e.preventDefault(); index < total - 1 && onMoveTo(index, index + 1); }} disabled={index === total - 1}
+          className="bg-black/80 text-white disabled:opacity-30 p-0.5 rounded-b" aria-label="Move down">
+          <ChevronDown className="w-3 h-3" />
+        </button>
+      </div>
+      {onRemove && (
+        <button onClick={onRemove}
+          className="absolute top-1.5 right-1.5 bg-black/80 text-[var(--foreground-muted)] hover:text-red-400 p-1 rounded opacity-0 group-hover:opacity-100 transition"
+          title="Remove from list">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
 
 function SortableItem({
   movie,
@@ -74,7 +137,8 @@ function SortableItem({
         </button>
       </div>
 
-      <button {...attributes} {...listeners} className="hidden sm:block text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none">
+      <button {...attributes} {...listeners} className="text-[var(--foreground-muted)] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none p-1"
+        aria-label="Drag to reorder">
         <GripVertical className="w-5 h-5" />
       </button>
 
@@ -116,8 +180,30 @@ function SortableItem({
 
 export default function RankingsPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Active list + view live in the URL so browser back from a movie detail
+  // page lands on whatever list the user had open. Without this, useState
+  // resets to the current year on remount and "back" feels broken.
+  const filter = searchParams.get("list") ?? String(CURRENT_YEAR);
+  const view: "list" | "grid" = searchParams.get("view") === "grid" ? "grid" : "list";
+  const setFilter = useCallback((next: string) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (next === String(CURRENT_YEAR)) sp.delete("list");
+    else sp.set("list", next);
+    const qs = sp.toString();
+    // replace, not push — switching filters shouldn't pile history entries
+    // between the user and the previous "real" page they came from.
+    router.replace(qs ? `/tools/rankings?${qs}` : "/tools/rankings");
+  }, [router, searchParams]);
+  const setView = useCallback((next: "list" | "grid") => {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (next === "list") sp.delete("view");
+    else sp.set("view", next);
+    const qs = sp.toString();
+    router.replace(qs ? `/tools/rankings?${qs}` : "/tools/rankings");
+  }, [router, searchParams]);
   const [movies, setMovies] = useState<RankedMovie[]>([]);
-  const [filter, setFilter] = useState<"all" | string>(String(CURRENT_YEAR));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -331,7 +417,7 @@ export default function RankingsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+    <div className={`${view === "grid" ? "max-w-5xl" : "max-w-2xl"} mx-auto px-4 sm:px-6 py-8`}>
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-3">
           <Star className="w-6 h-6 text-[var(--ratist-red)]" />
@@ -461,9 +547,21 @@ export default function RankingsPage() {
             </div>
           )}
 
-          {/* Total count */}
+          {/* Total count + view toggle */}
           {!loading && movies.length > 0 && (
-            <p className="text-xs text-[var(--foreground-muted)] mb-3">{movies.length} item{movies.length !== 1 ? "s" : ""} ranked</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-[var(--foreground-muted)]">{movies.length} item{movies.length !== 1 ? "s" : ""} ranked</p>
+              <div className="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-0.5">
+                <button onClick={() => setView("list")} aria-label="List view"
+                  className={`p-1.5 rounded ${view === "list" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                  <ListIcon className="w-4 h-4" />
+                </button>
+                <button onClick={() => setView("grid")} aria-label="Grid view"
+                  className={`p-1.5 rounded ${view === "grid" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}>
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           )}
 
           {loading ? (
@@ -477,14 +575,23 @@ export default function RankingsPage() {
             const hasMore = movies.length > visibleCount;
             return (
               <>
-                <DndContext key={filter} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={visible.map((m) => m.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-2">
-                      {visible.map((movie, index) => (
-                        <SortableItem key={movie.id} movie={movie} index={index} total={movies.length} onMoveTo={handleMoveTo}
-                          onRemove={isCustomList ? () => removeFromRanking(movie.id) : undefined} />
-                      ))}
-                    </div>
+                <DndContext key={`${filter}-${view}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={visible.map((m) => m.id)} strategy={view === "grid" ? rectSortingStrategy : verticalListSortingStrategy}>
+                    {view === "grid" ? (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-3">
+                        {visible.map((movie, index) => (
+                          <SortableGridItem key={movie.id} movie={movie} index={index} total={movies.length} onMoveTo={handleMoveTo}
+                            onRemove={isCustomList ? () => removeFromRanking(movie.id) : undefined} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {visible.map((movie, index) => (
+                          <SortableItem key={movie.id} movie={movie} index={index} total={movies.length} onMoveTo={handleMoveTo}
+                            onRemove={isCustomList ? () => removeFromRanking(movie.id) : undefined} />
+                        ))}
+                      </div>
+                    )}
                   </SortableContext>
                 </DndContext>
                 {hasMore && (
