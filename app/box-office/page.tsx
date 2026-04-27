@@ -64,7 +64,7 @@ export default async function BoxOfficePage() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <BarChart3 className="w-6 h-6 text-[var(--ratist-red)]" />
+          <TrendingUp className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office Insights</h1>
         </div>
         <p className="text-sm text-[var(--foreground-muted)] max-w-2xl">

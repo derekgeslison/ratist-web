@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, X, Loader2, BarChart3, Info } from "lucide-react";
+import { Filter, X, Loader2, TrendingUp, Info } from "lucide-react";
 import {
   formatBoxOffice,
   formatROI,
@@ -169,7 +169,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <BarChart3 className="w-6 h-6 text-[var(--ratist-red)]" />
+          <TrendingUp className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office — All Movies</h1>
         </div>
         <p className="text-sm text-[var(--foreground-muted)]">
