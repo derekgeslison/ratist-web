@@ -32,6 +32,11 @@ export async function GET(req: NextRequest, { params }: Props) {
   const user = await getUser(req);
   let followStatus: "none" | "pending" | "accepted" | "blocked" = "none";
   let blockedByMe = false;
+  // isFollowingMe describes the REVERSE direction: does the target
+  // currently follow the viewer (status accepted)? Drives whether
+  // the profile-page menu offers a Remove follower option, since
+  // that only makes sense if they're actually a follower.
+  let isFollowingMe = false;
   if (user && user.id !== target.id) {
     if (await isMutuallyBlocked(user.id, target.id)) {
       followStatus = "blocked";
@@ -43,16 +48,23 @@ export async function GET(req: NextRequest, { params }: Props) {
       });
       blockedByMe = !!myBlock;
     } else {
-      const existing = await prisma.userFollow.findUnique({
-        where: { followerId_followingId: { followerId: user.id, followingId: target.id } },
-      });
+      const [existing, reverse] = await Promise.all([
+        prisma.userFollow.findUnique({
+          where: { followerId_followingId: { followerId: user.id, followingId: target.id } },
+        }),
+        prisma.userFollow.findUnique({
+          where: { followerId_followingId: { followerId: target.id, followingId: user.id } },
+        }),
+      ]);
       if (existing) followStatus = existing.status === "pending" ? "pending" : "accepted";
+      isFollowingMe = !!reverse && reverse.status === "accepted";
     }
   }
 
   return NextResponse.json({
     followStatus,
     blockedByMe,
+    isFollowingMe,
     // Legacy field for any client still reading isFollowing.
     isFollowing: followStatus === "accepted",
     followerCount,
@@ -120,15 +132,16 @@ export async function POST(req: NextRequest, { params }: Props) {
 }
 
 async function createFollowRequestNotification(actorId: string, actorName: string, targetUserId: string) {
-  // Pending follow requests are always notified (no milestone cooldown
-  // — there's an action to take). One per actor; don't spam if they
-  // toggle follow/unfollow repeatedly.
+  // Light cooldown (5 min) — prevents notification spam if a user
+  // taps follow/unfollow repeatedly, but doesn't suppress legitimate
+  // re-requests after a previous one was declined or accepted.
+  // Block remains the escape hatch for genuine abuse.
   const recent = await prisma.notification.findFirst({
     where: {
       userId: targetUserId,
       actorId,
       type: "follow_request",
-      createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+      createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
     },
   });
   if (recent) return;

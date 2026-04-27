@@ -39,12 +39,16 @@ export default function ProfileHeader({
   // only offers Unblock when the current user is the blocker.
   const [followStatus, setFollowStatus] = useState<"none" | "pending" | "accepted" | "blocked">("none");
   const [blockedByMe, setBlockedByMe] = useState(false);
+  const [isFollowingMe, setIsFollowingMe] = useState(false);
   const [followerCount, setFollowerCount] = useState<number | null>(null);
   const [followingCount, setFollowingCount] = useState<number | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [confirming, setConfirming] = useState<null | "block" | "unblock" | "remove">(null);
+  // Pending follow-request count, only shown on the user's own
+  // profile so they get a glanceable nudge to act on the inbox.
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
 
   // Approved followers of a private profile see the same stats and
   // bio as a public profile (subject to the per-tab toggles handled
@@ -61,11 +65,20 @@ export default function ProfileHeader({
           .then((data) => {
             setFollowStatus(data.followStatus ?? (data.isFollowing ? "accepted" : "none"));
             setBlockedByMe(!!data.blockedByMe);
+            setIsFollowingMe(!!data.isFollowingMe);
             setFollowerCount(data.followerCount ?? 0);
             setFollowingCount(data.followingCount ?? 0);
           })
           .catch(() => {});
       });
+      // Pending request count — own profile only.
+      if (user.uid === profileFirebaseUid) {
+        user.getIdToken().then((token) =>
+          fetch("/api/follow-requests", { headers: { Authorization: `Bearer ${token}` } })
+        ).then((r) => r.ok ? r.json() : null).then((data) => {
+          setPendingRequestCount(data?.requests?.length ?? 0);
+        }).catch(() => null);
+      }
     } else {
       fetch(`/api/users/${profileFirebaseUid}/follow`)
         .then((r) => r.json())
@@ -228,12 +241,14 @@ export default function ProfileHeader({
                   </button>
                 ) : followStatus !== "blocked" ? (
                   <>
-                    <button
-                      onClick={() => setConfirming("remove")}
-                      className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[var(--surface-2)] rounded-lg flex items-center gap-2"
-                    >
-                      <UserX className="w-4 h-4" /> Remove follower
-                    </button>
+                    {isFollowingMe && (
+                      <button
+                        onClick={() => setConfirming("remove")}
+                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-[var(--surface-2)] rounded-lg flex items-center gap-2"
+                      >
+                        <UserX className="w-4 h-4" /> Remove follower
+                      </button>
+                    )}
                     <button
                       onClick={() => setConfirming("block")}
                       className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-[var(--surface-2)] rounded-lg flex items-center gap-2"
@@ -304,9 +319,20 @@ export default function ProfileHeader({
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm mb-3">
           {followerCount != null && (
             isOwnProfile ? (
-              <Link href="/connections" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
-                <strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}
-              </Link>
+              <span className="inline-flex items-center gap-1.5">
+                <Link href="/connections" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
+                  <strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}
+                </Link>
+                {pendingRequestCount > 0 && (
+                  <Link
+                    href="/connections?tab=requests"
+                    className="text-[10px] font-bold bg-[var(--ratist-red)] text-white rounded-full px-1.5 py-0.5 hover:bg-[var(--ratist-red-hover)] transition-colors"
+                    title={`${pendingRequestCount} pending follow request${pendingRequestCount === 1 ? "" : "s"}`}
+                  >
+                    {pendingRequestCount} pending
+                  </Link>
+                )}
+              </span>
             ) : (
               <span className="text-[var(--foreground-muted)]"><strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}</span>
             )

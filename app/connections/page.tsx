@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
-import { Users, UserPlus, ArrowLeft, Check, X, UserX } from "lucide-react";
+import { Users, UserPlus, ArrowLeft, Check, X, UserX, Ban } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AdUnit from "@/components/AdUnit";
 
@@ -69,6 +69,23 @@ export default function ConnectionsPage() {
     }).catch(() => null);
     if (res?.ok) {
       setFollowers((prev) => prev.filter((f) => f.firebaseUid !== firebaseUid));
+    }
+  }
+
+  async function blockUser(firebaseUid: string) {
+    if (!user) return;
+    const ok = window.confirm("Block this user? They won't be able to follow you, see your content, or be seen by you. Existing follows in either direction will be removed.");
+    if (!ok) return;
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/users/${firebaseUid}/block`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) {
+      // Block deletes follow rows in both directions, so the user
+      // disappears from both lists locally too.
+      setFollowers((prev) => prev.filter((f) => f.firebaseUid !== firebaseUid));
+      setFollowing((prev) => prev.filter((f) => f.firebaseUid !== firebaseUid));
     }
   }
 
@@ -239,13 +256,22 @@ export default function ConnectionsPage() {
                 </div>
               </Link>
               {tab === "followers" && (
-                <button
-                  onClick={() => removeFollower(u.firebaseUid)}
-                  className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-2)] flex items-center gap-1.5 shrink-0"
-                  title="Remove follower"
-                >
-                  <UserX className="w-3.5 h-3.5" /> Remove
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => removeFollower(u.firebaseUid)}
+                    className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-2)] flex items-center gap-1.5"
+                    title="Remove follower"
+                  >
+                    <UserX className="w-3.5 h-3.5" /> Remove
+                  </button>
+                  <button
+                    onClick={() => blockUser(u.firebaseUid)}
+                    className="text-xs text-[var(--foreground-muted)] hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-[var(--surface-2)] flex items-center gap-1.5"
+                    title="Block user"
+                  >
+                    <Ban className="w-3.5 h-3.5" /> Block
+                  </button>
+                </div>
               )}
             </div>
           ))}
