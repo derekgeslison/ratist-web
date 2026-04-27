@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay } from "lucide-react";
+import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 
@@ -48,6 +48,12 @@ const TOOLS = [
     icon: MonitorPlay,
     title: "Screening Room",
     desc: "Watch movies or shows with friends remotely. Predict plots, react in real-time, run polls, and compare ratings when the credits roll.",
+  },
+  {
+    href: "/box-office",
+    icon: TrendingUp,
+    title: "Box Office Insights",
+    desc: "Lifetime gross leaderboards: highest grossing, biggest profit, best ROI, biggest bombs, top of the year. Plus a fully filterable list across every tracked title.",
   },
   {
     href: "/tools/collections",
