@@ -102,49 +102,46 @@ export function useWatchlistFlow(opts: UseWatchlistFlowOptions): FlowResult {
       const token = await user.getIdToken();
       const { lists: fetched, autoAddToDefault } = await fetchListsWithSettings(token);
 
-      if (autoAddToDefault) {
-        // Tap behavior splits four ways:
-        //   - Single list, NOT on default → add to default, no picker
-        //     (one-tap convenience path).
-        //   - Single list, on default → remove from default AND open
-        //     picker so the user can undo or branch into a new list
-        //     without leaving the page.
-        //   - Multi list, NOT on default → add to default + open
-        //     picker so the user can also add to other lists.
-        //   - Multi list, on default → DON'T toggle default; just open
-        //     the picker. Multi-list users likely care which list
-        //     holds an item, so a single tap shouldn't quietly strip
-        //     it from default — they manage removal explicitly.
-        const defaultList = fetched.find((l) => l.isDefault);
-        const isOnDefault = !!defaultList?.hasMovie;
-        const isMultiList = fetched.length >= MULTI_LIST_THRESHOLD;
+      // Tap behavior:
+      //   - Already watchlisted (on ANY list): always just open the
+      //     picker. Never auto-toggle. The autoAddToDefault setting
+      //     does NOT apply here — once an item is on a list, the user
+      //     manages it explicitly via the picker so a single tap
+      //     can't quietly strip or duplicate membership.
+      //   - Not on any list:
+      //       autoAddToDefault = true, single list  → add to default
+      //         (one-tap convenience, no picker).
+      //       autoAddToDefault = true, 2+ lists     → add to default
+      //         AND open picker so the user can branch onto others.
+      //       autoAddToDefault = false              → open picker
+      //         only; nothing added until a list is tapped.
+      const isWatchlisted = fetched.some((l) => l.hasMovie);
 
-        if (isMultiList && isOnDefault) {
-          setLists(fetched);
-          setPickerOpen(true);
-          return;
-        }
-
-        const data = await toggleDefaultEndpoint(token);
-        if (data && typeof data.watchlisted === "boolean") onWatchlistedChange?.(data.watchlisted);
-
-        if (isMultiList || isOnDefault) {
-          // Reflect the just-toggled default state in the picker's
-          // local copy so the checkboxes are accurate without a
-          // refetch round-trip.
-          const defaultId = defaultList?.id;
-          const updated = fetched.map((l) => (
-            l.id === defaultId ? { ...l, hasMovie: !l.hasMovie } : l
-          ));
-          setLists(updated);
-          setPickerOpen(true);
-        }
+      if (isWatchlisted) {
+        setLists(fetched);
+        setPickerOpen(true);
         return;
       }
 
-      // autoAddToDefault = false: always show the picker, no auto-add.
-      setLists(fetched);
-      setPickerOpen(true);
+      if (!autoAddToDefault) {
+        setLists(fetched);
+        setPickerOpen(true);
+        return;
+      }
+
+      const data = await toggleDefaultEndpoint(token);
+      if (data && typeof data.watchlisted === "boolean") onWatchlistedChange?.(data.watchlisted);
+
+      if (fetched.length >= MULTI_LIST_THRESHOLD) {
+        // Reflect the just-added default state in the picker's local
+        // copy so the default checkbox is accurate without a refetch.
+        const defaultId = fetched.find((l) => l.isDefault)?.id;
+        const updated = fetched.map((l) => (
+          l.id === defaultId ? { ...l, hasMovie: true } : l
+        ));
+        setLists(updated);
+        setPickerOpen(true);
+      }
     } finally {
       setBusy(false);
     }

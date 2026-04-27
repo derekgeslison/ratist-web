@@ -140,10 +140,17 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
 
   async function handleWatchlistClick() {
     if (!user) return;
-    // Behavior governed by user's autoAddToDefaultWatchlist setting:
-    //   - true (default, one-tap convenience): toggle default. If 2+
-    //     lists, also open picker so user can add to others too.
-    //   - false (always pick): always open the picker, no auto-add.
+    // Tap behavior:
+    //   - Already watchlisted (on ANY list): always just open the
+    //     picker. autoAddToDefaultWatchlist does NOT apply once an
+    //     item is on a list — the user manages membership explicitly
+    //     so a tap can't silently strip or duplicate it.
+    //   - Not on any list:
+    //       autoAddToDefault = true, single list  → add to default
+    //         (one-tap convenience, no picker).
+    //       autoAddToDefault = true, 2+ lists     → add to default
+    //         AND open picker so the user can branch onto others.
+    //       autoAddToDefault = false              → open picker only.
     setTogglingWatchlist(true);
     try {
       const token = await user.getIdToken();
@@ -154,37 +161,41 @@ export default function UserMoviePanel({ tmdbId, movieTitle, posterPath, tmdbSco
       const listsData = await listsRes.json();
       const lists = listsData.lists ?? [];
       const autoAddToDefault: boolean = listsData.userSettings?.autoAddToDefaultWatchlist ?? true;
+      const isWatchlisted = lists.some((l: { hasMovie: boolean }) => l.hasMovie);
 
-      if (autoAddToDefault) {
-        // Toggle default list directly. Single-list users are done.
-        // Multi-list users get both the toggle AND the picker so they
-        // can add to other lists too.
-        const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ title: movieTitle, poster_path: posterPath }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setWatchlisted(data.watchlisted ?? true);
-        }
-
-        if (lists.length >= 2) {
-          // Reflect the just-toggled default state locally so the
-          // picker checkboxes are accurate without a refetch.
-          const defaultId = lists.find((l: { isDefault: boolean; id: string }) => l.isDefault)?.id;
-          const updated = lists.map((l: { id: string; hasMovie: boolean }) => (
-            l.id === defaultId ? { ...l, hasMovie: !l.hasMovie } : l
-          ));
-          setAllLists(updated);
-          setShowListPicker(true);
-        }
+      if (isWatchlisted) {
+        setAllLists(lists);
+        setShowListPicker(true);
         return;
       }
 
-      // autoAddToDefault = false: always show picker, no auto-add.
-      setAllLists(lists);
-      setShowListPicker(true);
+      if (!autoAddToDefault) {
+        setAllLists(lists);
+        setShowListPicker(true);
+        return;
+      }
+
+      // Auto-add to default.
+      const res = await fetch(`/api/movies/${tmdbId}/watchlist`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ title: movieTitle, poster_path: posterPath }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWatchlisted(data.watchlisted ?? true);
+      }
+
+      if (lists.length >= 2) {
+        // Reflect the just-added default state locally so the picker
+        // checkboxes are accurate without a refetch.
+        const defaultId = lists.find((l: { isDefault: boolean; id: string }) => l.isDefault)?.id;
+        const updated = lists.map((l: { id: string; hasMovie: boolean }) => (
+          l.id === defaultId ? { ...l, hasMovie: true } : l
+        ));
+        setAllLists(updated);
+        setShowListPicker(true);
+      }
     } finally {
       setTogglingWatchlist(false);
     }
