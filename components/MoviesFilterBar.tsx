@@ -129,6 +129,8 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
     "excludeGenres",
     "excludeAnime",
     "excludeLanguages",
+    "excludeKeywords",
+    "excludeKeywordLabels",
     "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes",
     "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes",
   ];

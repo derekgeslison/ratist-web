@@ -5,6 +5,7 @@ import { getGenres, getShowGenres } from "@/lib/tmdb";
 import { expandMoods } from "@/lib/ai/mood-expand";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
+import { resolveStudioNames } from "@/lib/studios";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +147,16 @@ export async function POST(req: NextRequest) {
       : [];
     const keywordIds = keywordPhrases.length > 0 ? await resolveKeywords(keywordPhrases) : [];
     const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
+    const excludeKeywordPhrases: string[] = Array.isArray(body.excludeKeywords)
+      ? body.excludeKeywords.filter((k: unknown): k is string => typeof k === "string" && k.trim().length > 0).map((k: string) => k.trim().toLowerCase()).slice(0, 3)
+      : [];
+    const excludeKeywordIds = excludeKeywordPhrases.length > 0 ? await resolveKeywords(excludeKeywordPhrases) : [];
+    const excludeKeywordsParam = excludeKeywordIds.length > 0 ? excludeKeywordIds.join("|") : undefined;
+    const studioNames: string[] = Array.isArray(body.studios)
+      ? body.studios.filter((s: unknown): s is string => typeof s === "string")
+      : [];
+    const studioIds = studioNames.length > 0 ? resolveStudioNames(studioNames) : [];
+    const companiesParam = studioIds.length > 0 ? studioIds.join("|") : undefined;
     const castPhrases: string[] = Array.isArray(body.cast)
       ? body.cast.filter((n: unknown): n is string => typeof n === "string" && n.trim().length > 0).map((n: string) => n.trim()).slice(0, 3)
       : [];
@@ -274,6 +285,11 @@ export async function POST(req: NextRequest) {
       // Keyword tags for niche themes (future, time loop, christmas, etc.).
       // Toggled off by the fallback pass below when the keyword query is sparse.
       if (includeKeywords && keywordsParam) p.with_keywords = keywordsParam;
+      // Negative keywords always apply (we don't fall back on them — exclusion
+      // is the user's intent, not a "if results are sparse" hint).
+      if (excludeKeywordsParam) p.without_keywords = excludeKeywordsParam;
+      // Studio filter — TMDB with_companies. Pipe-joined for OR semantics.
+      if (companiesParam) p.with_companies = companiesParam;
       // Cast filter — TMDB /discover/movie supports with_cast (actors only).
       // On /discover/tv this param is ignored; TV results won't be narrowed
       // by actor but won't crash.

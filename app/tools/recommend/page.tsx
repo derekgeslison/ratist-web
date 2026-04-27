@@ -85,10 +85,12 @@ export default function RecommendPage() {
     yearTo: number | null;
     minRating: number | null;
     keywords: string[];
+    excludeKeywords: string[];
+    studios: string[];
   }
-  const AI_HIDDEN_EMPTY: AiHidden = { moods: [], originalLanguage: [], excludeOriginalLanguages: [], excludeAnime: false, yearFrom: null, yearTo: null, minRating: null, keywords: [] };
+  const AI_HIDDEN_EMPTY: AiHidden = { moods: [], originalLanguage: [], excludeOriginalLanguages: [], excludeAnime: false, yearFrom: null, yearTo: null, minRating: null, keywords: [], excludeKeywords: [], studios: [] };
   const [aiHidden, setAiHidden] = useState<AiHidden>(AI_HIDDEN_EMPTY);
-  const aiHiddenActive = aiHidden.moods.length > 0 || aiHidden.originalLanguage.length > 0 || aiHidden.excludeOriginalLanguages.length > 0 || aiHidden.excludeAnime || aiHidden.yearFrom != null || aiHidden.yearTo != null || aiHidden.minRating != null || aiHidden.keywords.length > 0;
+  const aiHiddenActive = aiHidden.moods.length > 0 || aiHidden.originalLanguage.length > 0 || aiHidden.excludeOriginalLanguages.length > 0 || aiHidden.excludeAnime || aiHidden.yearFrom != null || aiHidden.yearTo != null || aiHidden.minRating != null || aiHidden.keywords.length > 0 || aiHidden.excludeKeywords.length > 0 || aiHidden.studios.length > 0;
 
   // AI mode (alternative to the questionnaire, shown on step 0 only)
   const [aiPrompt, setAiPrompt] = useState("");
@@ -128,6 +130,8 @@ export default function RecommendPage() {
           yearTo: typeof saved.aiHidden.yearTo === "number" ? saved.aiHidden.yearTo : null,
           minRating: typeof saved.aiHidden.minRating === "number" ? saved.aiHidden.minRating : null,
           keywords: Array.isArray(saved.aiHidden.keywords) ? saved.aiHidden.keywords : [],
+          excludeKeywords: Array.isArray(saved.aiHidden.excludeKeywords) ? saved.aiHidden.excludeKeywords : [],
+          studios: Array.isArray(saved.aiHidden.studios) ? saved.aiHidden.studios : [],
         });
       } else if (Array.isArray(saved.aiMoods)) {
         // Legacy session state from before the AI-hidden bundle.
@@ -195,6 +199,8 @@ export default function RecommendPage() {
         yearTo: aiHidden.yearTo,
         minRating: aiHidden.minRating,
         keywords: aiHidden.keywords,
+        excludeKeywords: aiHidden.excludeKeywords,
+        studios: aiHidden.studios,
       }),
     });
     if (res.ok) {
@@ -253,6 +259,8 @@ export default function RecommendPage() {
         yearTo: number | null;
         minRating: number | null;
         keywords: string[];
+        excludeKeywords: string[];
+        studios: string[];
         mpaaRatings: string[];
         cast: string[];
         maxViolence: string | null;
@@ -282,6 +290,8 @@ export default function RecommendPage() {
         yearTo: typeof f.yearTo === "number" ? f.yearTo : null,
         minRating: typeof f.minRating === "number" ? f.minRating : null,
         keywords: Array.isArray(f.keywords) ? f.keywords : [],
+        excludeKeywords: Array.isArray(f.excludeKeywords) ? f.excludeKeywords : [],
+        studios: Array.isArray(f.studios) ? f.studios : [],
       });
       const extractedProviders = new Set(f.providers ?? []);
       setSelectedStreamingProviders(extractedProviders);
@@ -315,6 +325,8 @@ export default function RecommendPage() {
           yearTo: f.yearTo,
           minRating: f.minRating,
           keywords: f.keywords,
+          excludeKeywords: f.excludeKeywords,
+          studios: f.studios,
           cast: f.cast,
           maxViolence: f.maxViolence,
           maxSexualContent: f.maxSexualContent,

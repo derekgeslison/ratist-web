@@ -1,5 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "./client";
+import { STUDIOS } from "../studios";
+
+// Studio whitelist — must match lib/studios.ts entries by name. The AI returns
+// names; the API route resolves them to TMDB company IDs. Anything outside
+// this list is dropped because TMDB's full company list is messy and the AI
+// shouldn't invent names that won't have a corresponding ID lookup.
+const STUDIO_NAMES = STUDIOS.map((s) => s.name);
 
 // Canonical filter vocabulary. Keep these aligned with the /tools/recommend
 // questionnaire and the /api/tools/recommend request schema so the AI output
@@ -70,6 +77,16 @@ export interface ExtractedFilters {
   // /search/keyword. Server falls back to no-keyword results if the keyword
   // query yields too few matches.
   keywords: string[];
+  // Negative keyword phrases (1–3) — themes the user wants to AVOID. Same
+  // vocabulary as `keywords`; resolved to TMDB IDs and applied via
+  // without_keywords. "no time travel" / "nothing set in the future" lands
+  // here. Whole-genre exclusions stay in excludeGenres.
+  excludeKeywords: string[];
+  // Production companies / studios the user named. Studios are a separate
+  // TMDB dimension from keywords — using "A24" as a keyword returns zero
+  // results because TMDB tracks A24 as a company, not a tag. AI returns
+  // names from the curated whitelist; route resolves to TMDB company IDs.
+  studios: string[];
   // MPAA movie ratings (G/PG/PG-13/R/NC-17) and US TV ratings (TV-Y through TV-MA).
   // /movies page uses a single `mpaa` URL param for both.
   mpaaRatings: string[];
@@ -243,6 +260,45 @@ keywords is an array of 1–3 short natural-language phrases that name themes ge
 
 Do NOT pad with keywords. If the user didn't name a specific theme, leave keywords empty. Genres + moods already cover most prompts. Pick at most 3, prefer 1–2. Single-word phrases are best.
 
+### Exclude keywords (negative themes)
+excludeKeywords mirrors keywords but for themes the user wants to AVOID. Use the same vocabulary; the server resolves them to TMDB without_keywords. Use when the user says "no X" / "without X" / "nothing set in X" / "I don't want X" and X is a niche theme (not a whole genre).
+
+- "no time travel" / "nothing with time travel" → excludeKeywords: ["time travel"]
+- "no time loops" → excludeKeywords: ["time loop"]
+- "nothing set in the future" / "no future stuff" → excludeKeywords: ["future"]
+- "no zombies" → excludeKeywords: ["zombie"]
+- "no Christmas movies" → excludeKeywords: ["christmas"]
+- "no found-footage" → excludeKeywords: ["found footage"]
+- "nothing post-apocalyptic" → excludeKeywords: ["post-apocalyptic"]
+- "no superhero stuff" → excludeKeywords: ["superhero"] (Marvel/DC titles aren't a TMDB genre, but "superhero" IS a keyword tag)
+
+If X is a whole genre (Horror, Comedy, Romance, etc.) → use excludeGenres instead. excludeKeywords is for niche themes only. Cap at 3, prefer 1–2.
+
+### Studios (production companies)
+studios is an array of production company names the user explicitly named. The site filters these via TMDB's company filter (with_companies). Studios are a SEPARATE dimension from keywords — adding "A24" or "Studio Ghibli" to keywords returns zero results because TMDB tracks them as companies, not tags.
+
+ONLY pick names from this exact whitelist (case-sensitive match required by the server downstream):
+${STUDIO_NAMES.map((n) => `"${n}"`).join(", ")}
+
+When to set studios:
+- "A24 movies" / "stuff from A24" → studios: ["A24"]
+- "Studio Ghibli films" / "Ghibli" / "Miyazaki Ghibli" → studios: ["Studio Ghibli"]
+- "anything from Shudder" → studios: ["Shudder"]
+- "Marvel" / "Marvel Studios" / "MCU" → studios: ["Marvel Studios"]
+- "Pixar movie" → studios: ["Pixar"]
+- "Disney movie" (the studio, not character) → studios: ["Walt Disney Pictures"]
+- "Lionsgate" → studios: ["Lionsgate"]
+- "from Neon" → studios: ["NEON"]
+- "an Angel Studios film" → studios: ["Angel Studios"]
+- "Blumhouse horror" → studios: ["Blumhouse Productions"]
+
+When NOT to set studios:
+- "A24-style" / "A24 vibes" / "like A24" → leave studios empty (style comparison) and use moods=["offbeat"] instead.
+- Studio names NOT in the whitelist → leave empty (server can't resolve them).
+- Franchises that aren't studios ("James Bond", "Star Wars") → leave empty.
+
+When studios is set, do NOT also put the studio name in keywords or textQuery — that double-filter will return zero results.
+
 ### Providers (streaming services)
 If the user mentions a service by name, add its short code. Otherwise leave empty.
 - Netflix → "Netflix"
@@ -351,6 +407,16 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
         items: { type: "string" },
         description: "0-3 short natural-language phrases for niche themes TMDB tracks as keywords (e.g. 'future', 'time loop', 'christmas', 'road trip', 'found footage', 'one-shot'). Empty if no niche theme named.",
       },
+      excludeKeywords: {
+        type: "array",
+        items: { type: "string" },
+        description: "0-3 niche themes to EXCLUDE (resolved to TMDB without_keywords). Use for 'no time travel'/'no zombies'/'nothing post-apocalyptic'. For whole-genre exclusions use excludeGenres instead. Empty if user didn't name a theme to avoid.",
+      },
+      studios: {
+        type: "array",
+        items: { type: "string", enum: [...STUDIO_NAMES] },
+        description: "Production companies the user explicitly named. Use ONLY exact whitelist matches (e.g. 'A24', 'Studio Ghibli', 'Shudder', 'Marvel Studios', 'Pixar', 'Walt Disney Pictures'). Studios filter via TMDB with_companies; do NOT also add the studio name to keywords. Empty for style comparisons ('A24-style') or franchises.",
+      },
       mpaaRatings: {
         type: "array",
         items: { type: "string", enum: [...ALL_CERTS] },
@@ -372,7 +438,7 @@ const EXTRACT_FILTERS_TOOL: Anthropic.Tool = {
       minScaryIntense: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required scary/intense severity. Set when user wants terrifying. null = no floor." },
       minSensitiveThemes: { type: ["string", "null"], enum: [...SEVERITY_ORDER, null], description: "Minimum required sensitive-themes severity. Set when user wants dark/bleak. null = no floor." },
     },
-    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "genreMode", "yearFrom", "yearTo", "minRating", "keywords", "mpaaRatings", "cast", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
+    required: ["mediaType", "genres", "experience", "runtime", "era", "excludeGenres", "providers", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "genreMode", "yearFrom", "yearTo", "minRating", "keywords", "excludeKeywords", "studios", "mpaaRatings", "cast", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes"],
     additionalProperties: false,
   },
 };
@@ -422,6 +488,12 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     minRating: typeof input.minRating === "number" && input.minRating >= 0 && input.minRating <= 10 ? input.minRating : null,
     keywords: Array.isArray(input.keywords)
       ? input.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
+    excludeKeywords: Array.isArray(input.excludeKeywords)
+      ? input.excludeKeywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
+    studios: Array.isArray(input.studios)
+      ? input.studios.filter((s): s is string => typeof s === "string" && (STUDIO_NAMES as readonly string[]).includes(s)).slice(0, 5)
       : [],
     mpaaRatings: Array.isArray(input.mpaaRatings)
       ? input.mpaaRatings.filter((r): r is string => typeof r === "string" && (ALL_CERTS as readonly string[]).includes(r))

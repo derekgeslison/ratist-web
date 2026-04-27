@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "./client";
+import { STUDIOS } from "../studios";
+
+const STUDIO_NAMES = STUDIOS.map((s) => s.name);
 
 // TMDB genre names — exactly as TMDB returns them, used to map to genre IDs downstream
 export const TMDB_MOVIE_GENRES = [
@@ -46,6 +49,14 @@ export interface CollectionFilters {
   // Covers niche themes (future, time loop, christmas, heist, etc.) that
   // genres and moods miss. Falls back to no-keyword results if sparse.
   keywords: string[];
+  // Same vocabulary as `keywords` but applied as TMDB without_keywords —
+  // themes the user wants to AVOID ("no time travel", "no zombies").
+  excludeKeywords: string[];
+  // Production company / studio names from the curated whitelist (lib/studios.ts).
+  // Resolved to TMDB company IDs and applied via with_companies. Studios are
+  // a separate dimension from keywords — using "A24" as a keyword returns 0
+  // results because TMDB treats it as a company, not a tag.
+  studios: string[];
   maxViolence: Severity | null;
   maxSexualContent: Severity | null;
   maxLanguageSubstance: Severity | null;
@@ -185,6 +196,34 @@ keywords is an array of 1–3 short natural-language phrases resolved server-sid
 - scenarios: "road trip" → "road trip"; "heist" → "heist" (with Crime genre); "courtroom" → "courtroom"; "prison" → "prison"; "high school" → "high school"; "wedding" → "wedding"; "first contact" → "first contact"; "serial killer" → "serial killer"
 
 Do NOT pad keywords. Genres/moods cover most prompts. Prefer single-word phrases. textQuery is a separate mechanism for true sub-genre labels — don't duplicate content across keywords and textQuery.
+
+### Exclude keywords (negative themes)
+excludeKeywords mirrors keywords but for themes to AVOID. Same vocabulary. Resolved to TMDB without_keywords. Use when the prompt says "no X" / "without X" / "nothing with X" and X is a niche theme:
+- "no time travel" → excludeKeywords: ["time travel"]
+- "nothing set in the future" / "no future stuff" → excludeKeywords: ["future"]
+- "no zombies" → excludeKeywords: ["zombie"]
+- "no christmas movies" → excludeKeywords: ["christmas"]
+- "no found-footage" → excludeKeywords: ["found footage"]
+- "no superhero stuff" → excludeKeywords: ["superhero"]
+
+If X is a whole genre (Horror, Comedy, etc.) → use excludeGenres instead. Cap at 3, prefer 1-2.
+
+### Studios (production companies)
+studios is an array of production company names the user named. Filtered via TMDB with_companies. A SEPARATE dimension from keywords — adding "A24" or "Studio Ghibli" to keywords returns 0 results.
+
+ONLY pick names from this exact whitelist (case-sensitive):
+${STUDIO_NAMES.map((n) => `"${n}"`).join(", ")}
+
+Examples:
+- "A24 movies" → studios: ["A24"]
+- "Studio Ghibli films" / "Ghibli" → studios: ["Studio Ghibli"]
+- "Shudder horror" → studios: ["Shudder"]
+- "Marvel" / "MCU" → studios: ["Marvel Studios"]
+- "Pixar" → studios: ["Pixar"]
+- "Disney movie" (the studio) → studios: ["Walt Disney Pictures"]
+- "Blumhouse" → studios: ["Blumhouse Productions"]
+
+Don't set studios for style comparisons ("A24-style" → use moods instead) or names not in the whitelist. Don't double-add the studio name to keywords or textQuery.
 
 ### Cast / people
 cast is an array of up to 3 actor/director full names extracted from the prompt.
@@ -337,6 +376,16 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
         items: { type: "string" },
         description: "0-3 short natural-language phrases for niche themes TMDB tracks as keywords (e.g. 'future', 'time loop', 'christmas', 'road trip', 'heist'). Empty if no niche theme named.",
       },
+      excludeKeywords: {
+        type: "array",
+        items: { type: "string" },
+        description: "0-3 niche themes to EXCLUDE (TMDB without_keywords). 'no time travel'/'no zombies'/'nothing post-apocalyptic'. Whole-genre exclusions go in excludeGenres. Empty if user didn't name a theme to avoid.",
+      },
+      studios: {
+        type: "array",
+        items: { type: "string", enum: [...STUDIO_NAMES] },
+        description: "Production company names the user named. Whitelist-only ('A24', 'Studio Ghibli', 'Shudder', 'Marvel Studios', 'Pixar', 'Walt Disney Pictures', etc.). Filters via TMDB with_companies; do NOT also add the studio name to keywords. Empty for 'A24-style' or unsupported studios.",
+      },
       mpaaRatings: {
         type: "array",
         items: { type: "string", enum: [...ALL_CERTS] },
@@ -350,7 +399,7 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
       limit: { type: "integer", minimum: 5, maximum: 25, description: "Number of titles to include (default 10)." },
       suggestedName: { type: "string", description: "Short friendly name for the collection." },
     },
-    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "runtime", "keywords", "mpaaRatings", "cast", "limit", "suggestedName"],
+    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "runtime", "keywords", "excludeKeywords", "studios", "mpaaRatings", "cast", "limit", "suggestedName"],
     additionalProperties: false,
   },
 };
@@ -413,6 +462,12 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     runtime: Array.isArray(raw.runtime) ? raw.runtime.filter((r): r is string => typeof r === "string" && ["short", "feature", "long", "epic"].includes(r)) : [],
     keywords: Array.isArray(raw.keywords)
       ? raw.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
+    excludeKeywords: Array.isArray(raw.excludeKeywords)
+      ? raw.excludeKeywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      : [],
+    studios: Array.isArray(raw.studios)
+      ? raw.studios.filter((s): s is string => typeof s === "string" && (STUDIO_NAMES as readonly string[]).includes(s)).slice(0, 5)
       : [],
     mpaaRatings: Array.isArray(raw.mpaaRatings)
       ? raw.mpaaRatings.filter((r): r is string => typeof r === "string" && (ALL_CERTS as readonly string[]).includes(r))

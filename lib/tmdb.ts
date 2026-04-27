@@ -374,6 +374,10 @@ export async function discoverMovies(options: {
   companies?: string[];
   language?: string;
   keywords?: string;
+  /** Pipe-joined TMDB keyword IDs to EXCLUDE (without_keywords). Comma vs
+   *  pipe doesn't matter for exclusion since TMDB ORs them either way — pipe
+   *  used for parity with `keywords`. */
+  excludeKeywords?: string;
   releaseStatus?: string;
   minRuntime?: number;
   maxRuntime?: number;
@@ -475,6 +479,11 @@ export async function discoverMovies(options: {
   }
   if (options.language) params.with_original_language = options.language;
   if (options.keywords) params.with_keywords = options.keywords;
+  // Normalize comma → pipe so callers writing CSV in URLs get OR semantics
+  // (exclude any title tagged with any of these). TMDB treats comma as AND
+  // for without_keywords ("exclude only when all match"), which is rarely
+  // what users mean by "I don't want X or Y".
+  if (options.excludeKeywords) params.without_keywords = options.excludeKeywords.replace(/,/g, "|");
   if (options.companies && options.companies.length > 0) {
     // `|` for OR — picking A24 + Neon means "from either," not "joint productions."
     params.with_companies = options.companies.join("|");
@@ -687,6 +696,8 @@ export async function discoverShows(options: {
   companies?: string[];
   language?: string;
   keywords?: string;
+  /** Pipe-joined TMDB keyword IDs to EXCLUDE (without_keywords). */
+  excludeKeywords?: string;
   releaseStatus?: string;
   page?: number;
 }) {
@@ -735,6 +746,7 @@ export async function discoverShows(options: {
   }
   if (options.language) params.with_original_language = options.language;
   if (options.keywords) params.with_keywords = options.keywords;
+  if (options.excludeKeywords) params.without_keywords = options.excludeKeywords.replace(/,/g, "|");
   if (options.companies && options.companies.length > 0) {
     params.with_companies = options.companies.join("|");
   }

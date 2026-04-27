@@ -9,6 +9,7 @@ import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
+import { resolveStudioNames } from "@/lib/studios";
 
 interface SeverityCaps {
   maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null;
@@ -68,6 +69,8 @@ async function discoverTvShows(params: {
   ratingGte?: number | null;
   originalLanguage?: string | null;
   keywords?: string | null;
+  excludeKeywords?: string | null;
+  companies?: string | null;
   page?: number;
 }): Promise<{ results: TMDBShow[]; page: number; total_pages: number }> {
   const qp: Record<string, string> = {
@@ -81,6 +84,8 @@ async function discoverTvShows(params: {
   if (params.ratingGte != null) qp["vote_average.gte"] = String(params.ratingGte);
   if (params.originalLanguage) qp.with_original_language = params.originalLanguage;
   if (params.keywords) qp.with_keywords = params.keywords;
+  if (params.excludeKeywords) qp.without_keywords = params.excludeKeywords;
+  if (params.companies) qp.with_companies = params.companies;
   const url = new URL("https://api.themoviedb.org/3/discover/tv");
   url.searchParams.set("api_key", process.env.TMDB_API_KEY ?? "0a8b11e67dd3e6ee739bb736777f4695");
   for (const [k, v] of Object.entries(qp)) url.searchParams.set(k, v);
@@ -246,10 +251,20 @@ export async function POST(req: NextRequest) {
     const keywordIds = await resolveKeywords(filters.keywords);
     const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
 
+    // Same for negative keyword phrases. TMDB without_keywords ORs the IDs
+    // so any single keyword match excludes the title.
+    const excludeKeywordIds = filters.excludeKeywords.length > 0 ? await resolveKeywords(filters.excludeKeywords) : [];
+    const excludeKeywordsParam = excludeKeywordIds.length > 0 ? excludeKeywordIds.join("|") : undefined;
+
     // Resolve cast names to TMDB person IDs (actors only — director prompts
     // may resolve to the person but TMDB /discover can't filter by director).
     const castIds = filters.cast.length > 0 ? await resolveCast(filters.cast) : [];
     const castIdsStr = castIds.length > 0 ? castIds.map(String) : undefined;
+
+    // Resolve studio names → TMDB company IDs. Pipe-joined for OR semantics
+    // (a film need only be from one of the selected studios to qualify).
+    const studioIds = resolveStudioNames(filters.studios);
+    const companiesParam = studioIds.length > 0 ? studioIds.map(String) : undefined;
 
     // Split MPAA array: movie certifications pass to TMDB /discover/movie
     // via `certification`. TV ratings (TV-*) aren't supported by /discover/tv
@@ -267,11 +282,13 @@ export async function POST(req: NextRequest) {
           query: filters.textQuery ?? undefined,
           certifications: movieCertsParam,
           castIds: castIdsStr,
+          companies: companiesParam,
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
           language: tmdbLangCode,
           keywords: kw,
+          excludeKeywords: excludeKeywordsParam,
           minRuntime: runtimeMins.min,
           maxRuntime: runtimeMins.max,
           sort: "top_rated",
@@ -285,11 +302,13 @@ export async function POST(req: NextRequest) {
           query: filters.textQuery ?? undefined,
           certifications: movieCertsParam,
           castIds: castIdsStr,
+          companies: companiesParam,
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
           language: tmdbLangCode,
           keywords: kw,
+          excludeKeywords: excludeKeywordsParam,
           minRuntime: runtimeMins.min,
           maxRuntime: runtimeMins.max,
           sort: "top_rated",
@@ -301,11 +320,13 @@ export async function POST(req: NextRequest) {
           query: filters.textQuery ?? undefined,
           certifications: movieCertsParam,
           castIds: castIdsStr,
+          companies: companiesParam,
           yearFrom: filters.yearFrom != null ? String(filters.yearFrom) : undefined,
           yearTo: filters.yearTo != null ? String(filters.yearTo) : undefined,
           ratingGte: filters.minRating != null ? String(filters.minRating) : undefined,
           language: tmdbLangCode,
           keywords: kw,
+          excludeKeywords: excludeKeywordsParam,
           minRuntime: runtimeMins.min,
           maxRuntime: runtimeMins.max,
           sort: "top_rated",
@@ -360,6 +381,8 @@ export async function POST(req: NextRequest) {
             ratingGte: filters.minRating,
             originalLanguage: tmdbLangCode,
             keywords: useKeywords ? keywordsParam : undefined,
+            excludeKeywords: excludeKeywordsParam,
+            companies: studioIds.length > 0 ? studioIds.join("|") : undefined,
             page,
           });
           const includedIdSet = new Set(includeIds.map(Number));

@@ -11,6 +11,7 @@ import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { getGenres, getShowGenres, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { resolveKeywordsFull } from "@/lib/tmdb-keywords";
 import { resolveCastFull } from "@/lib/tmdb-cast";
+import { resolveStudioNames } from "@/lib/studios";
 
 // Movie-genre ID → TV-genre ID(s) mapping. Same table /movies uses internally.
 const MOVIE_TO_TV_GENRE_ID: Record<number, number[]> = {
@@ -101,8 +102,11 @@ export async function POST(req: NextRequest) {
 
     // Resolve keyword phrases to TMDB keyword IDs + labels.
     const resolvedKeywords = raw.keywords.length > 0 ? await resolveKeywordsFull(raw.keywords) : [];
+    const resolvedExcludeKeywords = raw.excludeKeywords.length > 0 ? await resolveKeywordsFull(raw.excludeKeywords) : [];
     // Resolve cast names to TMDB person IDs + canonical names.
     const resolvedCast = raw.cast.length > 0 ? await resolveCastFull(raw.cast) : [];
+    // Resolve studio names → TMDB company IDs (whitelist enforced upstream).
+    const studioIds = resolveStudioNames(raw.studios);
 
     // Provider short codes → TMDB provider IDs.
     const providerIds: number[] = [];
@@ -160,9 +164,16 @@ export async function POST(req: NextRequest) {
       qp.set("keywords", resolvedKeywords.map((k) => k.id).join(","));
       qp.set("keywordLabels", resolvedKeywords.map((k) => k.name).join(","));
     }
+    if (resolvedExcludeKeywords.length > 0) {
+      qp.set("excludeKeywords", resolvedExcludeKeywords.map((k) => k.id).join(","));
+      qp.set("excludeKeywordLabels", resolvedExcludeKeywords.map((k) => k.name).join(","));
+    }
     if (resolvedCast.length > 0) {
       qp.set("cast", resolvedCast.map((c) => c.id).join(","));
       qp.set("castLabels", resolvedCast.map((c) => c.name).join(","));
+    }
+    if (studioIds.length > 0) {
+      qp.set("companies", studioIds.join(","));
     }
 
     // Severity caps passed through as-is; /movies reads them.
@@ -176,10 +187,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Count how many dimensions ended up in the hidden AI pill so the UI can
-    // decide whether to render it.
+    // decide whether to render it. Studios are NOT hidden — they surface as
+    // visible studio chips on /movies. Excluded keywords are hidden because
+    // /movies has no UI for them yet.
     const hiddenCount = (excludeGenreIds.length > 0 ? 1 : 0)
       + (raw.excludeOriginalLanguages.length > 0 ? 1 : 0)
       + (raw.excludeAnime ? 1 : 0)
+      + (resolvedExcludeKeywords.length > 0 ? 1 : 0)
       + severityFields.reduce((acc, f) => acc + (typeof raw[f] === "string" ? 1 : 0), 0);
 
     const url = `/movies${qp.toString() ? `?${qp.toString()}` : ""}`;

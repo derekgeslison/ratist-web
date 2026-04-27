@@ -101,3 +101,16 @@ export const STUDIOS: StudioEntry[] = [
 export function getStudioById(id: number): StudioEntry | undefined {
   return STUDIOS.find((s) => s.id === id);
 }
+
+// Resolve studio names (as the AI returns them) to TMDB company IDs. Drops
+// anything that doesn't match a curated entry — names should already be
+// constrained by the AI's enum schema, but we double-check here so a typo
+// or stale enum entry doesn't crash the route.
+export function resolveStudioNames(names: string[]): number[] {
+  const out: number[] = [];
+  for (const name of names) {
+    const match = STUDIOS.find((s) => s.name === name);
+    if (match) out.push(match.id);
+  }
+  return out;
+}

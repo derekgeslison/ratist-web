@@ -78,6 +78,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   const showProviders = params.showProviders === "1";
   const language = params.language;
   const keywords = params.keywords;
+  const excludeKeywords = params.excludeKeywords;
   const companies = params.companies?.split(",").filter(Boolean);
 
   // AI-powered hidden filters (applied as post-filters after TMDB fetch).
@@ -103,6 +104,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   const hasHiddenAiFilters = excludeGenres.length > 0
     || excludeLanguages.length > 0
     || excludeAnime
+    || !!excludeKeywords
     || Object.values(severityCaps).some((v) => v !== null);
   const hasMaxCap = severityCaps.maxViolence || severityCaps.maxSexualContent || severityCaps.maxLanguageSubstance || severityCaps.maxScaryIntense || severityCaps.maxSensitiveThemes;
   const hasMinCap = severityCaps.minViolence || severityCaps.minSexualContent || severityCaps.minLanguageSubstance || severityCaps.minScaryIntense || severityCaps.minSensitiveThemes;
@@ -188,6 +190,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     companies,
     language,
     keywords,
+    excludeKeywords,
     releaseStatus,
     genre: params.genre,
     minRating: params.rating,
@@ -262,6 +265,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       companies: discoverOptions.companies,
       language: discoverOptions.language,
       keywords: discoverOptions.keywords,
+      excludeKeywords: discoverOptions.excludeKeywords,
       releaseStatus,
     };
 
