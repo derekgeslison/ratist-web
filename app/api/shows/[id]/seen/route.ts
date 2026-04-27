@@ -64,6 +64,12 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.userFavoriteShow.delete({
         where: { userId_tvShowId: { userId: user.id, tvShowId: tvShow.id } },
       });
+      // Cascade: see the movies seen route — saved ranking rows for an
+      // unseen, unrated show would re-surface it on the next GET, so
+      // drop them here.
+      await prisma.userMovieRanking.deleteMany({
+        where: { userId: user.id, tvShowId: tvShow.id },
+      });
       return NextResponse.json({ seen: false });
     } else {
       await prisma.userFavoriteShow.create({

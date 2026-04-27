@@ -837,8 +837,14 @@ export default function ScreeningSessionPage() {
         </div>
       )}
 
-      {/* Pause accept/reject overlay */}
-      {activePause && !isPaused && !activePause.accepted[myUserId] && (
+      {/* Pause accept/reject overlay. Visible to everyone in the
+          session (including the requester, who auto-accepts on send)
+          so all participants can see the expiration wipe and live
+          accept count. The button slot swaps to a status line once
+          the current user has accepted — keeping the requester and
+          already-accepted recipients in the loop instead of dropping
+          the popup the moment they accept. */}
+      {activePause && !isPaused && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/95 text-black px-6 py-4 rounded-xl shadow-2xl max-w-sm w-full mx-4">
           <div className="flex items-center gap-3 mb-3">
             {/* Circular countdown timer */}
@@ -851,14 +857,24 @@ export default function ScreeningSessionPage() {
               </svg>
               <PauseCircle className="w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
             </div>
-            <span className="font-semibold">{activePause.requestedBy} wants to pause!</span>
+            <span className="font-semibold">
+              {activePause.requestedByUserId === myUserId
+                ? "You requested a pause"
+                : `${activePause.requestedBy} wants to pause!`}
+            </span>
           </div>
-          <div className="flex gap-2">
-            <button onClick={acceptPause}
-              className="flex-1 bg-black/20 hover:bg-black/30 text-black font-semibold py-2 rounded-lg transition-colors">
-              Accept Pause
-            </button>
-          </div>
+          {activePause.accepted[myUserId] ? (
+            <p className="text-center text-xs text-black/70 font-semibold py-2">
+              Waiting for everyone to accept…
+            </p>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={acceptPause}
+                className="flex-1 bg-black/20 hover:bg-black/30 text-black font-semibold py-2 rounded-lg transition-colors">
+                Accept Pause
+              </button>
+            </div>
+          )}
           <p className="text-[10px] text-black/60 mt-2 text-center">
             {Object.values(activePause.accepted).filter(Boolean).length}/{session?.participants.length ?? 0} accepted
           </p>

@@ -195,10 +195,15 @@ export default function MovieDetailTabs({
                     value={movie.production_companies.slice(0, 3).map((c) => c.name).join(", ")}
                   />
                 )}
-                {movie.budget ? (
+                {/* TMDB occasionally has placeholder values like $24 in the
+                    budget/revenue fields where the real number is unknown.
+                    A $1,000 floor hides obvious noise without cutting real
+                    micro-budget films, which sit in the tens of thousands
+                    at the lowest end of legitimate productions. */}
+                {movie.budget && movie.budget >= 1000 ? (
                   <FactRow label="Budget" value={`$${movie.budget.toLocaleString()}`} />
                 ) : null}
-                {movie.revenue ? (
+                {movie.revenue && movie.revenue >= 1000 ? (
                   <FactRow label="Revenue" value={`$${movie.revenue.toLocaleString()}`} />
                 ) : null}
               </div>

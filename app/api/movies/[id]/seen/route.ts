@@ -48,6 +48,14 @@ export async function POST(req: NextRequest, { params }: Props) {
       await prisma.userFavoriteMovie.delete({
         where: { userId_movieId: { userId: user.id, movieId: movie.id } },
       });
+      // Cascade: a movie that's no longer seen (and confirmed unrated
+      // above) has nothing to anchor it on the /tools/rankings lists.
+      // Saved-order rows for this movie are now stale and would
+      // re-surface it on the next GET, so drop them across all of
+      // the user's lists.
+      await prisma.userMovieRanking.deleteMany({
+        where: { userId: user.id, movieId: movie.id },
+      });
       recheckBadges(user.id, "seen").catch(() => {});
       recheckBadges(user.id, "watchlog").catch(() => {});
       return NextResponse.json({ seen: false });
