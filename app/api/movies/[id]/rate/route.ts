@@ -122,12 +122,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       update: ratingData,
     });
 
-    // Also mark as seen (without auto-setting watchedDate — user sets that manually)
-    await prisma.userFavoriteMovie.upsert({
+    // Also mark as seen. If the user has autoDateOnSeen enabled,
+    // stamp the watchedDate with now — but ONLY when creating a new
+    // UserFavoriteMovie row. We don't overwrite an existing date
+    // because the user may have already set a specific watchedDate
+    // earlier (e.g., from the diary). Same rule we apply on the
+    // /seen endpoint for consistency. Also creates a UserWatchLog
+    // entry mirroring that flow so the diary picks it up.
+    const existingFav = await prisma.userFavoriteMovie.findUnique({
       where: { userId_movieId: { userId: user.id, movieId: movie.id } },
-      create: { userId: user.id, movieId: movie.id },
-      update: {},
-    }).catch(() => {});
+    });
+    if (!existingFav) {
+      const watchedDate = user.autoDateOnSeen ? new Date() : null;
+      await prisma.userFavoriteMovie.create({
+        data: { userId: user.id, movieId: movie.id, watchedDate },
+      }).catch(() => {});
+      if (watchedDate) {
+        await prisma.userWatchLog.create({
+          data: { userId: user.id, movieId: movie.id, watchedDate, isRewatch: false },
+        }).catch(() => {});
+      }
+    }
 
     // Rebuild user profile/persona async
     rebuildUserProfile(user.id).catch(console.error);
