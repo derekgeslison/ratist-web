@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/box-office/by-rating" },
 };
 
-export const revalidate = 60 * 60 * 6;
+export const revalidate = 21600;
 
 const MPA_BUCKETS: Array<{ code: string; subtitle: string }> = [
   { code: "G",     subtitle: "Suitable for all ages" },

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 // Same caching cadence as the landing page — the underlying data
 // only changes on TMDB resync, which we trigger on detail-page view.
-export const revalidate = 60 * 60 * 6;
+export const revalidate = 21600;
 
 const DECADES: Array<{ key: string; label: string; from: string; to: string }> = [
   { key: "2020s", label: "2020s",   from: "2020", to: "2029" },

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/box-office/by-genre" },
 };
 
-export const revalidate = 60 * 60 * 6;
+export const revalidate = 21600;
 
 // Curated genre order — chosen for "general interest" rather than
 // alphabetical, so Action and Drama lead the page rather than

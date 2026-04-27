@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { Loader2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import BoxOfficeListClient from "./BoxOfficeListClient";
 
@@ -19,5 +21,21 @@ export default async function BoxOfficeAllPage() {
     select: { id: true, name: true },
   });
 
-  return <BoxOfficeListClient genres={genres} />;
+  // Suspense boundary required for useSearchParams in the client child
+  // — without it, Next.js's static-export pass refuses to prerender
+  // because useSearchParams reads request-scoped data. The fallback
+  // mirrors the eventual page header so layout doesn't shift on
+  // hydration.
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center text-sm text-[var(--foreground-muted)]">
+          <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+          Loading filters…
+        </div>
+      }
+    >
+      <BoxOfficeListClient genres={genres} />
+    </Suspense>
+  );
 }

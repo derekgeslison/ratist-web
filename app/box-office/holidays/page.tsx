@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 // Window queries are heavier (in-app filter on top of an over-fetched
 // candidate set); cache for the full 6 hours like the rest of /box-office.
-export const revalidate = 60 * 60 * 6;
+export const revalidate = 21600;
 
 export default async function BoxOfficeHolidaysPage() {
   // Each window query is independent of the others, so fire them in

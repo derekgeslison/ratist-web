@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { TrendingUp, DollarSign, BarChart3, AlertTriangle, Coins, Calendar, Filter, Info, Layers } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, AlertTriangle, Coins, Calendar, Filter, Info, Layers, Users, Clapperboard } from "lucide-react";
 import {
   getTopGrossing,
   getHighestBudget,
@@ -19,10 +19,11 @@ export const metadata: Metadata = {
 
 // Leaderboards are mostly static between TMDB syncs (revenue/budget
 // only change when a movie is re-fetched) so we can revalidate every
-// 6 hours rather than re-querying on every page load. The deferred
-// per-day cron we'll add in Stage 4 will refresh the underlying data
-// at the same cadence, keeping the cached page in lockstep.
-export const revalidate = 60 * 60 * 6;
+// 6 hours rather than re-querying on every page load. Next.js's
+// static analyzer can only read literal numbers from `revalidate`
+// exports, so the value is hardcoded (60 * 60 * 6 = 21600) rather
+// than expressed as a multiplication.
+export const revalidate = 21600;
 
 export default async function BoxOfficePage() {
   const lastYear = getLastCompleteYear();
@@ -107,6 +108,20 @@ export default async function BoxOfficePage() {
         >
           <Layers className="w-4 h-4" />
           By MPA rating
+        </Link>
+        <Link
+          href="/box-office/by-actor"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Users className="w-4 h-4" />
+          Top actors
+        </Link>
+        <Link
+          href="/box-office/by-director"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Clapperboard className="w-4 h-4" />
+          Top directors
         </Link>
       </div>
 

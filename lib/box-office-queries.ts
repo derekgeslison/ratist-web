@@ -221,3 +221,121 @@ export async function getTopGrossingByReleaseWindow(
 
   return filtered.slice(0, limit).map(toBoxOfficeRow);
 }
+
+// ─── Career box office (actors + directors) ─────────────────────────────
+
+export interface CareerRow {
+  tmdbId: number;
+  name: string;
+  profilePath: string | null;
+  totalRevenue: number;
+  filmCount: number;
+}
+
+/**
+ * Top grossing actors / directors / arbitrary crew jobs by lifetime
+ * revenue across all of their credited films. Each row is one
+ * celebrity, totaled across every movie they're in.
+ *
+ * The HAVING clause caps the result at celebrities credited on at
+ * least 3 films — without it, an actor whose only credit is a
+ * billion-dollar blockbuster outranks lifetime stars who made dozens
+ * of consistent films. 3 is the smallest cut that meaningfully
+ * filters one-hit wonders without excluding directors with short
+ * filmographies. The same threshold is applied per-celebrity in
+ * `getCelebrityBoxOfficeStats` so detail pages and leaderboards stay
+ * consistent.
+ */
+export async function getTopCelebrityCareers(
+  role: "actor" | "director",
+  limit: number = 50,
+): Promise<CareerRow[]> {
+  const filter = role === "actor"
+    ? `mc.credit_type = 'cast'`
+    : `mc.credit_type = 'crew' AND mc.job = 'Director'`;
+
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    tmdb_id: number;
+    name: string;
+    profile_path: string | null;
+    total_revenue: bigint;
+    film_count: bigint;
+  }>>(
+    `SELECT c.tmdb_id, c.name, c.profile_path,
+            SUM(m.revenue) AS total_revenue,
+            COUNT(DISTINCT m.id) AS film_count
+       FROM celebrities c
+       JOIN movie_cast mc ON mc.celebrity_id = c.id AND ${filter}
+       JOIN movies m ON m.id = mc.movie_id AND m.revenue >= $1
+      GROUP BY c.id, c.tmdb_id, c.name, c.profile_path
+      HAVING COUNT(DISTINCT m.id) >= 3
+      ORDER BY total_revenue DESC
+      LIMIT $2`,
+    Number(BOX_OFFICE_FLOOR),
+    limit,
+  );
+
+  return rows.map((r) => ({
+    tmdbId: r.tmdb_id,
+    name: r.name,
+    profilePath: r.profile_path,
+    totalRevenue: Number(r.total_revenue),
+    filmCount: Number(r.film_count),
+  }));
+}
+
+/** Career box office stats for a single celebrity — used by the
+ *  celebrity detail page to surface "career box office" alongside the
+ *  filmography. Returns null if the person has no qualifying credits. */
+export async function getCelebrityBoxOfficeStats(
+  celebrityId: string,
+): Promise<{
+  asActor: { totalRevenue: number; filmCount: number; topFilms: BoxOfficeRow[] } | null;
+  asDirector: { totalRevenue: number; filmCount: number; topFilms: BoxOfficeRow[] } | null;
+}> {
+  // Pull all qualifying credits in one query, then split locally —
+  // typically a person has < 200 credits so the in-app split is cheap.
+  const rows = await prisma.movieCast.findMany({
+    where: {
+      celebrityId,
+      OR: [
+        { creditType: "cast" },
+        { creditType: "crew", job: "Director" },
+      ],
+      movie: { revenue: { gte: BOX_OFFICE_FLOOR } },
+    },
+    select: {
+      creditType: true,
+      job: true,
+      movie: {
+        select: {
+          tmdbId: true, title: true, posterPath: true, releaseDate: true,
+          revenue: true, budget: true,
+        },
+      },
+    },
+  });
+
+  const actorMovies = new Map<number, typeof rows[0]["movie"]>();
+  const directorMovies = new Map<number, typeof rows[0]["movie"]>();
+  for (const r of rows) {
+    if (r.creditType === "cast") actorMovies.set(r.movie.tmdbId, r.movie);
+    else if (r.creditType === "crew" && r.job === "Director") directorMovies.set(r.movie.tmdbId, r.movie);
+  }
+
+  function summarize(movies: Iterable<typeof rows[0]["movie"]>) {
+    const sorted = [...movies].sort((a, b) => Number(b.revenue ?? BigInt(0)) - Number(a.revenue ?? BigInt(0)));
+    if (sorted.length < 3) return null; // mirrors leaderboard floor
+    const total = sorted.reduce((acc, m) => acc + Number(m.revenue ?? BigInt(0)), 0);
+    return {
+      totalRevenue: total,
+      filmCount: sorted.length,
+      topFilms: sorted.slice(0, 5).map(toBoxOfficeRow),
+    };
+  }
+
+  return {
+    asActor: summarize(actorMovies.values()),
+    asDirector: summarize(directorMovies.values()),
+  };
+}
