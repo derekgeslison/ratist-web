@@ -68,15 +68,30 @@ export const STUDIOS: StudioEntry[] = [
   { id: 307,   name: "IFC Films" },
   { id: 1030,  name: "Magnolia Pictures" },
   { id: 23449, name: "Open Road Films" },
+  { id: 911,   name: "Roadside Attractions" },
+  { id: 58,    name: "Sony Pictures Classics" },
+  { id: 88606, name: "Vertical" },
+  { id: 6735,  name: "Participant" },
+
+  // Genre / faith-based / boutique
+  { id: 142877, name: "Shudder", popular: true },
+  { id: 11350,  name: "Angel Studios", popular: true },
+  { id: 288516, name: "MUBI" },
+  { id: 13240,  name: "Bron Studios" },
 
   // Streaming-era studios
   { id: 178464, name: "Netflix" },
   { id: 194232, name: "Apple Studios" },
   { id: 20580,  name: "Amazon Studios" },
+  { id: 7429,   name: "HBO Films" },
 
   // Animation / international
   { id: 10342, name: "Studio Ghibli" },
   { id: 10163, name: "Working Title Films" },
+  { id: 297,   name: "Aardman" },
+  { id: 80893, name: "BBC Studios" },
+  { id: 176067, name: "Cartoon Network Productions" },
+  { id: 287101, name: "Nickelodeon" },
 
   // Legacy majors
   { id: 21, name: "Metro-Goldwyn-Mayer" },
