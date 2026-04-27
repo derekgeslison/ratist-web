@@ -29,31 +29,40 @@ interface FollowRequest {
   };
 }
 
+interface BlockEntry {
+  id: string;
+  createdAt: string;
+  blocked: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
+}
+
 export default function ConnectionsPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"following" | "followers" | "requests">(() => {
+  const [tab, setTab] = useState<"following" | "followers" | "requests" | "blocked">(() => {
     if (typeof window === "undefined") return "following";
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
-    if (t === "followers" || t === "requests") return t;
+    if (t === "followers" || t === "requests" || t === "blocked") return t;
     return "following";
   });
   const [followers, setFollowers] = useState<UserItem[]>([]);
   const [following, setFollowing] = useState<UserItem[]>([]);
   const [requests, setRequests] = useState<FollowRequest[]>([]);
+  const [blocks, setBlocks] = useState<BlockEntry[]>([]);
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     user.getIdToken().then(async (token) => {
-      const [conn, reqs] = await Promise.all([
+      const [conn, reqs, blocked] = await Promise.all([
         fetch("/api/users/me/connections", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => ({})),
         fetch("/api/follow-requests", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/users/me/blocks", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => ({})),
       ]);
       setFollowers(conn.followers ?? []);
       setFollowing(conn.following ?? []);
       setRequests(reqs.requests ?? []);
+      setBlocks(blocked.blocks ?? []);
       setLoading(false);
     });
   }, [user]);
@@ -83,10 +92,30 @@ export default function ConnectionsPage() {
     }).catch(() => null);
     if (res?.ok) {
       // Block deletes follow rows in both directions, so the user
-      // disappears from both lists locally too.
+      // disappears from both lists locally too. Refetch the blocked
+      // list so the new block appears in the Blocked tab.
       setFollowers((prev) => prev.filter((f) => f.firebaseUid !== firebaseUid));
       setFollowing((prev) => prev.filter((f) => f.firebaseUid !== firebaseUid));
+      const blockedRes = await fetch("/api/users/me/blocks", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+      if (blockedRes?.ok) {
+        const data = await blockedRes.json();
+        setBlocks(data.blocks ?? []);
+      }
     }
+  }
+
+  async function unblockUser(firebaseUid: string) {
+    if (!user || actingOn) return;
+    setActingOn(firebaseUid);
+    const token = await user.getIdToken();
+    const res = await fetch(`/api/users/${firebaseUid}/block`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) {
+      setBlocks((prev) => prev.filter((b) => b.blocked.firebaseUid !== firebaseUid));
+    }
+    setActingOn(null);
   }
 
   async function actOnRequest(requestId: string, action: "accept" | "decline") {
@@ -174,6 +203,14 @@ export default function ConnectionsPage() {
             </span>
           </button>
         )}
+        <button
+          onClick={() => setTab("blocked")}
+          className={`text-sm font-medium px-4 py-3 border-b-2 transition-colors ${
+            tab === "blocked" ? "border-[var(--ratist-red)] text-white" : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+          }`}
+        >
+          Blocked ({blocks.length})
+        </button>
       </div>
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_PROFILE ?? ""} format="auto" className="mb-4" />
@@ -225,6 +262,45 @@ export default function ConnectionsPage() {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === "blocked" ? (
+        blocks.length === 0 ? (
+          <div className="text-center py-10">
+            <Ban className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-3 opacity-40" />
+            <p className="text-[var(--foreground-muted)]">You haven&rsquo;t blocked anyone.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {blocks.map((b) => (
+              <div key={b.id} className="flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3">
+                <Link href={`/profile/${b.blocked.firebaseUid}`} className="relative w-10 h-10 rounded-full overflow-hidden bg-[var(--surface-2)] shrink-0">
+                  {b.blocked.avatarUrl ? (
+                    <Image src={b.blocked.avatarUrl} alt="" fill sizes="40px" className="object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white bg-[var(--foreground-muted)]">
+                      {b.blocked.name[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <Link href={`/profile/${b.blocked.firebaseUid}`} className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors truncate block">
+                    {b.blocked.name}
+                  </Link>
+                  <p className="text-[10px] text-[var(--foreground-muted)]">
+                    Blocked {new Date(b.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => unblockUser(b.blocked.firebaseUid)}
+                  disabled={actingOn === b.blocked.firebaseUid}
+                  className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-white/30 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  {actingOn === b.blocked.firebaseUid ? "…" : "Unblock"}
+                </button>
               </div>
             ))}
           </div>
