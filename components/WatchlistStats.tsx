@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BarChart3, ChevronDown, ChevronUp } from "lucide-react";
+import { BarChart3, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface BucketStat { name: string; count: number }
@@ -53,7 +53,7 @@ function HorizontalBars({ items, max }: { items: BucketStat[]; max: number }) {
       {items.map((it) => (
         <div key={it.name} className="flex items-center gap-2 text-xs">
           <span className="text-white truncate min-w-0 flex-1">{it.name}</span>
-          <div className="w-24 sm:w-32 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden shrink-0">
+          <div className="w-20 sm:w-32 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden shrink-0">
             <div className="h-full bg-[var(--ratist-red)]" style={{ width: `${(it.count / max) * 100}%` }} />
           </div>
           <span className="text-[var(--foreground-muted)] w-6 text-right shrink-0">{it.count}</span>
@@ -83,14 +83,19 @@ function RatingDistribution({ distribution }: { distribution: Record<string, num
   );
 }
 
-export default function WatchlistStats({ watchlistId }: { watchlistId: string }) {
+interface Props {
+  watchlistId: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function WatchlistStats({ watchlistId, open, onClose }: Props) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Track which list the cached `stats` belongs to so switching lists while
-  // the panel is collapsed still triggers a refetch on next expand.
+  // Track which list the cached `stats` belongs to so opening on a
+  // different list refetches.
   const loadedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -128,18 +133,21 @@ export default function WatchlistStats({ watchlistId }: { watchlistId: string })
     }
   }, [watchlistId]);
 
+  if (!open) return null;
+
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl mb-4 overflow-hidden">
-      <button onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--surface-2)] transition-colors">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-[var(--ratist-red)]" />
-          <span className="text-sm font-semibold text-white">Stats</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--background)] border border-[var(--border)] rounded-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] sticky top-0 bg-[var(--background)] z-10">
+          <h2 className="text-base font-semibold text-white flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-[var(--ratist-red)]" /> Stats
+          </h2>
+          <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
-      </button>
-      {open && (
-        <div className="border-t border-[var(--border)] p-4 space-y-5">
+        <div className="p-5 space-y-5">
           {loading && <p className="text-xs text-[var(--foreground-muted)]">Loading stats...</p>}
           {error && <p className="text-xs text-red-400">{error}</p>}
           {stats && !loading && (
@@ -200,7 +208,7 @@ export default function WatchlistStats({ watchlistId }: { watchlistId: string })
             </>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

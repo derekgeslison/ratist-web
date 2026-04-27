@@ -10,7 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
-  Film, Tv, Monitor, ListOrdered, GripVertical, Copy,
+  Film, Tv, Monitor, ListOrdered, GripVertical, Copy, BarChart3,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
@@ -305,6 +305,7 @@ export default function WatchlistPage() {
   // Duplicate flow — copies the entire list (incl. checked items) into a
   // brand-new watchlist owned by the current user. Works on the default
   // list too, unlike Edit/Delete which are gated behind isDefault.
+  const [showStats, setShowStats] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [dupName, setDupName] = useState("");
   const [dupPrivate, setDupPrivate] = useState(false);
@@ -612,11 +613,21 @@ export default function WatchlistPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setDupError(data.error ?? `Failed to duplicate (${res.status})`); setDupSubmitting(false); return; }
+      // Refetch the watchlists index so the new list shows up in the
+      // sidebar BEFORE we flip active to it. The /copy response only
+      // returns {id, slug, name} — not enough to reconstruct a full
+      // WatchlistMeta — so we'd otherwise leave the sidebar stale.
+      const listsRes = await fetch("/api/watchlist", { headers: { Authorization: `Bearer ${token}` } });
+      if (listsRes.ok) {
+        const listsData = await listsRes.json();
+        setWatchlists(listsData.watchlists ?? []);
+      }
       setShowDuplicate(false);
-      // Land on the new list. setActiveId persists to sessionStorage so a
-      // subsequent reload (or back from a movie detail) returns here.
-      setActiveId(data.watchlist.id);
-      router.refresh();
+      // Open the new list. loadList() handles setActiveId (persisted to
+      // sessionStorage so back-from-movie returns here) and fetches the
+      // items grid. We need this rather than a bare setActiveId because
+      // there's no useEffect that watches activeId to load movies.
+      await loadList(data.watchlist.id);
     } catch {
       setDupError("Network error — please try again.");
     } finally {
@@ -1127,8 +1138,17 @@ export default function WatchlistPage() {
                       {uncheckedCount > 0 && <span>{uncheckedCount} to go</span>}
                     </div>
                   </div>
-                  {(activeList.isOwner || !activeList.isDefault) && (
+                  {(movies.length > 0 || activeList.isOwner || !activeList.isDefault) && (
                     <div className="flex gap-2">
+                      {movies.length > 0 && (
+                        <button
+                          onClick={() => setShowStats(true)}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
+                          title="Stats"
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                        </button>
+                      )}
                       {activeList.isOwner && (
                         <button
                           onClick={openDuplicate}
@@ -1238,11 +1258,6 @@ export default function WatchlistPage() {
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Stats panel — collapsed by default; loads on first expand. */}
-                {!reorderMode && movies.length > 0 && (
-                  <WatchlistStats watchlistId={activeList.id} />
                 )}
 
                 {/* Search + filter bar */}
@@ -1714,6 +1729,11 @@ export default function WatchlistPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Stats modal */}
+      {activeList && (
+        <WatchlistStats watchlistId={activeList.id} open={showStats} onClose={() => setShowStats(false)} />
       )}
 
       {/* Duplicate modal */}
