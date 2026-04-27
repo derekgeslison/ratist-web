@@ -33,6 +33,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Permanent (308) redirects for stale Laravel-era URLs Google still
+  // has in its index. Each one was reported by GSC as a 404 / noindex
+  // hit; this lets crawl equity transfer to the current page rather
+  // than getting silently dropped.
+  async redirects() {
+    return [
+      { source: "/home", destination: "/", permanent: true },
+      { source: "/blogs", destination: "/blog", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -40,6 +40,12 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       alternates: { canonical: `/shows/${id}/companion` },
       openGraph: ogUrl ? { images: [{ url: ogUrl, width: 1200, height: 630 }] } : undefined,
       twitter: ogUrl ? { card: "summary_large_image", images: [ogUrl] } : undefined,
+      // Pages without a generated companion just render a "request this"
+      // UX — that's thin content from Google's POV and was showing up in
+      // GSC as "Crawled - currently not indexed". Tell Google not to
+      // bother until we actually have the recap data; once a companion
+      // row is created, this auto-flips back to indexable.
+      ...(companion ? {} : { robots: { index: false, follow: true } }),
     };
   } catch {
     return { title: "Watch Companion" };
