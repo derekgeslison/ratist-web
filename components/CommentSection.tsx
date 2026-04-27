@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
-import { Heart, Reply, Trash2, ChevronDown, ChevronUp, Send } from "lucide-react";
+import { Heart, Reply, Trash2, ChevronDown, ChevronUp, X } from "lucide-react";
 import ReportButton from "./ReportButton";
-import TextareaWithEmoji from "./TextareaWithEmoji";
+import EmojiButton from "./EmojiButton";
+import GifButton from "./GifButton";
 import { useAuth } from "@/context/AuthContext";
 
 interface CommentUser {
@@ -19,6 +20,7 @@ interface CommentUser {
 interface CommentData {
   id: string;
   text: string;
+  gifUrl: string | null;
   parentId: string | null;
   createdAt: string;
   user: CommentUser;
@@ -52,9 +54,40 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
   const [loading, setLoading] = useState(true);
   const [adminStatus, setAdminStatus] = useState(false);
   const [newText, setNewText] = useState("");
+  const [newGifUrl, setNewGifUrl] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [replyGifUrl, setReplyGifUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Refs to the live textareas so the emoji picker can insert at the
+  // current caret position. Auto-grow is handled by the inline onInput.
+  const newTextRef = useRef<HTMLTextAreaElement | null>(null);
+  const replyTextRef = useRef<HTMLTextAreaElement | null>(null);
+
+  function autoGrow(ta: HTMLTextAreaElement) {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+  }
+
+  function insertEmojiInto(
+    ref: React.RefObject<HTMLTextAreaElement | null>,
+    current: string,
+    setter: (next: string) => void,
+    emoji: string,
+  ) {
+    const ta = ref.current;
+    if (!ta) { setter(current + emoji); return; }
+    const start = ta.selectionStart ?? current.length;
+    const end = ta.selectionEnd ?? current.length;
+    const next = current.slice(0, start) + emoji + current.slice(end);
+    setter(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + emoji.length;
+      ta.setSelectionRange(pos, pos);
+      autoGrow(ta);
+    });
+  }
   const [togglingLike, setTogglingLike] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
@@ -88,26 +121,32 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
 
   async function submitComment(parentId: string | null = null) {
     const text = parentId ? replyText : newText;
-    if (!text.trim() || submitting) return;
+    const gifUrl = parentId ? replyGifUrl : newGifUrl;
+    // Comment must have either text or a GIF — server validates the same
+    // rule, so a stray empty submission won't slip through if the button
+    // disabled state ever desyncs.
+    if (!text.trim() && !gifUrl) return;
+    if (submitting) return;
     setSubmitting(true);
     const token = await getToken();
     if (!token) { setSubmitting(false); return; }
     const res = await fetch("/api/comments", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType, targetId, parentId, text: text.trim() }),
+      body: JSON.stringify({ targetType, targetId, parentId, text: text.trim(), gifUrl }),
     });
     if (res.ok) {
       const data = await res.json();
       if (parentId) {
-        // Insert reply into the tree and auto-expand the thread
         setComments((prev) => insertReply(prev, parentId, data.comment));
         setExpandedThreads((prev) => new Set(prev).add(parentId));
         setReplyText("");
+        setReplyGifUrl(null);
         setReplyingTo(null);
       } else {
         setComments((prev) => [...prev, data.comment]);
         setNewText("");
+        setNewGifUrl(null);
       }
     }
     setSubmitting(false);
@@ -222,14 +261,23 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
               <span className="text-[var(--foreground-muted)]">{timeAgo(comment.createdAt)}</span>
             </div>
 
-            {/* Text with @mention highlighting */}
-            <p className="text-sm text-white/90 mt-0.5 whitespace-pre-wrap break-words">
-              {comment.text.split(/(@\[[^\]]+\])/g).map((part, i) =>
-                part.match(/^@\[.+\]$/) ? (
-                  <span key={i} className="text-[var(--ratist-red)] font-medium">@{part.slice(2, -1)}</span>
-                ) : part
-              )}
-            </p>
+            {/* Text with @mention highlighting (skip render when text is
+                empty — comments may be GIF-only). */}
+            {comment.text && (
+              <p className="text-sm text-white/90 mt-0.5 whitespace-pre-wrap break-words">
+                {comment.text.split(/(@\[[^\]]+\])/g).map((part, i) =>
+                  part.match(/^@\[.+\]$/) ? (
+                    <span key={i} className="text-[var(--ratist-red)] font-medium">@{part.slice(2, -1)}</span>
+                  ) : part
+                )}
+              </p>
+            )}
+            {comment.gifUrl && (
+              <a href={comment.gifUrl} target="_blank" rel="noopener noreferrer" className="block mt-1.5 max-w-[260px]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={comment.gifUrl} alt="GIF" className="rounded-lg border border-[var(--border)]/40 max-w-full h-auto" loading="lazy" />
+              </a>
+            )}
 
             {/* Actions */}
             <div className="flex items-center gap-3 mt-1">
@@ -284,27 +332,51 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
               {user && <ReportButton targetType="comment" targetId={comment.id} />}
             </div>
 
-            {/* Reply input — shows on the comment that replyTo points to */}
+            {/* Reply input — Facebook-style: textarea full-width on top,
+                action row (emoji + GIF + Post) below. Same UX as the
+                main comment box; identical layout keeps the wiring
+                obvious. */}
             {replyingTo === comment.id && (
-              <div className="flex gap-2 mt-2 items-end">
-                <TextareaWithEmoji
+              <div className="mt-2">
+                {replyGifUrl && (
+                  <div className="relative w-fit mb-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={replyGifUrl} alt="" className="rounded-lg border border-[var(--border)]/40 max-h-32" />
+                    <button
+                      type="button"
+                      onClick={() => setReplyGifUrl(null)}
+                      className="absolute -top-1.5 -right-1.5 bg-black/80 hover:bg-black text-white rounded-full p-0.5"
+                      title="Remove GIF"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                <textarea
+                  ref={replyTextRef}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder={`Reply to ${comment.user.name}...`}
                   rows={1}
-                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
-                  onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
+                  onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
                   onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitComment(comment.id); } }}
                   onFocus={(e) => { const len = e.target.value.length; e.target.setSelectionRange(len, len); }}
                   autoFocus
                 />
-                <button
-                  onClick={() => submitComment(comment.id)}
-                  disabled={!replyText.trim() || submitting}
-                  className="p-1.5 text-[var(--ratist-red)] hover:text-white disabled:opacity-30 transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="flex items-center gap-1">
+                    <EmojiButton onSelect={(emoji) => insertEmojiInto(replyTextRef, replyText, setReplyText, emoji)} />
+                    <GifButton onSelect={(gifUrl) => setReplyGifUrl(gifUrl)} />
+                  </div>
+                  <button
+                    onClick={() => submitComment(comment.id)}
+                    disabled={(!replyText.trim() && !replyGifUrl) || submitting}
+                    className="px-3 py-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {submitting ? "..." : "Post"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -343,23 +415,44 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
           )}
 
           {user && !disabled ? (
-            <div className="flex gap-2 mt-3 items-end">
-              <TextareaWithEmoji
+            <div className="mt-3">
+              {newGifUrl && (
+                <div className="relative w-fit mb-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={newGifUrl} alt="" className="rounded-lg border border-[var(--border)]/40 max-h-32" />
+                  <button
+                    type="button"
+                    onClick={() => setNewGifUrl(null)}
+                    className="absolute -top-1.5 -right-1.5 bg-black/80 hover:bg-black text-white rounded-full p-0.5"
+                    title="Remove GIF"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              <textarea
+                ref={newTextRef}
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
                 placeholder="Add a comment..."
                 rows={1}
-                className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
-                onInput={(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; }}
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
+                onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitComment(); } }}
               />
-              <button
-                onClick={() => submitComment()}
-                disabled={!newText.trim() || submitting}
-                className="px-3 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
-              >
-                {submitting ? "..." : "Post"}
-              </button>
+              <div className="flex items-center justify-between mt-1.5">
+                <div className="flex items-center gap-1">
+                  <EmojiButton onSelect={(emoji) => insertEmojiInto(newTextRef, newText, setNewText, emoji)} />
+                  <GifButton onSelect={(gifUrl) => setNewGifUrl(gifUrl)} />
+                </div>
+                <button
+                  onClick={() => submitComment()}
+                  disabled={(!newText.trim() && !newGifUrl) || submitting}
+                  className="px-4 py-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {submitting ? "..." : "Post"}
+                </button>
+              </div>
             </div>
           ) : !user ? (
             <p className="text-xs text-[var(--foreground-muted)] mt-2">

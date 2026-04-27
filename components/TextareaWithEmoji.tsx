@@ -55,13 +55,17 @@ const TextareaWithEmoji = forwardRef<HTMLTextAreaElement, Props>(function Textar
   // `flex-1` for the textarea, but with the wrapper in between, that
   // class lands on the textarea where it does nothing. `flex-1 min-w-0`
   // here lets the wrapper take the remaining space; `w-full` keeps it
-  // sane in non-flex parents. Reserve right-padding on the textarea so
-  // the overlaid emoji button doesn't cover typed text.
+  // sane in non-flex parents. We also force `w-full` on the textarea
+  // itself: callers historically wrote `flex-1 ...` to grow inside a
+  // flex row, and that flex-1 lands on the textarea now (no effect on
+  // a non-flex wrapper). w-full forces it to fill the wrapper instead.
+  // Reserve right-padding on the textarea so the overlaid emoji button
+  // doesn't cover typed text.
   return (
     <div className="relative w-full flex-1 min-w-0">
       <textarea
         ref={internalRef}
-        className={`pr-10 ${className ?? ""}`}
+        className={`w-full pr-10 ${className ?? ""}`}
         {...rest}
       />
       <EmojiButton

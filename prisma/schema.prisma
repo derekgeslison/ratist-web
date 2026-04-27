@@ -685,6 +685,9 @@ model Comment {
   targetId   String    @map("target_id")
   parentId   String?   @map("parent_id")
   text       String
+  // Optional GIPHY URL — comments can be text-only, GIF-only, or both.
+  // Server requires at least one to be non-empty at insert time.
+  gifUrl     String?   @map("gif_url")
   createdAt  DateTime  @default(now()) @map("created_at")
 
   user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)

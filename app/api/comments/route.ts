@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
       return {
         id: node.id,
         text: node.text,
+        gifUrl: node.gifUrl,
         parentId: node.parentId,
         createdAt: node.createdAt,
         user: { id: node.user.id, firebaseUid: node.user.firebaseUid, name: node.user.name, avatarUrl: node.user.avatarUrl },
@@ -76,12 +77,31 @@ export async function POST(req: NextRequest) {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { targetType, targetId, parentId, text } = await req.json();
-    if (!targetType || !targetId || !text?.trim()) {
+    const { targetType, targetId, parentId, text, gifUrl } = await req.json();
+    if (!targetType || !targetId) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
     if (!VALID_TARGETS.includes(targetType)) {
       return NextResponse.json({ error: "Invalid target type" }, { status: 400 });
+    }
+
+    // GIF picker only — comments may now be GIF-only, text-only, or both,
+    // but at least one has to be present.
+    const trimmedText = typeof text === "string" ? text.trim() : "";
+    // Validate gifUrl if provided: must be a giphy.com URL. Stops users
+    // from stuffing arbitrary URLs (potentially nasty image hosts) into
+    // the field via direct API calls.
+    let safeGifUrl: string | null = null;
+    if (typeof gifUrl === "string" && gifUrl.length > 0) {
+      try {
+        const u = new URL(gifUrl);
+        if (u.protocol === "https:" && u.hostname.endsWith(".giphy.com")) {
+          safeGifUrl = gifUrl;
+        }
+      } catch { /* invalid URL — drop silently */ }
+    }
+    if (!trimmedText && !safeGifUrl) {
+      return NextResponse.json({ error: "Add some text or a GIF" }, { status: 400 });
     }
 
     // If replying, verify parent exists and belongs to same target
@@ -93,7 +113,7 @@ export async function POST(req: NextRequest) {
     }
 
     const comment = await prisma.comment.create({
-      data: { userId: user.id, targetType, targetId, parentId: parentId || null, text: text.trim() },
+      data: { userId: user.id, targetType, targetId, parentId: parentId || null, text: trimmedText, gifUrl: safeGifUrl },
       include: { user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
     });
 
@@ -245,6 +265,7 @@ export async function POST(req: NextRequest) {
       comment: {
         id: comment.id,
         text: comment.text,
+        gifUrl: comment.gifUrl,
         parentId: comment.parentId,
         createdAt: comment.createdAt,
         user: comment.user,

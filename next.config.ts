@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "storage.googleapis.com",
       },
+      {
+        // GIPHY's media CDN — covers media.giphy.com plus the
+        // numbered variants (media0–4.giphy.com, etc.).
+        protocol: "https",
+        hostname: "*.giphy.com",
+      },
     ],
   },
 };
