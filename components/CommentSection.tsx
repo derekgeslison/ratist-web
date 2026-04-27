@@ -92,6 +92,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const isAdmin = isAdminProp ?? adminStatus;
 
   const getToken = useCallback(async () => {
@@ -118,6 +119,46 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
       setLoading(false);
     })();
   }, [user?.uid, targetType, targetId, isAdminProp]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to and highlight a comment when the page was opened with
+  // a #comment-<id> hash (notification click). Has to wait for the
+  // comments fetch to land AND any ancestor threads to expand —
+  // nested replies aren't in the DOM until their parents open.
+  useEffect(() => {
+    if (loading || comments.length === 0) return;
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    const match = hash.match(/^#comment-(.+)$/);
+    if (!match) return;
+    const targetId = match[1];
+
+    // Walk the tree to find ancestor IDs so we can expand the threads.
+    function findPath(list: CommentData[], id: string, path: string[]): string[] | null {
+      for (const c of list) {
+        if (c.id === id) return path;
+        const found = findPath(c.replies, id, [...path, c.id]);
+        if (found) return found;
+      }
+      return null;
+    }
+    const ancestors = findPath(comments, targetId, []);
+    if (ancestors === null) return; // comment not in this tree
+    if (ancestors.length > 0) {
+      setExpandedThreads((prev) => {
+        const next = new Set(prev);
+        for (const id of ancestors) next.add(id);
+        return next;
+      });
+    }
+    // Wait one paint so the now-expanded ancestors render the target.
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`comment-${targetId}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(targetId);
+      window.setTimeout(() => setHighlightedId(null), 2400);
+    });
+  }, [loading, comments]);
 
   async function submitComment(parentId: string | null = null) {
     const text = parentId ? replyText : newText;
@@ -238,8 +279,16 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
     // depth 2+: reply stays in thread 2 (attached to the depth-1 parent)
     const replyTo = depth >= 2 && depth1ParentId ? depth1ParentId : comment.id;
 
+    // Highlight when the page was opened with #comment-<id> in the URL
+    // (notification click target). Pulse fades after a couple seconds.
+    const isHighlighted = highlightedId === comment.id;
     return (
-      <div key={comment.id} className={depth > 0 ? `pl-3 border-l border-[var(--border)]/30` : ""} style={depth > 0 ? { marginLeft: `${maxIndent * 16}px` } : undefined}>
+      <div
+        key={comment.id}
+        id={`comment-${comment.id}`}
+        className={`${depth > 0 ? "pl-3 border-l border-[var(--border)]/30" : ""}${isHighlighted ? " ring-2 ring-[var(--ratist-red)]/60 rounded-lg transition-shadow" : ""}`}
+        style={depth > 0 ? { marginLeft: `${maxIndent * 16}px` } : undefined}
+      >
         <div className="flex gap-2.5 py-2.5 group/comment">
           {/* Avatar */}
           <Link href={`/profile/${comment.user.firebaseUid}`} className="shrink-0">

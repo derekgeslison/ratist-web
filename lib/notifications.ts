@@ -145,3 +145,78 @@ export const buildPunchAndJudyLink = buildTwoThumbsLink;
 export function buildMovieMapLink(slug: string): string {
   return `/movie-maps/${slug}`;
 }
+
+/**
+ * Resolve a navigable URL for a comment-bearing target. Centralizes link
+ * lookup so comment-like and comment-reply notifications stay in sync
+ * across every supported target type — the per-route inline if/else
+ * chains had drifted (likes only covered review/blog; replies missed
+ * news/pitch/movieclub).
+ *
+ * Pass `commentId` to append a `#comment-<id>` anchor so clicking the
+ * notification scrolls to the specific comment rather than the page top.
+ *
+ * Returns null when the target row is missing or the type isn't
+ * recognized — caller should treat null the same as "no link" and let
+ * the notification render as plain text.
+ */
+export async function getCommentTargetLink(
+  targetType: string,
+  targetId: string,
+  opts?: { commentId?: string },
+): Promise<string | null> {
+  let base: string | null = null;
+  try {
+    switch (targetType) {
+      case "review": {
+        const r = await prisma.movieRating.findUnique({
+          where: { id: targetId },
+          select: { movie: { select: { tmdbId: true } } },
+        });
+        if (r) base = buildReviewLink(r.movie.tmdbId, targetId);
+        break;
+      }
+      case "blog": {
+        const p = await prisma.blogPost.findUnique({
+          where: { id: targetId },
+          select: { slug: true, type: true },
+        });
+        if (p) {
+          if (p.type === "PUNCH_AND_JUDY") base = buildTwoThumbsLink(p.slug);
+          else if (p.type === "MOVIE_MAP") base = buildMovieMapLink(p.slug);
+          else base = buildBlogLink(p.slug);
+        }
+        break;
+      }
+      case "news": {
+        const n = await prisma.newsItem.findUnique({
+          where: { id: targetId },
+          select: { slug: true },
+        });
+        if (n?.slug) base = `/news/${n.slug}`;
+        break;
+      }
+      case "forumThread": {
+        const t = await prisma.forumThread.findUnique({
+          where: { id: targetId },
+          select: { slug: true },
+        });
+        if (t) base = `/forum/t/${t.slug}`;
+        break;
+      }
+      // Community pages — no per-item URL, but the destination page
+      // does render and surface the item.
+      case "lookslike":       base = "/community/looks-like"; break;
+      case "recast":          base = "/community/recast"; break;
+      case "hottake":         base = "/community/hot-takes"; break;
+      case "oscar_category":  base = "/community/oscar-picks"; break;
+      case "pitch":           base = "/community/pitches"; break;
+      case "movieclub":
+      case "movieclub_prompt": base = "/community/movie-club"; break;
+    }
+  } catch {
+    return null; // non-critical — drop the link rather than throw
+  }
+  if (!base) return null;
+  return opts?.commentId ? `${base}#comment-${opts.commentId}` : base;
+}

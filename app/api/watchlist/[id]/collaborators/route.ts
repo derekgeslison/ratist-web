@@ -137,6 +137,7 @@ export async function PATCH(req: NextRequest, { params }: Props) {
         targetType: "watchlist",
         targetId: id,
         message: `${user.name} accepted your invite to ${watchlist.name}`,
+        link: "/watchlist",
       });
 
       return NextResponse.json({ accepted: true });

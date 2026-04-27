@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
-import { notify, checkMilestone } from "@/lib/notifications";
+import { notify, checkMilestone, getCommentTargetLink } from "@/lib/notifications";
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -48,20 +48,15 @@ export async function POST(req: NextRequest, { params }: Props) {
         data: { userId: user.id, commentId: id },
       });
 
-      const snippet = comment.text.length > 50 ? comment.text.slice(0, 50) + "…" : comment.text;
+      // GIF-only comments have no text, so fall back to a generic
+      // snippet rather than rendering a quoted empty string.
+      const snippet = comment.text
+        ? (comment.text.length > 50 ? comment.text.slice(0, 50) + "…" : comment.text)
+        : "(GIF)";
 
-      // Build link to the content where the comment lives
-      let link: string | undefined;
-      if (comment.targetType === "review") {
-        const rating = await prisma.movieRating.findUnique({
-          where: { id: comment.targetId },
-          select: { movie: { select: { tmdbId: true } } },
-        });
-        if (rating) link = `/movies/${rating.movie.tmdbId}/reviews/${comment.targetId}`;
-      } else if (comment.targetType === "blog") {
-        const post = await prisma.blogPost.findUnique({ where: { id: comment.targetId }, select: { slug: true } });
-        if (post) link = `/blog/${post.slug}`;
-      }
+      // Resolve the link for any target type and anchor it to the
+      // specific comment so clicking the notification scrolls there.
+      const link = (await getCommentTargetLink(comment.targetType, comment.targetId, { commentId: comment.id })) ?? undefined;
 
       notify({
         recipientId: comment.userId,

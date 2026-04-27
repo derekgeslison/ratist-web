@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink } from "@/lib/notifications";
+import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink, getCommentTargetLink } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -189,6 +189,15 @@ export async function POST(req: NextRequest) {
         replyMessage = `${user.name} replied to your comment on "${snippet}"`;
       }
     }
+
+    // Override the per-branch link with one that anchors to the new
+    // comment (so clicking the notification scrolls right to it). The
+    // helper also fills in news/pitch/movieclub which the if/else above
+    // doesn't cover, so notifications on those targets go from
+    // unclickable text to a real link. Falls back to the per-branch
+    // link if the helper can't resolve (deleted target row, etc.).
+    const anchoredLink = await getCommentTargetLink(targetType, targetId, { commentId: comment.id });
+    if (anchoredLink) link = anchoredLink;
 
     if (parentId) {
       const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { userId: true } });

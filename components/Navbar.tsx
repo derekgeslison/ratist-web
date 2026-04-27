@@ -28,11 +28,17 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const readMenuRef = useRef<HTMLDivElement>(null);
 
+  // `lastPolledRef` lets the route-change effect coalesce with the 60s
+  // interval — both record the timestamp of their last successful poll
+  // here so neither fires twice within the throttle window.
+  const lastPolledRef = useRef(0);
+
   // Poll notification count + listen for instant updates
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
     let cancelled = false;
     async function check() {
+      lastPolledRef.current = Date.now();
       const token = await user!.getIdToken();
       const res = await fetch("/api/notifications?countOnly=1", { headers: { Authorization: `Bearer ${token}` } });
       if (!cancelled && res.ok) {
@@ -49,8 +55,27 @@ export default function Navbar() {
     window.addEventListener("ratist:notif-update", onNotifUpdate);
     check();
     const interval = setInterval(check, 60000);
-    return () => { cancelled = true; clearInterval(interval); window.removeEventListener("ratist:notif-update", onNotifUpdate); };
+    // Expose `check` on the window so the route-change effect below can
+    // call it without dragging it out of this closure (the 60s interval
+    // owns the cancellation cleanup, so we don't want to duplicate).
+    (window as Window & { __ratistNotifCheck?: () => void }).__ratistNotifCheck = check;
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("ratist:notif-update", onNotifUpdate);
+      delete (window as Window & { __ratistNotifCheck?: () => void }).__ratistNotifCheck;
+    };
   }, [user]);
+
+  // Refetch unread count on route change, but only if the interval poll
+  // hasn't fired recently. 30s throttle: navigating between pages stays
+  // snappy without hammering the API on rapid back-and-forth.
+  useEffect(() => {
+    if (!user) return;
+    if (Date.now() - lastPolledRef.current < 30000) return;
+    const checker = (window as Window & { __ratistNotifCheck?: () => void }).__ratistNotifCheck;
+    checker?.();
+  }, [pathname, user]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
