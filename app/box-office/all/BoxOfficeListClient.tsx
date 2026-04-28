@@ -221,17 +221,37 @@ export default function BoxOfficeListClient({ genres }: Props) {
     // so toggling clear-all doesn't reset the user's display choice.
   }
 
-  // Year-mode helpers. Year inputs read the YYYY prefix off the
-  // canonical YYYY-MM-DD state, and writes anchor at Jan 1 / Dec 31
-  // of the chosen year so the API filter still works on date strings.
-  const yearFrom = releaseFrom ? releaseFrom.slice(0, 4) : "";
-  const yearTo = releaseTo ? releaseTo.slice(0, 4) : "";
+  // Year-mode inputs hold their own draft state so partial typing
+  // doesn't get clobbered. The previous version derived the input
+  // value off releaseFrom and only synced when the regex matched
+  // exactly 4 digits — typing "2" set the canonical state to ""
+  // and yearFrom recomputed back to "" on every keystroke, making
+  // the field appear inert. Now we hold a draft locally and only
+  // promote to the canonical YYYY-MM-DD state when the draft is a
+  // valid 4-digit year (or empty).
+  const [yearFromDraft, setYearFromDraft] = useState(() => releaseFrom?.slice(0, 4) ?? "");
+  const [yearToDraft, setYearToDraft] = useState(() => releaseTo?.slice(0, 4) ?? "");
+
   function setYearFrom(y: string) {
-    setReleaseFrom(y && /^\d{4}$/.test(y) ? `${y}-01-01` : "");
+    setYearFromDraft(y);
+    if (y === "") setReleaseFrom("");
+    else if (/^\d{4}$/.test(y)) setReleaseFrom(`${y}-01-01`);
+    // Partial input (1–3 digits): hold draft locally, leave the
+    // canonical state alone so the existing filter doesn't flicker.
   }
   function setYearTo(y: string) {
-    setReleaseTo(y && /^\d{4}$/.test(y) ? `${y}-12-31` : "");
+    setYearToDraft(y);
+    if (y === "") setReleaseTo("");
+    else if (/^\d{4}$/.test(y)) setReleaseTo(`${y}-12-31`);
   }
+  // When the canonical date changes from outside (URL param init,
+  // Clear button, mode switch wiping it), keep the draft in sync.
+  useEffect(() => {
+    setYearFromDraft(releaseFrom ? releaseFrom.slice(0, 4) : "");
+  }, [releaseFrom]);
+  useEffect(() => {
+    setYearToDraft(releaseTo ? releaseTo.slice(0, 4) : "");
+  }, [releaseTo]);
 
   const filterCount =
     selectedGenres.length +
@@ -414,7 +434,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
                 min="1900"
                 max="2099"
                 placeholder="From"
-                value={yearFrom}
+                value={yearFromDraft}
                 onChange={(e) => setYearFrom(e.target.value)}
                 className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white w-20 focus:outline-none focus:border-[var(--ratist-red)]"
                 aria-label="Release year from"
@@ -425,7 +445,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
                 min="1900"
                 max="2099"
                 placeholder="To"
-                value={yearTo}
+                value={yearToDraft}
                 onChange={(e) => setYearTo(e.target.value)}
                 className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white w-20 focus:outline-none focus:border-[var(--ratist-red)]"
                 aria-label="Release year to"
