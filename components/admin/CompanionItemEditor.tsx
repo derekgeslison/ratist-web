@@ -461,39 +461,54 @@ function VisibleAfterInput({ value, mediaType, onChange }: {
   mediaType: "movie" | "tv";
   onChange: (next: VisibleAfter) => void;
 }) {
+  // Inline H:MM:SS time picker shared between movie and TV branches —
+  // splits seconds into 3 number inputs (hours, minutes, seconds) so
+  // the user types each unit directly. Was MM:SS-only for movies and
+  // a raw seconds box ("sec into ep") for TV; raw seconds is unusable
+  // for any episode past the 100s mark.
+  function HMSInputs({ totalSeconds, onChange: setSeconds }: { totalSeconds: number; onChange: (n: number) => void }) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    const cls = "w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]";
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          type="number" min={0} value={hours}
+          onChange={(e) => setSeconds((parseInt(e.target.value, 10) || 0) * 3600 + minutes * 60 + secs)}
+          className={cls}
+          aria-label="hours"
+        />
+        <span className="text-[var(--foreground-muted)]">:</span>
+        <input
+          type="number" min={0} max={59} value={minutes}
+          onChange={(e) => setSeconds(hours * 3600 + (parseInt(e.target.value, 10) || 0) * 60 + secs)}
+          className={cls}
+          aria-label="minutes"
+        />
+        <span className="text-[var(--foreground-muted)]">:</span>
+        <input
+          type="number" min={0} max={59} value={secs}
+          onChange={(e) => setSeconds(hours * 3600 + minutes * 60 + (parseInt(e.target.value, 10) || 0))}
+          className={cls}
+          aria-label="seconds"
+        />
+      </div>
+    );
+  }
+
   if (mediaType === "movie") {
-    // Single seconds input rendered as MM:SS for readability.
-    const total = value.seconds ?? 0;
-    const mins = Math.floor(total / 60);
-    const secs = total % 60;
     return (
       <div>
-        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Visible after (MM:SS)</label>
-        <div className="flex items-center gap-1">
-          <input
-            type="number"
-            min={0}
-            value={mins}
-            onChange={(e) => onChange({ ...value, seconds: (parseInt(e.target.value, 10) || 0) * 60 + secs })}
-            className="w-20 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
-          />
-          <span className="text-[var(--foreground-muted)]">:</span>
-          <input
-            type="number"
-            min={0}
-            max={59}
-            value={secs}
-            onChange={(e) => onChange({ ...value, seconds: mins * 60 + (parseInt(e.target.value, 10) || 0) })}
-            className="w-20 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
-          />
-        </div>
+        <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Visible after (H:MM:SS)</label>
+        <HMSInputs totalSeconds={value.seconds ?? 0} onChange={(n) => onChange({ ...value, seconds: n })} />
       </div>
     );
   }
   return (
     <div>
       <label className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold mb-1 block">Visible after</label>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <label className="text-xs text-[var(--foreground-muted)]">S</label>
         <input
           type="number"
@@ -512,15 +527,8 @@ function VisibleAfterInput({ value, mediaType, onChange }: {
           onChange={(e) => onChange({ ...value, episode: parseInt(e.target.value, 10) || undefined })}
           className="w-16 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
         />
-        <label className="text-xs text-[var(--foreground-muted)]">sec into ep</label>
-        <input
-          type="number"
-          min={0}
-          value={value.seconds ?? ""}
-          placeholder="0"
-          onChange={(e) => onChange({ ...value, seconds: parseInt(e.target.value, 10) || undefined })}
-          className="w-24 bg-[var(--surface-2)] border border-[var(--border)] rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-[var(--ratist-red)]"
-        />
+        <label className="text-xs text-[var(--foreground-muted)]">into ep (H:MM:SS)</label>
+        <HMSInputs totalSeconds={value.seconds ?? 0} onChange={(n) => onChange({ ...value, seconds: n || undefined })} />
       </div>
     </div>
   );

@@ -254,12 +254,20 @@ export function payloadToDisplay(payload: Record<string, unknown> | null, mediaT
     if (value === null || value === undefined || value === "") continue;
     if (key === "visibleAfter") {
       const va = (value ?? {}) as { seconds?: number; season?: number; episode?: number };
+      // H:MM:SS for both movies and TV intra-episode timestamps. Raw
+      // seconds was unreadable for late-episode beats and the prior
+      // MM:SS rolled past 60 minutes (e.g. "67:30" instead of "1:07:30").
+      const fmt = (s: number) => {
+        const total = Math.max(0, Math.floor(s));
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const sec = total % 60;
+        return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+      };
       if (mediaType === "movie" && typeof va.seconds === "number") {
-        const m = Math.floor(va.seconds / 60);
-        const sec = va.seconds % 60;
-        out.push({ label: "at", value: `${m}:${String(sec).padStart(2, "0")}` });
+        out.push({ label: "at", value: fmt(va.seconds) });
       } else if (mediaType === "tv" && (typeof va.season === "number" || typeof va.episode === "number")) {
-        out.push({ label: "at", value: `S${va.season ?? "?"}E${va.episode ?? "?"}${typeof va.seconds === "number" && va.seconds > 0 ? ` @ ${Math.floor(va.seconds / 60)}:${String(va.seconds % 60).padStart(2, "0")}` : ""}` });
+        out.push({ label: "at", value: `S${va.season ?? "?"}E${va.episode ?? "?"}${typeof va.seconds === "number" && va.seconds > 0 ? ` @ ${fmt(va.seconds)}` : ""}` });
       }
       continue;
     }
