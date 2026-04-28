@@ -14,6 +14,7 @@ import {
   formatEpisodeModeAddendum,
   formatAiringModeAddendum,
   callTool,
+  buildCharacterNameMatcher,
 } from "./shared";
 
 const SYSTEM_PROMPT = `You are drafting the CHARACTER FACTS section of a Watch Companion — the things a viewer would want to know about each character as the story unfolds.
@@ -125,19 +126,32 @@ export async function draftFacts(
     maxTokens: 4096,
   });
 
-  const nameSet = new Set(characters.map((c) => c.name));
-  return Array.isArray(result.facts)
-    ? result.facts
-        .filter((f): f is DraftFact => typeof f === "object" && f !== null
-          && typeof (f as DraftFact).fact === "string"
-          && typeof (f as DraftFact).characterName === "string")
-        .filter((f) => nameSet.has(f.characterName))
-        .slice(0, 120)
-        .map((f) => ({
-          characterName: f.characterName,
-          fact: f.fact.slice(0, 400),
-          factType: (FACT_TYPES as readonly string[]).includes(f.factType) ? (f.factType as FactType) : "other",
-          visibleAfter: normVisibleAfter(f.visibleAfter),
-        }))
-    : [];
+  // Forgiving name match — strict equality dropped huge swaths of facts
+  // when the AI emitted "J. Robert Oppenheimer" against a card named
+  // "Robert Oppenheimer", or "Iron Man" against "Tony Stark", etc.
+  // Canonicalize back to the exact card name so the persist layer can
+  // resolve cleanly downstream.
+  const matcher = buildCharacterNameMatcher(characters);
+  if (!Array.isArray(result.facts)) return [];
+  let dropped = 0;
+  const out = result.facts
+    .filter((f): f is DraftFact => typeof f === "object" && f !== null
+      && typeof (f as DraftFact).fact === "string"
+      && typeof (f as DraftFact).characterName === "string")
+    .map((f) => {
+      const canonical = matcher.canonicalize(f.characterName);
+      if (!canonical) { dropped++; return null; }
+      return {
+        characterName: canonical,
+        fact: f.fact.slice(0, 400),
+        factType: (FACT_TYPES as readonly string[]).includes(f.factType) ? (f.factType as FactType) : "other",
+        visibleAfter: normVisibleAfter(f.visibleAfter),
+      };
+    })
+    .filter((f): f is DraftFact => f !== null)
+    .slice(0, 120);
+  if (dropped > 0) {
+    console.warn(`[companion facts] ${dropped} facts dropped — characterName matched no card`);
+  }
+  return out;
 }

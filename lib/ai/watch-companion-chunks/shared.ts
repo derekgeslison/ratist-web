@@ -173,6 +173,60 @@ export function normalizeLabel(label: string): string {
   return out.replace(/\s+/g, " ").trim();
 }
 
+// ── Forgiving character-name matching ─────────────────────────────────────
+//
+// Every downstream chunk (facts, relationships, timeline) references
+// characters by name. The AI is told to copy the names exactly, but in
+// practice it drifts: case differences, mid-name punctuation, alias
+// substitution ("Iron Man" for "Tony Stark"), middle-initial expansion
+// ("J. Robert Oppenheimer" vs "Robert Oppenheimer"). Strict-equality
+// filters silently dropped the row — visible to the user as a card with
+// no events.
+//
+// `buildCharacterNameMatcher` builds a 4-tier resolver from the
+// characters list and returns a `canonicalize` function that maps any
+// reasonable name spelling back to the EXACT character name as it
+// appears in the characters list. Returns null when no character
+// reasonably matches. Each chunk uses this to filter+canonicalize
+// before validating, and the persist layer applies the same logic as
+// a final safety net in case a new chunk ever forgets.
+
+export function normalizeCharacterName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export function buildCharacterNameMatcher(characters: { name: string; nameAliases?: { name: string }[] }[]): {
+  canonicalize: (name: string) => string | null;
+} {
+  const exact = new Map<string, string>();
+  const lower = new Map<string, string>();
+  const norm = new Map<string, string>();
+  const alias = new Map<string, string>();
+  for (const c of characters) {
+    if (!c.name) continue;
+    if (!exact.has(c.name)) exact.set(c.name, c.name);
+    const l = c.name.toLowerCase().trim();
+    if (!lower.has(l)) lower.set(l, c.name);
+    const n = normalizeCharacterName(c.name);
+    if (!n) continue;
+    if (!norm.has(n)) norm.set(n, c.name);
+    for (const a of (c.nameAliases ?? [])) {
+      const an = normalizeCharacterName(a.name);
+      if (an && !alias.has(an)) alias.set(an, c.name);
+    }
+  }
+  return {
+    canonicalize(name: string): string | null {
+      if (!name) return null;
+      return exact.get(name)
+        ?? lower.get(name.toLowerCase().trim())
+        ?? norm.get(normalizeCharacterName(name))
+        ?? alias.get(normalizeCharacterName(name))
+        ?? null;
+    },
+  };
+}
+
 // ── Shared Claude helpers ──────────────────────────────────────────────────
 
 /**

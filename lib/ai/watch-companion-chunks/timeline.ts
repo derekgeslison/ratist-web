@@ -12,6 +12,7 @@ import {
   formatEpisodeModeAddendum,
   formatAiringModeAddendum,
   callTool,
+  buildCharacterNameMatcher,
 } from "./shared";
 
 const SYSTEM_PROMPT = `You are drafting the TIMELINE section of a Watch Companion — major plot beats a viewer might want to reference mid-show.
@@ -112,7 +113,11 @@ export async function draftTimeline(
     maxTokens: 4096,
   });
 
-  const nameSet = new Set(characters.map((c) => c.name));
+  // Forgiving character-name match — names that didn't strict-equal a
+  // card were silently stripped, leaving timeline events un-linked from
+  // the cast cards they reference. Canonicalize back to the card's
+  // exact name so the persist layer resolves cleanly.
+  const matcher = buildCharacterNameMatcher(characters);
   return Array.isArray(result.events)
     ? result.events
         .filter((e): e is DraftTimelineEvent => typeof e === "object" && e !== null
@@ -121,7 +126,9 @@ export async function draftTimeline(
         .map((e) => ({
           description: e.description.slice(0, 500),
           characterNames: Array.isArray(e.characterNames)
-            ? e.characterNames.filter((n): n is string => typeof n === "string" && nameSet.has(n))
+            ? (e.characterNames
+                .map((n) => typeof n === "string" ? matcher.canonicalize(n) : null)
+                .filter((n): n is string => n !== null))
             : [],
           importance: typeof e.importance === "number" && e.importance >= 1 && e.importance <= 5 ? Math.floor(e.importance) : 3,
           visibleAfter: normVisibleAfter(e.visibleAfter),

@@ -15,6 +15,7 @@ import {
   formatEpisodeModeAddendum,
   formatAiringModeAddendum,
   callTool,
+  buildCharacterNameMatcher,
 } from "./shared";
 
 const SYSTEM_PROMPT = `You are drafting the RELATIONSHIPS section of a Watch Companion — pairwise connections between characters. Family, business, romance, rivalries.
@@ -189,22 +190,32 @@ export async function draftRelationships(
     maxTokens: 4096,
   });
 
-  const nameSet = new Set(characters.map((c) => c.name));
-  return Array.isArray(result.relationships)
-    ? result.relationships
-        .filter((r): r is DraftRelationship => typeof r === "object" && r !== null)
-        .map((r) => ({
-          fromName: typeof r.fromName === "string" ? r.fromName : "",
-          toName: typeof r.toName === "string" ? r.toName : "",
-          relationshipType: (RELATIONSHIP_TYPES as readonly string[]).includes(r.relationshipType) ? (r.relationshipType as RelationshipType) : "other",
-          label: normalizeLabel(typeof r.label === "string" && r.label.length > 0 ? r.label.slice(0, 80) : "related to"),
-          visibleAfter: normVisibleAfter(r.visibleAfter),
-          directed: r.directed !== false,
-        }))
-        .filter((r) => {
-          if (!nameSet.has(r.fromName) || !nameSet.has(r.toName)) return false;
-          return r.fromName.trim().toLowerCase() !== r.toName.trim().toLowerCase();
-        })
-        .slice(0, 60)
-    : [];
+  // Forgiving name match — strict equality silently dropped relationships
+  // when the AI used a slightly-different spelling on either end. Use
+  // the shared resolver and canonicalize back to the card's exact name.
+  const matcher = buildCharacterNameMatcher(characters);
+  if (!Array.isArray(result.relationships)) return [];
+  let dropped = 0;
+  const out = result.relationships
+    .filter((r): r is DraftRelationship => typeof r === "object" && r !== null)
+    .map((r) => {
+      const fromName = matcher.canonicalize(typeof r.fromName === "string" ? r.fromName : "");
+      const toName = matcher.canonicalize(typeof r.toName === "string" ? r.toName : "");
+      if (!fromName || !toName) { dropped++; return null; }
+      if (fromName.trim().toLowerCase() === toName.trim().toLowerCase()) { dropped++; return null; }
+      return {
+        fromName,
+        toName,
+        relationshipType: (RELATIONSHIP_TYPES as readonly string[]).includes(r.relationshipType) ? (r.relationshipType as RelationshipType) : "other",
+        label: normalizeLabel(typeof r.label === "string" && r.label.length > 0 ? r.label.slice(0, 80) : "related to"),
+        visibleAfter: normVisibleAfter(r.visibleAfter),
+        directed: r.directed !== false,
+      };
+    })
+    .filter((r): r is DraftRelationship => r !== null)
+    .slice(0, 60);
+  if (dropped > 0) {
+    console.warn(`[companion relationships] ${dropped} relationships dropped — name matched no card`);
+  }
+  return out;
 }
