@@ -120,6 +120,30 @@ export default function RelationshipMap({ characters, relationships, groupColors
       .filter((e): e is NonNullable<typeof e> => e !== null);
   }, [relationships, positions]);
 
+  // For pairs with multiple edges, assign each a perpendicular offset
+  // so they render as parallel curves instead of stacking and color-
+  // blending into a muddy single line. n=2 → [-0.5, +0.5], n=3 →
+  // [-1, 0, 1], etc. Single-edge pairs get 0 (no offset).
+  const edgeOffsets = useMemo(() => {
+    const byPair = new Map<string, string[]>();
+    for (const e of relationships) {
+      const a = e.fromCharacterId;
+      const b = e.toCharacterId;
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+      const arr = byPair.get(key) ?? [];
+      arr.push(e.id);
+      byPair.set(key, arr);
+    }
+    const offsetMap = new Map<string, number>();
+    for (const ids of byPair.values()) {
+      const n = ids.length;
+      for (let i = 0; i < n; i++) {
+        offsetMap.set(ids[i], i - (n - 1) / 2);
+      }
+    }
+    return offsetMap;
+  }, [relationships]);
+
   const connectedCharIds = useMemo(() => {
     if (!selectedCharId) return null;
     const ids = new Set<string>([selectedCharId]);
@@ -222,11 +246,22 @@ export default function RelationshipMap({ characters, relationships, groupColors
             && !(connectedCharIds.has(rel.fromCharacterId) && connectedCharIds.has(rel.toCharacterId));
           const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
           // Bend the curve toward the center so edges don't all pile on the
-          // diameter. Pull factor shrinks the line inward 15% of the way to
+          // diameter. Pull factor shrinks the line inward 30% of the way to
           // CENTER — enough to separate parallel edges visually.
+          // For multi-edge pairs, also displace the control point along
+          // the perpendicular to the from→to vector so each edge runs as
+          // a parallel curve. Without this, two relationships between the
+          // same pair (e.g., romantic + business) blend into one muddy line.
+          const offsetIdx = edgeOffsets.get(rel.id) ?? 0;
+          const dx = to.x - from.x;
+          const dy = to.y - from.y;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          const perpX = -dy / len;
+          const perpY = dx / len;
+          const SPACING = 14;
           const cp = {
-            x: mid.x + (CENTER - mid.x) * 0.3,
-            y: mid.y + (CENTER - mid.y) * 0.3,
+            x: mid.x + (CENTER - mid.x) * 0.3 + perpX * offsetIdx * SPACING,
+            y: mid.y + (CENTER - mid.y) * 0.3 + perpY * offsetIdx * SPACING,
           };
           const path = `M ${from.x} ${from.y} Q ${cp.x} ${cp.y} ${to.x} ${to.y}`;
           return (
