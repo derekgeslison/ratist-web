@@ -107,10 +107,36 @@ export type SubtitleFailureReason =
   | "no_api_key"        // OPENSUBTITLES_API_KEY env var missing
   | "no_results"        // search returned zero hits
   | "all_filtered"      // hits existed but every one was junk / MT / foreign-only
-  | "search_failed"     // /subtitles call returned non-2xx
-  | "quota_exceeded"    // /download returned 406/429 with a quota-style message
+  | "search_failed"     // /subtitles call returned non-2xx (non-rate-limit)
+  | "rate_limited"      // /subtitles or /download returned 429 even after retries
+  | "quota_exceeded"    // /download returned 406, OR a body explicitly citing the daily cap
   | "download_failed"   // /download returned a different error status
   | "network_error";    // thrown exception during the call
+
+// OpenSubtitles caps each endpoint at ~5 req/sec per API key. A single
+// subtitle fetch hits two endpoints; bursty parallel grounding fetches
+// have repeatedly tripped this even on small seasons. fetchWithRetry
+// catches the 429 and waits before trying again (Retry-After when the
+// server provides one, else exponential backoff). 2 retries is plenty
+// for transient per-second throttling — anything more usually indicates
+// a real outage that no amount of waiting will solve.
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = 2,
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429 || attempt === maxRetries) return res;
+    const retryAfter = parseInt(res.headers.get("retry-after") ?? "", 10);
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 5000)
+      : 500 * Math.pow(2, attempt); // 500ms, then 1000ms
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  // Unreachable — the loop returns on the last attempt — but TS needs it.
+  return fetch(url, init);
+}
 
 /**
  * Fetches the raw SRT text for a given file_id. Handles the two-step
@@ -122,7 +148,7 @@ export type SubtitleFailureReason =
  */
 async function downloadSubtitle(fileId: number): Promise<
   | { ok: true; srt: string; remaining: number | null }
-  | { ok: false; reason: "quota_exceeded" | "download_failed"; message: string }
+  | { ok: false; reason: "quota_exceeded" | "rate_limited" | "download_failed"; message: string }
 > {
   const token = await getAuthToken();
   // Only attach Authorization when we have a token. Anonymous downloads
@@ -130,7 +156,7 @@ async function downloadSubtitle(fileId: number): Promise<
   // still honors Api-Key + User-Agent.
   const extraHeaders: Record<string, string> = { "Content-Type": "application/json" };
   if (token) extraHeaders.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/download`, {
+  const res = await fetchWithRetry(`${BASE}/download`, {
     method: "POST",
     headers: { ...headers(), ...extraHeaders },
     body: JSON.stringify({ file_id: fileId }),
@@ -138,20 +164,24 @@ async function downloadSubtitle(fileId: number): Promise<
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     console.error(`OpenSubtitles download mint failed (${res.status}):`, body.slice(0, 200));
-    // 406 = "Not Acceptable" is what OpenSubtitles returns for quota
-    // breaches (per their docs), and 429 is the standard rate-limit code.
-    // Either way, body usually contains a message like "You can't download
-    // more than X files per day". Treat anything mentioning download/limit
-    // /quota as quota_exceeded so the admin sees a clear "you hit the cap".
-    const isQuota =
-      res.status === 406 ||
-      res.status === 429 ||
-      /\b(download.*per.*day|limit|quota|exceeded)\b/i.test(body);
-    if (isQuota) {
+    // 406 = "Not Acceptable" → OpenSubtitles' canonical daily-cap signal.
+    // 429 after retries = per-second rate limit we couldn't ride out — a
+    // distinct condition the admin should distinguish from "your daily
+    // 1000 downloads are gone". Body sometimes carries the actual answer
+    // ("download more than X per day") when the wrapper doesn't have it.
+    const bodyMentionsDaily = /\b(download.*per.*day|daily.*limit|exceeded.*today)\b/i.test(body);
+    if (res.status === 406 || bodyMentionsDaily) {
       return {
         ok: false,
         reason: "quota_exceeded",
         message: extractMessage(body) ?? `OpenSubtitles daily download limit reached (HTTP ${res.status}).`,
+      };
+    }
+    if (res.status === 429) {
+      return {
+        ok: false,
+        reason: "rate_limited",
+        message: extractMessage(body) ?? "OpenSubtitles per-second rate limit hit (after retries). Try again in a moment.",
       };
     }
     return {
@@ -222,7 +252,7 @@ async function searchForFileIdWithReason(
   episode?: number,
 ): Promise<
   | { ok: true; fileId: number }
-  | { ok: false; reason: "no_results" | "all_filtered" | "search_failed"; message: string }
+  | { ok: false; reason: "no_results" | "all_filtered" | "search_failed" | "rate_limited"; message: string }
 > {
   const params = new URLSearchParams({ languages: "en" });
   if (mediaType === "movie") {
@@ -233,8 +263,11 @@ async function searchForFileIdWithReason(
     if (episode) params.set("episode_number", String(episode));
   }
 
-  const res = await fetch(`${BASE}/subtitles?${params.toString()}`, { headers: headers() });
+  const res = await fetchWithRetry(`${BASE}/subtitles?${params.toString()}`, { headers: headers() });
   if (!res.ok) {
+    if (res.status === 429) {
+      return { ok: false, reason: "rate_limited", message: "OpenSubtitles per-second rate limit hit on search (after retries)." };
+    }
     return { ok: false, reason: "search_failed", message: `OpenSubtitles /subtitles returned HTTP ${res.status}.` };
   }
   const data = await res.json() as { data?: SearchHit[] };

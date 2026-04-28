@@ -253,22 +253,29 @@ export async function loadGroundingForShow(
     targetEpisodes.map((e) => [e.episodeNumber, e.name] as const),
   );
 
-  // Parallel fetch — OpenSubtitles handles concurrent calls fine and the
-  // grounding step otherwise becomes the wall-clock bottleneck for a
-  // 10-episode season. If we ever start hitting per-second rate limits
-  // we can swap for a small concurrency pool.
-  const fetched = await Promise.all(
-    episodeNumbers.map((ep) =>
-      fetchSubtitleExcerpt(
-        tmdbId,
-        "tv",
-        seasonNumber,
-        ep,
-        perEpisodeBudget,
-        episodeNameMap.get(ep),
+  // Pool with concurrency 3. OpenSubtitles caps each endpoint at ~5 req/sec
+  // per IP, and a single subtitle fetch hits TWO endpoints (search +
+  // download). Running 8 episodes in unbounded Promise.all bursts 16
+  // calls in <100ms and earns a wave of 429s. 3-wide keeps the burst
+  // under both endpoint caps with headroom.
+  const POOL = 3;
+  const fetched: Array<{ excerpt: SubtitleExcerpt | null; status: SubtitleStatus }> = [];
+  for (let i = 0; i < episodeNumbers.length; i += POOL) {
+    const chunk = episodeNumbers.slice(i, i + POOL);
+    const chunkResults = await Promise.all(
+      chunk.map((ep) =>
+        fetchSubtitleExcerpt(
+          tmdbId,
+          "tv",
+          seasonNumber,
+          ep,
+          perEpisodeBudget,
+          episodeNameMap.get(ep),
+        ),
       ),
-    ),
-  );
+    );
+    fetched.push(...chunkResults);
+  }
   const subtitleExcerpts = fetched
     .map((r) => r.excerpt)
     .filter((e): e is SubtitleExcerpt => e !== null);
