@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   description:
     "Lifetime box-office leaderboards: highest grossing movies, biggest profits, best and worst ROI, biggest budgets, and top performers by year.",
   alternates: { canonical: "/box-office" },
+  openGraph: {
+    title: "Box Office Insights — The Ratist",
+    description: "Lifetime grosses, profits, and ROI for every tracked film.",
+    images: [{ url: "/api/og/box-office", width: 800, height: 520 }],
+  },
 };
 
 // Leaderboards are mostly static between TMDB syncs (revenue/budget

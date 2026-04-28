@@ -22,6 +22,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${data.name} — Box Office`,
     description: `Box office breakdown for the ${data.name} franchise: lifetime gross, budget, and ROI for every entry.`,
     alternates: { canonical: `/box-office/franchises/${collectionId}` },
+    openGraph: {
+      title: `${data.name} — Franchise Box Office`,
+      description: `Lifetime gross, budget, and ROI for every entry in the ${data.name} franchise.`,
+      images: [{ url: `/api/og/box-office?page=franchise&id=${collectionId}`, width: 800, height: 520 }],
+    },
   };
 }
 

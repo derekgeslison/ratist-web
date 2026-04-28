@@ -22,6 +22,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${data.studio.name} — Box Office`,
     description: `Box office breakdown for ${data.studio.name}: lifetime gross, budget, and ROI for every credited film.`,
     alternates: { canonical: `/box-office/studios/${studioId}` },
+    openGraph: {
+      title: `${data.studio.name} — Studio Box Office`,
+      description: `Lifetime gross totals across every film credited to ${data.studio.name}.`,
+      images: [{ url: `/api/og/box-office?page=studio&id=${studioId}`, width: 800, height: 520 }],
+    },
   };
 }
 

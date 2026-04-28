@@ -35,6 +35,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `Highest Grossing Movies of ${y}`,
     description: `Top-grossing movies of ${y} by lifetime worldwide box office. Ranked by total revenue with budgets and ROI.`,
     alternates: { canonical: `/box-office/year/${y}` },
+    openGraph: {
+      title: `Highest Grossing Movies of ${y}`,
+      description: `The top-grossing films of ${y} ranked by lifetime worldwide gross.`,
+      images: [{ url: `/api/og/box-office?page=year&year=${y}`, width: 800, height: 520 }],
+    },
   };
 }
 
