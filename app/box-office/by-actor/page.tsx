@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Users, Info } from "lucide-react";
 import { getTopCelebrityCareers } from "@/lib/box-office-queries";
 import { formatBoxOffice } from "@/lib/box-office";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Top Grossing Actors",
@@ -24,18 +25,25 @@ export default async function BoxOfficeByActorPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Users className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Top Grossing Actors</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <Users className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Top Grossing Actors</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Lifetime career box office across every credited role.
+            {" "}
+            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to leaderboards
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Lifetime career box office across every credited role.
-          {" "}
-          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to leaderboards
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path="/box-office/by-actor"
+          ogPath="/api/og/box-office?page=branded&title=Top+Grossing+Actors&subtitle=Lifetime+career+box+office"
+          shareText="Top Grossing Actors of All Time — The Ratist"
+        />
       </div>
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">

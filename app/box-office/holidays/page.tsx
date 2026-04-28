@@ -4,6 +4,7 @@ import { Calendar, Info } from "lucide-react";
 import { getTopGrossingByReleaseWindow } from "@/lib/box-office-queries";
 import { RELEASE_WINDOWS } from "@/lib/box-office";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Holiday Box Office",
@@ -31,19 +32,26 @@ export default async function BoxOfficeHolidaysPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Calendar className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Holiday Box Office</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <Calendar className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Holiday Box Office</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Top-grossing films released into the major holiday windows that
+            studios traditionally target.
+            {" "}
+            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to leaderboards
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Top-grossing films released into the major holiday windows that
-          studios traditionally target.
-          {" "}
-          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to leaderboards
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path="/box-office/holidays"
+          ogPath="/api/og/box-office?page=branded&title=Holiday+Box+Office&subtitle=Top+grossing+per+holiday+window"
+          shareText="Holiday Box Office — The Ratist"
+        />
       </div>
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">

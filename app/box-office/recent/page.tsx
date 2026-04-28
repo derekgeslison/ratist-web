@@ -6,6 +6,7 @@ import {
   formatDateYMD,
 } from "@/lib/box-office-queries";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Recent Release Box Office",
@@ -59,18 +60,25 @@ export default async function BoxOfficeRecentPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Flame className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Recent Release Box Office</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <Flame className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Recent Release Box Office</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            What's grossed the most among recently-released films.
+            {" "}
+            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to leaderboards
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          What's grossed the most among recently-released films.
-          {" "}
-          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to leaderboards
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path="/box-office/recent"
+          ogPath="/api/og/box-office?page=recent"
+          shareText="Recent Release Box Office — The Ratist"
+        />
       </div>
 
       {/* Heavier disclaimer than the rest of /box-office — these

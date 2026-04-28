@@ -10,6 +10,7 @@ import {
   formatROI,
   type BoxOfficeRow,
 } from "@/lib/box-office";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 interface Genre {
   id: number;
@@ -260,21 +261,58 @@ export default function BoxOfficeListClient({ genres }: Props) {
     (releaseFrom ? 1 : 0) +
     (releaseTo ? 1 : 0);
 
+  // Share-URL derivation. Mirrors the sort→OG mapping from
+  // generateMetadata in page.tsx so a shared link with a "pure
+  // sort" view (no extra filters) gets the matching OG image.
+  // Once filters are added we drop back to the generic hub OG.
+  const SORT_OG: Record<string, string> = {
+    "revenue-desc": "topGrossing",
+    "profit-desc": "topProfit",
+    "roi-desc": "bestROI",
+    "roi-asc": "worstROI",
+    "budget-desc": "highestBudget",
+  };
+  const noFilters = filterCount === 0;
+  const sharePath = (() => {
+    const sp = new URLSearchParams();
+    if (sort !== "revenue-desc") sp.set("sort", sort);
+    if (selectedGenres.length) sp.set("genres", selectedGenres.join(","));
+    if (selectedMpa.length) sp.set("mpa", selectedMpa.join(","));
+    if (selectedLanguage) sp.set("languages", selectedLanguage);
+    if (releaseFrom) sp.set("releaseFrom", releaseFrom);
+    if (releaseTo) sp.set("releaseTo", releaseTo);
+    const qs = sp.toString();
+    return qs ? `/box-office/all?${qs}` : "/box-office/all";
+  })();
+  const shareOgPath = noFilters && SORT_OG[sort]
+    ? `/api/og/box-office?page=${SORT_OG[sort]}`
+    : "/api/og/box-office";
+  const shareText = noFilters && SORT_OG[sort]
+    ? `${SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "Box Office"} — The Ratist`
+    : "Box Office — The Ratist";
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <TrendingUp className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office — All Movies</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <TrendingUp className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office — All Movies</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Filter and sort every movie tracked with box-office data.
+            {" "}
+            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to leaderboards
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Filter and sort every movie tracked with box-office data.
-          {" "}
-          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to leaderboards
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path={sharePath}
+          ogPath={shareOgPath}
+          shareText={shareText}
+        />
       </div>
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">

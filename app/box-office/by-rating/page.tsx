@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ShieldCheck, Info } from "lucide-react";
 import { getTopGrossingByMpa } from "@/lib/box-office-queries";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Box Office by MPA Rating",
@@ -31,18 +32,25 @@ export default async function BoxOfficeByRatingPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <ShieldCheck className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office by MPA Rating</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <ShieldCheck className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office by MPA Rating</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Highest-grossing films within each MPA content rating.
+            {" "}
+            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to leaderboards
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Highest-grossing films within each MPA content rating.
-          {" "}
-          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to leaderboards
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path="/box-office/by-rating"
+          ogPath="/api/og/box-office?page=branded&title=Box+Office+by+MPA+Rating&subtitle=Top+grossing+per+content+rating"
+          shareText="Box Office by MPA Rating — The Ratist"
+        />
       </div>
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">

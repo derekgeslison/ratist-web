@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Building2, Info } from "lucide-react";
 import { getStudioMovies } from "@/lib/box-office-queries";
 import { formatBoxOffice, formatROI } from "@/lib/box-office";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const revalidate = 21600;
 
@@ -48,31 +49,38 @@ export default async function StudioDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          {studio.logoPath ? (
-            <div className="relative w-10 h-10 rounded bg-[var(--background)] flex items-center justify-center overflow-hidden">
-              <Image
-                src={`https://image.tmdb.org/t/p/w92${studio.logoPath}`}
-                alt=""
-                fill
-                sizes="40px"
-                className="object-contain p-1"
-              />
-            </div>
-          ) : (
-            <Building2 className="w-6 h-6 text-[var(--ratist-red)]" />
-          )}
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">{studio.name}</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            {studio.logoPath ? (
+              <div className="relative w-10 h-10 rounded bg-[var(--background)] flex items-center justify-center overflow-hidden">
+                <Image
+                  src={`https://image.tmdb.org/t/p/w92${studio.logoPath}`}
+                  alt=""
+                  fill
+                  sizes="40px"
+                  className="object-contain p-1"
+                />
+              </div>
+            ) : (
+              <Building2 className="w-6 h-6 text-[var(--ratist-red)]" />
+            )}
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">{studio.name}</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Studio lifetime box office.
+            {studio.originCountry ? ` Based in ${studio.originCountry}.` : ""}
+            {" "}
+            <Link href="/box-office/studios" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to studios
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Studio lifetime box office.
-          {studio.originCountry ? ` Based in ${studio.originCountry}.` : ""}
-          {" "}
-          <Link href="/box-office/studios" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to studios
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path={`/box-office/studios/${studioId}`}
+          ogPath={`/api/og/box-office?page=studio&id=${studioId}`}
+          shareText={`${studio.name} — Studio Box Office`}
+        />
       </div>
 
       {/* Headline totals */}

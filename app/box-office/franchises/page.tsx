@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Film, Info } from "lucide-react";
 import { getTopFranchises } from "@/lib/box-office-queries";
 import { formatBoxOffice } from "@/lib/box-office";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Top Grossing Franchises",
@@ -24,18 +25,25 @@ export default async function BoxOfficeFranchisesPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Film className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Top Grossing Franchises</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <Film className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Top Grossing Franchises</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Lifetime box office summed across every film in the franchise.
+            {" "}
+            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to leaderboards
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Lifetime box office summed across every film in the franchise.
-          {" "}
-          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to leaderboards
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path="/box-office/franchises"
+          ogPath="/api/og/box-office?page=branded&title=Top+Grossing+Franchises&subtitle=Lifetime+gross+per+series"
+          shareText="Top Grossing Franchises — The Ratist"
+        />
       </div>
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Film, Info } from "lucide-react";
 import { getFranchiseMovies } from "@/lib/box-office-queries";
 import { formatBoxOffice, formatROI } from "@/lib/box-office";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const revalidate = 21600;
 
@@ -47,18 +48,25 @@ export default async function FranchiseDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Film className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">{name}</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <Film className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">{name}</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Franchise lifetime box office.
+            {" "}
+            <Link href="/box-office/franchises" className="text-[var(--ratist-red)] hover:underline">
+              ← Back to franchises
+            </Link>
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)]">
-          Franchise lifetime box office.
-          {" "}
-          <Link href="/box-office/franchises" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to franchises
-          </Link>
-        </p>
+        <BoxOfficeShare
+          path={`/box-office/franchises/${collectionId}`}
+          ogPath={`/api/og/box-office?page=franchise&id=${collectionId}`}
+          shareText={`${name} — Franchise Box Office`}
+        />
       </div>
 
       {/* Headline totals */}

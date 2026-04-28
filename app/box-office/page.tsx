@@ -11,6 +11,7 @@ import {
 } from "@/lib/box-office-queries";
 import { getMostRecentlyEndedWindow } from "@/lib/box-office";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
+import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Box Office Insights",
@@ -74,15 +75,22 @@ export default async function BoxOfficePage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-2">
-          <TrendingUp className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office Insights</h1>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <TrendingUp className="w-6 h-6 text-[var(--ratist-red)]" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office Insights</h1>
+          </div>
+          <p className="text-sm text-[var(--foreground-muted)] max-w-2xl">
+            Lifetime grosses, budgets, and ROI for movies tracked on The Ratist.
+            Filter, rank, and drill into franchises, studios, and genres.
+          </p>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)] max-w-2xl">
-          Lifetime grosses, budgets, and ROI for movies tracked on The Ratist.
-          Filter, rank, and drill into franchises, studios, and genres.
-        </p>
+        <BoxOfficeShare
+          path="/box-office"
+          ogPath="/api/og/box-office"
+          shareText="Box Office Insights — The Ratist"
+        />
       </div>
 
       {/* Data disclaimer — applies to every leaderboard on this page,
