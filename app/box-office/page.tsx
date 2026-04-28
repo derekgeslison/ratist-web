@@ -217,7 +217,7 @@ export default async function BoxOfficePage() {
           subtitle="Last completed calendar year"
           rows={topLastYear}
           metric="revenue"
-          viewAllHref={`/box-office/all?sort=revenue-desc&releaseFrom=${lastYear}-01-01&releaseTo=${lastYear}-12-31`}
+          viewAllHref={`/box-office/year/${lastYear}`}
         />
         {/* YTD + recent tiles intentionally come after the "completed
             year" tile so the most reliable data lands first. The
@@ -231,7 +231,7 @@ export default async function BoxOfficePage() {
           subtitle="Year-to-date — still accumulating"
           rows={topYTD}
           metric="revenue"
-          viewAllHref={`/box-office/all?sort=revenue-desc&releaseFrom=${currentYear}-01-01&releaseTo=${currentYear}-12-31`}
+          viewAllHref={`/box-office/year/${currentYear}`}
           emptyMessage="Not enough YTD data yet — TMDB lags theatrical numbers."
         />
         <Leaderboard

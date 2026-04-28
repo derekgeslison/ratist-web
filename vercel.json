@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/streaming-watch-sweep",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/box-office/recent-sync",
+      "schedule": "0 4,16 * * *"
     }
   ]
 }

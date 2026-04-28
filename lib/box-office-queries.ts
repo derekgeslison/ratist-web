@@ -413,7 +413,7 @@ export async function getMovieBoxOfficeRanks(tmdbId: number): Promise<MovieRankB
         releaseDate: { gte: `${year}-01-01`, lte: `${year}-12-31` },
       },
       label: `of ${year}`,
-      href: `/box-office/all?sort=revenue-desc&releaseFrom=${year}-01-01&releaseTo=${year}-12-31`,
+      href: `/box-office/year/${year}`,
     });
   }
 
