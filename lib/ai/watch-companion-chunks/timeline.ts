@@ -110,7 +110,7 @@ export async function draftTimeline(
     systemPrompt: SYSTEM_PROMPT,
     userMessage,
     tool: TOOL,
-    maxTokens: 4096,
+    maxTokens: 8192,
   });
 
   // Forgiving character-name match — names that didn't strict-equal a

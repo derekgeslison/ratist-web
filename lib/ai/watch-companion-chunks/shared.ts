@@ -248,6 +248,20 @@ export async function callTool<T>(opts: {
     tool_choice: { type: "tool", name: opts.tool.name },
     messages: [{ role: "user", content: opts.userMessage }],
   });
+  // Surface max_tokens truncation loudly. When Claude hits max_tokens
+  // mid-tool-call, the tool_use input is partial / invalid JSON; the
+  // SDK still returns a tool_use block but its `input` may be empty or
+  // missing fields. Downstream Array.isArray() checks then silently
+  // produce empty arrays, which is exactly the failure mode that hid
+  // the Oppenheimer / Inception facts bug. Throw here so the chunk
+  // try/catch surfaces it as a real error to the admin UI rather than
+  // letting "AI returned 0" pass as success.
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      `AI hit max_tokens (${opts.maxTokens ?? 4096}) while emitting ${opts.tool.name}. ` +
+      `Output was truncated and the tool_use block is incomplete. Raise maxTokens for this chunk.`,
+    );
+  }
   const toolUse = response.content.find((b) => b.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
     throw new Error(`AI did not return structured output for ${opts.tool.name}`);

@@ -187,7 +187,7 @@ export async function draftRelationships(
     systemPrompt: SYSTEM_PROMPT,
     userMessage,
     tool: TOOL,
-    maxTokens: 4096,
+    maxTokens: 8192,
   });
 
   // Forgiving name match — strict equality silently dropped relationships

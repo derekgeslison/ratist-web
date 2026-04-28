@@ -514,7 +514,11 @@ export async function draftCharacters(
     systemPrompt: SYSTEM_PROMPT,
     userMessage,
     tool: TOOL,
-    maxTokens: 4096,
+    // Bumped from 4096: ensemble movies (Avengers, LOTR) plus
+    // multi-actor + nameAliases + groupHistory arrays push character
+    // chunks past 4096 of JSON. 8192 stays well within Sonnet 4.6's
+    // 64k output ceiling.
+    maxTokens: 8192,
   });
   return Array.isArray(result.characters)
     ? result.characters

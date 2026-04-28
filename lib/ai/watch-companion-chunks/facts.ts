@@ -123,7 +123,13 @@ export async function draftFacts(
     systemPrompt: SYSTEM_PROMPT,
     userMessage,
     tool: TOOL,
-    maxTokens: 4096,
+    // 4096 silently truncated for ensemble movies — 20 characters × ~3
+    // facts × ~140 tokens each ≈ 8.4k. Was the actual root cause of
+    // Oppenheimer / Inception returning 0 character events: AI emitted
+    // facts, hit the cap, SDK returned a partial tool_use that parsed
+    // to {} → empty array → silent zero. callTool now also throws on
+    // stop_reason: "max_tokens" so this can't fail silently again.
+    maxTokens: 8192,
   });
 
   // Forgiving name match — strict equality dropped huge swaths of facts
