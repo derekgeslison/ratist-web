@@ -173,7 +173,8 @@ interface Props {
 
 const FACT_TYPES = ["role_change", "relationship_change", "arc", "death", "reveal", "other"];
 const REL_TYPES = ["family", "romantic", "business", "rivalry", "alliance", "mentor", "other"];
-const GLOSSARY_CATEGORIES = ["world", "faction", "jargon", "concept"];
+// Keep in lockstep with lib/ai/watch-companion-chunks/shared.ts.
+const GLOSSARY_CATEGORIES = ["world", "faction", "place", "object", "event", "jargon", "concept"];
 
 /**
  * All-purpose create/edit modal for a Watch Companion item. Dispatches on

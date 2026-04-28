@@ -10,7 +10,13 @@ export type FactType = (typeof FACT_TYPES)[number];
 export const RELATIONSHIP_TYPES = ["family", "romantic", "business", "rivalry", "alliance", "mentor", "other"] as const;
 export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
 
-export const GLOSSARY_CATEGORIES = ["world", "faction", "jargon", "concept"] as const;
+// Glossary categories. Original 4 had people getting shoehorned into
+// "faction" because there was nowhere else for them. Solution wasn't
+// adding "person" — people belong on character cards or timeline
+// events, not the glossary. We added "place" / "object" / "event" so
+// MCU-style worldbuilding has proper homes for items like Wakanda,
+// the Tesseract, and the Snap (previously also miscoded as factions).
+export const GLOSSARY_CATEGORIES = ["world", "faction", "place", "object", "event", "jargon", "concept"] as const;
 export type GlossaryCategory = (typeof GLOSSARY_CATEGORIES)[number];
 
 export interface VisibleAfter {
