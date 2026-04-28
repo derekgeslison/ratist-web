@@ -27,6 +27,7 @@ import UserMoviePanel from "@/components/UserMoviePanel";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
 import CommunityBreakdown from "@/components/CommunityBreakdown";
 import { upsertMovie } from "@/lib/tmdb-sync";
+import { getMovieBoxOfficeRanks } from "@/lib/box-office-queries";
 import { getMovieAwards } from "@/lib/awards";
 import { syncMovieAwards } from "@/lib/awards-sync";
 import { prisma } from "@/lib/prisma";
@@ -81,12 +82,17 @@ export default async function MovieDetailPage({ params }: Props) {
   }
 
   // Parallel fetch: watch providers + recommendations + collection (non-blocking)
-  const [watchProviders, recommendations, collection] = await Promise.all([
+  const [watchProviders, recommendations, collection, boxOfficeRanks] = await Promise.all([
     getWatchProviders(movie.id).catch(() => null),
     getMovieRecommendations(movie.id).catch(() => ({ results: [] })),
     movie.belongs_to_collection
       ? getCollectionDetails(movie.belongs_to_collection.id).catch(() => null)
       : Promise.resolve(null),
+    // Per-movie box-office rank badges for the Overview tab. Pulls
+    // the DB row internally and runs the rank queries in parallel.
+    // catch(null) so a query failure doesn't blow up the page —
+    // the section just won't render.
+    getMovieBoxOfficeRanks(movie.id).catch(() => null),
   ]);
 
   // Cache to local DB — resync if stale (7 days) or if key fields are missing (fire and forget)
@@ -536,6 +542,7 @@ export default async function MovieDetailPage({ params }: Props) {
           discussions={discussions}
           awards={awards}
           tmdbId={movie.id}
+          boxOfficeRanks={boxOfficeRanks ?? undefined}
         />
       </div>
     </div>

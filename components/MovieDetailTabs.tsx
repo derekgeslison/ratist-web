@@ -17,6 +17,7 @@ import AwardsTab from "./AwardsTab";
 import type { AwardBodyGroup } from "@/lib/awards";
 import DiscussionRow from "./DiscussionRow";
 import ReviewDigest from "./ReviewDigest";
+import { MovieRankBadges } from "./box-office/MovieRankBadges";
 
 interface Review {
   id: string;
@@ -58,6 +59,10 @@ interface Props {
   discussions?: Discussion[];
   awards?: AwardBodyGroup[];
   tmdbId?: number;
+  /** Pre-computed box-office rank badges from the server. Optional —
+   *  the section just doesn't render when ranks aren't supplied or
+   *  no rank qualifies (every entry is null). */
+  boxOfficeRanks?: import("@/lib/box-office-queries").MovieRankBadges;
 }
 
 const TABS = ["Overview", "Cast & Crew", "Reviews", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
@@ -86,6 +91,7 @@ export default function MovieDetailTabs({
   discussions = [],
   awards = [],
   tmdbId,
+  boxOfficeRanks,
 }: Props) {
   function tabToHash(tab: Tab): string {
     return tab.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-").replace(/'/g, "");
@@ -206,6 +212,9 @@ export default function MovieDetailTabs({
                 {movie.revenue && movie.revenue >= 1000 ? (
                   <FactRow label="Revenue" value={`$${movie.revenue.toLocaleString()}`} />
                 ) : null}
+                {boxOfficeRanks && (
+                  <MovieRankBadges ranks={boxOfficeRanks} />
+                )}
               </div>
 
               <WatchProviders

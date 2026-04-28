@@ -92,12 +92,26 @@ export default function BoxOfficeListClient({ genres }: Props) {
     const m = searchParams.get("mpa");
     return m ? m.split(",").filter(Boolean) : [];
   });
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => {
-    const l = searchParams.get("languages");
-    return l ? l.split(",").filter(Boolean) : [];
+  // Single language filter (dropdown). The API still accepts a
+  // comma-separated list but the UI now exposes one at a time —
+  // multi-select dropdowns are clunky and "all-of-X" composition is
+  // rarely useful for box office.
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(() => {
+    const l = searchParams.get("languages") ?? "";
+    // Backwards-compat: a multi-value URL preserves the first entry only.
+    return l.split(",").filter(Boolean)[0] ?? "";
   });
+  // Release date filter has two modes — "year" (default; pick whole
+  // years on each side) and "date" (pick specific YYYY-MM-DD dates).
+  // The underlying state is always YYYY-MM-DD; the UI swaps the
+  // inputs based on `dateMode` and translates year inputs by
+  // anchoring at Jan 1 / Dec 31 of the chosen year.
   const [releaseFrom, setReleaseFrom] = useState(searchParams.get("releaseFrom") ?? "");
   const [releaseTo, setReleaseTo] = useState(searchParams.get("releaseTo") ?? "");
+  const [dateMode, setDateMode] = useState<"year" | "date">(() => {
+    const m = searchParams.get("dateMode");
+    return m === "date" ? "date" : "year";
+  });
 
   const [results, setResults] = useState<BoxOfficeRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -114,12 +128,12 @@ export default function BoxOfficeListClient({ genres }: Props) {
     params.set("sort", sort);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
     if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
-    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
+    if (selectedLanguage) params.set("languages", selectedLanguage);
     if (releaseFrom) params.set("releaseFrom", releaseFrom);
     if (releaseTo) params.set("releaseTo", releaseTo);
     params.set("limit", String(PAGE_SIZE));
     return `/api/box-office/list?${params.toString()}`;
-  }, [sort, selectedGenres, selectedMpa, selectedLanguages, releaseFrom, releaseTo]);
+  }, [sort, selectedGenres, selectedMpa, selectedLanguage, releaseFrom, releaseTo]);
 
   // Sync the same filter state to the URL bar — so back/forward and
   // direct-link sharing both work without an extra useEffect chain.
@@ -128,12 +142,13 @@ export default function BoxOfficeListClient({ genres }: Props) {
     if (sort !== "revenue-desc") params.set("sort", sort);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
     if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
-    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
+    if (selectedLanguage) params.set("languages", selectedLanguage);
     if (releaseFrom) params.set("releaseFrom", releaseFrom);
     if (releaseTo) params.set("releaseTo", releaseTo);
+    if (dateMode !== "year") params.set("dateMode", dateMode);
     const qs = params.toString();
     router.replace(qs ? `/box-office/all?${qs}` : "/box-office/all", { scroll: false });
-  }, [sort, selectedGenres, selectedMpa, selectedLanguages, releaseFrom, releaseTo, router]);
+  }, [sort, selectedGenres, selectedMpa, selectedLanguage, releaseFrom, releaseTo, dateMode, router]);
 
   // Fetch first page whenever filters change. Independent from the
   // load-more handler so we always reset to page 1 on filter change.
@@ -189,24 +204,33 @@ export default function BoxOfficeListClient({ genres }: Props) {
       prev.includes(code) ? prev.filter((m) => m !== code) : [...prev, code],
     );
   }
-  function toggleLanguage(code: string) {
-    setSelectedLanguages((prev) =>
-      prev.includes(code) ? prev.filter((l) => l !== code) : [...prev, code],
-    );
-  }
   function clearAll() {
     setSelectedGenres([]);
     setSelectedMpa([]);
-    setSelectedLanguages([]);
+    setSelectedLanguage("");
     setReleaseFrom("");
     setReleaseTo("");
     setSort("revenue-desc");
+    // Date mode is a UI preference, not a filter — leaving it alone
+    // so toggling clear-all doesn't reset the user's display choice.
+  }
+
+  // Year-mode helpers. Year inputs read the YYYY prefix off the
+  // canonical YYYY-MM-DD state, and writes anchor at Jan 1 / Dec 31
+  // of the chosen year so the API filter still works on date strings.
+  const yearFrom = releaseFrom ? releaseFrom.slice(0, 4) : "";
+  const yearTo = releaseTo ? releaseTo.slice(0, 4) : "";
+  function setYearFrom(y: string) {
+    setReleaseFrom(y && /^\d{4}$/.test(y) ? `${y}-01-01` : "");
+  }
+  function setYearTo(y: string) {
+    setReleaseTo(y && /^\d{4}$/.test(y) ? `${y}-12-31` : "");
   }
 
   const filterCount =
     selectedGenres.length +
     selectedMpa.length +
-    selectedLanguages.length +
+    (selectedLanguage ? 1 : 0) +
     (releaseFrom ? 1 : 0) +
     (releaseTo ? 1 : 0);
 
@@ -285,26 +309,30 @@ export default function BoxOfficeListClient({ genres }: Props) {
           })}
         </div>
 
-        {/* Language chips. Curated subset of TMDB original_language
-            codes — see LANGUAGE_OPTIONS comment for rationale. */}
+        {/* Language dropdown. Single-select — multi-select dropdowns
+            are clunky and "all-of-X" composition is rarely useful for
+            box office. The 23-chip layout we tried first felt heavy
+            against the genre and MPA chips. */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-[var(--foreground-muted)] mr-1">Language:</span>
-          {LANGUAGE_OPTIONS.map((l) => {
-            const active = selectedLanguages.includes(l.code);
-            return (
-              <button
-                key={l.code}
-                onClick={() => toggleLanguage(l.code)}
-                className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                  active
-                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
-                    : "bg-[var(--background)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]/40"
-                }`}
-              >
-                {l.label}
-              </button>
-            );
-          })}
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+          >
+            <option value="">Any</option>
+            {LANGUAGE_OPTIONS.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+          {selectedLanguage && (
+            <button
+              onClick={() => setSelectedLanguage("")}
+              className="text-xs text-[var(--foreground-muted)] hover:text-white"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         {/* Genre chips */}
@@ -328,30 +356,83 @@ export default function BoxOfficeListClient({ genres }: Props) {
           })}
         </div>
 
-        {/* Release date range */}
+        {/* Release date range. Year mode is the default — most box-
+            office questions naturally bucket by year ("90s blockbusters",
+            "everything from 2010"). Specific date mode is opt-in for
+            users digging into release-window analysis. */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-[var(--foreground-muted)] mr-1">Release date:</span>
-          <input
-            type="date"
-            value={releaseFrom}
-            onChange={(e) => setReleaseFrom(e.target.value)}
-            className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
-            aria-label="Release date from"
-          />
-          <span className="text-xs text-[var(--foreground-muted)]">to</span>
-          <input
-            type="date"
-            value={releaseTo}
-            onChange={(e) => setReleaseTo(e.target.value)}
-            className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
-            aria-label="Release date to"
-          />
+          <span className="text-xs text-[var(--foreground-muted)] mr-1">Release:</span>
+          <div className="inline-flex bg-[var(--background)] border border-[var(--border)] rounded-md p-0.5">
+            <button
+              onClick={() => setDateMode("year")}
+              className={`px-2 py-0.5 text-xs rounded ${
+                dateMode === "year"
+                  ? "bg-[var(--ratist-red)] text-white"
+                  : "text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              Year
+            </button>
+            <button
+              onClick={() => setDateMode("date")}
+              className={`px-2 py-0.5 text-xs rounded ${
+                dateMode === "date"
+                  ? "bg-[var(--ratist-red)] text-white"
+                  : "text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              Specific date
+            </button>
+          </div>
+          {dateMode === "year" ? (
+            <>
+              <input
+                type="number"
+                min="1900"
+                max="2099"
+                placeholder="From"
+                value={yearFrom}
+                onChange={(e) => setYearFrom(e.target.value)}
+                className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white w-20 focus:outline-none focus:border-[var(--ratist-red)]"
+                aria-label="Release year from"
+              />
+              <span className="text-xs text-[var(--foreground-muted)]">to</span>
+              <input
+                type="number"
+                min="1900"
+                max="2099"
+                placeholder="To"
+                value={yearTo}
+                onChange={(e) => setYearTo(e.target.value)}
+                className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white w-20 focus:outline-none focus:border-[var(--ratist-red)]"
+                aria-label="Release year to"
+              />
+            </>
+          ) : (
+            <>
+              <input
+                type="date"
+                value={releaseFrom}
+                onChange={(e) => setReleaseFrom(e.target.value)}
+                className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                aria-label="Release date from"
+              />
+              <span className="text-xs text-[var(--foreground-muted)]">to</span>
+              <input
+                type="date"
+                value={releaseTo}
+                onChange={(e) => setReleaseTo(e.target.value)}
+                className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                aria-label="Release date to"
+              />
+            </>
+          )}
           {(releaseFrom || releaseTo) && (
             <button
               onClick={() => { setReleaseFrom(""); setReleaseTo(""); }}
               className="text-xs text-[var(--foreground-muted)] hover:text-white"
             >
-              Clear dates
+              Clear
             </button>
           )}
         </div>
