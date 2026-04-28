@@ -596,12 +596,50 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     charactersAdded++;
   }
 
+  // Build forgiving lookups before resolving facts/relationships/timeline.
+  // The AI is asked to copy character names exactly, but in practice it
+  // drifts: case differences, mid-name punctuation ("Tony Stark / Iron Man"
+  // vs "Tony Stark"), or the alias slipping in for the primary ("Iron Man"
+  // when the card is "Tony Stark"). Strict equality silently dropped
+  // those rows — visible as a card with no events. Each fallback tier
+  // is narrower than the last, and we resolve to the FIRST character
+  // that matches at each tier so name collisions don't cross-link.
+  function normalizeName(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+  const lowerNameToId = new Map<string, string>();
+  const normNameToId = new Map<string, string>();
+  const aliasNameToId = new Map<string, string>();
+  for (const c of draft.characters) {
+    const id = nameToId.get(c.name);
+    if (!id) continue;
+    const lower = c.name.toLowerCase().trim();
+    if (!lowerNameToId.has(lower)) lowerNameToId.set(lower, id);
+    const norm = normalizeName(c.name);
+    if (!normNameToId.has(norm)) normNameToId.set(norm, id);
+    for (const alias of (c.nameAliases ?? [])) {
+      const aliasNorm = normalizeName(alias.name);
+      if (aliasNorm && !aliasNameToId.has(aliasNorm)) aliasNameToId.set(aliasNorm, id);
+    }
+  }
+  function resolveCharacterId(name: string): string | undefined {
+    if (!name) return undefined;
+    return nameToId.get(name)
+      ?? lowerNameToId.get(name.toLowerCase().trim())
+      ?? normNameToId.get(normalizeName(name))
+      ?? aliasNameToId.get(normalizeName(name));
+  }
+
   // Facts — separate chunk in the new pipeline, resolved to character IDs.
   let factsAdded = 0;
+  let factsDropped = 0;
   const factRows = draft.facts
     .map((f) => {
-      const characterId = nameToId.get(f.characterName);
-      if (!characterId) return null;
+      const characterId = resolveCharacterId(f.characterName);
+      if (!characterId) {
+        factsDropped++;
+        return null;
+      }
       return {
         characterId,
         fact: f.fact,
@@ -610,16 +648,22 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
+  if (factsDropped > 0) {
+    // Surfaces silently-dropped facts in admin logs so the failure is
+    // discoverable next time the AI emits an unmatched name.
+    console.warn(`[companion ${companion.id}] ${factsDropped}/${draft.facts.length} facts dropped — characterName didn't resolve.`);
+  }
   if (factRows.length > 0) {
     await prisma.companionFact.createMany({ data: factRows });
     factsAdded = factRows.length;
   }
 
-  // Relationships
+  // Relationships — same forgiving resolution as facts so an alias-name
+  // mismatch doesn't silently drop the connection from the map.
   let relationshipsAdded = 0;
   for (const r of draft.relationships) {
-    const fromId = nameToId.get(r.fromName);
-    const toId = nameToId.get(r.toName);
+    const fromId = resolveCharacterId(r.fromName);
+    const toId = resolveCharacterId(r.toName);
     if (!fromId || !toId) continue;
     await prisma.companionRelationship.create({
       data: {
@@ -643,7 +687,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       companionId: companion.id,
       seasonNumber: season,
       description: e.description,
-      characterIds: e.characterNames.map((n) => nameToId.get(n)).filter((id): id is string => !!id),
+      characterIds: e.characterNames.map((n) => resolveCharacterId(n)).filter((id): id is string => !!id),
       importance: e.importance,
       visibleAfter: serialize(e.visibleAfter),
     }));
