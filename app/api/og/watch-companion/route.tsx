@@ -53,41 +53,12 @@ function abstractMapSvg(
     other: "#9ca3af",
   };
 
-  // Multi-edge perpendicular offsets so paired characters with multiple
-  // relationships render as parallel curves instead of stacking and
-  // color-blending into a single muddy line. Mirrors the live
-  // RelationshipMap viewer logic. Pair key uses ordered index pair so
-  // direction doesn't fragment the group.
-  const edgePairCounts = new Map<string, number>();
-  const edgePairIndex = new Map<number, number>(); // edge array index → idx in pair
-  edges.forEach((e, i) => {
-    const a = Math.min(e.fromIdx, e.toIdx);
-    const b = Math.max(e.fromIdx, e.toIdx);
-    const key = `${a}|${b}`;
-    const count = edgePairCounts.get(key) ?? 0;
-    edgePairIndex.set(i, count);
-    edgePairCounts.set(key, count + 1);
-  });
-  const edgeSpacing = Math.max(4, size * 0.012);
-
-  const edgesSvg = edges.map((e, i) => {
+  const edgesSvg = edges.map((e) => {
     const from = positions[e.fromIdx];
     const to = positions[e.toIdx];
     if (!from || !to) return "";
-    const a = Math.min(e.fromIdx, e.toIdx);
-    const b = Math.max(e.fromIdx, e.toIdx);
-    const total = edgePairCounts.get(`${a}|${b}`) ?? 1;
-    const offsetIdx = (edgePairIndex.get(i) ?? 0) - (total - 1) / 2;
     const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const perpX = -dy / len;
-    const perpY = dx / len;
-    const cp = {
-      x: mid.x + (center - mid.x) * 0.3 + perpX * offsetIdx * edgeSpacing,
-      y: mid.y + (center - mid.y) * 0.3 + perpY * offsetIdx * edgeSpacing,
-    };
+    const cp = { x: mid.x + (center - mid.x) * 0.3, y: mid.y + (center - mid.y) * 0.3 };
     const color = edgeColor[e.type] ?? edgeColor.other;
     return `<path d="M ${from.x} ${from.y} Q ${cp.x} ${cp.y} ${to.x} ${to.y}" fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.55" />`;
   }).join("");
