@@ -425,18 +425,26 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       }
     } catch { /* ignore */ }
 
-    // URL overrides — apply last so they win.
+    // URL overrides — apply last so they win. Two distinct cases:
+    //
+    //   ?s=N&e=M  — caller-specified DEEP LINK (notifications, share
+    //               cards, manual paste). Treat as authoritative; reset
+    //               slot + within-episode position to the requested ep.
+    //
+    //   ?s=N      — could be a deep link OR just the URL sync below
+    //               echoing the user's last session. Either way, don't
+    //               clobber slot/episodeSeconds from localStorage —
+    //               unconditional reset on bare ?s=N was wiping the
+    //               saved position every time the user clicked an
+    //               actor and came back, because the auto-sync had
+    //               already written ?s=4 to the URL bar.
     if (urlSeason !== null && sortedSeasons.includes(urlSeason)) {
       setSelectedSeason(urlSeason);
-      // Reset episode-level positioning when jumping via deep link so the
-      // user doesn't land at a stale slot from a different season.
-      setEpisodeSeconds(0);
       if (urlEpisode !== null) {
-        // The slot index for an episode is (episode - 1) within the season
+        // Slot index for an episode is (episode - 1) within the season
         // because buildEpisodeSlots produces one slot per episode in order.
         setSlotIndex(Math.max(0, urlEpisode - 1));
-      } else {
-        setSlotIndex(0);
+        setEpisodeSeconds(0);
       }
     }
     setHydrated(true);
