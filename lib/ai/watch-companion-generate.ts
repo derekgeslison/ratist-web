@@ -224,6 +224,17 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   // emissions but the AI sometimes sneaks training-data content in for
   // unaired episodes anyway. Drop those before they hit persist.
   characters = filterScopeToEligible(characters, airingArg, episodeArg, seasonArg);
+  // Hard-fail on an empty cast. A movie / season with zero characters
+  // means the AI returned `[]` (rare refusal, edge-case grounding, or
+  // a scope-filter false positive) — proceeding would persist a
+  // companion with no cards, no facts, no anything, and the
+  // auto-publish path would then ship that empty husk to a real user.
+  // Episode mode is exempt: an additive episode gen can legitimately
+  // emit zero NEW characters when everyone's already on the season.
+  if (episodeArg === null && characters.length === 0) {
+    yield { kind: "error", message: "AI returned 0 characters — generation aborted. This usually clears on retry; if it persists, check the admin logs for a refusal or grounding issue." };
+    return;
+  }
   yield { kind: "step", step: "characters", status: "done", count: characters.length };
 
   // 3. Facts
@@ -383,6 +394,15 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   const { tmdbId, mediaType, season, episode, airingMode, title, year, runtimeSeconds, draft, recap, generatedByUserId } = input;
   const isEpisodeMode = episode !== null && season !== null && mediaType === "tv";
   const isInitialAiring = airingMode !== undefined && season !== null && mediaType === "tv";
+
+  // Belt-and-suspenders against an empty draft. The orchestrator already
+  // throws when characters comes back empty for non-episode-mode gens,
+  // but a future caller bypassing that check would otherwise silently
+  // wipe an existing companion's content and persist nothing in its
+  // place — the wipe runs before the empty character loop.
+  if (!isEpisodeMode && draft.characters.length === 0) {
+    throw new Error("persistDraft refused: 0 characters in draft (would wipe existing content with nothing to replace it)");
+  }
 
   const existing = await prisma.watchCompanion.findUnique({
     where: { tmdbId_mediaType: { tmdbId, mediaType } },

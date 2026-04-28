@@ -106,11 +106,23 @@ export async function POST(req: NextRequest) {
                 select: { id: true },
               });
               if (requestMatch) {
-                await prisma.watchCompanion.update({
-                  where: { id: companionId },
-                  data: { status: "published", publishedAt: new Date() },
+                // Only auto-publish if the companion actually has
+                // content. A successful "complete" event with zero
+                // characters means the generation hit a degenerate
+                // state — publishing it would ship an empty cast
+                // tab to the user who requested it.
+                const charCount = await prisma.companionCharacter.count({
+                  where: { companionId },
                 });
-                await notifyCompanionRequesters(companionId, userId);
+                if (charCount > 0) {
+                  await prisma.watchCompanion.update({
+                    where: { id: companionId },
+                    data: { status: "published", publishedAt: new Date() },
+                  });
+                  await notifyCompanionRequesters(companionId, userId);
+                } else {
+                  console.warn(`[companion ${companionId}] auto-publish skipped — 0 characters; leaving as draft for admin review`);
+                }
               }
             } catch (err) {
               console.error("Auto-publish/notify on generate failed (non-fatal):", err);
