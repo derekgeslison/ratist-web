@@ -49,66 +49,50 @@ async function fetchCollection(tmdbId: number): Promise<{ id: number; name: stri
 }
 
 async function main() {
-  // We only fill movies that have real revenue — the franchise
-  // leaderboard ignores everything else, so backfilling no-revenue
-  // films would be wasted API calls. The orderBy ensures we cover
-  // the highest-impact movies first, so an interrupted run still
-  // produces useful franchise data.
-  const totalCandidates = await prisma.movie.count({
+  // Fetch the entire candidate set upfront and iterate in-memory. An
+  // earlier draft used cursor pagination that re-queried the WHERE
+  // clause each batch — but since the loop UPDATEs tmdbCollectionId
+  // (removing rows from the WHERE result), Prisma's cursor positioning
+  // returned an empty page after the first batch and the script
+  // exited at 200 of ~20K movies. ~20K rows × ~80 bytes each is ~1.6MB
+  // in memory, which is fine.
+  const candidates = await prisma.movie.findMany({
     where: { revenue: { gte: FLOOR }, tmdbCollectionId: null },
+    orderBy: { revenue: "desc" },
+    select: { id: true, tmdbId: true, title: true },
   });
-  console.log(`Backfilling collection metadata for ~${totalCandidates.toLocaleString()} movies (rev ≥ $1k, missing collection_id).`);
+  console.log(`Backfilling collection metadata for ${candidates.length.toLocaleString()} movies (rev ≥ $1k, missing collection_id).`);
 
   let processed = 0;
   let updated = 0;
   let standalone = 0;
-  let cursor: string | undefined = undefined;
 
-  while (true) {
-    const batch: Array<{ id: string; tmdbId: number; title: string }> = await prisma.movie.findMany({
-      where: { revenue: { gte: FLOOR }, tmdbCollectionId: null },
-      orderBy: [{ revenue: "desc" }, { id: "asc" }],
-      take: BATCH,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: { id: true, tmdbId: true, title: true },
-    });
-    if (batch.length === 0) break;
-
-    for (const movie of batch) {
-      try {
-        const coll = await fetchCollection(movie.tmdbId);
-        if (coll) {
-          await prisma.movie.update({
-            where: { id: movie.id },
-            data: { tmdbCollectionId: coll.id, tmdbCollectionName: coll.name },
-          });
-          updated++;
-        } else {
-          // Standalone film — leave tmdbCollectionId NULL. We don't
-          // mark anything as "checked" because the on-detail-page
-          // sync would overwrite a sentinel back to NULL, defeating
-          // the optimization. The cost is that re-running this
-          // backfill re-fetches ~12K standalone movies — acceptable
-          // for a one-time-ish operation.
-          standalone++;
-        }
-      } catch (err) {
-        console.warn(`  failed for ${movie.title} (tmdb=${movie.tmdbId}):`, err instanceof Error ? err.message : err);
+  for (const movie of candidates) {
+    try {
+      const coll = await fetchCollection(movie.tmdbId);
+      if (coll) {
+        await prisma.movie.update({
+          where: { id: movie.id },
+          data: { tmdbCollectionId: coll.id, tmdbCollectionName: coll.name },
+        });
+        updated++;
+      } else {
+        // Standalone film — leave tmdbCollectionId NULL. We don't
+        // mark anything as "checked" because the on-detail-page
+        // sync would overwrite a sentinel back to NULL, defeating
+        // the optimization. The cost is that re-running this
+        // backfill re-fetches ~12K standalone movies — acceptable
+        // for a one-time-ish operation.
+        standalone++;
       }
-      processed++;
-      if (processed % 50 === 0) {
-        console.log(`  processed ${processed} (${updated} franchise members, ${standalone} standalone)`);
-      }
-      await new Promise((r) => setTimeout(r, SLEEP_MS));
+    } catch (err) {
+      console.warn(`  failed for ${movie.title} (tmdb=${movie.tmdbId}):`, err instanceof Error ? err.message : err);
     }
-
-    // We're paginating with a cursor on (revenue desc, id asc) so the
-    // next page picks up where this one left off. But because we only
-    // UPDATE rows (we don't change the cursor field, revenue), this
-    // cursor is stable across iterations even though the WHERE clause
-    // changes. Movies we skipped (because we updated them to a real
-    // id) are excluded from subsequent pages by the WHERE.
-    cursor = batch[batch.length - 1].id;
+    processed++;
+    if (processed % 100 === 0) {
+      console.log(`  ${processed}/${candidates.length} (${updated} franchise, ${standalone} standalone)`);
+    }
+    await new Promise((r) => setTimeout(r, SLEEP_MS));
   }
 
   console.log(`\n=== Done ===`);
