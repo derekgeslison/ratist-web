@@ -21,6 +21,39 @@ interface Props {
 }
 
 const MPA_OPTIONS = ["G", "PG", "PG-13", "R", "NC-17", "NR"] as const;
+
+// ISO 639-1 codes for the language filter. Curated to the languages
+// most likely to surface real box-office data — TMDB stores 100+ but
+// almost all the films users browse fall into this set. "Other" isn't
+// represented; users searching for niche languages can still use the
+// URL param directly. Order is rough usage frequency rather than
+// alphabetical so common picks (English, Spanish, etc.) lead.
+const LANGUAGE_OPTIONS: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Spanish" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "it", label: "Italian" },
+  { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" },
+  { code: "zh", label: "Chinese" },
+  { code: "hi", label: "Hindi" },
+  { code: "ru", label: "Russian" },
+  { code: "pt", label: "Portuguese" },
+  { code: "ar", label: "Arabic" },
+  { code: "nl", label: "Dutch" },
+  { code: "sv", label: "Swedish" },
+  { code: "tr", label: "Turkish" },
+  { code: "pl", label: "Polish" },
+  { code: "th", label: "Thai" },
+  { code: "vi", label: "Vietnamese" },
+  { code: "id", label: "Indonesian" },
+  { code: "he", label: "Hebrew" },
+  { code: "da", label: "Danish" },
+  { code: "no", label: "Norwegian" },
+  { code: "fi", label: "Finnish" },
+];
+
 const SORT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: "revenue-desc", label: "Highest revenue" },
   { value: "revenue-asc",  label: "Lowest revenue" },
@@ -59,6 +92,10 @@ export default function BoxOfficeListClient({ genres }: Props) {
     const m = searchParams.get("mpa");
     return m ? m.split(",").filter(Boolean) : [];
   });
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => {
+    const l = searchParams.get("languages");
+    return l ? l.split(",").filter(Boolean) : [];
+  });
   const [releaseFrom, setReleaseFrom] = useState(searchParams.get("releaseFrom") ?? "");
   const [releaseTo, setReleaseTo] = useState(searchParams.get("releaseTo") ?? "");
 
@@ -77,11 +114,12 @@ export default function BoxOfficeListClient({ genres }: Props) {
     params.set("sort", sort);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
     if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
+    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
     if (releaseFrom) params.set("releaseFrom", releaseFrom);
     if (releaseTo) params.set("releaseTo", releaseTo);
     params.set("limit", String(PAGE_SIZE));
     return `/api/box-office/list?${params.toString()}`;
-  }, [sort, selectedGenres, selectedMpa, releaseFrom, releaseTo]);
+  }, [sort, selectedGenres, selectedMpa, selectedLanguages, releaseFrom, releaseTo]);
 
   // Sync the same filter state to the URL bar — so back/forward and
   // direct-link sharing both work without an extra useEffect chain.
@@ -90,11 +128,12 @@ export default function BoxOfficeListClient({ genres }: Props) {
     if (sort !== "revenue-desc") params.set("sort", sort);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
     if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
+    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
     if (releaseFrom) params.set("releaseFrom", releaseFrom);
     if (releaseTo) params.set("releaseTo", releaseTo);
     const qs = params.toString();
     router.replace(qs ? `/box-office/all?${qs}` : "/box-office/all", { scroll: false });
-  }, [sort, selectedGenres, selectedMpa, releaseFrom, releaseTo, router]);
+  }, [sort, selectedGenres, selectedMpa, selectedLanguages, releaseFrom, releaseTo, router]);
 
   // Fetch first page whenever filters change. Independent from the
   // load-more handler so we always reset to page 1 on filter change.
@@ -150,9 +189,15 @@ export default function BoxOfficeListClient({ genres }: Props) {
       prev.includes(code) ? prev.filter((m) => m !== code) : [...prev, code],
     );
   }
+  function toggleLanguage(code: string) {
+    setSelectedLanguages((prev) =>
+      prev.includes(code) ? prev.filter((l) => l !== code) : [...prev, code],
+    );
+  }
   function clearAll() {
     setSelectedGenres([]);
     setSelectedMpa([]);
+    setSelectedLanguages([]);
     setReleaseFrom("");
     setReleaseTo("");
     setSort("revenue-desc");
@@ -161,6 +206,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
   const filterCount =
     selectedGenres.length +
     selectedMpa.length +
+    selectedLanguages.length +
     (releaseFrom ? 1 : 0) +
     (releaseTo ? 1 : 0);
 
@@ -234,6 +280,28 @@ export default function BoxOfficeListClient({ genres }: Props) {
                 }`}
               >
                 {code}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Language chips. Curated subset of TMDB original_language
+            codes — see LANGUAGE_OPTIONS comment for rationale. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[var(--foreground-muted)] mr-1">Language:</span>
+          {LANGUAGE_OPTIONS.map((l) => {
+            const active = selectedLanguages.includes(l.code);
+            return (
+              <button
+                key={l.code}
+                onClick={() => toggleLanguage(l.code)}
+                className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                  active
+                    ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                    : "bg-[var(--background)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]/40"
+                }`}
+              >
+                {l.label}
               </button>
             );
           })}

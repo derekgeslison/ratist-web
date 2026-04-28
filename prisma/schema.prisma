@@ -282,6 +282,11 @@ model Movie {
   // rendering, and TMDB collection metadata is otherwise unused.
   tmdbCollectionId   Int?      @map("tmdb_collection_id")
   tmdbCollectionName String?   @map("tmdb_collection_name")
+  // TMDB original_language — ISO 639-1 (e.g. "en", "ko", "fr").
+  // Drives the language filter on /box-office/all so users can scope
+  // leaderboards to non-English releases without us having to query
+  // TMDB Discover at runtime.
+  originalLanguage   String?   @map("original_language")
   cachedAt     DateTime? @map("cached_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -302,6 +307,7 @@ model Movie {
   awardForWork      AwardNomination[] @relation("forWorkMovie")
 
   @@index([tmdbCollectionId])
+  @@index([originalLanguage])
   @@map("movies")
 }
 

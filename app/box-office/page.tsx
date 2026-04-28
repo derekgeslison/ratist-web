@@ -7,9 +7,9 @@ import {
   getROIRanking,
   getTopProfit,
   getLastCompleteYear,
-  getTopGrossingByDateRange,
-  formatDateYMD,
+  getTopGrossingByReleaseWindow,
 } from "@/lib/box-office-queries";
+import { getMostRecentlyEndedWindow } from "@/lib/box-office";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
 
 export const metadata: Metadata = {
@@ -32,8 +32,13 @@ export default async function BoxOfficePage() {
   const lastYear = getLastCompleteYear(now);
   const currentYear = String(now.getUTCFullYear());
   const decadeStart = String(Math.floor(now.getUTCFullYear() / 10) * 10);
-  const ninetyDaysAgo = formatDateYMD(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000));
-  const today = formatDateYMD(now);
+
+  // The "Last 90 Days" tile was duplicating YTD data early in the
+  // year, so rotate to the most recently ended holiday window
+  // instead — gives the landing a freshness signal that varies
+  // through the year. Returns null only if every window's end date
+  // is in the future (impossible given the windows span the year).
+  const lastWindow = getMostRecentlyEndedWindow(now);
 
   // Run all leaderboard queries in parallel — they're independent and
   // the page is bottlenecked by the slowest one.
@@ -46,7 +51,7 @@ export default async function BoxOfficePage() {
     topYTD,
     topLastYear,
     topThisDecade,
-    topRecent,
+    topLastWindow,
   ] = await Promise.all([
     getTopGrossing(10),
     getTopProfit(10),
@@ -56,7 +61,9 @@ export default async function BoxOfficePage() {
     getTopGrossing(10, currentYear, currentYear),
     getTopGrossing(10, lastYear, lastYear),
     getTopGrossing(10, decadeStart, currentYear),
-    getTopGrossingByDateRange(ninetyDaysAgo, today, 10),
+    lastWindow
+      ? getTopGrossingByReleaseWindow(lastWindow.window.start, lastWindow.window.end, 10)
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -143,6 +150,13 @@ export default async function BoxOfficePage() {
           <Film className="w-4 h-4" />
           Franchises
         </Link>
+        <Link
+          href="/box-office/recent"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Flame className="w-4 h-4" />
+          Recent releases
+        </Link>
       </div>
 
       {/* Leaderboard grid. Each tile carries a `viewAllHref` that links
@@ -221,15 +235,22 @@ export default async function BoxOfficePage() {
           metric="revenue"
           viewAllHref={`/box-office/all?sort=revenue-desc&releaseFrom=${decadeStart}-01-01&releaseTo=${currentYear}-12-31`}
         />
-        <Leaderboard
-          icon={Flame}
-          title="Top of the Last 90 Days"
-          subtitle="Recent releases — numbers still incoming"
-          rows={topRecent}
-          metric="revenue"
-          viewAllHref={`/box-office/all?sort=revenue-desc&releaseFrom=${ninetyDaysAgo}&releaseTo=${today}`}
-          emptyMessage="No recent releases with reported revenue yet."
-        />
+        {/* Most-recently-ended holiday window. Title is dynamic so
+            this tile reads "Top Valentine's Releases" through April,
+            "Top Memorial Day Releases" through June, etc. — gives
+            the landing a rotating "fresh" pick distinct from the
+            time-bound tiles above. The View all link goes to the
+            holidays hub so users can compare windows side-by-side. */}
+        {lastWindow && (
+          <Leaderboard
+            icon={Flame}
+            title={`Top ${lastWindow.window.label} Releases`}
+            subtitle={`Lifetime gross — window most recently ended ${lastWindow.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
+            rows={topLastWindow}
+            metric="revenue"
+            viewAllHref="/box-office/holidays"
+          />
+        )}
       </div>
     </div>
   );

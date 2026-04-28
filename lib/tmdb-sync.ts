@@ -30,6 +30,9 @@ export interface TMDBMovieForSync {
   // sub-object on the movie detail response; null for standalone
   // films. Used by /box-office/franchises aggregation.
   belongs_to_collection?: { id: number; name: string; poster_path?: string | null } | null;
+  // TMDB original_language — ISO 639-1 code, e.g. "en", "ko". Drives
+  // the language filter on /box-office/all.
+  original_language?: string | null;
   genres?: { id: number; name: string }[];
   credits?: {
     cast?: TMDBCastForSync[];
@@ -127,6 +130,7 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       status: tmdb.status ?? null,
       tmdbCollectionId: tmdb.belongs_to_collection?.id ?? null,
       tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
+      originalLanguage: tmdb.original_language ?? null,
       cachedAt: new Date(),
     },
     update: {
@@ -148,6 +152,7 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       status: tmdb.status ?? null,
       tmdbCollectionId: tmdb.belongs_to_collection?.id ?? null,
       tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
+      originalLanguage: tmdb.original_language ?? null,
       cachedAt: new Date(),
     },
     select: { id: true },

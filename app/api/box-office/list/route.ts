@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
     const sort = parseSort(sp.get("sort"));
     const genreIds = parseIntList(sp.get("genres"));
     const mpaCodes = (sp.get("mpa") ?? "").split(",").filter(Boolean);
+    const languages = (sp.get("languages") ?? "").split(",").filter(Boolean);
     const releaseFrom = sp.get("releaseFrom");
     const releaseTo = sp.get("releaseTo");
     const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
@@ -79,6 +80,7 @@ export async function GET(req: NextRequest) {
         sort,
         genreIds,
         mpaCodes,
+        languages,
         releaseFrom,
         releaseTo,
         limit,
@@ -113,6 +115,9 @@ export async function GET(req: NextRequest) {
     }
     if (mpaCodes.length > 0) {
       where.mpaaRating = { in: mpaCodes };
+    }
+    if (languages.length > 0) {
+      where.originalLanguage = { in: languages };
     }
     if (releaseFrom || releaseTo) {
       const releaseDate: { gte?: string; lte?: string } = {};
@@ -152,12 +157,13 @@ async function runComputedSort(opts: {
   sort: "profit-desc" | "profit-asc" | "roi-desc" | "roi-asc";
   genreIds: number[];
   mpaCodes: string[];
+  languages: string[];
   releaseFrom: string | null;
   releaseTo: string | null;
   limit: number;
   offset: number;
 }): Promise<NextResponse> {
-  const { sort, genreIds, mpaCodes, releaseFrom, releaseTo, limit, offset } = opts;
+  const { sort, genreIds, mpaCodes, languages, releaseFrom, releaseTo, limit, offset } = opts;
 
   // Both profit and ROI need real revenue and a real budget. ROI
   // additionally needs the higher ROI_MIN_BUDGET floor so a $5K film
@@ -174,6 +180,10 @@ async function runComputedSort(opts: {
   if (mpaCodes.length > 0) {
     const placeholders = mpaCodes.map((c) => push(c)).join(",");
     whereClauses.push(`m.mpaa_rating IN (${placeholders})`);
+  }
+  if (languages.length > 0) {
+    const placeholders = languages.map((l) => push(l)).join(",");
+    whereClauses.push(`m.original_language IN (${placeholders})`);
   }
   if (genreIds.length > 0) {
     const placeholders = genreIds.map((g) => push(g)).join(",");

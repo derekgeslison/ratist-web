@@ -138,6 +138,37 @@ export const RELEASE_WINDOWS: ReleaseWindow[] = [
   { key: "valentines",   label: "Valentine's Window",   start: { month: 2, day: 7 },  end: { month: 2, day: 17 } },
 ];
 
+/** Most recently ended holiday window relative to `now`. Used by the
+ *  /box-office landing page to pick a "freshest holiday" tile that
+ *  rotates through the year — January through mid-February shows
+ *  Christmas, late Feb through May shows Valentine's, etc.
+ *
+ *  Returns the window plus the year of its most recent end (so
+ *  callers can label the tile with "ended Feb 17, 2026" rather than
+ *  the static window definition). Each window's end is checked
+ *  against both the current year and the prior year — windows that
+ *  haven't ended yet this year (e.g. Christmas in February) are
+ *  represented by their previous-year occurrence.
+ */
+export function getMostRecentlyEndedWindow(now: Date = new Date()): {
+  window: ReleaseWindow;
+  endDate: Date;
+} | null {
+  const candidates: Array<{ window: ReleaseWindow; endDate: Date }> = [];
+  const year = now.getUTCFullYear();
+  for (const w of RELEASE_WINDOWS) {
+    for (const candidateYear of [year, year - 1]) {
+      // 23:59:59 UTC on the last day so a window viewed on its end
+      // date still reads as "active", not "ended".
+      const endDate = new Date(Date.UTC(candidateYear, w.end.month - 1, w.end.day, 23, 59, 59));
+      if (endDate < now) candidates.push({ window: w, endDate });
+    }
+  }
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.endDate.getTime() - a.endDate.getTime());
+  return candidates[0];
+}
+
 /** Returns the matching ReleaseWindow for a release date string, or
  *  null if it doesn't fall in any tracked window. Accepts the YYYY-MM-DD
  *  string format Movie.releaseDate uses. */
