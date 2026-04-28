@@ -43,8 +43,10 @@ export default async function BoxOfficeRecentPage() {
     timeZone: "UTC",
   });
 
-  const [last7, last30, thisMonth, last90] = await Promise.all([
-    getTopGrossingByDateRange(daysAgo(7), today, 10),
+  // Last 7 Days was originally on this page but ended up duplicating
+  // most of the calendar-month tile early in the month and showing
+  // empty late in the month — not useful as a separate leaderboard.
+  const [last30, thisMonth, last90] = await Promise.all([
     getTopGrossingByDateRange(daysAgo(30), today, 10),
     getTopGrossingByDateRange(monthStart, today, 10),
     getTopGrossingByDateRange(daysAgo(90), today, 10),
@@ -83,15 +85,6 @@ export default async function BoxOfficeRecentPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        <Leaderboard
-          icon={Flame}
-          title="Last 7 Days"
-          subtitle="Released in the past week"
-          rows={last7}
-          metric="revenue"
-          viewAllHref={`/box-office/all?sort=revenue-desc&releaseFrom=${daysAgo(7)}&releaseTo=${today}`}
-          emptyMessage="No reported revenue yet — TMDB lags new releases."
-        />
         <Leaderboard
           icon={Calendar}
           title={monthLabel}

@@ -305,10 +305,38 @@ model Movie {
   blogPostMedia     BlogPostMedia[]
   awards            AwardNomination[] @relation("movieAwards")
   awardForWork      AwardNomination[] @relation("forWorkMovie")
+  studios           MovieStudio[]
 
   @@index([tmdbCollectionId])
   @@index([originalLanguage])
   @@map("movies")
+}
+
+// TMDB production_companies — drives /box-office/studios. Stored
+// keyed by TMDB id so the upsert path doesn't need to dedup by
+// name (TMDB has duplicate names across regions for some studios,
+// but the ids are stable).
+model Studio {
+  id            Int           @id  // TMDB production_company id
+  name          String
+  logoPath      String?       @map("logo_path")
+  originCountry String?       @map("origin_country")
+
+  movies        MovieStudio[]
+
+  @@map("studios")
+}
+
+model MovieStudio {
+  movieId  String @map("movie_id")
+  studioId Int    @map("studio_id")
+
+  movie  Movie  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, studioId])
+  @@index([studioId])
+  @@map("movie_studios")
 }
 
 model Genre {

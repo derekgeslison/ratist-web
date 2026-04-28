@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { TrendingUp, DollarSign, BarChart3, AlertTriangle, Coins, Calendar, Filter, Info, Layers, Users, Clapperboard, Flame, Sparkles, Film } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, AlertTriangle, Coins, Calendar, Filter, Info, Layers, Users, Clapperboard, Flame, Sparkles, Film, Building2 } from "lucide-react";
 import {
   getTopGrossing,
   getHighestBudget,
@@ -149,6 +149,13 @@ export default async function BoxOfficePage() {
         >
           <Film className="w-4 h-4" />
           Franchises
+        </Link>
+        <Link
+          href="/box-office/studios"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <Building2 className="w-4 h-4" />
+          Studios
         </Link>
         <Link
           href="/box-office/recent"

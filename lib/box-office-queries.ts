@@ -234,6 +234,86 @@ export async function getTopFranchises(limit: number = 50): Promise<FranchiseRow
   }));
 }
 
+// ─── Studios (TMDB production_companies) ───────────────────────────────
+
+export interface StudioRow {
+  studioId: number;
+  name: string;
+  logoPath: string | null;
+  originCountry: string | null;
+  filmCount: number;
+  totalRevenue: number;
+}
+
+/** Top grossing studios by total lifetime gross across every movie
+ *  the studio is credited on. Studios are many-per-movie, so a film
+ *  with co-producers contributes its full gross to each studio's
+ *  total — this matches Box Office Mojo's convention and is the most
+ *  defensible aggregation given TMDB doesn't carry per-studio splits.
+ *
+ *  HAVING COUNT >= 3 cuts one-off shell companies that TMDB sometimes
+ *  registers for a single film. */
+export async function getTopStudios(limit: number = 50): Promise<StudioRow[]> {
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    studio_id: number;
+    name: string;
+    logo_path: string | null;
+    origin_country: string | null;
+    film_count: bigint;
+    total_revenue: bigint;
+  }>>(
+    `SELECT
+       s.id            AS studio_id,
+       s.name          AS name,
+       s.logo_path     AS logo_path,
+       s.origin_country AS origin_country,
+       COUNT(DISTINCT m.id)::bigint AS film_count,
+       SUM(m.revenue)::bigint AS total_revenue
+       FROM studios s
+       JOIN movie_studios ms ON ms.studio_id = s.id
+       JOIN movies m ON m.id = ms.movie_id AND m.revenue >= $1
+      GROUP BY s.id, s.name, s.logo_path, s.origin_country
+     HAVING COUNT(DISTINCT m.id) >= 3
+      ORDER BY total_revenue DESC
+      LIMIT $2`,
+    Number(BOX_OFFICE_FLOOR),
+    limit,
+  );
+
+  return rows.map((r) => ({
+    studioId: r.studio_id,
+    name: r.name,
+    logoPath: r.logo_path,
+    originCountry: r.origin_country,
+    filmCount: Number(r.film_count),
+    totalRevenue: Number(r.total_revenue),
+  }));
+}
+
+/** All movies a studio is credited on, ordered by revenue desc. Used
+ *  by the /box-office/studios/[id] detail page. Returns the studio's
+ *  metadata alongside the movie list. */
+export async function getStudioMovies(studioId: number): Promise<{
+  studio: { name: string; logoPath: string | null; originCountry: string | null } | null;
+  movies: BoxOfficeRow[];
+}> {
+  const [studio, junctionRows] = await Promise.all([
+    prisma.studio.findUnique({
+      where: { id: studioId },
+      select: { name: true, logoPath: true, originCountry: true },
+    }),
+    prisma.movieStudio.findMany({
+      where: { studioId, movie: { revenue: { gte: BOX_OFFICE_FLOOR } } },
+      orderBy: { movie: { revenue: "desc" } },
+      select: { movie: { select: BASE_SELECT } },
+    }),
+  ]);
+  return {
+    studio,
+    movies: junctionRows.map((r) => toBoxOfficeRow(r.movie)),
+  };
+}
+
 /** All movies in a single franchise, ordered by release date. Used by
  *  the /box-office/franchises/[id] detail page. */
 export async function getFranchiseMovies(collectionId: number): Promise<{

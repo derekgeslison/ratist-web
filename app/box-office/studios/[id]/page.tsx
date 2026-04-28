@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { Film, Info } from "lucide-react";
-import { getFranchiseMovies } from "@/lib/box-office-queries";
+import { Building2, Info } from "lucide-react";
+import { getStudioMovies } from "@/lib/box-office-queries";
 import { formatBoxOffice, formatROI } from "@/lib/box-office";
 
 export const revalidate = 21600;
@@ -14,27 +14,28 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const collectionId = parseInt(id, 10);
-  if (Number.isNaN(collectionId)) return { title: "Franchise" };
-  const data = await getFranchiseMovies(collectionId);
-  if (!data.name) return { title: "Franchise" };
+  const studioId = parseInt(id, 10);
+  if (Number.isNaN(studioId)) return { title: "Studio" };
+  const data = await getStudioMovies(studioId);
+  if (!data.studio) return { title: "Studio" };
   return {
-    title: `${data.name} — Box Office`,
-    description: `Box office breakdown for the ${data.name} franchise: lifetime gross, budget, and ROI for every entry.`,
-    alternates: { canonical: `/box-office/franchises/${collectionId}` },
+    title: `${data.studio.name} — Box Office`,
+    description: `Box office breakdown for ${data.studio.name}: lifetime gross, budget, and ROI for every credited film.`,
+    alternates: { canonical: `/box-office/studios/${studioId}` },
   };
 }
 
-export default async function FranchiseDetailPage({ params }: Props) {
+export default async function StudioDetailPage({ params }: Props) {
   const { id } = await params;
-  const collectionId = parseInt(id, 10);
-  if (Number.isNaN(collectionId)) notFound();
+  const studioId = parseInt(id, 10);
+  if (Number.isNaN(studioId)) notFound();
 
-  const { name, movies } = await getFranchiseMovies(collectionId);
-  if (!name || movies.length === 0) notFound();
+  const { studio, movies } = await getStudioMovies(studioId);
+  if (!studio || movies.length === 0) notFound();
 
-  // Totals for the header strip. Skip null revenues so half-tracked
-  // franchises still report a meaningful sum (rather than NaN).
+  // Totals — same approach as franchise detail. revenue and budget
+  // are skipped where null so a partial dataset still produces a
+  // meaningful headline number.
   const totalRevenue = movies.reduce((acc, m) => acc + (m.revenue ?? 0), 0);
   const totalBudget = movies.reduce((acc, m) => acc + (m.budget ?? 0), 0);
   const filmsWithRevenue = movies.filter((m) => m.revenue != null).length;
@@ -44,14 +45,27 @@ export default async function FranchiseDetailPage({ params }: Props) {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <Film className="w-6 h-6 text-[var(--ratist-red)]" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">{name}</h1>
+          {studio.logoPath ? (
+            <div className="relative w-10 h-10 rounded bg-[var(--background)] flex items-center justify-center overflow-hidden">
+              <Image
+                src={`https://image.tmdb.org/t/p/w92${studio.logoPath}`}
+                alt=""
+                fill
+                sizes="40px"
+                className="object-contain p-1"
+              />
+            </div>
+          ) : (
+            <Building2 className="w-6 h-6 text-[var(--ratist-red)]" />
+          )}
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">{studio.name}</h1>
         </div>
         <p className="text-sm text-[var(--foreground-muted)]">
-          Franchise lifetime box office.
+          Studio lifetime box office.
+          {studio.originCountry ? ` Based in ${studio.originCountry}.` : ""}
           {" "}
-          <Link href="/box-office/franchises" className="text-[var(--ratist-red)] hover:underline">
-            ← Back to franchises
+          <Link href="/box-office/studios" className="text-[var(--ratist-red)] hover:underline">
+            ← Back to studios
           </Link>
         </p>
       </div>
@@ -70,7 +84,7 @@ export default async function FranchiseDetailPage({ params }: Props) {
           hint={filmsWithBudget < movies.length ? `${filmsWithBudget} of ${movies.length} reported` : undefined}
         />
         <Stat
-          label="Franchise ROI"
+          label="Studio ROI"
           value={
             totalBudget > 0 && totalRevenue > 0
               ? formatROI(totalRevenue / totalBudget) ?? "—"
@@ -84,9 +98,9 @@ export default async function FranchiseDetailPage({ params }: Props) {
         <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
           <Info className="w-4 h-4 text-[var(--foreground-muted)] shrink-0 mt-0.5" />
           <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-            Some entries are missing revenue or budget in TMDB and are excluded
-            from the totals above. Franchise totals are not inflation-adjusted —
-            older entries skew lower in absolute dollars.
+            Some films are missing revenue or budget in TMDB and are excluded
+            from the totals above. Co-produced films contribute fully to each
+            credited studio's totals.
           </p>
         </div>
       ) : null}

@@ -33,6 +33,14 @@ export interface TMDBMovieForSync {
   // TMDB original_language — ISO 639-1 code, e.g. "en", "ko". Drives
   // the language filter on /box-office/all.
   original_language?: string | null;
+  // TMDB production_companies — drives /box-office/studios. Stored
+  // via Studio + MovieStudio junction.
+  production_companies?: {
+    id: number;
+    name: string;
+    logo_path?: string | null;
+    origin_country?: string | null;
+  }[];
   genres?: { id: number; name: string }[];
   credits?: {
     cast?: TMDBCastForSync[];
@@ -173,6 +181,36 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
     await prisma.movieGenre.deleteMany({ where: { movieId: movie.id } });
     await prisma.movieGenre.createMany({
       data: tmdb.genres.map((g) => ({ movieId: movie.id, genreId: g.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  // Upsert studios + junction. Mirrors the genre flow: upsert each
+  // Studio row by its TMDB id, then refresh the junction by
+  // delete-and-insert. Skip when the array is empty so we don't
+  // wipe an existing junction if a fresh sync omits the field.
+  if (tmdb.production_companies && tmdb.production_companies.length > 0) {
+    await Promise.all(
+      tmdb.production_companies.map((s) =>
+        prisma.studio.upsert({
+          where: { id: s.id },
+          create: {
+            id: s.id,
+            name: s.name,
+            logoPath: s.logo_path ?? null,
+            originCountry: s.origin_country ?? null,
+          },
+          update: {
+            name: s.name,
+            logoPath: s.logo_path ?? null,
+            originCountry: s.origin_country ?? null,
+          },
+        }),
+      ),
+    );
+    await prisma.movieStudio.deleteMany({ where: { movieId: movie.id } });
+    await prisma.movieStudio.createMany({
+      data: tmdb.production_companies.map((s) => ({ movieId: movie.id, studioId: s.id })),
       skipDuplicates: true,
     });
   }
