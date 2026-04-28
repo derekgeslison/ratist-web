@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Highest grossing movies released during major holiday windows: Memorial Day, July 4, Labor Day, Halloween, Thanksgiving, Christmas, and Valentine's Day.",
   alternates: { canonical: "/box-office/holidays" },
+  openGraph: {
+    title: "Holiday Box Office",
+    description: "Top grossing films released into each major holiday window.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Holiday+Box+Office&subtitle=Top+grossing+per+holiday+window", width: 800, height: 520 }],
+  },
 };
 
 // Window queries are heavier (in-app filter on top of an over-fetched

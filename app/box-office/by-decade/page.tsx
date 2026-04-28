@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   description:
     "Highest grossing movies of the 1980s, 1990s, 2000s, 2010s, and 2020s. See how box-office champions changed across eras.",
   alternates: { canonical: "/box-office/by-decade" },
+  openGraph: {
+    title: "Box Office by Decade",
+    description: "Top-grossing films of every decade since the 1970s.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Box+Office+by+Decade&subtitle=Top+grossing+across+every+era", width: 800, height: 520 }],
+  },
 };
 
 // Same caching cadence as the landing page — the underlying data

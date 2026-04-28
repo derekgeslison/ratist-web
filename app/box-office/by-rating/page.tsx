@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   description:
     "Highest grossing films by MPA content rating: G, PG, PG-13, R, and NC-17.",
   alternates: { canonical: "/box-office/by-rating" },
+  openGraph: {
+    title: "Box Office by MPA Rating",
+    description: "Top grossing films within each MPA content rating.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Box+Office+by+MPA+Rating&subtitle=Top+grossing+per+content+rating", width: 800, height: 520 }],
+  },
 };
 
 export const revalidate = 21600;

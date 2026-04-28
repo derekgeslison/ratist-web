@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Highest-grossing production studios by total lifetime box office across every credited film.",
   alternates: { canonical: "/box-office/studios" },
+  openGraph: {
+    title: "Top Grossing Studios of All Time",
+    description: "Lifetime box office summed across every film a studio is credited on.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Studios&subtitle=Lifetime+gross+per+studio", width: 800, height: 520 }],
+  },
 };
 
 export const revalidate = 21600;

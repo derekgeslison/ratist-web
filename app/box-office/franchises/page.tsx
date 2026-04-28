@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Highest-grossing movie franchises by total lifetime box office across every entry in the series.",
   alternates: { canonical: "/box-office/franchises" },
+  openGraph: {
+    title: "Top Grossing Franchises of All Time",
+    description: "Lifetime box office summed across every film in each franchise.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Franchises&subtitle=Lifetime+gross+per+series", width: 800, height: 520 }],
+  },
 };
 
 export const revalidate = 21600;

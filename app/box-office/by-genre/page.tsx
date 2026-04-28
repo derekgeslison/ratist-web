@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Highest grossing films by genre: action, drama, comedy, horror, sci-fi, animation, and more.",
   alternates: { canonical: "/box-office/by-genre" },
+  openGraph: {
+    title: "Box Office by Genre",
+    description: "Top grossing films within each major genre.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Box+Office+by+Genre&subtitle=Top+grossing+per+major+genre", width: 800, height: 520 }],
+  },
 };
 
 export const revalidate = 21600;

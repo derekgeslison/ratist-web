@@ -2,10 +2,15 @@ import { ImageResponse } from "next/og";
 import { getLogoBase64 } from "@/lib/og-helpers";
 import {
   getTopGrossing,
+  getTopProfit,
+  getROIRanking,
+  getHighestBudget,
   getFranchiseMovies,
   getStudioMovies,
+  getTopGrossingByDateRange,
+  formatDateYMD,
 } from "@/lib/box-office-queries";
-import { formatBoxOffice, type BoxOfficeRow } from "@/lib/box-office";
+import { formatBoxOffice, formatROI, type BoxOfficeRow } from "@/lib/box-office";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +27,13 @@ export const dynamic = "force-dynamic";
  *   - year     (?year=YYYY)            /box-office/year/YYYY
  *   - franchise (?id=N)                /box-office/franchises/N
  *   - studio   (?id=N)                 /box-office/studios/N
+ *   - topGrossing                      /box-office/all?sort=revenue-desc
+ *   - topProfit                        /box-office/all?sort=profit-desc
+ *   - bestROI                          /box-office/all?sort=roi-desc
+ *   - worstROI                         /box-office/all?sort=roi-asc
+ *   - highestBudget                    /box-office/all?sort=budget-desc
+ *   - recent                           /box-office/recent
+ *   - branded  (?title=…&subtitle=…)   aggregation hubs (no rows)
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -32,7 +44,45 @@ export async function GET(request: Request) {
     let subtitle = "Lifetime grosses, profits, and ROI";
     let topRows: Array<{ title: string; posterPath: string | null; year: string; metric: string }> = [];
 
-    if (page === "year") {
+    if (page === "topGrossing") {
+      title = "Top Grossing of All Time";
+      subtitle = "Lifetime worldwide gross";
+      topRows = (await getTopGrossing(5)).map(toRow);
+    } else if (page === "topProfit") {
+      title = "Biggest Profit of All Time";
+      subtitle = "Lifetime gross minus production budget";
+      topRows = (await getTopProfit(5)).map(toProfitRow);
+    } else if (page === "bestROI") {
+      title = "Best Return on Investment";
+      subtitle = "Revenue ÷ budget · min $100K";
+      topRows = (await getROIRanking("best", 5)).map(toROIRow);
+    } else if (page === "worstROI") {
+      title = "Biggest Box Office Bombs";
+      subtitle = "Worst ROI · min $100K budget";
+      topRows = (await getROIRanking("worst", 5)).map(toROIRow);
+    } else if (page === "highestBudget") {
+      title = "Highest Production Budgets";
+      subtitle = "Most expensive films ever made";
+      topRows = (await getHighestBudget(5)).map(toBudgetRow);
+    } else if (page === "recent") {
+      const now = new Date();
+      const ninetyDaysAgo = formatDateYMD(new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000));
+      title = "Recent Release Box Office";
+      subtitle = "Top grossing of the last 90 days";
+      topRows = (await getTopGrossingByDateRange(ninetyDaysAgo, formatDateYMD(now), 5)).map(toRow);
+    } else if (page === "branded") {
+      // Hub-style OG with no movie rows — used by aggregation hubs
+      // (by-decade, by-genre, etc.) where no single top-5 list
+      // would represent the page well. Title + subtitle come from
+      // the URL so each hub sets its own copy without a new branch.
+      title = searchParams.get("title") ?? "Box Office Insights";
+      subtitle = searchParams.get("subtitle") ?? "Lifetime grosses, profits, and ROI";
+      // topRows stays empty — the renderer below already handles
+      // the no-rows case with a centered placeholder, so we just
+      // need to make sure that placeholder reads as branded rather
+      // than "no data". Use an empty subtitle when none was provided
+      // so the layout doesn't break.
+    } else if (page === "year") {
       const yearParam = searchParams.get("year") ?? "";
       if (!/^\d{4}$/.test(yearParam)) return new Response("Bad year", { status: 400 });
       title = `Highest Grossing of ${yearParam}`;
@@ -102,7 +152,10 @@ export async function GET(request: Request) {
           </span>
           <span style={{ color: "#888", fontSize: 16, marginBottom: 22 }}>{subtitle}</span>
 
-          {/* Top rows. Each row: rank, mini poster, title, metric. */}
+          {/* Top rows. Each row: rank, mini poster, title, metric.
+              Branded variant skips rows entirely — it's the hub
+              fallback where no single top-5 list represents the
+              destination page. */}
           {topRows.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
               {topRows.map((m, i) => (
@@ -140,6 +193,12 @@ export async function GET(request: Request) {
                 </div>
               ))}
             </div>
+          ) : page === "branded" ? (
+            <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", gap: 16 }}>
+              <span style={{ color: "#ef3b36", fontSize: 16, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase" as const }}>
+                Lifetime Box Office
+              </span>
+            </div>
           ) : (
             <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center" }}>
               <span style={{ color: "#444", fontSize: 18 }}>No tracked films yet</span>
@@ -165,6 +224,41 @@ function toRow(m: BoxOfficeRow): { title: string; posterPath: string | null; yea
     posterPath: m.posterPath,
     year: m.releaseDate?.slice(0, 4) ?? "—",
     metric: formatBoxOffice(m.revenue) ?? "—",
+  };
+}
+
+// Profit can legitimately be negative — render the loss with a minus
+// prefix so the OG image clearly shows "−$200M" type bombs.
+function toProfitRow(m: BoxOfficeRow): { title: string; posterPath: string | null; year: string; metric: string } {
+  let metric = "—";
+  if (m.profit != null) {
+    metric = m.profit < 0
+      ? `−${formatBoxOffice(Math.abs(m.profit)) ?? ""}`
+      : formatBoxOffice(m.profit) ?? "—";
+  }
+  return {
+    title: m.title,
+    posterPath: m.posterPath,
+    year: m.releaseDate?.slice(0, 4) ?? "—",
+    metric,
+  };
+}
+
+function toROIRow(m: BoxOfficeRow): { title: string; posterPath: string | null; year: string; metric: string } {
+  return {
+    title: m.title,
+    posterPath: m.posterPath,
+    year: m.releaseDate?.slice(0, 4) ?? "—",
+    metric: formatROI(m.roi) ?? "—",
+  };
+}
+
+function toBudgetRow(m: BoxOfficeRow): { title: string; posterPath: string | null; year: string; metric: string } {
+  return {
+    title: m.title,
+    posterPath: m.posterPath,
+    year: m.releaseDate?.slice(0, 4) ?? "—",
+    metric: formatBoxOffice(m.budget) ?? "—",
   };
 }
 

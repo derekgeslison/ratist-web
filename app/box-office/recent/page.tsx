@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   description:
     "Top-grossing movies released in the past week, month, and 90 days. Lifetime worldwide gross to date — TMDB updates revenue figures gradually as theatrical runs unfold.",
   alternates: { canonical: "/box-office/recent" },
+  openGraph: {
+    title: "Recent Release Box Office",
+    description: "Top-grossing recent releases over the past 90 days.",
+    images: [{ url: "/api/og/box-office?page=recent", width: 800, height: 520 }],
+  },
 };
 
 // Recent windows update faster than the rest of /box-office (their

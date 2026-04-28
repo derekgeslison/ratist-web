@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Highest-grossing actors by lifetime career box office. Sums every credited role across all of an actor's films.",
   alternates: { canonical: "/box-office/by-actor" },
+  openGraph: {
+    title: "Top Grossing Actors of All Time",
+    description: "Lifetime career box office across every credited role.",
+    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Actors&subtitle=Lifetime+career+box+office", width: 800, height: 520 }],
+  },
 };
 
 export const revalidate = 21600;
