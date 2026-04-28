@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, X, Loader2, TrendingUp, Info } from "lucide-react";
+import { Filter, X, Loader2, TrendingUp, Info, ChevronDown, ChevronUp } from "lucide-react";
 import {
   formatBoxOffice,
   formatROI,
@@ -112,6 +112,12 @@ export default function BoxOfficeListClient({ genres }: Props) {
     const m = searchParams.get("dateMode");
     return m === "date" ? "date" : "year";
   });
+  // Collapsed by default — most users land via a "View all →" link
+  // from a leaderboard tile and just want to scroll the list. The
+  // filters are a power-user surface; keep them out of the way until
+  // the user opts in. The active-filter count stays visible in the
+  // collapsed header so it's clear when filters are already applied.
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const [results, setResults] = useState<BoxOfficeRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -260,18 +266,32 @@ export default function BoxOfficeListClient({ genres }: Props) {
         </p>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar. The header (filters chip + sort dropdown) is
+          always visible — the body is collapsible so the page leads
+          with the result list, not a wall of filter chips. */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 mb-6 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Filter className="w-4 h-4" /> Filters
-          </div>
+          <button
+            onClick={() => setFiltersExpanded((v) => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors"
+            aria-expanded={filtersExpanded}
+            aria-label={filtersExpanded ? "Collapse filters" : "Expand filters"}
+          >
+            <Filter className="w-4 h-4" />
+            <span>Filters</span>
+            {filterCount > 0 && (
+              <span className="bg-[var(--ratist-red)] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 tabular-nums">
+                {filterCount}
+              </span>
+            )}
+            {filtersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
           {filterCount > 0 && (
             <button
               onClick={clearAll}
               className="text-xs text-[var(--foreground-muted)] hover:text-white inline-flex items-center gap-1"
             >
-              <X className="w-3 h-3" /> Clear all ({filterCount})
+              <X className="w-3 h-3" /> Clear all
             </button>
           )}
           <div className="ml-auto">
@@ -287,6 +307,9 @@ export default function BoxOfficeListClient({ genres }: Props) {
             </select>
           </div>
         </div>
+
+        {filtersExpanded && (
+        <div className="space-y-4 pt-2 border-t border-[var(--border)]">
 
         {/* MPA pills */}
         <div className="flex flex-wrap items-center gap-2">
@@ -436,6 +459,8 @@ export default function BoxOfficeListClient({ genres }: Props) {
             </button>
           )}
         </div>
+        </div>
+        )}
       </div>
 
       {/* Result count */}
