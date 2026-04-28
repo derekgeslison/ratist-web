@@ -439,61 +439,73 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     }
   }
 
-  const companion = await prisma.watchCompanion.upsert({
-    where: { tmdbId_mediaType: { tmdbId, mediaType } },
-    create: {
-      tmdbId,
-      mediaType,
-      title,
-      runtimeSeconds,
-      seasonsGenerated: newSeasonsGenerated,
-      status: "draft",
-      generatedBy: generatedByUserId,
-      lastGeneratedAt: new Date(),
-      // Prisma's InputJsonValue rejects Record<string, unknown> because
-      // unknown could in principle include non-JSON values. Cast through
-      // unknown to satisfy the type checker — the values we put in are
-      // always JSON-shaped (strings, nested objects with the same).
-      ...(nextRecaps !== undefined ? { recaps: nextRecaps as unknown as object } : {}),
-    },
-    update: {
-      title,
-      runtimeSeconds: runtimeSeconds ?? existing?.runtimeSeconds ?? null,
-      seasonsGenerated: newSeasonsGenerated,
-      lastGeneratedAt: new Date(),
-      // Prisma's InputJsonValue rejects Record<string, unknown> because
-      // unknown could in principle include non-JSON values. Cast through
-      // unknown to satisfy the type checker — the values we put in are
-      // always JSON-shaped (strings, nested objects with the same).
-      ...(nextRecaps !== undefined ? { recaps: nextRecaps as unknown as object } : {}),
-    },
-  });
-
-  // Scoped wipe — only the season being generated. Each content row carries
-  // a seasonNumber so we can target it reliably. For movies (season === null)
-  // the wipe is a simple nuclear-by-companion since there's only ever one
-  // generation. The prior implementation's nuclear wipe is what killed
-  // Succession S1 when S2 got generated — don't bring it back.
+  // Wrap upsert + wipe + content inserts in a single transaction so a
+  // mid-write failure (Vercel timeout, DB blip, anything) rolls the
+  // companion back to its prior state instead of leaving a half-empty
+  // row visible to users. Without this, regen would wipe content first
+  // and an aborted insert step could publish an empty cast tab.
   //
-  // Episode mode skips the wipe entirely — it's strictly additive over
-  // whatever earlier episodes already populated for this season.
-  if (!isNew && !isEpisodeMode) {
-    if (mediaType === "movie") {
-      await Promise.all([
-        prisma.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
-        prisma.companionRelationship.deleteMany({ where: { companionId: companion.id } }),
-        prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id } }),
-        prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id } }),
-      ]);
-    } else if (season !== null) {
-      await Promise.all([
-        prisma.companionCharacter.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
-        prisma.companionRelationship.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
-        prisma.companionTimelineEvent.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
-        prisma.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
-      ]);
-    }
-  }
+  // 60s timeout because big seasons can do hundreds of writes (chars +
+  // actors + facts + rels + timeline + glossary). The default 5s would
+  // false-fail on large works. maxWait is the queue-time budget — 5s
+  // means we wait up to 5s for an open connection before erroring.
+  const txResult = await prisma.$transaction(
+    async (tx) => {
+      const companion = await tx.watchCompanion.upsert({
+        where: { tmdbId_mediaType: { tmdbId, mediaType } },
+        create: {
+          tmdbId,
+          mediaType,
+          title,
+          runtimeSeconds,
+          seasonsGenerated: newSeasonsGenerated,
+          status: "draft",
+          generatedBy: generatedByUserId,
+          lastGeneratedAt: new Date(),
+          // Prisma's InputJsonValue rejects Record<string, unknown> because
+          // unknown could in principle include non-JSON values. Cast through
+          // unknown to satisfy the type checker — the values we put in are
+          // always JSON-shaped (strings, nested objects with the same).
+          ...(nextRecaps !== undefined ? { recaps: nextRecaps as unknown as object } : {}),
+        },
+        update: {
+          title,
+          runtimeSeconds: runtimeSeconds ?? existing?.runtimeSeconds ?? null,
+          seasonsGenerated: newSeasonsGenerated,
+          lastGeneratedAt: new Date(),
+          // Prisma's InputJsonValue rejects Record<string, unknown> because
+          // unknown could in principle include non-JSON values. Cast through
+          // unknown to satisfy the type checker — the values we put in are
+          // always JSON-shaped (strings, nested objects with the same).
+          ...(nextRecaps !== undefined ? { recaps: nextRecaps as unknown as object } : {}),
+        },
+      });
+
+      // Scoped wipe — only the season being generated. Each content row carries
+      // a seasonNumber so we can target it reliably. For movies (season === null)
+      // the wipe is a simple nuclear-by-companion since there's only ever one
+      // generation. The prior implementation's nuclear wipe is what killed
+      // Succession S1 when S2 got generated — don't bring it back.
+      //
+      // Episode mode skips the wipe entirely — it's strictly additive over
+      // whatever earlier episodes already populated for this season.
+      if (!isNew && !isEpisodeMode) {
+        if (mediaType === "movie") {
+          await Promise.all([
+            tx.companionCharacter.deleteMany({ where: { companionId: companion.id } }),
+            tx.companionRelationship.deleteMany({ where: { companionId: companion.id } }),
+            tx.companionTimelineEvent.deleteMany({ where: { companionId: companion.id } }),
+            tx.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id } }),
+          ]);
+        } else if (season !== null) {
+          await Promise.all([
+            tx.companionCharacter.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+            tx.companionRelationship.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+            tx.companionTimelineEvent.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+            tx.companionGlossaryTerm.deleteMany({ where: { companionId: companion.id, seasonNumber: season } }),
+          ]);
+        }
+      }
 
   // Characters first so we have name → id for facts / relationships / timeline.
   // Every content row gets stamped with the seasonNumber being generated (or
@@ -507,7 +519,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   const nameToId = new Map<string, string>();
   let charactersAdded = 0;
   if (isEpisodeMode && season !== null) {
-    const existingChars = await prisma.companionCharacter.findMany({
+    const existingChars = await tx.companionCharacter.findMany({
       where: { companionId: companion.id, seasonNumber: season },
       select: { id: true, name: true },
     });
@@ -563,7 +575,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       visibleAfter: serialize(g.visibleAfter),
     }));
 
-    const char = await prisma.companionCharacter.create({
+    const char = await tx.companionCharacter.create({
       data: {
         companionId: companion.id,
         seasonNumber: season,
@@ -581,7 +593,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     // Write the actors side-table rows. We skip createMany for clarity and
     // because a character typically has 1-3 actors.
     if (actorEntries.length > 0) {
-      await prisma.companionCharacterActor.createMany({
+      await tx.companionCharacterActor.createMany({
         data: actorEntries.map((a, actorIdx) => ({
           characterId: char.id,
           actorName: a.actorName,
@@ -654,7 +666,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     console.warn(`[companion ${companion.id}] ${factsDropped}/${draft.facts.length} facts dropped — characterName didn't resolve.`);
   }
   if (factRows.length > 0) {
-    await prisma.companionFact.createMany({ data: factRows });
+    await tx.companionFact.createMany({ data: factRows });
     factsAdded = factRows.length;
   }
 
@@ -665,7 +677,7 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     const fromId = resolveCharacterId(r.fromName);
     const toId = resolveCharacterId(r.toName);
     if (!fromId || !toId) continue;
-    await prisma.companionRelationship.create({
+    await tx.companionRelationship.create({
       data: {
         companionId: companion.id,
         seasonNumber: season,
@@ -691,14 +703,14 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
       importance: e.importance,
       visibleAfter: serialize(e.visibleAfter),
     }));
-    await prisma.companionTimelineEvent.createMany({ data: events });
+    await tx.companionTimelineEvent.createMany({ data: events });
     timelineAdded = events.length;
   }
 
   // Glossary — preserve most-obscure-first ordering.
   let glossaryAdded = 0;
   if (draft.glossary.length > 0) {
-    await prisma.companionGlossaryTerm.createMany({
+    await tx.companionGlossaryTerm.createMany({
       data: draft.glossary.map((g, idx) => ({
         companionId: companion.id,
         seasonNumber: season,
@@ -711,6 +723,22 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
     });
     glossaryAdded = draft.glossary.length;
   }
+
+      return {
+        companion,
+        charactersAdded,
+        factsAdded,
+        relationshipsAdded,
+        timelineAdded,
+        glossaryAdded,
+      };
+    },
+    {
+      timeout: 60_000,  // 60s — big seasons can do hundreds of writes
+      maxWait: 5_000,   // 5s queue-time budget for an open connection
+    },
+  );
+  const { companion, charactersAdded, factsAdded, relationshipsAdded, timelineAdded, glossaryAdded } = txResult;
 
   // Upsert the airing-season tracker. Initial airing gen seeds the row
   // with status='airing' and episodesGenerated set to the eligible-episodes
