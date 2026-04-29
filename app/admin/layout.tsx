@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, ScrollText,
   Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb, Cpu,
-  MonitorPlay, ExternalLink,
+  MonitorPlay, ExternalLink, Mail,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -33,6 +33,7 @@ interface StatsQueues {
   ideas?: number;
   reports?: number;
   feedback?: number;
+  contact?: number;
   fraud?: number;
   aiFlagged?: number;
 }
@@ -60,6 +61,7 @@ const SUB_TABS: Record<string, SubTab[]> = {
   community: [
     { label: "Moderation", icon: Flag, href: "/admin/moderation", pathPrefix: "/admin/moderation", countKey: "reports" },
     { label: "Feedback", icon: MessageCircle, href: "/admin/feedback", pathPrefix: "/admin/feedback", countKey: "feedback" },
+    { label: "Contact", icon: Mail, href: "/admin/contact", pathPrefix: "/admin/contact", countKey: "contact" },
     { label: "Fraud", icon: ShieldAlert, href: "/admin/fraud", pathPrefix: "/admin/fraud", countKey: "fraud" },
   ],
   programs: [
@@ -77,7 +79,7 @@ function activeGroup(pathname: string): string {
   if (pathname === "/admin") return "dashboard";
   if (pathname.startsWith("/admin/posts") || pathname.startsWith("/admin/news") || pathname.startsWith("/admin/ideas") || pathname.startsWith("/admin/watch-companions")) return "posts";
   if (pathname.startsWith("/admin/spotlights")) return "spotlights";
-  if (pathname.startsWith("/admin/moderation") || pathname.startsWith("/admin/feedback") || pathname.startsWith("/admin/fraud")) return "community";
+  if (pathname.startsWith("/admin/moderation") || pathname.startsWith("/admin/feedback") || pathname.startsWith("/admin/contact") || pathname.startsWith("/admin/fraud")) return "community";
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/subscriptions")) return "subscriptions";
   if (pathname.startsWith("/admin/oscar-picks") || pathname.startsWith("/admin/movie-club")) return "programs";
