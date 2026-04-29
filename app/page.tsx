@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Swords, Film } from "lucide-react";
+import { Users, Sparkles, Film, TrendingUp, Brain } from "lucide-react";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -21,22 +21,10 @@ import NavEntryRegister from "@/components/NavEntryRegister";
 
 const TOOLS = [
   {
-    icon: Swords,
-    title: "The Matchup",
-    description: "Pick two movies or shows and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
-    href: "/tools/matchup",
-  },
-  {
     icon: Users,
     title: "Shared Cast & Crew",
     description: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share.",
     href: "/tools/shared-cast",
-  },
-  {
-    icon: Film,
-    title: "What Else Do I Know Them From?",
-    description: "Search an actor or director and see only the movies and shows you've personally seen or rated.",
-    href: "/tools/actor-lookup",
   },
   {
     icon: Sparkles,
@@ -44,12 +32,24 @@ const TOOLS = [
     description: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized movie and TV show recommendations.",
     href: "/tools/recommend",
   },
+  {
+    icon: TrendingUp,
+    title: "Box Office Insights",
+    description: "All-time grossers, year-by-year top earners, franchise and studio rankings, ROI champions, and per-decade leaderboards across film history.",
+    href: "/box-office",
+  },
+  {
+    icon: Brain,
+    title: "Cine-Q Trivia",
+    description: "Daily movie trivia with weighted difficulty scoring. Climb the leaderboard, earn badges, and prove you really know your cinema.",
+    href: "/community/cineq",
+  },
 ];
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [popular, topRated, nowPlaying, upcoming, popularShows, trendingMovies, trendingShows, spotlights, recentNews] = await Promise.all([
+  const [popular, topRated, nowPlaying, upcoming, popularShows, trendingMovies, trendingShows, spotlights, recentNews, editorialPosts, recentForumThreads] = await Promise.all([
     getPopularMovies(),
     getTopRatedMovies(Math.floor(Math.random() * 10) + 1),
     getNowPlayingMovies(),
@@ -93,6 +93,25 @@ export default async function HomePage() {
       // Otherwise swap it in for the last item
       return [...recent.slice(0, 5), latestArticle];
     })(),
+    prisma.blogPost.findMany({
+      where: { published: true, publishedAt: { lte: new Date() } },
+      orderBy: { publishedAt: "desc" },
+      take: 6,
+      select: {
+        id: true, slug: true, title: true, excerpt: true,
+        coverImage: true, publishedAt: true, type: true,
+      },
+    }),
+    prisma.forumThread.findMany({
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      take: 5,
+      select: {
+        id: true, slug: true, title: true, threadType: true,
+        viewCount: true, hasSpoilers: true,
+        author: { select: { name: true } },
+        _count: { select: { posts: true } },
+      },
+    }),
   ]);
 
   // Hero carousel: trending movies + shows, interleaved for a balanced mix
@@ -306,6 +325,67 @@ export default async function HomePage() {
           </section>
         )}
 
+        {/* From Our Editors — pulls latest published BlogPost rows
+            (BLOG / MOVIE_MAP / PUNCH_AND_JUDY) with type-coded labels
+            and per-type routes. Surfaces editorial / community-curated
+            content distinct from the trailer/article news rail above. */}
+        {editorialPosts.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">From Our Editors</h2>
+              <Link href="/blog" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
+                View all posts &rarr;
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {editorialPosts.map((p) => {
+                const route =
+                  p.type === "PUNCH_AND_JUDY" ? `/two-thumbs/${p.slug}` :
+                  p.type === "MOVIE_MAP" ? `/movie-maps/${p.slug}` :
+                  `/blog/${p.slug}`;
+                const label =
+                  p.type === "PUNCH_AND_JUDY" ? "Two Thumbs" :
+                  p.type === "MOVIE_MAP" ? "Movie Map" :
+                  "Blog";
+                const labelBg =
+                  p.type === "PUNCH_AND_JUDY" ? "bg-[var(--ratist-red)]/90" :
+                  p.type === "MOVIE_MAP" ? "bg-purple-600/90" :
+                  "bg-blue-600/90";
+                return (
+                  <Link
+                    key={p.id}
+                    href={route}
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--ratist-red)]/50 transition-colors group flex flex-col"
+                  >
+                    <div className="relative aspect-video bg-[var(--surface-2)] overflow-hidden">
+                      {p.coverImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.coverImage} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[var(--foreground-muted)]">
+                          <Film className="w-8 h-8" />
+                        </div>
+                      )}
+                      <div className={`absolute top-2 left-2 ${labelBg} text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded`}>
+                        {label}
+                      </div>
+                    </div>
+                    <div className="p-3 flex-1 flex flex-col gap-1">
+                      <p className="text-sm font-semibold text-white line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">{p.title}</p>
+                      {p.excerpt && <p className="text-xs text-[var(--foreground-muted)] line-clamp-2">{p.excerpt}</p>}
+                      {p.publishedAt && (
+                        <p className="text-[11px] text-[var(--foreground-muted)] mt-auto pt-1">
+                          {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Coming Soon — View All routes to /releases (the
             dedicated release-calendar page) instead of the generic
             /movies filter, so users get the personalized + filterable
@@ -328,23 +408,97 @@ export default async function HomePage() {
         {/* From people you follow */}
         <FollowingFeed />
 
-        {/* The Ratist Method */}
+        {/* Recent Forum Discussions */}
+        {recentForumThreads.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">Recent Forum Discussions</h2>
+              <Link href="/forum" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
+                Visit the forum &rarr;
+              </Link>
+            </div>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/60 overflow-hidden">
+              {recentForumThreads.map((t) => {
+                const typeLabel = t.threadType.charAt(0).toUpperCase() + t.threadType.slice(1);
+                const typeColor =
+                  t.threadType === "debate" ? "text-[var(--ratist-red)]" :
+                  t.threadType === "theory" ? "text-purple-400" :
+                  t.threadType === "poll" ? "text-amber-400" :
+                  t.threadType === "recommendation" ? "text-emerald-400" :
+                  "text-blue-400";
+                return (
+                  <Link
+                    key={t.id}
+                    href={`/forum/t/${t.slug}`}
+                    className="flex items-start gap-3 p-4 hover:bg-[var(--surface-2)] transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-[10px] uppercase tracking-wider font-bold ${typeColor}`}>{typeLabel}</span>
+                        {t.author?.name && (
+                          <span className="text-[11px] text-[var(--foreground-muted)]">by {t.author.name}</span>
+                        )}
+                        {t.hasSpoilers && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-amber-500/90">Spoilers</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-white line-clamp-1">{t.title}</p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-[var(--foreground-muted)] shrink-0 mt-1 whitespace-nowrap">
+                      <span>{t._count.posts} {t._count.posts === 1 ? "reply" : "replies"}</span>
+                      <span className="hidden sm:inline">{t.viewCount} views</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* The Ratist Method — surfaces the actual rating formula and
+            category weights so the home page itself contains substantive
+            original methodology content (rather than only linking to /about). */}
         <section>
-          <div className="bg-[var(--surface)] border-l-4 border-l-[var(--ratist-red)] border border-[var(--border)] rounded-xl p-6">
+          <div className="bg-[var(--surface)] border-l-4 border-l-[var(--ratist-red)] border border-[var(--border)] rounded-xl p-6 sm:p-8">
             <p className="text-xs uppercase tracking-widest text-[var(--ratist-red)] font-semibold mb-2">
               The Ratist Method
             </p>
-            <p className="text-white text-base font-medium mb-2 max-w-3xl">
-              Unlike star ratings, The Ratist scores movies across Story, Style, Emotion, Acting, and Entertainment — weighted by your personal preferences.
+            <h2 className="text-white text-xl sm:text-2xl font-bold mb-3">
+              Five categories. One score that&apos;s actually yours.
+            </h2>
+            <p className="text-[var(--foreground-muted)] text-sm sm:text-base leading-relaxed max-w-3xl mb-5">
+              Most ratings collapse a movie or show into a single thumb or star. We don&apos;t. Every Ratist rating breaks a film down across five weighted categories, plus your gut-feel overall — and the algorithm folds in your personal taste profile, so a 7.2 from someone else isn&apos;t the same 7.2 you&apos;d give it.
             </p>
-            <p className="text-[var(--foreground-muted)] text-sm max-w-2xl mb-4">
-              Your 7.2 isn&apos;t the same as someone else&apos;s. Our algorithm tailors scores to the criteria you care about most, so every rating means something.
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-5">
+              {[
+                { name: "Story & Narrative", weight: 5 },
+                { name: "Production & Style", weight: 3 },
+                { name: "Emotive Effect", weight: 3 },
+                { name: "Acting & Casting", weight: 3 },
+                { name: "Pure Entertainment", weight: 2 },
+              ].map((c) => (
+                <div key={c.name} className="bg-black/30 rounded-lg p-3 border border-[var(--border)]/40">
+                  <p className="text-[11px] uppercase tracking-wider text-[var(--foreground-muted)]">Weight ×{c.weight}</p>
+                  <p className="text-sm font-semibold text-white mt-0.5">{c.name}</p>
+                </div>
+              ))}
+            </div>
+
+            <pre className="text-xs sm:text-sm text-[var(--foreground-muted)] bg-black/40 border border-[var(--border)]/50 rounded-lg p-3 sm:p-4 overflow-x-auto mb-4 font-mono leading-relaxed">
+{`weighted_base  =  ( Story×5  +  Style×3  +  Emotive×3  +  Acting×3  +  Entertainment×2 )  /  16
+ratist_rating  =  ( weighted_base  +  your_overall )  /  2`}
+            </pre>
+
+            <p className="text-[var(--foreground-muted)] text-sm leading-relaxed max-w-3xl mb-4">
+              Each category has required and optional sub-criteria scored 1–10. Story carries the most weight because narrative is the spine of nearly every film; Pure Entertainment carries the least because rewatchability is real, but it&apos;s not why a movie is great. The blend with your overall score keeps the rubric honest — you can love something flawed or admire something cold.
             </p>
+
             <Link
               href="/about"
               className="text-[var(--ratist-red)] text-sm font-semibold hover:underline"
             >
-              Learn how ratings work &rarr;
+              Read the full methodology &rarr;
             </Link>
           </div>
         </section>

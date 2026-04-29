@@ -43,6 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://image.tmdb.org" crossOrigin="" />
         <link rel="dns-prefetch" href="https://image.tmdb.org" />
+        {ADSENSE_ID && (
+          <meta name="google-adsense-account" content={ADSENSE_ID} />
+        )}
       </head>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         {ADSENSE_ID && (

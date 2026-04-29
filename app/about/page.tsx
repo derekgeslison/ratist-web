@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
-import { Star, BarChart3, Users, Swords, Film, Brain, Shield, Zap, Tv, Sparkles, RefreshCw, Map } from "lucide-react";
+import { Star, BarChart3, Users, Swords, Film, Brain, Shield, Zap, Tv, Sparkles, RefreshCw, Map, TrendingUp, Calendar, Eye, Award, MessageSquare, Video, Newspaper, Ticket, HelpCircle } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 export const metadata: Metadata = {
@@ -85,9 +85,41 @@ export default function AboutPage() {
             ))}
           </div>
         </div>
-        <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
+        <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-8">
           If plot doesn&apos;t matter to you as much as visual effects, or if you value artistic elements but don&apos;t care about character development, The Ratist lets you find movies and shows that are made for <span className="text-white font-medium">you</span>.
         </p>
+
+        {/* Formula */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8">
+          <h3 className="text-base font-bold text-white mb-2">How a Ratist rating is computed</h3>
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-5">
+            Every rating combines weighted category scores with your gut-feel overall. The weights aren&apos;t arbitrary — they reflect how much each component carries the experience of cinema. Story is the spine of nearly every film, so it carries the most weight. Pure entertainment is real, but it isn&apos;t why a movie is great, so it carries the least.
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-5">
+            {[
+              { name: "Story & Narrative", weight: 5 },
+              { name: "Production & Style", weight: 3 },
+              { name: "Emotive Effect", weight: 3 },
+              { name: "Acting & Casting", weight: 3 },
+              { name: "Pure Entertainment", weight: 2 },
+            ].map((c) => (
+              <div key={c.name} className="bg-black/30 rounded-lg p-3 border border-[var(--border)]/40">
+                <p className="text-[11px] uppercase tracking-wider text-[var(--foreground-muted)]">Weight ×{c.weight}</p>
+                <p className="text-sm font-semibold text-white mt-0.5">{c.name}</p>
+              </div>
+            ))}
+          </div>
+
+          <pre className="text-xs sm:text-sm text-[var(--foreground-muted)] bg-black/40 border border-[var(--border)]/50 rounded-lg p-3 sm:p-4 overflow-x-auto font-mono leading-relaxed mb-4">
+{`weighted_base  =  ( Story×5  +  Style×3  +  Emotive×3  +  Acting×3  +  Entertainment×2 )  /  16
+ratist_rating  =  ( weighted_base  +  your_overall )  /  2`}
+          </pre>
+
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
+            Each category rolls up from required and optional sub-criteria scored 1–10. Basic raters give a single 1–10 score plus an optional comment; Fanatics raters fill out the full rubric and feed the algorithm richer signal. Either way, your ratings build a personal taste profile that powers recommendations and personalized score estimates for films you haven&apos;t seen yet.
+          </p>
+        </div>
       </section>
 
       {/* The Algorithm */}
@@ -114,13 +146,17 @@ export default function AboutPage() {
         </h2>
         <div className="grid sm:grid-cols-2 gap-4">
           {[
-            { icon: BarChart3, title: "Deep ratings", desc: "Rate movies and TV shows across 20+ criteria. Quick mode for a fast score, Critic mode for detailed commentary.", href: null },
+            { icon: BarChart3, title: "Deep ratings", desc: "Rate movies and TV shows across 20+ criteria. Quick mode for a fast score, Fanatics mode for detailed commentary.", href: null },
+            { icon: Star, title: "Score estimates", desc: "See a predicted score for any movie or show before you watch it, based on your taste profile and similar users.", href: null },
+            { icon: Sparkles, title: "AI recommendations", desc: "Three AI tools — natural-language recommendations, custom collections, and AI movie search. Tell it what you want, get it.", href: "/tools/recommend" },
             { icon: Film, title: "Diary", desc: "Track every movie and episode you watch with calendar views, monthly lists, and shareable year-in-review stats.", href: "/seen" },
             { icon: Tv, title: "TV show tracking", desc: "Mark individual episodes as seen, track seasons, and rate shows at the series or season level.", href: "/movies?type=tv" },
-            { icon: Users, title: "Taste matching", desc: "See how your taste compares to friends and other users. Find people who like the same things you do.", href: null },
-            { icon: Swords, title: "Matchups", desc: "Compare any two movies or shows head-to-head across every rating category.", href: "/tools/matchup" },
-            { icon: Star, title: "Score estimates", desc: "See a predicted score for any movie or show before you watch it, based on your taste profile.", href: null },
-            { icon: Sparkles, title: "What Should I Watch?", desc: "Get personalized recommendations filtered by genre, streaming service, era, and your mood.", href: "/tools/recommend" },
+            { icon: TrendingUp, title: "Box Office Insights", desc: "All-time leaderboards, year-by-year top earners, franchise totals, studio rankings, and ROI champions across decades of film history.", href: "/box-office" },
+            { icon: Calendar, title: "Release Calendar", desc: "Upcoming theatrical releases, digital launches, and streaming additions. Filterable by region, genre, MPA rating, and time horizon.", href: "/releases" },
+            { icon: Newspaper, title: "News & trailers", desc: "Editorial articles, fresh trailers auto-detected from TMDB, and headlines from Deadline, Variety, THR, Collider, and Screen Rant.", href: "/news" },
+            { icon: Eye, title: "Watch Companion", desc: "Live, scene-aware annotations as you watch — explanations, trivia, and answers to common confusions, available on demand.", href: null },
+            { icon: Users, title: "Taste matching", desc: "See how your taste compares to friends and other users. Follow people, build feeds, and find users who like the same things you do.", href: "/connections" },
+            { icon: Award, title: "Badge system", desc: "41 badges across 12 categories — milestone, taste, community, and rare achievements. Auto-awarded as you rate, watch, and engage.", href: "/badges" },
             { icon: Brain, title: "Smart import", desc: "Bring your Letterboxd or IMDb history in seconds. Your ratings contribute to your profile immediately.", href: "/profile/import" },
           ].map(({ icon: Icon, title, desc, href }) => {
             const content = (
@@ -149,13 +185,17 @@ export default function AboutPage() {
           Community
         </h2>
         <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-4">
-          The Ratist isn&apos;t just a rating tool — it&apos;s a community for people who care about movies and TV. Read and write reviews with threaded comments, follow other users, and engage with features built for discussion and fun.
+          The Ratist isn&apos;t just a rating tool — it&apos;s a community for people who care about movies and TV. Read and write reviews with threaded comments, follow other users, debate and discuss, watch together, and play.
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           {[
-            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Head-to-head debates and contrarian takes.", href: "/two-thumbs" },
-            { icon: Map, title: "Movie Maps", desc: "Curated viewing guides and themed lists.", href: "/movie-maps" },
-            { icon: RefreshCw, title: "Recasts", desc: "Suggest who should have played that role.", href: "/community/recast" },
+            { icon: MessageSquare, title: "Forum", desc: "Long-form discussion, theory threads, polls, recommendation requests, and structured debates. With media linking, reactions, and follow-thread notifications.", href: "/forum" },
+            { icon: HelpCircle, title: "Cine-Q Trivia", desc: "Daily movie trivia with weighted difficulty scoring. Climb the global leaderboard, earn badges, and prove you really know your cinema.", href: "/community/cineq" },
+            { icon: Video, title: "Screening Room", desc: "A social watch-together tool. Sync up with friends, chat in real time, and rate together at the end.", href: "/screening-room" },
+            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Head-to-head debates and contrarian takes — both sides of the argument, on the page, with a community vote.", href: "/two-thumbs" },
+            { icon: Swords, title: "Punch & Judy", desc: "Structured for/against debates per movie. Read the strongest arguments, submit your own, and vote on the verdict.", href: "/punch-and-judy" },
+            { icon: Map, title: "Movie Maps", desc: "Visual guides for confusing or branching narratives, plus curated viewing lists and themed deep-dives.", href: "/movie-maps" },
+            { icon: RefreshCw, title: "Recasts", desc: "Suggest who should have played that role — the community votes on the best alternate casting.", href: "/community/recast" },
             { icon: Sparkles, title: "Looks Like", desc: "Celebrity lookalike pairs — vote on who could be twins.", href: "/community/looks-like" },
           ].map(({ icon: Icon, title, desc, href }) => (
             <Link key={title} href={href} className="flex gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 hover:border-[var(--ratist-red)] transition-colors">
@@ -166,6 +206,25 @@ export default function AboutPage() {
               </div>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Backstage Pass */}
+      <section className="mb-16">
+        <div className="bg-gradient-to-br from-[var(--ratist-red)]/15 via-[var(--surface)] to-[var(--surface-2)] border border-[var(--ratist-red)]/40 rounded-2xl p-6 sm:p-8">
+          <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+            <Ticket className="w-5 h-5 text-[var(--ratist-red)]" />
+            Backstage Pass
+          </h2>
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-4">
+            The Ratist is free. Backstage Pass is for the people who want more — an ad-free experience plus access to power-user surfaces: deep personal analytics, custom collections, Critics Mode for reviewer-grade rating breakdowns, custom themes, host privileges in the Screening Room, and the curated weekly Movie Club.
+          </p>
+          <Link
+            href="/backstage-pass"
+            className="inline-block text-[var(--ratist-red)] text-sm font-semibold hover:underline"
+          >
+            Learn more about Backstage Pass &rarr;
+          </Link>
         </div>
       </section>
 
