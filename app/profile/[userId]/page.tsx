@@ -615,16 +615,31 @@ export default async function ProfilePage({ params }: Props) {
         isPrivate={user.isPrivate}
         publicTabs={user.publicTabs as Record<string, boolean> ?? {}}
         siteUrl={process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}
-        savedRankings={savedRankings.filter((r) => r.movie).map((r) => {
-          const rating = allRatings.find((ar) => ar.movieId === r.movieId);
-          return {
-            tmdbId: r.movie!.tmdbId,
-            title: r.movie!.title,
-            posterPath: r.movie!.posterPath,
-            year: r.movie!.releaseDate?.slice(0, 4) ?? "",
-            ratistRating: rating?.ratistRating ?? null,
-          };
-        })}
+        savedRankings={(() => {
+          // Filter saved-order rows against the user's current seen +
+          // rated state. /api/tools/rankings already does this for the
+          // /rankings page (commit 2d940a1), but the profile rankings
+          // tab loads its own copy and was missing the filter — items
+          // unmarked seen would still show in the tab. seenMovies +
+          // allRatings are already in scope from the Promise.all above
+          // so this is just a Set build + filter, no extra round trip.
+          const validMovieIds = new Set<string>([
+            ...seenMovies.map((s) => s.movieId),
+            ...allRatings.map((r) => r.movieId),
+          ]);
+          return savedRankings
+            .filter((r) => r.movie && r.movieId && validMovieIds.has(r.movieId))
+            .map((r) => {
+              const rating = allRatings.find((ar) => ar.movieId === r.movieId);
+              return {
+                tmdbId: r.movie!.tmdbId,
+                title: r.movie!.title,
+                posterPath: r.movie!.posterPath,
+                year: r.movie!.releaseDate?.slice(0, 4) ?? "",
+                ratistRating: rating?.ratistRating ?? null,
+              };
+            });
+        })()}
         rankingsYear={currentYear}
         cineqStats={cineqStats}
         movieClubMember={!!movieClubMember}
