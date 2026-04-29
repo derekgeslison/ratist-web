@@ -65,16 +65,20 @@ const DEFAULT_RELEASE_TYPES = [2, 3, 4]; // theatrical (limited+wide) + digital
  *  the paged result; callers handle pagination and downstream
  *  display.
  *
- *  Two important TMDB quirks:
- *    1. `with_release_type` requires the `release_date.*` fields
- *       (NOT `primary_release_date.*`) plus `region` — that's the
- *       only way TMDB will use the regional release-date for filtering.
- *       primary_release_date.* uses the global primary date and the
- *       release-type / region params are silently ignored.
- *    2. Default sort is popularity.desc — sorting by release date
- *       surfaces obscure foreign films at the top (earliest in
- *       chronological order), which isn't what users want from
- *       a "Coming Soon" feed.
+ *  Important: filter on `primary_release_date.*` (NOT `release_date.*`).
+ *  An earlier draft used `release_date.*` to enable per-region date
+ *  filtering, but TMDB's regional release calendar for upcoming
+ *  films is sparse — many films have a primary release date set
+ *  but no regional entries yet, so region-aware filtering would
+ *  exclude them entirely. primary_release_date catches everything
+ *  in the global pipeline; `region` still affects which release-
+ *  date values TMDB surfaces on each result for display, plus
+ *  certification matching.
+ *
+ *  Default sort is popularity.desc. Sorting by release date asc
+ *  surfaces obscure foreign films at the top (earliest in
+ *  chronological order), which isn't what users want from a
+ *  "Coming Soon" feed.
  */
 export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResult<TMDBMovie>> {
   const region = filters.region ?? "US";
@@ -83,8 +87,8 @@ export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResu
   const params = new URLSearchParams({
     api_key: API_KEY ?? "",
     sort_by: filters.sortBy ?? "popularity.desc",
-    "release_date.gte": filters.fromDate,
-    "release_date.lte": filters.toDate,
+    "primary_release_date.gte": filters.fromDate,
+    "primary_release_date.lte": filters.toDate,
     with_release_type: types,
     region,
     page: String(filters.page ?? 1),
