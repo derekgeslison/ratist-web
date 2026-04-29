@@ -638,19 +638,13 @@ function ReleaseCard({ item, accent }: { item: UnifiedRelease; accent?: boolean 
         watchlistOnly
       >
       <div className="relative aspect-[2/3] bg-[var(--background)]">
-        {item.poster_path ? (
-          <Image
-            src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
-            alt={item.title}
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">
-            No poster
-          </div>
-        )}
+        <Image
+          src={item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : "/placeholder-poster.svg"}
+          alt={item.title}
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px"
+          className="object-cover"
+        />
         {item.mediaType === "tv" && !item.streamingProviderId && (
           <div className="absolute top-1.5 left-1.5 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
             <Tv className="w-2.5 h-2.5" />
