@@ -41,6 +41,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/home", destination: "/", permanent: true },
       { source: "/blogs", destination: "/blog", permanent: true },
+      { source: "/contact", destination: "/feedback", permanent: true },
     ];
   },
 };
