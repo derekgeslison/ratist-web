@@ -223,6 +223,15 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   // settles loadedEnd; if still short (365-day horizon needs two
   // 180-day chunks), it fires again until covered or hasMoreFurther
   // flips off.
+  //
+  // CRITICAL: `loadingFurther` is NOT in the deps. If it were, the
+  // setLoadingFurther(true) call inside this effect would itself
+  // trigger a re-run. The cleanup from that re-run sets cancelled=
+  // true on the in-flight fetch, so when the fetch completes the
+  // finally short-circuits and never resets loadingFurther. The
+  // result was a permanent loading spinner. Reading the value via
+  // closure on each effect fire is enough — the early return guard
+  // still works correctly without the dep.
   useEffect(() => {
     if (loading || loadingFurther) return;
     if (!hasMoreFurther) return;
@@ -260,7 +269,8 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       }
     })();
     return () => { cancelled = true; };
-  }, [horizon, loadedEnd, hasMoreFurther, loading, loadingFurther, apiQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horizon, loadedEnd, hasMoreFurther, loading, apiQuery]);
 
   // Click-to-escalate: 30 → 90 → 180 → 365. The auto-fill effect
   // takes care of fetching when the new horizon exceeds the loaded
