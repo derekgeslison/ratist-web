@@ -16,10 +16,13 @@ interface Props {
   voteAverage?: number | null;
   showRatings?: boolean;
   mediaType?: "movie" | "tv";
+  /** Hide the Seen button — for tiles where "seen" doesn't apply
+   *  (e.g. upcoming releases). Watchlist still shows. */
+  watchlistOnly?: boolean;
   children: React.ReactNode;
 }
 
-export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, showRatings = false, mediaType = "movie", children }: Props) {
+export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, showRatings = false, mediaType = "movie", watchlistOnly = false, children }: Props) {
   const { user } = useAuth();
   const movieState = useMovieUserState(mediaType === "movie" ? tmdbId : 0);
   const showState = useShowUserState(mediaType === "tv" ? tmdbId : 0);
@@ -92,15 +95,17 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
                 {seenError}
               </div>
             )}
-            <button
-              onClick={toggleSeen}
-              disabled={markingS}
-              className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-                seen ? "bg-green-600/80 text-white hover:bg-red-600/80" : "bg-white/90 text-black hover:bg-white"
-              }`}
-            >
-              {seen ? <><EyeOff className="w-3 h-3" /> Unsee</> : <><Eye className="w-3 h-3" /> {markingS ? "..." : "Seen"}</>}
-            </button>
+            {!watchlistOnly && (
+              <button
+                onClick={toggleSeen}
+                disabled={markingS}
+                className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                  seen ? "bg-green-600/80 text-white hover:bg-red-600/80" : "bg-white/90 text-black hover:bg-white"
+                }`}
+              >
+                {seen ? <><EyeOff className="w-3 h-3" /> Unsee</> : <><Eye className="w-3 h-3" /> {markingS ? "..." : "Seen"}</>}
+              </button>
+            )}
             <button
               onClick={addToWatchlist}
               disabled={markingW || watchlisted}

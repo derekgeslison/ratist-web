@@ -8,6 +8,7 @@ import { Calendar, Filter, ChevronDown, ChevronUp, Sparkles, Flame, X, Loader2, 
 import type { UnifiedRelease } from "@/lib/releases";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import PosterOverlay from "@/components/PosterOverlay";
 import { useAuth } from "@/context/AuthContext";
 
 interface Genre {
@@ -281,22 +282,10 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       {/* This Week hero — top 5 most anticipated theatrical
           releases dropping in the next 7 days. */}
       {thisWeek.length > 0 && (
-        <section className="mb-8">
-          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Flame className="w-4 h-4 text-[var(--ratist-red)]" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-white">This Week in Theaters</h2>
-            </div>
-            {user && (
-              <Link
-                href="/for-you#anticipated"
-                className="inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
-              >
-                <Users className="w-3.5 h-3.5" />
-                See what people you follow are anticipating
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            )}
+        <section className="mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Flame className="w-4 h-4 text-[var(--ratist-red)]" />
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-white">This Week in Theaters</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {thisWeek.map((m) => (
@@ -304,6 +293,23 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
             ))}
           </div>
         </section>
+      )}
+
+      {/* Anticipating link — sits below the This Week tiles and
+          above the filter bar so signed-in users see the social
+          discovery prompt at the natural transition point in the
+          page flow. Anonymous users see nothing here. */}
+      {user && (
+        <div className="mb-6 text-center">
+          <Link
+            href="/for-you#anticipated"
+            className="inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+          >
+            <Users className="w-3.5 h-3.5" />
+            See what people you follow are anticipating
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       )}
 
       {/* For You — personalized to top genres. Only shows if we
@@ -622,6 +628,15 @@ function ReleaseCard({ item, accent }: { item: UnifiedRelease; accent?: boolean 
         accent ? "border-[var(--ratist-red)]/30" : "border-[var(--border)]"
       }`}
     >
+      <PosterOverlay
+        tmdbId={item.id}
+        title={item.title}
+        posterPath={item.poster_path}
+        releaseDate={item.release_date}
+        voteAverage={item.vote_average}
+        mediaType={item.mediaType}
+        watchlistOnly
+      >
       <div className="relative aspect-[2/3] bg-[var(--background)]">
         {item.poster_path ? (
           <Image
@@ -652,6 +667,7 @@ function ReleaseCard({ item, accent }: { item: UnifiedRelease; accent?: boolean 
           );
         })()}
       </div>
+      </PosterOverlay>
       <div className="p-2">
         <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--ratist-red)]">
           {item.title}
