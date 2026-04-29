@@ -16,7 +16,9 @@ interface Genre {
 interface Props {
   thisWeek: TMDBMovie[];
   forYou: TMDBMovie[] | null;
-  topGenres: number[];
+  /** How many genres the For You feed was matched against — drives
+   *  the "matched to your top N genres" subtitle. */
+  topGenresCount: number;
   initialFeed: TMDBMovie[];
   genres: Genre[];
 }
@@ -43,23 +45,28 @@ const REGION_OPTIONS: Array<{ code: string; label: string }> = [
 ];
 
 const HORIZON_OPTIONS: Array<{ value: string; label: string; days: number }> = [
-  { value: "30",  label: "Next 30 days",  days: 30 },
-  { value: "90",  label: "Next 90 days",  days: 90 },
-  { value: "180", label: "Next 6 months", days: 180 },
+  { value: "30",  label: "Next 30 days",   days: 30 },
+  { value: "90",  label: "Next 90 days",   days: 90 },
+  { value: "180", label: "Next 6 months",  days: 180 },
+  { value: "365", label: "Next 12 months", days: 365 },
 ];
+
+const DEFAULT_HORIZON = "180";
 
 interface FetchResponse {
   results: TMDBMovie[];
   total_results: number;
+  total_pages: number;
+  page: number;
 }
 
-export default function ReleasesClient({ thisWeek, forYou, topGenres, initialFeed, genres }: Props) {
+export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initialFeed, genres }: Props) {
   const searchParams = useSearchParams();
 
   // URL-synced filter state. Mirrors /box-office/all's pattern so
   // sharing a filtered release calendar gives the recipient the
   // same view.
-  const [horizon, setHorizon] = useState(() => searchParams.get("horizon") ?? "90");
+  const [horizon, setHorizon] = useState(() => searchParams.get("horizon") ?? DEFAULT_HORIZON);
   const [region, setRegion] = useState(() => searchParams.get("region") ?? "US");
   const [releaseType, setReleaseType] = useState(() => searchParams.get("type") ?? "all");
   const [selectedGenres, setSelectedGenres] = useState<number[]>(() => {
@@ -76,9 +83,16 @@ export default function ReleasesClient({ thisWeek, forYou, topGenres, initialFee
   const [feed, setFeed] = useState<TMDBMovie[]>(initialFeed);
   const [loading, setLoading] = useState(false);
 
+  // Pagination — TMDB returns 20 per page. We accumulate pages
+  // client-side as the user clicks "Load more". The total pages
+  // count caps the fetch loop.
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const filterCount = selectedGenres.length + selectedMpa.length
     + (releaseType !== "all" ? 1 : 0)
-    + (horizon !== "90" ? 1 : 0)
+    + (horizon !== DEFAULT_HORIZON ? 1 : 0)
     + (region !== "US" ? 1 : 0);
 
   // Build the query string used both for the API call and the
@@ -86,7 +100,7 @@ export default function ReleasesClient({ thisWeek, forYou, topGenres, initialFee
   // short when the user hasn't tweaked anything.
   function buildParams(bare: boolean): URLSearchParams {
     const params = new URLSearchParams();
-    if (!bare || horizon !== "90") params.set("horizon", horizon);
+    if (!bare || horizon !== DEFAULT_HORIZON) params.set("horizon", horizon);
     if (!bare || region !== "US") params.set("region", region);
     if (!bare || releaseType !== "all") params.set("type", releaseType);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
@@ -103,25 +117,77 @@ export default function ReleasesClient({ thisWeek, forYou, topGenres, initialFee
     window.history.replaceState(null, "", url);
   }, [shareQuery]);
 
+  // Force scroll to top on initial mount. The Suspense boundary
+  // around useSearchParams in the wrapper page renders a tiny
+  // fallback before the client component mounts, and the
+  // browser sometimes preserves a non-zero scrollY from the
+  // previous page that ends up landing the user mid-page once
+  // the real content fills in. This effect runs only once;
+  // back/forward navigation is handled by Next.js router and
+  // doesn't re-execute the mount effect.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Re-fetch the feed whenever filters change. Initial render keeps
   // the server-provided feed so we don't double-fetch on mount.
   const isInitialLoad = useMemo(() => filterCount === 0, [filterCount]);
   useEffect(() => {
+    setPage(1);
     if (isInitialLoad) {
       setFeed(initialFeed);
+      // We don't know the total pages of the initial server feed
+      // here — assume there's more available unless TMDB tells us
+      // otherwise via the API path.
+      setTotalPages(2);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/releases?${apiQuery}`)
-      .then((r) => (r.ok ? r.json() : { results: [] }))
+    fetch(`/api/releases?${apiQuery}&page=1`)
+      .then((r) => (r.ok ? r.json() : { results: [], total_pages: 0 }))
       .then((data: FetchResponse) => {
-        if (!cancelled) setFeed(data.results ?? []);
+        if (!cancelled) {
+          setFeed(data.results ?? []);
+          setTotalPages(data.total_pages ?? 1);
+        }
       })
-      .catch(() => { if (!cancelled) setFeed([]); })
+      .catch(() => { if (!cancelled) { setFeed([]); setTotalPages(0); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [apiQuery, isInitialLoad, initialFeed]);
+
+  async function loadMore() {
+    if (loadingMore) return;
+    // If we're at the end of the current horizon's pages and we're
+    // on a non-12-month horizon, offer to extend instead. The
+    // button visibility below already handles which case we're in;
+    // this guard just protects against double-clicks.
+    if (page >= totalPages) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await fetch(`/api/releases?${apiQuery}&page=${nextPage}`);
+      if (!res.ok) return;
+      const data: FetchResponse = await res.json();
+      setFeed((prev) => [...prev, ...(data.results ?? [])]);
+      setPage(nextPage);
+      if (data.total_pages != null) setTotalPages(data.total_pages);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function extendHorizon() {
+    // "Look further out" — bumps horizon to the next bigger window
+    // when the user has reached the end of the current view. Skips
+    // when already on 12 months.
+    const next = horizon === "30" ? "90"
+      : horizon === "90" ? "180"
+      : horizon === "180" ? "365"
+      : null;
+    if (next) setHorizon(next);
+  }
 
   function toggleGenre(id: number) {
     setSelectedGenres((prev) =>
@@ -203,7 +269,7 @@ export default function ReleasesClient({ thisWeek, forYou, topGenres, initialFee
             <Sparkles className="w-4 h-4 text-[var(--ratist-red)]" />
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white">For You</h2>
             <span className="text-xs text-[var(--foreground-muted)]">
-              · matched to your top {topGenres.length} genres
+              · matched to your top {topGenresCount} genre{topGenresCount === 1 ? "" : "s"}
             </span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-0 sm:px-0">
@@ -348,6 +414,42 @@ export default function ReleasesClient({ thisWeek, forYou, topGenres, initialFee
           <DateGroup key={date} date={date} movies={movies} />
         ))}
       </div>
+
+      {/* Pagination + horizon-extension. Two distinct calls to action:
+            - "Load more" while there are more pages within the
+              current horizon (TMDB returns 20 at a time).
+            - "Look further out" once we've exhausted the current
+              horizon and there's a wider one available — auto-extends
+              30→90, 90→180, 180→365. Anchors a discovery path so a
+              user on the 6-month default doesn't dead-end at the
+              bottom of the page. */}
+      {feed.length > 0 && (
+        <div className="mt-8 text-center space-y-3">
+          {page < totalPages && (
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="px-5 py-2.5 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {loadingMore ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Load more"}
+            </button>
+          )}
+          {page >= totalPages && horizon !== "365" && (
+            <div>
+              <button
+                onClick={extendHorizon}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-sm font-semibold text-white rounded-lg transition-colors"
+              >
+                Look further out
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <p className="mt-2 text-xs text-[var(--foreground-muted)]">
+                You've reached the end of the {HORIZON_OPTIONS.find((h) => h.value === horizon)?.label.toLowerCase() ?? ""} window.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer link back to /movies */}
       <div className="mt-12 text-center">

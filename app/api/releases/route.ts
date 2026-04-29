@@ -7,6 +7,7 @@ const HORIZON_TO_DAYS: Record<string, number> = {
   "30": 30,
   "90": 90,
   "180": 180,
+  "365": 365,
 };
 
 const RELEASE_TYPE_MAP: Record<string, number[]> = {
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
   const genres = (sp.get("genres") ?? "").split(",")
     .map((g) => parseInt(g, 10)).filter((n) => !Number.isNaN(n));
   const certifications = (sp.get("mpa") ?? "").split(",").filter(Boolean);
+  const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
 
   try {
     const data = await getReleases({
@@ -49,14 +51,21 @@ export async function GET(req: NextRequest) {
       releaseTypes,
       genres: genres.length > 0 ? genres : undefined,
       certifications: certifications.length > 0 ? certifications : undefined,
-      sortBy: "primary_release_date.asc",
+      // Popularity sort across the board — sorting by release date
+      // floats obscure foreign films to the top of upcoming-release
+      // results, which isn't what users expect from a Coming Soon
+      // feed. The client groups by date for display.
+      sortBy: "popularity.desc",
+      page,
     });
     return NextResponse.json({
       results: data.results,
       total_results: data.total_results,
+      total_pages: data.total_pages,
+      page: data.page,
     });
   } catch (err) {
     console.error("Releases API error:", err);
-    return NextResponse.json({ results: [], total_results: 0 });
+    return NextResponse.json({ results: [], total_results: 0, total_pages: 0, page: 1 });
   }
 }

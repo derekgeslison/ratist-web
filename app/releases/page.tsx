@@ -53,9 +53,6 @@ export default async function ReleasesPage() {
     // Token invalid / expired — treat as anonymous.
   }
 
-  // 6 months out is the same horizon TMDB's /movie/upcoming uses.
-  // Past it, primary_release_date filtering still works but the
-  // popularity sort surfaces almost nothing useful that far ahead.
   const today = todayISO();
   const sixMonths = daysFromNow(180);
   const sevenDays = daysFromNow(7);
@@ -70,18 +67,18 @@ export default async function ReleasesPage() {
     sortBy: "popularity.desc",
   });
 
-  // For You — match against the user's top genres. Skip when the
-  // user has no profile yet (new account or no rated films) so we
-  // don't show a misleading "personalized" feed full of generic hits.
-  const topGenresPromise = userId ? getUserTopTmdbGenres(userId, 5) : Promise.resolve([]);
+  // For You — match against the user's top genres. Returns null when
+  // the user is anonymous or has zero genre signal (new account, no
+  // ratings yet). Section then hidden client-side.
+  const topGenresPromise = userId ? getUserTopTmdbGenres(userId, 5) : Promise.resolve(null);
 
-  // Initial unfiltered feed (next 90 days, popularity-sorted) hands
-  // off to the client component, which then refetches on filter
-  // change. Keeping the initial load a popularity feed matches the
-  // "what's hot coming up" mental model most users want first.
+  // Initial unfiltered feed: next 6 months, popularity-sorted.
+  // Default horizon is 6 months (was 90 days) — most users browsing
+  // Coming Soon want to see further out, and the popularity sort
+  // keeps the top of the list coherent regardless of horizon length.
   const initialFeedPromise = getReleases({
     fromDate: today,
-    toDate: daysFromNow(90),
+    toDate: sixMonths,
     sortBy: "popularity.desc",
   });
 
@@ -91,10 +88,10 @@ export default async function ReleasesPage() {
     initialFeedPromise,
   ]);
 
-  // For You feed only makes sense if we have at least one strong
-  // genre to filter by. Otherwise the "personalized" section would
-  // just be the same as the initial feed.
-  const forYouPromise = topGenres.length > 0
+  // For You feed only renders when we have a real persona to anchor
+  // against. The helper returns null in that case so we cleanly
+  // skip the section.
+  const forYouPromise = topGenres
     ? getReleases({
         fromDate: today,
         toDate: sixMonths,
@@ -124,7 +121,7 @@ export default async function ReleasesPage() {
       <ReleasesClient
         thisWeek={thisWeek.results.slice(0, 5)}
         forYou={forYou?.results.slice(0, 12) ?? null}
-        topGenres={topGenres}
+        topGenresCount={topGenres?.length ?? 0}
         initialFeed={initialFeed.results}
         genres={genres}
       />

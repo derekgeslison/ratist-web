@@ -63,8 +63,19 @@ const DEFAULT_RELEASE_TYPES = [2, 3, 4]; // theatrical (limited+wide) + digital
 
 /** Run a TMDB /discover/movie query with the given filters. Returns
  *  the paged result; callers handle pagination and downstream
- *  display. The filter shape mirrors TMDB's API directly to keep
- *  the contract clear. */
+ *  display.
+ *
+ *  Two important TMDB quirks:
+ *    1. `with_release_type` requires the `release_date.*` fields
+ *       (NOT `primary_release_date.*`) plus `region` — that's the
+ *       only way TMDB will use the regional release-date for filtering.
+ *       primary_release_date.* uses the global primary date and the
+ *       release-type / region params are silently ignored.
+ *    2. Default sort is popularity.desc — sorting by release date
+ *       surfaces obscure foreign films at the top (earliest in
+ *       chronological order), which isn't what users want from
+ *       a "Coming Soon" feed.
+ */
 export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResult<TMDBMovie>> {
   const region = filters.region ?? "US";
   const types = (filters.releaseTypes ?? DEFAULT_RELEASE_TYPES).join("|");
@@ -72,12 +83,11 @@ export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResu
   const params = new URLSearchParams({
     api_key: API_KEY ?? "",
     sort_by: filters.sortBy ?? "popularity.desc",
-    "primary_release_date.gte": filters.fromDate,
-    "primary_release_date.lte": filters.toDate,
+    "release_date.gte": filters.fromDate,
+    "release_date.lte": filters.toDate,
     with_release_type: types,
     region,
     page: String(filters.page ?? 1),
-    // TMDB filters out adult by default but make it explicit.
     include_adult: "false",
   });
 
@@ -125,20 +135,29 @@ const PROFILE_TO_TMDB_GENRES: Array<{ key: string; tmdbId: number }> = [
 
 /** Returns the TMDB genre IDs the user scores highest on. Used to
  *  filter the For You release feed so we only surface releases that
- *  match the user's existing taste profile. Top N (default 5) by
- *  score, only including scores ≥ minScore so a flat / new user
- *  doesn't get every genre returned. */
+ *  match the user's existing taste profile.
+ *
+ *  We just take the top N regardless of absolute score — minScore=5
+ *  was excluding For You for users who haven't rated enough films
+ *  to push any genre above the midpoint, which is most signed-in
+ *  users. The genre scoring is relative; what matters is "what does
+ *  this user prefer compared to other genres," not absolute > 5.
+ *  Returns null when there's no profile at all (anonymous or
+ *  zero-rating user) so the caller can hide the section entirely. */
 export async function getUserTopTmdbGenres(
   userId: string,
   count: number = 5,
-  minScore: number = 5,
-): Promise<number[]> {
+): Promise<number[] | null> {
   const profile = await prisma.userProfile.findUnique({ where: { userId } });
-  if (!profile) return [];
+  if (!profile) return null;
   const scored = PROFILE_TO_TMDB_GENRES.map((g) => ({
     tmdbId: g.tmdbId,
     score: (profile as unknown as Record<string, number>)[g.key] ?? 0,
-  })).filter((g) => g.score >= minScore);
+  }));
+  // If every score is exactly 0, the user has no profile data yet —
+  // return null so we don't surface a "personalized" feed that's
+  // actually just popularity-sorted upcoming films.
+  if (scored.every((g) => g.score === 0)) return null;
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, count).map((g) => g.tmdbId);
 }
