@@ -116,21 +116,18 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   const [feed, setFeed] = useState<UnifiedRelease[]>(initialFeed);
   const [loading, setLoading] = useState(false);
 
-  // Two separate concepts:
-  //   extendDays — how far the user has clicked "Look further out"
-  //     past the current horizon. Resets when the horizon dropdown
-  //     changes. Visible cutoff = today + horizonDays + extendDays.
-  //   loadedEnd — the furthest day from today we've actually fetched
-  //     data for. Grows in 6-month chunks as needed; never resets
-  //     except on filter change (which also re-fetches from scratch).
-  // The two are decoupled so:
-  //   - At horizon=30 with cached 6 months: clicking LFO extends
-  //     visibility by 30 days at a time using cached data (no fetch).
-  //   - At horizon=180: clicking LFO immediately pushes past the
-  //     cached range and triggers the next 6-month fetch.
-  // hasMoreFurther flips off when a fetch returns 0 (TMDB's far-
-  // future data runs out around 2-3 windows ahead).
-  const [extendDays, setExtendDays] = useState(0);
+  // "Look further out" escalates the horizon dropdown to the next
+  // bigger step (30→90→180→365). At each step we re-filter the
+  // cached dataset client-side so the same well-known films stay
+  // surfaced. 365 needs more than the default 6-month load — the
+  // auto-fill effect below kicks in and fetches the next 6-month
+  // chunk to cover it.
+  //
+  // loadedEnd tracks how far out we've fetched data for, in days
+  // from today. Default 180 (the server-rendered initial load).
+  // Grows to 360 / 540 / etc. as further chunks are fetched.
+  // hasMoreFurther flips off when a fetch returns 0 results
+  // (TMDB's far-future data runs out around 2-3 windows ahead).
   const [loadedEnd, setLoadedEnd] = useState(FETCH_WINDOW_DAYS);
   const [hasMoreFurther, setHasMoreFurther] = useState(true);
   const [loadingFurther, setLoadingFurther] = useState(false);
@@ -194,10 +191,9 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
 
   // Re-fetch the feed whenever filters change. Initial render keeps
   // the server-provided feed so we don't double-fetch on mount.
-  // Filter changes also reset the LFO state.
+  // Filter changes also reset the loaded range.
   const isInitialLoad = useMemo(() => filterCount === 0, [filterCount]);
   useEffect(() => {
-    setExtendDays(0);
     setHasMoreFurther(true);
     setLoadedEnd(FETCH_WINDOW_DAYS);
     if (isInitialLoad) {
@@ -220,28 +216,18 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
     return () => { cancelled = true; };
   }, [apiQuery, isInitialLoad, initialFeed]);
 
-  // Reset extendDays whenever the user picks a different horizon.
-  // Their LFO progress is meaningful relative to the current horizon,
-  // so changing horizon should drop them back to "starting fresh"
-  // for the new view.
-  useEffect(() => {
-    setExtendDays(0);
-  }, [horizon]);
-
-  // Auto-fill effect: whenever the visible cutoff exceeds what we've
-  // loaded, fetch the next 6-month chunk. Triggered by:
-  //   - Picking a wider horizon (e.g. 365) than the loaded range
-  //   - Clicking Look Further Out enough times to push past loaded
-  // The effect re-runs after fetch settles loadedEnd. If the cutoff
-  // is still beyond the new loadedEnd (e.g., 365-day horizon needing
-  // a second 180-day chunk), it fires again until covered or until
-  // hasMoreFurther flips off.
+  // Auto-fill effect: whenever the current horizon exceeds what we've
+  // loaded, fetch the next 6-month chunk. Triggered when the user
+  // picks a wider horizon than is currently cached (e.g. switching
+  // to 12 months from default 6). The effect re-runs after fetch
+  // settles loadedEnd; if still short (365-day horizon needs two
+  // 180-day chunks), it fires again until covered or hasMoreFurther
+  // flips off.
   useEffect(() => {
     if (loading || loadingFurther) return;
     if (!hasMoreFurther) return;
     const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
-    const visibleCutoffDays = horizonDays + extendDays;
-    if (visibleCutoffDays <= loadedEnd) return;
+    if (horizonDays <= loadedEnd) return;
 
     let cancelled = false;
     const nextOffset = loadedEnd;
@@ -274,12 +260,18 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       }
     })();
     return () => { cancelled = true; };
-  }, [horizon, extendDays, loadedEnd, hasMoreFurther, loading, loadingFurther, apiQuery]);
+  }, [horizon, loadedEnd, hasMoreFurther, loading, loadingFurther, apiQuery]);
 
+  // Click-to-escalate: 30 → 90 → 180 → 365. The auto-fill effect
+  // takes care of fetching when the new horizon exceeds the loaded
+  // range (specifically the 180→365 transition).
   function lookFurtherOut() {
     if (loadingFurther) return;
-    const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
-    setExtendDays((prev) => prev + horizonDays);
+    const next = horizon === "30" ? "90"
+      : horizon === "90" ? "180"
+      : horizon === "180" ? "365"
+      : null;
+    if (next) setHorizon(next);
   }
 
   function toggleGenre(id: number) {
@@ -306,15 +298,13 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   // is preserved from the API. Skip movies without a release_date
   // (rare for upcoming, but possible for premiere-only entries).
   //
-  // Horizon + extendDays are applied as a client-side cutoff, NOT
-  // in the API call. The API always fetches in 6-month chunks; this
-  // filter narrows display to (today + horizonDays + extendDays).
+  // Horizon is the client-side cutoff. The API fetches in 6-month
+  // chunks; this filter narrows display to today + horizonDays.
   // Streaming-launch entries dated to recent past pass naturally
   // since their dates are <= cutoff.
   const grouped = useMemo(() => {
     const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
-    const visibleCutoffDays = horizonDays + extendDays;
-    const cutoff = new Date(Date.now() + visibleCutoffDays * 24 * 60 * 60 * 1000)
+    const cutoff = new Date(Date.now() + horizonDays * 24 * 60 * 60 * 1000)
       .toISOString().slice(0, 10);
     const map = new Map<string, UnifiedRelease[]>();
     for (const m of feed) {
@@ -325,17 +315,12 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       map.get(date)!.push(m);
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [feed, horizon, extendDays]);
+  }, [feed, horizon]);
 
-  // LFO button visible whenever there's MORE to look at — either:
-  //   - more cached data we haven't yet revealed (visibleCutoff <
-  //     loadedEnd), or
-  //   - more data available remotely (hasMoreFurther).
-  // Hidden only when both are false (we've shown everything cached
-  // AND TMDB has no more data to offer).
-  const horizonDaysCurrent = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
-  const visibleCutoffDays = horizonDaysCurrent + extendDays;
-  const showLfoButton = hasMoreFurther || visibleCutoffDays < loadedEnd;
+  // LFO button visible while there's a next escalation step. At
+  // 30/90/180 there's always one (cached or via fetch). At 365 we
+  // hide it — that's the final escalation step.
+  const showLfoButton = horizon !== "365";
 
   const displayedCount = useMemo(
     () => grouped.reduce((sum, [, items]) => sum + items.length, 0),
