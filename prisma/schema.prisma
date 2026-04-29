@@ -136,6 +136,7 @@ model User {
   reportsResolved  Report[]  @relation("reportsResolved")
   feedbackSubmitted Feedback[] @relation("feedbackSubmitted")
   feedbackReplied   Feedback[] @relation("feedbackReplied")
+  contactsHandled   Contact[]  @relation("contactHandled")
   ideasSubmitted    PostIdea[] @relation("ideasSubmitted")
   ideasReviewed     PostIdea[] @relation("ideasReviewed")
   aiUsageLogs       AiUsageLog[]
@@ -1752,6 +1753,34 @@ model Feedback {
   replier  User? @relation("feedbackReplied", fields: [repliedBy], references: [id], onDelete: SetNull)
 
   @@map("feedback")
+}
+
+// External /contact page submissions — distinct from /feedback (which is
+// for in-product user feedback). Contact is for advertising inquiries,
+// press/media, partnerships, DMCA notices, etc. Submitters are typically
+// not logged-in users, so we always require name + email up front.
+// Admins typically reply via their own email client to the inquirer's
+// address, so we only track internal notes + handler audit, not an
+// in-app reply thread.
+model Contact {
+  id          String    @id @default(cuid())
+  name        String
+  email       String
+  company     String?
+  category    String    // "general" | "advertising" | "press" | "partnerships" | "dmca" | "other"
+  subject     String?
+  message     String    @db.Text
+  status      String    @default("open") // "open" | "in_progress" | "resolved" | "closed"
+  adminNotes  String?   @db.Text @map("admin_notes")
+  handledBy   String?   @map("handled_by")
+  handledAt   DateTime? @map("handled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  handler User? @relation("contactHandled", fields: [handledBy], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("contacts")
 }
 
 model PostIdea {

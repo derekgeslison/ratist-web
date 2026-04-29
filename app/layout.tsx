@@ -96,10 +96,11 @@ gtag('config', '${GA_ID}');`}
           <TouchHint />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
-            <div className="flex items-center justify-center gap-4 mt-3">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
               <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
               <a href="/about" className="hover:text-white transition-colors">About</a>
+              <a href="/contact" className="hover:text-white transition-colors">Contact</a>
               <a href="/feedback" className="hover:text-white transition-colors">Submit Feedback</a>
             </div>
             <div className="flex items-center justify-center gap-3 mt-3">

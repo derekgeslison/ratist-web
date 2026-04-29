@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import {
   FileText, Map, Edit, Eye, EyeOff, Trash2, Users, Star, Film, Shield,
-  Ticket, Lightbulb, Flag, MessageCircle, ShieldAlert, Cpu, AlertCircle,
+  Ticket, Lightbulb, Flag, MessageCircle, Mail, ShieldAlert, Cpu, AlertCircle,
   Eye as EyeIcon, Heart, Newspaper, UsersRound, MessageSquare, Trophy,
   Clapperboard, Gamepad2, BookMarked, BarChart3,
 } from "lucide-react";
@@ -31,6 +31,7 @@ interface SiteStats {
     ideas: number;
     reports: number;
     feedback: number;
+    contact: number;
     fraud: number;
     aiFlagged: number;
   };
@@ -205,6 +206,7 @@ export default function AdminDashboard() {
           { key: "companionSuggestions", label: "Companion suggestions", count: stats.watchCompanion?.pendingSuggestions ?? 0, href: "/admin/watch-companions/suggestions", icon: MessageSquare, tone: "info" as const },
           { key: "ideas", label: "New idea submissions", count: stats.queues.ideas, href: "/admin/ideas", icon: Lightbulb, tone: "info" as const },
           { key: "feedback", label: "Open feedback", count: stats.queues.feedback, href: "/admin/feedback", icon: MessageCircle, tone: "info" as const },
+          { key: "contact", label: "Contact inquiries", count: stats.queues.contact, href: "/admin/contact", icon: Mail, tone: "warn" as const },
         ] as Alert[]
       ).filter((a) => a.count > 0)
     : [];
