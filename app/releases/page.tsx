@@ -4,7 +4,11 @@ import { Loader2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   getReleases,
+  getReleasesMultiPage,
   getUserTopTmdbGenres,
+  movieToUnified,
+  detectStreamingLaunches,
+  classifyLaunchEvents,
 } from "@/lib/releases";
 import { adminAuth } from "@/lib/firebase-admin";
 import { cookies } from "next/headers";
@@ -73,20 +77,48 @@ export default async function ReleasesPage() {
   const topGenresPromise = userId ? getUserTopTmdbGenres(userId, 5) : Promise.resolve(null);
 
   // Initial unfiltered feed: next 6 months, popularity-sorted.
-  // Default horizon is 6 months (was 90 days) — most users browsing
-  // Coming Soon want to see further out, and the popularity sort
-  // keeps the top of the list coherent regardless of horizon length.
-  const initialFeedPromise = getReleases({
+  // Loads 8 pages in parallel — popularity-sort within a 6-month
+  // window puts the genuinely-anticipated catalog across pages 1-8
+  // and the long-tail/niche stuff at page 9+. Pre-loading the well-
+  // known catalog on first paint replaces the old "click Load more
+  // 7 times" pattern.
+  const initialFeedPromise = getReleasesMultiPage({
     fromDate: today,
     toDate: sixMonths,
     sortBy: "popularity.desc",
-  });
+  }, 8);
 
-  const [thisWeek, topGenres, initialFeed] = await Promise.all([
+  // Streaming launches detected from the past 7 days of snapshots.
+  // The cron writes one snapshot per item per day; we diff today vs
+  // prior days to find newly-added providers. Returns an empty array
+  // until the cron has run for at least 2 days.
+  const streamingLaunchesPromise = (async () => {
+    try {
+      const events = await detectStreamingLaunches("US", 7);
+      if (events.length === 0) return [];
+      return await classifyLaunchEvents(events);
+    } catch (err) {
+      console.error("Streaming launches detection failed:", err);
+      return [];
+    }
+  })();
+
+  const [thisWeek, topGenres, initialFeed, streamingLaunches] = await Promise.all([
     thisWeekPromise,
     topGenresPromise,
     initialFeedPromise,
+    streamingLaunchesPromise,
   ]);
+
+  // Split the classified events: streaming-first goes in the main
+  // feed alongside primary releases; post-theatrical goes in the
+  // dedicated "Coming to streaming" section below.
+  const streamingFirstLaunches = streamingLaunches
+    .filter((e) => e.isStreamingFirst)
+    .map((e) => e.unified);
+  const postTheatricalLaunches = streamingLaunches
+    .filter((e) => !e.isStreamingFirst)
+    .map((e) => e.unified);
 
   // For You feed only renders when we have a real persona to anchor
   // against. The helper returns null in that case so we cleanly
@@ -119,10 +151,15 @@ export default async function ReleasesPage() {
       }
     >
       <ReleasesClient
-        thisWeek={thisWeek.results.slice(0, 5)}
-        forYou={forYou?.results.slice(0, 12) ?? null}
+        thisWeek={thisWeek.results.slice(0, 5).map(movieToUnified)}
+        forYou={forYou?.results.slice(0, 12).map(movieToUnified) ?? null}
         topGenresCount={topGenres?.length ?? 0}
-        initialFeed={initialFeed.results}
+        // Merge streaming-first launches into the initial feed —
+        // they belong alongside primary releases in the date-grouped
+        // calendar (their release_date was already overwritten with
+        // the launch day during classification).
+        initialFeed={[...initialFeed.results.map(movieToUnified), ...streamingFirstLaunches]}
+        postTheatricalLaunches={postTheatricalLaunches}
         genres={genres}
       />
     </Suspense>

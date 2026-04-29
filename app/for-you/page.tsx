@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { useAuth } from "@/context/AuthContext";
-import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check, Settings, GripVertical, X } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check, Settings, GripVertical, X, CalendarHeart } from "lucide-react";
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -51,20 +51,26 @@ interface TopPick {
   estimatedRating: number;
 }
 
+interface AnticipatedItem extends MediaItem {
+  followingCount: number;
+}
+
 interface FeedData {
   topPicks: TopPick[];
   followActivity: MediaItem[];
   becauseYouLiked: BecauseYouLikedSection[];
   trendingInCluster: MediaItem[];
   unwatchedWatchlist: MediaItem[];
+  anticipated: AnticipatedItem[];
   completeTheRating: IncompleteItem[];
   ratistReviewCount?: number;
   sectionOrder?: string[] | null;
 }
 
-const DEFAULT_SECTION_ORDER = ["topPicks", "becauseYouLiked", "trending", "watchlist", "following", "incomplete"];
+const DEFAULT_SECTION_ORDER = ["topPicks", "anticipated", "becauseYouLiked", "trending", "watchlist", "following", "incomplete"];
 const SECTION_LABELS: Record<string, string> = {
   topPicks: "Top Picks For You",
+  anticipated: "Anticipated by People You Follow",
   becauseYouLiked: "Because You Liked",
   trending: "Trending on The Ratist",
   watchlist: "From Your Watchlist",
@@ -96,6 +102,41 @@ function toShowProps(item: MediaItem) {
     overview: "",
     genre_ids: [],
   };
+}
+
+function mergeSectionOrder(saved: string[] | null): string[] {
+  if (!saved) return [...DEFAULT_SECTION_ORDER];
+  const result = saved.filter((k) => DEFAULT_SECTION_ORDER.includes(k));
+  for (let i = 0; i < DEFAULT_SECTION_ORDER.length; i++) {
+    const key = DEFAULT_SECTION_ORDER[i];
+    if (!result.includes(key)) {
+      result.splice(Math.min(i, result.length), 0, key);
+    }
+  }
+  return result;
+}
+
+function AnticipatedGrid({ items }: { items: AnticipatedItem[] }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+      {items.map((item) => (
+        <div key={`${item.type}-${item.tmdbId}`} className="relative">
+          {item.type === "tv" ? (
+            <ShowCard show={toShowProps(item) as never} />
+          ) : (
+            <MovieCard movie={toMovieProps(item) as never} />
+          )}
+          {/* Subtle "+N following" badge — static, no popover. The
+              count is per visibility-gated watchlist (private
+              watchlists already filtered server-side). */}
+          <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-black/75 border border-[var(--ratist-red)]/60 text-white">
+            <Users className="w-3 h-3 text-[var(--ratist-red)]" />
+            +{item.followingCount} following
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function MediaGrid({ items, showUser }: { items: MediaItem[]; showUser?: boolean }) {
@@ -229,6 +270,21 @@ export default function ForYouPage() {
     fetchFeed();
   }, [loading, fetchFeed]);
 
+  // Hash-scroll AFTER data renders. The browser tries to scroll on
+  // initial nav, but the target section doesn't exist yet because
+  // the feed loads via fetch in an effect. Re-run the scroll once
+  // the data is in the DOM so /for-you#anticipated (linked from
+  // /releases) lands on the right section.
+  useEffect(() => {
+    if (!data) return;
+    const hash = window.location.hash;
+    if (!hash) return;
+    requestAnimationFrame(() => {
+      const el = document.querySelector(hash);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [data]);
+
   if (loading || fetching) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -257,10 +313,16 @@ export default function ForYouPage() {
   const hasBecauseYouLiked = data.becauseYouLiked.length > 0;
   const hasTrending = data.trendingInCluster.length > 0;
   const hasWatchlist = data.unwatchedWatchlist.length > 0;
+  const hasAnticipated = (data.anticipated?.length ?? 0) > 0;
   const hasIncomplete = data.completeTheRating.length > 0;
-  const isEmpty = !hasTopPicks && !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasIncomplete;
+  const isEmpty = !hasTopPicks && !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasAnticipated && !hasIncomplete;
 
-  const sectionOrder = data.sectionOrder ?? DEFAULT_SECTION_ORDER;
+  // Merge saved order with default — when a new section is added to
+  // DEFAULT_SECTION_ORDER, existing users' saved orders won't include
+  // it, which would hide the section from them entirely. Inject any
+  // missing default sections at their default position so new
+  // sections become visible without resetting custom orders.
+  const sectionOrder = mergeSectionOrder(data.sectionOrder ?? null);
 
   function openOrderEditor() {
     setTempOrder([...sectionOrder]);
@@ -414,6 +476,19 @@ export default function ForYouPage() {
                 {showAllPicks ? "Show less" : `Show ${data.topPicks.length - 10} more`}
               </button>
             )}
+          </section>
+        );
+
+        if (sectionKey === "anticipated" && hasAnticipated) return (
+          <section key="anticipated" id="anticipated" className="scroll-mt-24">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarHeart className="w-5 h-5 text-[var(--ratist-red)]" />
+              <h2 className="text-lg font-semibold text-white">Anticipated by People You Follow</h2>
+            </div>
+            <p className="text-xs text-[var(--foreground-muted)] mb-4">
+              Upcoming films and shows on the watchlists of people you follow. Sorted by how many of them are anticipating it.
+            </p>
+            <AnticipatedGrid items={data.anticipated} />
           </section>
         );
 

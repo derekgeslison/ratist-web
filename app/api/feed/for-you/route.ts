@@ -327,6 +327,99 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) { console.error("Top picks error:", e); }
 
+    // --- 7. Anticipated by people you follow ---
+    // Surfaces upcoming films/shows that >=1 followed user has on a
+    // non-private watchlist. Uses the same followingIds set we
+    // already filtered for blocks above. Watchlist.isPrivate=false
+    // is the visibility gate — accepted-follow already implies the
+    // viewer can see protected content, so a public-or-followee-
+    // visible-watchlist check reduces to just the per-watchlist
+    // privacy flag here.
+    const todayIso = new Date().toISOString().slice(0, 10);
+    let anticipated: Array<{
+      type: "movie" | "tv";
+      tmdbId: number;
+      title: string;
+      posterPath: string | null;
+      voteAverage: number;
+      releaseDate: string | null;
+      followingCount: number;
+    }> = [];
+    if (followingIds.length > 0) {
+      const [anticipatedMovies, anticipatedShows] = await Promise.all([
+        prisma.watchlistMovie.findMany({
+          where: {
+            watchlist: { userId: { in: followingIds }, isPrivate: false },
+            movie: { releaseDate: { gt: todayIso } },
+          },
+          select: {
+            watchlist: { select: { userId: true } },
+            movie: { select: { tmdbId: true, title: true, posterPath: true, releaseDate: true, voteAverage: true } },
+          },
+        }),
+        prisma.watchlistShow.findMany({
+          where: {
+            watchlist: { userId: { in: followingIds }, isPrivate: false },
+            tvShow: { firstAirDate: { gt: todayIso } },
+          },
+          select: {
+            watchlist: { select: { userId: true } },
+            tvShow: { select: { tmdbId: true, name: true, posterPath: true, firstAirDate: true } },
+          },
+        }),
+      ]);
+
+      // Aggregate distinct follower count per item. We exclude items
+      // the viewer already has on their own watchlist or has marked
+      // seen — surfacing "your follows are anticipating X" for
+      // something already in their watchlist isn't useful.
+      const ownWatchlistMovieIds = new Set(allWatchlistMovies.map((w) => w.movie.tmdbId));
+      const ownWatchlistShowIds = new Set(allWatchlistShows.map((w) => w.tvShow.tmdbId));
+
+      const movieAgg = new Map<number, { item: typeof anticipatedMovies[number]["movie"]; users: Set<string> }>();
+      for (const row of anticipatedMovies) {
+        if (ownWatchlistMovieIds.has(row.movie.tmdbId) || seenMovieIds.has(row.movie.tmdbId)) continue;
+        const k = row.movie.tmdbId;
+        if (!movieAgg.has(k)) movieAgg.set(k, { item: row.movie, users: new Set() });
+        movieAgg.get(k)!.users.add(row.watchlist.userId);
+      }
+      const showAgg = new Map<number, { item: typeof anticipatedShows[number]["tvShow"]; users: Set<string> }>();
+      for (const row of anticipatedShows) {
+        if (ownWatchlistShowIds.has(row.tvShow.tmdbId) || seenShowIds.has(row.tvShow.tmdbId)) continue;
+        const k = row.tvShow.tmdbId;
+        if (!showAgg.has(k)) showAgg.set(k, { item: row.tvShow, users: new Set() });
+        showAgg.get(k)!.users.add(row.watchlist.userId);
+      }
+
+      anticipated = [
+        ...[...movieAgg.values()].map((v) => ({
+          type: "movie" as const,
+          tmdbId: v.item.tmdbId,
+          title: v.item.title,
+          posterPath: v.item.posterPath,
+          voteAverage: v.item.voteAverage ?? 0,
+          releaseDate: v.item.releaseDate,
+          followingCount: v.users.size,
+        })),
+        ...[...showAgg.values()].map((v) => ({
+          type: "tv" as const,
+          tmdbId: v.item.tmdbId,
+          title: v.item.name,
+          posterPath: v.item.posterPath,
+          voteAverage: 0,
+          releaseDate: v.item.firstAirDate,
+          followingCount: v.users.size,
+        })),
+      ]
+        // Sort: highest follower count first, then earliest release.
+        // Earliest-release tiebreak surfaces what's hitting next.
+        .sort((a, b) => {
+          if (b.followingCount !== a.followingCount) return b.followingCount - a.followingCount;
+          return (a.releaseDate ?? "9999").localeCompare(b.releaseDate ?? "9999");
+        })
+        .slice(0, 20);
+    }
+
     // Count completed Ratist reviews (not quick/imported/drafts) for disclaimer
     const ratistReviewCount = await prisma.movieRating.count({
       where: { userId: user.id, plot: { not: null }, ratistRating: { not: null } },
@@ -338,6 +431,7 @@ export async function GET(req: NextRequest) {
       becauseYouLiked,
       trendingInCluster,
       unwatchedWatchlist,
+      anticipated,
       completeTheRating,
       ratistReviewCount,
       sectionOrder: (user.forYouOrder as string[] | null) ?? null,

@@ -2584,3 +2584,28 @@ model CompanionFollow {
   @@index([userId])
   @@map("companion_follows")
 }
+
+// Daily snapshot of which streaming providers each item is available on
+// per region. Powers the streaming-launches feature on /releases by
+// diffing today vs yesterday — providers that appear today but not
+// yesterday are "newly on [provider]" events. The cron walks top-N
+// popular movies + TV per day, so a single (tmdbId, mediaType, region)
+// pair has at most one row per snapshot date.
+//
+// Storage is bounded by trimming snapshots older than the diff window
+// (we only need today + yesterday). Older snapshots are nice-to-have
+// for analytics but not load-bearing.
+model MediaProviderSnapshot {
+  id           String   @id @default(cuid())
+  tmdbId       Int      @map("tmdb_id")
+  mediaType    String   @map("media_type") // "movie" | "tv"
+  region       String   // ISO 3166-1 alpha-2 (e.g. "US")
+  providerIds  Int[]    @map("provider_ids") // TMDB provider ids the item is on (subscription/free flatrate only — rentals/buys excluded by the cron)
+  snapshotDate DateTime @db.Date @map("snapshot_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([tmdbId, mediaType, region, snapshotDate])
+  @@index([snapshotDate])
+  @@index([tmdbId, mediaType, region])
+  @@map("media_provider_snapshots")
+}

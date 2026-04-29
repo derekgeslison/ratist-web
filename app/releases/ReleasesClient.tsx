@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Filter, ChevronDown, ChevronUp, Sparkles, Flame, X, Loader2, ArrowRight } from "lucide-react";
-import type { TMDBMovie } from "@/lib/tmdb";
+import { Calendar, Filter, ChevronDown, ChevronUp, Sparkles, Flame, X, Loader2, ArrowRight, Users, Film, Tv2, MonitorPlay } from "lucide-react";
+import type { UnifiedRelease } from "@/lib/releases";
+import { STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import { useAuth } from "@/context/AuthContext";
 
 interface Genre {
   id: number;
@@ -14,14 +16,22 @@ interface Genre {
 }
 
 interface Props {
-  thisWeek: TMDBMovie[];
-  forYou: TMDBMovie[] | null;
+  thisWeek: UnifiedRelease[];
+  forYou: UnifiedRelease[] | null;
   /** How many genres the For You feed was matched against — drives
    *  the "matched to your top N genres" subtitle. */
   topGenresCount: number;
-  initialFeed: TMDBMovie[];
+  initialFeed: UnifiedRelease[];
+  /** Streaming launches for items that previously had a theatrical
+   *  release. Surfaced in their own section below the calendar so
+   *  they don't crowd the main upcoming-releases view. Empty until
+   *  the snapshot cron has run for >= 2 days. */
+  postTheatricalLaunches: UnifiedRelease[];
   genres: Genre[];
 }
+
+const PROVIDER_BY_ID: Map<number, { id: number; name: string; short: string; logo: string }> =
+  new Map(STREAMING_PROVIDERS.map((p) => [p.id as number, { ...p }]));
 
 const MPA_OPTIONS = ["G", "PG", "PG-13", "R", "NC-17"] as const;
 
@@ -30,6 +40,14 @@ const RELEASE_TYPE_OPTIONS: Array<{ value: string; label: string; types: number[
   { value: "theatrical", label: "Theatrical",   types: [2, 3] },
   { value: "digital",    label: "Digital",      types: [4] },
 ];
+
+const MEDIA_TYPE_OPTIONS: Array<{ value: "movie" | "all" | "tv"; label: string }> = [
+  { value: "movie", label: "Movies" },
+  { value: "all",   label: "All" },
+  { value: "tv",    label: "TV Shows" },
+];
+
+const DEFAULT_MEDIA_TYPE: "movie" | "all" | "tv" = "movie";
 
 // Common regions — small list keeps the dropdown short. Users in
 // other markets can extend later via filter param.
@@ -54,14 +72,15 @@ const HORIZON_OPTIONS: Array<{ value: string; label: string; days: number }> = [
 const DEFAULT_HORIZON = "180";
 
 interface FetchResponse {
-  results: TMDBMovie[];
+  results: UnifiedRelease[];
   total_results: number;
   total_pages: number;
   page: number;
 }
 
-export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initialFeed, genres }: Props) {
+export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initialFeed, postTheatricalLaunches, genres }: Props) {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   // URL-synced filter state. Mirrors /box-office/all's pattern so
   // sharing a filtered release calendar gives the recipient the
@@ -69,6 +88,10 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   const [horizon, setHorizon] = useState(() => searchParams.get("horizon") ?? DEFAULT_HORIZON);
   const [region, setRegion] = useState(() => searchParams.get("region") ?? "US");
   const [releaseType, setReleaseType] = useState(() => searchParams.get("type") ?? "all");
+  const [mediaType, setMediaType] = useState<"movie" | "all" | "tv">(() => {
+    const m = searchParams.get("mediaType");
+    return m === "all" || m === "tv" || m === "movie" ? m : DEFAULT_MEDIA_TYPE;
+  });
   const [selectedGenres, setSelectedGenres] = useState<number[]>(() => {
     const g = searchParams.get("genres");
     return g ? g.split(",").map(Number).filter((n) => !Number.isNaN(n)) : [];
@@ -79,21 +102,30 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Server gave us the initial feed; we'll re-fetch as filters change.
-  const [feed, setFeed] = useState<TMDBMovie[]>(initialFeed);
+  // Server gave us the initial feed (8 pages worth); we'll re-fetch
+  // as filters change. Each window load is a fixed 8-page batch —
+  // there's no per-page "Load more" anymore.
+  const [feed, setFeed] = useState<UnifiedRelease[]>(initialFeed);
   const [loading, setLoading] = useState(false);
 
-  // Pagination — TMDB returns 20 per page. We accumulate pages
-  // client-side as the user clicks "Load more". The total pages
-  // count caps the fetch loop.
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Sliding-window pagination — instead of paging within the current
+  // horizon, "Look further out" advances the date window forward by
+  // `horizon` days and appends the next 8-page batch. windowOffset
+  // tracks where the most-recently-loaded window starts (in days
+  // from today). hasMoreFurther flips off when a fetch returns 0
+  // results — TMDB's far-future data thins out around 2-3 windows
+  // out, and there's no point showing the button after that.
+  const [windowOffset, setWindowOffset] = useState(0);
+  const [hasMoreFurther, setHasMoreFurther] = useState(true);
+  const [loadingFurther, setLoadingFurther] = useState(false);
+
+  const PAGES_PER_WINDOW = 8;
 
   const filterCount = selectedGenres.length + selectedMpa.length
     + (releaseType !== "all" ? 1 : 0)
     + (horizon !== DEFAULT_HORIZON ? 1 : 0)
-    + (region !== "US" ? 1 : 0);
+    + (region !== "US" ? 1 : 0)
+    + (mediaType !== DEFAULT_MEDIA_TYPE ? 1 : 0);
 
   // Build the query string used both for the API call and the
   // shareable URL. `bare` excludes default values so the URL stays
@@ -103,13 +135,14 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
     if (!bare || horizon !== DEFAULT_HORIZON) params.set("horizon", horizon);
     if (!bare || region !== "US") params.set("region", region);
     if (!bare || releaseType !== "all") params.set("type", releaseType);
+    if (!bare || mediaType !== DEFAULT_MEDIA_TYPE) params.set("mediaType", mediaType);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
     if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
     return params;
   }
 
-  const apiQuery = useMemo(() => buildParams(false).toString(), [horizon, region, releaseType, selectedGenres, selectedMpa]);
-  const shareQuery = useMemo(() => buildParams(true).toString(), [horizon, region, releaseType, selectedGenres, selectedMpa]);
+  const apiQuery = useMemo(() => buildParams(false).toString(), [horizon, region, releaseType, mediaType, selectedGenres, selectedMpa]);
+  const shareQuery = useMemo(() => buildParams(true).toString(), [horizon, region, releaseType, mediaType, selectedGenres, selectedMpa]);
 
   // Push to URL bar so back/forward + sharing work.
   useEffect(() => {
@@ -131,62 +164,61 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
 
   // Re-fetch the feed whenever filters change. Initial render keeps
   // the server-provided feed so we don't double-fetch on mount.
+  // Filter changes always reset the sliding window back to today.
   const isInitialLoad = useMemo(() => filterCount === 0, [filterCount]);
   useEffect(() => {
-    setPage(1);
+    setWindowOffset(0);
+    setHasMoreFurther(true);
     if (isInitialLoad) {
+      // Server-rendered initial feed is already 8 pages of months
+      // 0-6, so we can use it as-is without re-fetching.
       setFeed(initialFeed);
-      // We don't know the total pages of the initial server feed
-      // here — assume there's more available unless TMDB tells us
-      // otherwise via the API path.
-      setTotalPages(2);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/releases?${apiQuery}&page=1`)
-      .then((r) => (r.ok ? r.json() : { results: [], total_pages: 0 }))
+    fetch(`/api/releases?${apiQuery}&pages=${PAGES_PER_WINDOW}&windowOffset=0`)
+      .then((r) => (r.ok ? r.json() : { results: [] }))
       .then((data: FetchResponse) => {
         if (!cancelled) {
           setFeed(data.results ?? []);
-          setTotalPages(data.total_pages ?? 1);
         }
       })
-      .catch(() => { if (!cancelled) { setFeed([]); setTotalPages(0); } })
+      .catch(() => { if (!cancelled) setFeed([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [apiQuery, isInitialLoad, initialFeed]);
 
-  async function loadMore() {
-    if (loadingMore) return;
-    // If we're at the end of the current horizon's pages and we're
-    // on a non-12-month horizon, offer to extend instead. The
-    // button visibility below already handles which case we're in;
-    // this guard just protects against double-clicks.
-    if (page >= totalPages) return;
-    setLoadingMore(true);
+  async function lookFurtherOut() {
+    if (loadingFurther) return;
+    const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? 180;
+    const nextOffset = windowOffset + horizonDays;
+    setLoadingFurther(true);
     try {
-      const nextPage = page + 1;
-      const res = await fetch(`/api/releases?${apiQuery}&page=${nextPage}`);
+      const params = new URLSearchParams(apiQuery);
+      params.set("pages", String(PAGES_PER_WINDOW));
+      params.set("windowOffset", String(nextOffset));
+      const res = await fetch(`/api/releases?${params.toString()}`);
       if (!res.ok) return;
       const data: FetchResponse = await res.json();
-      setFeed((prev) => [...prev, ...(data.results ?? [])]);
-      setPage(nextPage);
-      if (data.total_pages != null) setTotalPages(data.total_pages);
+      const incoming = data.results ?? [];
+      if (incoming.length === 0) {
+        // Hit the end of TMDB's far-future data.
+        setHasMoreFurther(false);
+        return;
+      }
+      setFeed((prev) => {
+        // Dedup against what's already shown — adjacent windows can
+        // overlap on films with primary_release_date exactly on the
+        // boundary, and TMDB occasionally double-lists across pages.
+        const existing = new Set(prev.map((m) => m.id));
+        const additions = incoming.filter((m) => !existing.has(m.id));
+        return [...prev, ...additions];
+      });
+      setWindowOffset(nextOffset);
     } finally {
-      setLoadingMore(false);
+      setLoadingFurther(false);
     }
-  }
-
-  function extendHorizon() {
-    // "Look further out" — bumps horizon to the next bigger window
-    // when the user has reached the end of the current view. Skips
-    // when already on 12 months.
-    const next = horizon === "30" ? "90"
-      : horizon === "90" ? "180"
-      : horizon === "180" ? "365"
-      : null;
-    if (next) setHorizon(next);
   }
 
   function toggleGenre(id: number) {
@@ -200,9 +232,10 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
     );
   }
   function clearAll() {
-    setHorizon("90");
+    setHorizon(DEFAULT_HORIZON);
     setRegion("US");
     setReleaseType("all");
+    setMediaType(DEFAULT_MEDIA_TYPE);
     setSelectedGenres([]);
     setSelectedMpa([]);
   }
@@ -212,7 +245,7 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   // is preserved from the API. Skip movies without a release_date
   // (rare for upcoming, but possible for premiere-only entries).
   const grouped = useMemo(() => {
-    const map = new Map<string, TMDBMovie[]>();
+    const map = new Map<string, UnifiedRelease[]>();
     for (const m of feed) {
       const date = m.release_date;
       if (!date) continue;
@@ -249,13 +282,25 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
           releases dropping in the next 7 days. */}
       {thisWeek.length > 0 && (
         <section className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <Flame className="w-4 h-4 text-[var(--ratist-red)]" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-white">This Week in Theaters</h2>
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Flame className="w-4 h-4 text-[var(--ratist-red)]" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-white">This Week in Theaters</h2>
+            </div>
+            {user && (
+              <Link
+                href="/for-you#anticipated"
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors"
+              >
+                <Users className="w-3.5 h-3.5" />
+                See what people you follow are anticipating
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {thisWeek.map((m) => (
-              <ReleaseCard key={m.id} movie={m} accent />
+              <ReleaseCard key={`${m.mediaType}-${m.id}`} item={m} accent />
             ))}
           </div>
         </section>
@@ -274,8 +319,8 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:-mx-0 sm:px-0">
             {forYou.map((m) => (
-              <div key={m.id} className="shrink-0 w-32 sm:w-36">
-                <ReleaseCard movie={m} />
+              <div key={`${m.mediaType}-${m.id}`} className="shrink-0 w-32 sm:w-36">
+                <ReleaseCard item={m} />
               </div>
             ))}
           </div>
@@ -307,10 +352,30 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
               <X className="w-3 h-3" /> Clear
             </button>
           )}
-          {/* Quick toggles in the always-visible row: time horizon
-              and release type are the two most-changed filters, so
-              they live outside the collapse for one-tap access. */}
+          {/* Quick toggles in the always-visible row: media type,
+              time horizon, and release type are the most-changed
+              filters, so they live outside the collapse for one-tap
+              access. Media type is first because it gates which
+              fields below are even meaningful (release_type and MPA
+              cert are movie-specific). */}
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="inline-flex bg-[var(--background)] border border-[var(--border)] rounded-md p-0.5" role="group" aria-label="Media type">
+              {MEDIA_TYPE_OPTIONS.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setMediaType(t.value)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded ${
+                    mediaType === t.value
+                      ? "bg-[var(--ratist-red)] text-white"
+                      : "text-[var(--foreground-muted)] hover:text-white"
+                  }`}
+                >
+                  {t.value === "movie" && <Film className="w-3 h-3" />}
+                  {t.value === "tv" && <Tv2 className="w-3 h-3" />}
+                  {t.label}
+                </button>
+              ))}
+            </div>
             <select
               value={horizon}
               onChange={(e) => setHorizon(e.target.value)}
@@ -321,60 +386,72 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
                 <option key={h.value} value={h.value}>{h.label}</option>
               ))}
             </select>
-            <div className="inline-flex bg-[var(--background)] border border-[var(--border)] rounded-md p-0.5">
-              {RELEASE_TYPE_OPTIONS.map((t) => (
-                <button
-                  key={t.value}
-                  onClick={() => setReleaseType(t.value)}
-                  className={`px-2 py-0.5 text-xs rounded ${
-                    releaseType === t.value
-                      ? "bg-[var(--ratist-red)] text-white"
-                      : "text-[var(--foreground-muted)] hover:text-white"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            {/* Release type and region/MPA only apply to movies — TMDB
+                /discover/tv has no equivalent filters. Hide them in
+                TV-only mode so users don't fiddle with controls that
+                do nothing. */}
+            {mediaType !== "tv" && (
+              <div className="inline-flex bg-[var(--background)] border border-[var(--border)] rounded-md p-0.5">
+                {RELEASE_TYPE_OPTIONS.map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setReleaseType(t.value)}
+                    className={`px-2 py-0.5 text-xs rounded ${
+                      releaseType === t.value
+                        ? "bg-[var(--ratist-red)] text-white"
+                        : "text-[var(--foreground-muted)] hover:text-white"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {filtersOpen && (
           <div className="space-y-4 pt-2 border-t border-[var(--border)]">
-            {/* Region */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-[var(--foreground-muted)] mr-1">Region:</span>
-              <select
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
-              >
-                {REGION_OPTIONS.map((r) => (
-                  <option key={r.code} value={r.code}>{r.label}</option>
-                ))}
-              </select>
-            </div>
+            {/* Region — movies-only. TMDB /discover/tv has no region
+                or certification filter; TV releases are network-
+                global from a discover-API perspective. */}
+            {mediaType !== "tv" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-[var(--foreground-muted)] mr-1">Region:</span>
+                <select
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  className="bg-[var(--background)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-[var(--ratist-red)]"
+                >
+                  {REGION_OPTIONS.map((r) => (
+                    <option key={r.code} value={r.code}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-            {/* MPA pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-[var(--foreground-muted)] mr-1">MPA:</span>
-              {MPA_OPTIONS.map((code) => {
-                const active = selectedMpa.includes(code);
-                return (
-                  <button
-                    key={code}
-                    onClick={() => toggleMpa(code)}
-                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                      active
-                        ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
-                        : "bg-[var(--background)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]/40"
-                    }`}
-                  >
-                    {code}
-                  </button>
-                );
-              })}
-            </div>
+            {/* MPA pills — movies-only for the same reason. */}
+            {mediaType !== "tv" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-[var(--foreground-muted)] mr-1">MPA:</span>
+                {MPA_OPTIONS.map((code) => {
+                  const active = selectedMpa.includes(code);
+                  return (
+                    <button
+                      key={code}
+                      onClick={() => toggleMpa(code)}
+                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                        active
+                          ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                          : "bg-[var(--background)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)]/40"
+                      }`}
+                    >
+                      {code}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Genre chips */}
             <div className="flex flex-wrap items-center gap-2">
@@ -415,40 +492,71 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
         ))}
       </div>
 
-      {/* Pagination + horizon-extension. Two distinct calls to action:
-            - "Load more" while there are more pages within the
-              current horizon (TMDB returns 20 at a time).
-            - "Look further out" once we've exhausted the current
-              horizon and there's a wider one available — auto-extends
-              30→90, 90→180, 180→365. Anchors a discovery path so a
-              user on the 6-month default doesn't dead-end at the
-              bottom of the page. */}
-      {feed.length > 0 && (
-        <div className="mt-8 text-center space-y-3">
-          {page < totalPages && (
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="px-5 py-2.5 bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50"
-            >
-              {loadingMore ? <Loader2 className="w-4 h-4 animate-spin inline" /> : "Load more"}
-            </button>
-          )}
-          {page >= totalPages && horizon !== "365" && (
-            <div>
-              <button
-                onClick={extendHorizon}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-sm font-semibold text-white rounded-lg transition-colors"
-              >
+      {/* Coming to streaming — items that already had a theatrical
+            run and have just landed on a streaming service. Distinct
+            from the main feed (which is true upcoming releases +
+            streaming-first launches). Empty section is hidden so
+            it doesn't render an awkward stub before the cron has
+            data. mediaType filter applies — when user selects TV,
+            this section shows only show launches; movies-only mode
+            shows only movie launches. */}
+      {postTheatricalLaunches.length > 0 && (() => {
+        const filtered = mediaType === "tv"
+          ? postTheatricalLaunches.filter((l) => l.mediaType === "tv")
+          : mediaType === "movie"
+            ? postTheatricalLaunches.filter((l) => l.mediaType === "movie")
+            : postTheatricalLaunches;
+        if (filtered.length === 0) return null;
+        return (
+          <section className="mt-12 pt-8 border-t border-[var(--border)]">
+            <div className="flex items-center gap-2 mb-3">
+              <MonitorPlay className="w-4 h-4 text-[var(--ratist-red)]" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-white">Coming to Streaming</h2>
+              <span className="text-xs text-[var(--foreground-muted)]">
+                · films that recently landed on streaming after their theatrical run
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {filtered.map((item) => (
+                <ReleaseCard key={`launch-${item.mediaType}-${item.id}-${item.streamingProviderId}`} item={item} />
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* Sliding-window pagination. Each click of "Look further out"
+            advances the date range forward by `horizon` days and
+            appends the next 8-page batch to the feed — so the
+            calendar continues forward in time rather than
+            re-paginating within the same window. The button hides
+            when a fetch returns 0 results (TMDB's far-future data
+            runs out around 2-3 windows ahead). */}
+      {feed.length > 0 && hasMoreFurther && !loading && (
+        <div className="mt-8 text-center">
+          <button
+            onClick={lookFurtherOut}
+            disabled={loadingFurther}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-60"
+          >
+            {loadingFurther ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading…
+              </>
+            ) : (
+              <>
                 Look further out
                 <ArrowRight className="w-4 h-4" />
-              </button>
-              <p className="mt-2 text-xs text-[var(--foreground-muted)]">
-                You've reached the end of the {HORIZON_OPTIONS.find((h) => h.value === horizon)?.label.toLowerCase() ?? ""} window.
-              </p>
-            </div>
-          )}
+              </>
+            )}
+          </button>
         </div>
+      )}
+      {feed.length > 0 && !hasMoreFurther && (
+        <p className="mt-8 text-center text-xs text-[var(--foreground-muted)]">
+          You've reached the end of available upcoming releases.
+        </p>
       )}
 
       {/* Footer link back to /movies */}
@@ -464,7 +572,7 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   );
 }
 
-function DateGroup({ date, movies }: { date: string; movies: TMDBMovie[] }) {
+function DateGroup({ date, movies: items }: { date: string; movies: UnifiedRelease[] }) {
   // Format date as "Friday, May 2" with year only when not current.
   // The user is scanning the calendar — knowing the day-of-week is
   // more useful than the year for releases in the next few months.
@@ -497,27 +605,28 @@ function DateGroup({ date, movies }: { date: string; movies: TMDBMovie[] }) {
         {relative && <span className="text-xs text-[var(--foreground-muted)]">{relative}</span>}
       </header>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-        {movies.map((m) => (
-          <ReleaseCard key={m.id} movie={m} />
+        {items.map((m) => (
+          <ReleaseCard key={`${m.mediaType}-${m.id}`} item={m} />
         ))}
       </div>
     </section>
   );
 }
 
-function ReleaseCard({ movie, accent }: { movie: TMDBMovie; accent?: boolean }) {
+function ReleaseCard({ item, accent }: { item: UnifiedRelease; accent?: boolean }) {
+  const href = item.mediaType === "tv" ? `/shows/${item.id}` : `/movies/${item.id}`;
   return (
     <Link
-      href={`/movies/${movie.id}`}
+      href={href}
       className={`group block bg-[var(--surface)] border rounded-xl overflow-hidden hover:border-[var(--ratist-red)] transition-colors ${
         accent ? "border-[var(--ratist-red)]/30" : "border-[var(--border)]"
       }`}
     >
       <div className="relative aspect-[2/3] bg-[var(--background)]">
-        {movie.poster_path ? (
+        {item.poster_path ? (
           <Image
-            src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
-            alt={movie.title}
+            src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+            alt={item.title}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 200px"
             className="object-cover"
@@ -527,13 +636,28 @@ function ReleaseCard({ movie, accent }: { movie: TMDBMovie; accent?: boolean }) 
             No poster
           </div>
         )}
+        {item.mediaType === "tv" && !item.streamingProviderId && (
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-black/75 border border-[var(--ratist-red)]/60 text-white">
+            <Tv2 className="w-2.5 h-2.5" />
+            TV
+          </span>
+        )}
+        {item.streamingProviderId != null && (() => {
+          const provider = PROVIDER_BY_ID.get(item.streamingProviderId);
+          return (
+            <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-black/80 border border-[var(--ratist-red)]/70 text-white">
+              <MonitorPlay className="w-2.5 h-2.5 text-[var(--ratist-red)]" />
+              New on {provider?.short ?? "streaming"}
+            </span>
+          );
+        })()}
       </div>
       <div className="p-2">
         <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--ratist-red)]">
-          {movie.title}
+          {item.title}
         </p>
-        {movie.release_date && (
-          <p className="text-[10px] text-[var(--foreground-muted)]">{movie.release_date}</p>
+        {item.release_date && (
+          <p className="text-[10px] text-[var(--foreground-muted)]">{item.release_date}</p>
         )}
       </div>
     </Link>
