@@ -66,15 +66,30 @@ const DEFAULT_RELEASE_TYPES = [2, 3, 4]; // theatrical (limited+wide) + digital
  *  the paged result; callers handle pagination and downstream
  *  display.
  *
- *  Important: filter on `primary_release_date.*` (NOT `release_date.*`).
- *  An earlier draft used `release_date.*` to enable per-region date
- *  filtering, but TMDB's regional release calendar for upcoming
- *  films is sparse — many films have a primary release date set
- *  but no regional entries yet, so region-aware filtering would
- *  exclude them entirely. primary_release_date catches everything
- *  in the global pipeline; `region` still affects which release-
- *  date values TMDB surfaces on each result for display, plus
- *  certification matching.
+ *  Filter strategy: `release_date.gte/lte` (regional date) + `region`
+ *  + `with_release_type`. With `region` set, TMDB's `release_date`
+ *  filter narrows to films with a release of the specified types
+ *  IN THAT REGION within the date range. The returned `release_date`
+ *  field on each result is the regional date (matches the filter
+ *  semantics), so the displayed date is always within our window.
+ *
+ *  Why not `primary_release_date.gte/lte`: the primary date is the
+ *  film's global premiere, not regional. Combined with `region=US`
+ *  this filtered by global date but displayed the regional date,
+ *  causing three problems on /releases (2026-04-29):
+ *    1. Films already released in the US showing as upcoming
+ *       (US date in past, primary date still in window).
+ *    2. Films with US releases far outside the window showing up
+ *       (primary in window, US release months later).
+ *    3. Foreign films with no US release at all surfacing because
+ *       `region` doesn't strictly filter the result set.
+ *
+ *  Trade-off: `release_date.*` matches ANY release event of the
+ *  given types, which can include re-releases of older films
+ *  (anniversary editions, restored prints, country-specific re-
+ *  releases). For a "next 6 months" view this is rare in practice;
+ *  the primary-release approach's mis-dating was visible on every
+ *  page load.
  *
  *  Default sort is popularity.desc. Sorting by release date asc
  *  surfaces obscure foreign films at the top (earliest in
@@ -88,8 +103,8 @@ export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResu
   const params = new URLSearchParams({
     api_key: API_KEY ?? "",
     sort_by: filters.sortBy ?? "popularity.desc",
-    "primary_release_date.gte": filters.fromDate,
-    "primary_release_date.lte": filters.toDate,
+    "release_date.gte": filters.fromDate,
+    "release_date.lte": filters.toDate,
     with_release_type: types,
     region,
     page: String(filters.page ?? 1),
@@ -112,7 +127,17 @@ export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResu
   if (!res.ok) {
     return { page: 1, results: [], total_pages: 0, total_results: 0 };
   }
-  return res.json();
+  const data: TMDBPageResult<TMDBMovie> = await res.json();
+  // Defensive client-side date filter. TMDB's discover endpoint is
+  // surprisingly fuzzy with date ranges when combined with region —
+  // historically we've seen results with release_date outside the
+  // requested window slip through. ISO YYYY-MM-DD strings sort
+  // lexically so direct comparison is safe.
+  const filtered = data.results.filter((m) => {
+    if (!m.release_date) return false;
+    return m.release_date >= filters.fromDate && m.release_date <= filters.toDate;
+  });
+  return { ...data, results: filtered };
 }
 
 /** Fetch the first N pages of a release query in parallel and stitch
@@ -253,7 +278,15 @@ export async function getShowReleases(filters: ShowReleaseFilters): Promise<TMDB
   if (!res.ok) {
     return { page: 1, results: [], total_pages: 0, total_results: 0 };
   }
-  return res.json();
+  const data: TMDBPageResult<TMDBShow> = await res.json();
+  // Defensive client-side date filter — same reasoning as the movie
+  // path. /discover/tv is less prone to fuzziness without region
+  // complications, but it's a cheap insurance against TMDB drift.
+  const filtered = data.results.filter((s) => {
+    if (!s.first_air_date) return false;
+    return s.first_air_date >= filters.fromDate && s.first_air_date <= filters.toDate;
+  });
+  return { ...data, results: filtered };
 }
 
 /** Multi-page parallel fetcher for TV — same shape as getReleasesMultiPage. */
