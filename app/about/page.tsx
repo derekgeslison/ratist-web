@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
-import { Star, BarChart3, Users, Swords, Film, Brain, Shield, Zap, Tv, Sparkles, RefreshCw, Map, TrendingUp, Calendar, Eye, Award, MessageSquare, Video, Newspaper, Ticket, HelpCircle } from "lucide-react";
+import { Star, BarChart3, Users, Film, Brain, Shield, Zap, Tv, Sparkles, RefreshCw, Map, TrendingUp, Calendar, Eye, Award, MessageSquare, Video, Newspaper, Ticket, HelpCircle } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
 export const metadata: Metadata = {
@@ -177,8 +177,7 @@ export default function AboutPage() {
             { icon: MessageSquare, title: "Forum", desc: "Long-form discussion, theory threads, polls, recommendation requests, and structured debates. With media linking, reactions, and follow-thread notifications.", href: "/forum" },
             { icon: HelpCircle, title: "Cine-Q Trivia", desc: "Daily movie trivia with weighted difficulty scoring. Climb the global leaderboard, earn badges, and prove you really know your cinema.", href: "/community/cineq" },
             { icon: Video, title: "Screening Room", desc: "A social watch-together tool. Sync up with friends, chat in real time, and rate together at the end.", href: "/screening-room" },
-            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Head-to-head debates and contrarian takes — both sides of the argument, on the page, with a community vote.", href: "/two-thumbs" },
-            { icon: Swords, title: "Punch & Judy", desc: "Structured for/against debates per movie. Read the strongest arguments, submit your own, and vote on the verdict.", href: "/punch-and-judy" },
+            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Structured for/against debates per movie. Read both sides, submit your own arguments, and vote on the verdict.", href: "/two-thumbs" },
             { icon: Map, title: "Movie Maps", desc: "Visual guides for confusing or branching narratives, plus curated viewing lists and themed deep-dives.", href: "/movie-maps" },
             { icon: RefreshCw, title: "Recasts", desc: "Suggest who should have played that role — the community votes on the best alternate casting.", href: "/community/recast" },
             { icon: Sparkles, title: "Looks Like", desc: "Celebrity lookalike pairs — vote on who could be twins.", href: "/community/looks-like" },
