@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Filter, ChevronDown, ChevronUp, Sparkles, Flame, X, Loader2, ArrowRight, Users, Film, Tv2, MonitorPlay } from "lucide-react";
+import { Calendar, Filter, ChevronDown, ChevronUp, Sparkles, Flame, X, Loader2, ArrowRight, Users, Film, Tv, Tv2, MonitorPlay } from "lucide-react";
 import type { UnifiedRelease } from "@/lib/releases";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
@@ -652,10 +652,10 @@ function ReleaseCard({ item, accent }: { item: UnifiedRelease; accent?: boolean 
           </div>
         )}
         {item.mediaType === "tv" && !item.streamingProviderId && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-black/75 border border-[var(--ratist-red)]/60 text-white">
-            <Tv2 className="w-2.5 h-2.5" />
-            TV
-          </span>
+          <div className="absolute top-1.5 left-1.5 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
+            <Tv className="w-2.5 h-2.5" />
+            <span className="text-[8px] font-bold leading-none">TV</span>
+          </div>
         )}
         {item.streamingProviderId != null && (() => {
           const provider = PROVIDER_BY_ID.get(item.streamingProviderId);

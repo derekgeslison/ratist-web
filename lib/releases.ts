@@ -106,6 +106,7 @@ export async function getReleases(filters: ReleaseFilters): Promise<TMDBPageResu
     "release_date.gte": filters.fromDate,
     "release_date.lte": filters.toDate,
     with_release_type: types,
+    with_original_language: "en",
     region,
     page: String(filters.page ?? 1),
     include_adult: "false",
@@ -264,6 +265,12 @@ export async function getShowReleases(filters: ShowReleaseFilters): Promise<TMDB
     sort_by: filters.sortBy ?? "popularity.desc",
     "first_air_date.gte": filters.fromDate,
     "first_air_date.lte": filters.toDate,
+    // English-original-language filter is the only viable
+    // US-focus filter for /discover/tv, since the endpoint
+    // doesn't accept `region` at all. Cuts the K-drama/anime/
+    // telenovela mass that dominates global TV popularity
+    // pages 4-8.
+    with_original_language: "en",
     page: String(filters.page ?? 1),
     include_adult: "false",
     include_null_first_air_dates: "false",
