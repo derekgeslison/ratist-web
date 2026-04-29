@@ -63,17 +63,17 @@ const REGION_OPTIONS: Array<{ code: string; label: string }> = [
   { code: "KR", label: "South Korea" },
 ];
 
-// Horizon dropdown is a CLIENT-SIDE display filter, not a server query
-// param. The API always fetches 6 months of data; the dropdown narrows
-// what's visible from that loaded dataset. Querying TMDB for only
-// 30 or 90 days forced 8 pages of popularity-sort to surface niche
-// content because the well-known anticipated-release pool is sparse
-// at that horizon. 365 dropped — same dataset; "Look further out"
-// loads the next 6-month window if the user wants more.
+// Horizon dropdown is a CLIENT-SIDE display filter — narrows what's
+// shown from the cached 6-month load. Querying TMDB directly for
+// narrow windows (30/90 days) forces 8 pages of popularity-sort to
+// scrape into the long tail because the well-known anticipated
+// catalog is sparse over a short range; cached + filtered avoids
+// that.
 const HORIZON_OPTIONS: Array<{ value: string; label: string; days: number }> = [
   { value: "30",  label: "Next 30 days",   days: 30 },
   { value: "90",  label: "Next 90 days",   days: 90 },
   { value: "180", label: "Next 6 months",  days: 180 },
+  { value: "365", label: "Next 12 months", days: 365 },
 ];
 
 const DEFAULT_HORIZON = "180";
@@ -116,14 +116,22 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   const [feed, setFeed] = useState<UnifiedRelease[]>(initialFeed);
   const [loading, setLoading] = useState(false);
 
-  // Sliding-window pagination — instead of paging within the current
-  // horizon, "Look further out" advances the date window forward by
-  // `horizon` days and appends the next 8-page batch. windowOffset
-  // tracks where the most-recently-loaded window starts (in days
-  // from today). hasMoreFurther flips off when a fetch returns 0
-  // results — TMDB's far-future data thins out around 2-3 windows
-  // out, and there's no point showing the button after that.
-  const [windowOffset, setWindowOffset] = useState(0);
+  // Two separate concepts:
+  //   extendDays — how far the user has clicked "Look further out"
+  //     past the current horizon. Resets when the horizon dropdown
+  //     changes. Visible cutoff = today + horizonDays + extendDays.
+  //   loadedEnd — the furthest day from today we've actually fetched
+  //     data for. Grows in 6-month chunks as needed; never resets
+  //     except on filter change (which also re-fetches from scratch).
+  // The two are decoupled so:
+  //   - At horizon=30 with cached 6 months: clicking LFO extends
+  //     visibility by 30 days at a time using cached data (no fetch).
+  //   - At horizon=180: clicking LFO immediately pushes past the
+  //     cached range and triggers the next 6-month fetch.
+  // hasMoreFurther flips off when a fetch returns 0 (TMDB's far-
+  // future data runs out around 2-3 windows ahead).
+  const [extendDays, setExtendDays] = useState(0);
+  const [loadedEnd, setLoadedEnd] = useState(FETCH_WINDOW_DAYS);
   const [hasMoreFurther, setHasMoreFurther] = useState(true);
   const [loadingFurther, setLoadingFurther] = useState(false);
 
@@ -186,11 +194,12 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
 
   // Re-fetch the feed whenever filters change. Initial render keeps
   // the server-provided feed so we don't double-fetch on mount.
-  // Filter changes always reset the sliding window back to today.
+  // Filter changes also reset the LFO state.
   const isInitialLoad = useMemo(() => filterCount === 0, [filterCount]);
   useEffect(() => {
-    setWindowOffset(0);
+    setExtendDays(0);
     setHasMoreFurther(true);
+    setLoadedEnd(FETCH_WINDOW_DAYS);
     if (isInitialLoad) {
       // Server-rendered initial feed is already 8 pages of months
       // 0-6, so we can use it as-is without re-fetching.
@@ -211,40 +220,66 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
     return () => { cancelled = true; };
   }, [apiQuery, isInitialLoad, initialFeed]);
 
-  async function lookFurtherOut() {
-    if (loadingFurther) return;
-    // Always advance by the fetch window (6 months) regardless of the
-    // display horizon. Window size and display narrowness are now
-    // independent concepts — the user filters via the dropdown,
-    // and "Look further out" loads the next batch of well-known
-    // catalog from the API.
-    const nextOffset = windowOffset + FETCH_WINDOW_DAYS;
+  // Reset extendDays whenever the user picks a different horizon.
+  // Their LFO progress is meaningful relative to the current horizon,
+  // so changing horizon should drop them back to "starting fresh"
+  // for the new view.
+  useEffect(() => {
+    setExtendDays(0);
+  }, [horizon]);
+
+  // Auto-fill effect: whenever the visible cutoff exceeds what we've
+  // loaded, fetch the next 6-month chunk. Triggered by:
+  //   - Picking a wider horizon (e.g. 365) than the loaded range
+  //   - Clicking Look Further Out enough times to push past loaded
+  // The effect re-runs after fetch settles loadedEnd. If the cutoff
+  // is still beyond the new loadedEnd (e.g., 365-day horizon needing
+  // a second 180-day chunk), it fires again until covered or until
+  // hasMoreFurther flips off.
+  useEffect(() => {
+    if (loading || loadingFurther) return;
+    if (!hasMoreFurther) return;
+    const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
+    const visibleCutoffDays = horizonDays + extendDays;
+    if (visibleCutoffDays <= loadedEnd) return;
+
+    let cancelled = false;
+    const nextOffset = loadedEnd;
     setLoadingFurther(true);
-    try {
-      const params = new URLSearchParams(apiQuery);
-      params.set("pages", String(PAGES_PER_WINDOW));
-      params.set("windowOffset", String(nextOffset));
-      const res = await fetch(`/api/releases?${params.toString()}`);
-      if (!res.ok) return;
-      const data: FetchResponse = await res.json();
-      const incoming = data.results ?? [];
-      if (incoming.length === 0) {
-        // Hit the end of TMDB's far-future data.
-        setHasMoreFurther(false);
-        return;
+    (async () => {
+      try {
+        const params = new URLSearchParams(apiQuery);
+        params.set("pages", String(PAGES_PER_WINDOW));
+        params.set("windowOffset", String(nextOffset));
+        const res = await fetch(`/api/releases?${params.toString()}`);
+        if (!res.ok) return;
+        const data: FetchResponse = await res.json();
+        const incoming = data.results ?? [];
+        if (cancelled) return;
+        if (incoming.length === 0) {
+          setHasMoreFurther(false);
+          return;
+        }
+        setFeed((prev) => {
+          // Dedup against what's already shown — adjacent windows can
+          // overlap on films near the boundary, and TMDB occasionally
+          // double-lists across pages.
+          const existing = new Set(prev.map((m) => m.id));
+          const additions = incoming.filter((m) => !existing.has(m.id));
+          return [...prev, ...additions];
+        });
+        setLoadedEnd(nextOffset + FETCH_WINDOW_DAYS);
+      } finally {
+        if (!cancelled) setLoadingFurther(false);
       }
-      setFeed((prev) => {
-        // Dedup against what's already shown — adjacent windows can
-        // overlap on films with primary_release_date exactly on the
-        // boundary, and TMDB occasionally double-lists across pages.
-        const existing = new Set(prev.map((m) => m.id));
-        const additions = incoming.filter((m) => !existing.has(m.id));
-        return [...prev, ...additions];
-      });
-      setWindowOffset(nextOffset);
-    } finally {
-      setLoadingFurther(false);
-    }
+    })();
+    return () => { cancelled = true; };
+  }, [horizon, extendDays, loadedEnd, hasMoreFurther, loading, loadingFurther, apiQuery]);
+
+  function lookFurtherOut() {
+    if (loadingFurther) return;
+    const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
+    setExtendDays((prev) => prev + horizonDays);
   }
 
   function toggleGenre(id: number) {
@@ -271,14 +306,15 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   // is preserved from the API. Skip movies without a release_date
   // (rare for upcoming, but possible for premiere-only entries).
   //
-  // Horizon is applied here as a client-side cutoff, NOT in the API
-  // call. The API always returns a 6-month window (or more, after
-  // "Look further out" clicks); this filter narrows display to
-  // today + horizon days. Streaming-launch entries dated to recent
-  // past pass naturally since their dates are <= cutoff.
+  // Horizon + extendDays are applied as a client-side cutoff, NOT
+  // in the API call. The API always fetches in 6-month chunks; this
+  // filter narrows display to (today + horizonDays + extendDays).
+  // Streaming-launch entries dated to recent past pass naturally
+  // since their dates are <= cutoff.
   const grouped = useMemo(() => {
     const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
-    const cutoff = new Date(Date.now() + horizonDays * 24 * 60 * 60 * 1000)
+    const visibleCutoffDays = horizonDays + extendDays;
+    const cutoff = new Date(Date.now() + visibleCutoffDays * 24 * 60 * 60 * 1000)
       .toISOString().slice(0, 10);
     const map = new Map<string, UnifiedRelease[]>();
     for (const m of feed) {
@@ -289,7 +325,17 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       map.get(date)!.push(m);
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [feed, horizon]);
+  }, [feed, horizon, extendDays]);
+
+  // LFO button visible whenever there's MORE to look at — either:
+  //   - more cached data we haven't yet revealed (visibleCutoff <
+  //     loadedEnd), or
+  //   - more data available remotely (hasMoreFurther).
+  // Hidden only when both are false (we've shown everything cached
+  // AND TMDB has no more data to offer).
+  const horizonDaysCurrent = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
+  const visibleCutoffDays = horizonDaysCurrent + extendDays;
+  const showLfoButton = hasMoreFurther || visibleCutoffDays < loadedEnd;
 
   const displayedCount = useMemo(
     () => grouped.reduce((sum, [, items]) => sum + items.length, 0),
@@ -571,16 +617,12 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
         );
       })()}
 
-      {/* Sliding-window pagination. Each click of "Look further out"
-            advances the date range forward by 6 months and appends
-            the next 8-page batch to the feed. Hidden when:
-            - User has narrowed the display horizon (30/90 days):
-              loading more 6-month batches would just be hidden by
-              the client-side cutoff filter and confuse the user.
-              They should widen the horizon first.
-            - A prior fetch returned 0 results (TMDB's far-future
-              data runs out around 2-3 windows ahead). */}
-      {feed.length > 0 && hasMoreFurther && !loading && horizon === DEFAULT_HORIZON && (
+      {/* "Look further out" extends the visible cutoff by horizonDays
+            each click. At narrower horizons (30/90), early clicks
+            reveal cached data instantly; at wider horizons (180/365)
+            clicks trigger fetches for the next 6-month chunk. Hidden
+            only when both the cached and remote pools are exhausted. */}
+      {feed.length > 0 && showLfoButton && !loading && (
         <div className="mt-8 text-center">
           <button
             onClick={lookFurtherOut}
@@ -601,7 +643,7 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
           </button>
         </div>
       )}
-      {feed.length > 0 && !hasMoreFurther && (
+      {feed.length > 0 && !showLfoButton && (
         <p className="mt-8 text-center text-xs text-[var(--foreground-muted)]">
           You've reached the end of available upcoming releases.
         </p>
