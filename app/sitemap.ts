@@ -39,6 +39,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/box-office/by-director`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
     { url: `${base}/box-office/franchises`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
     { url: `${base}/box-office/studios`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
+    // Release calendar — refreshes daily as films near their dates
+    // and TMDB updates upcoming popularity scores.
+    { url: `${base}/releases`, lastModified: new Date(), changeFrequency: "daily", priority: 0.7 },
   ];
 
   // Helper for safely running a DB query that might fail during build before

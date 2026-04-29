@@ -306,12 +306,15 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* Coming Soon */}
+        {/* Coming Soon — View All routes to /releases (the
+            dedicated release-calendar page) instead of the generic
+            /movies filter, so users get the personalized + filterable
+            experience built specifically for upcoming films. */}
         {upcoming.results.length > 0 && (
           <MovieRow
             title="Coming Soon"
             movies={upcoming.results.slice(0, 12)}
-            viewAllHref="/movies?releaseStatus=upcoming"
+            viewAllHref="/releases"
           />
         )}
 
