@@ -134,9 +134,15 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
 
   const PAGES_PER_WINDOW = 8;
 
+  // horizon is intentionally excluded from filterCount because it no
+  // longer drives the API call — it's a client-side display narrowing.
+  // Including it would flip isInitialLoad on horizon change and race
+  // the filter-change effect against the auto-fill effect: both would
+  // initiate fetches, and when the filter-change fetch resolved first
+  // it'd cancel the auto-fill's in-flight fetch via cleanup, leaving
+  // loadingFurther stuck true.
   const filterCount = selectedGenres.length + selectedMpa.length
     + (releaseType !== "all" ? 1 : 0)
-    + (horizon !== DEFAULT_HORIZON ? 1 : 0)
     + (region !== "US" ? 1 : 0)
     + (mediaType !== DEFAULT_MEDIA_TYPE ? 1 : 0);
 
@@ -196,6 +202,10 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   useEffect(() => {
     setHasMoreFurther(true);
     setLoadedEnd(FETCH_WINDOW_DAYS);
+    // Defensive: reset loadingFurther so a stale in-flight auto-fill
+    // (canceled by this effect's cleanup) can't leave the UI showing
+    // "Loading more…" forever.
+    setLoadingFurther(false);
     if (isInitialLoad) {
       // Server-rendered initial feed is already 8 pages of months
       // 0-6, so we can use it as-is without re-fetching.
