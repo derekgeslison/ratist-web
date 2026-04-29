@@ -89,35 +89,20 @@ export default function AboutPage() {
           If plot doesn&apos;t matter to you as much as visual effects, or if you value artistic elements but don&apos;t care about character development, The Ratist lets you find movies and shows that are made for <span className="text-white font-medium">you</span>.
         </p>
 
-        {/* Formula */}
+        {/* Methodology — explains the approach without exposing weights or the formula */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8">
-          <h3 className="text-base font-bold text-white mb-2">How a Ratist rating is computed</h3>
-          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-5">
-            Every rating combines weighted category scores with your gut-feel overall. The weights aren&apos;t arbitrary — they reflect how much each component carries the experience of cinema. Story is the spine of nearly every film, so it carries the most weight. Pure entertainment is real, but it isn&apos;t why a movie is great, so it carries the least.
+          <h3 className="text-base font-bold text-white mb-3">How a Ratist rating becomes your rating</h3>
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-3">
+            When you rate a film, you don&apos;t just give it a star. You score it across the five categories, each broken down into specific sub-fields. Did the plot work? How was the acting quality? The dialogue, the cinematography, the score, the choreography of the action sequences? The deeper the rating, the more signal the algorithm has to work with.
           </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-5">
-            {[
-              { name: "Story & Narrative", weight: 5 },
-              { name: "Production & Style", weight: 3 },
-              { name: "Emotive Effect", weight: 3 },
-              { name: "Acting & Casting", weight: 3 },
-              { name: "Pure Entertainment", weight: 2 },
-            ].map((c) => (
-              <div key={c.name} className="bg-black/30 rounded-lg p-3 border border-[var(--border)]/40">
-                <p className="text-[11px] uppercase tracking-wider text-[var(--foreground-muted)]">Weight ×{c.weight}</p>
-                <p className="text-sm font-semibold text-white mt-0.5">{c.name}</p>
-              </div>
-            ))}
-          </div>
-
-          <pre className="text-xs sm:text-sm text-[var(--foreground-muted)] bg-black/40 border border-[var(--border)]/50 rounded-lg p-3 sm:p-4 overflow-x-auto font-mono leading-relaxed mb-4">
-{`weighted_base  =  ( Story×5  +  Style×3  +  Emotive×3  +  Acting×3  +  Entertainment×2 )  /  16
-ratist_rating  =  ( weighted_base  +  your_overall )  /  2`}
-          </pre>
-
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-3">
+            From every rating you submit, we build a personal taste profile that captures which categories — and which sub-fields within them — actually matter to you. Some viewers care more about narrative; some care more about visual style. The profile reflects <span className="text-white font-medium">your</span> priorities, not a critic&apos;s, not the average viewer&apos;s.
+          </p>
+          <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-3">
+            For films and shows you haven&apos;t seen yet, the algorithm uses your profile to predict the score <span className="text-white font-semibold">you</span> would give. That&apos;s your personalized Ratist Rating — and it sharpens every time you rate something new.
+          </p>
           <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-            Each category rolls up from required and optional sub-criteria scored 1–10. Basic raters give a single 1–10 score plus an optional comment; Fanatics raters fill out the full rubric and feed the algorithm richer signal. Either way, your ratings build a personal taste profile that powers recommendations and personalized score estimates for films you haven&apos;t seen yet.
+            Basic raters give a quick 1–10 score plus an optional comment. Fanatics raters fill out the full rubric and feed the algorithm richer signal. Either way, your ratings power recommendations and predictions tailored specifically to you.
           </p>
         </div>
       </section>

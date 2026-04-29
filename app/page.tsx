@@ -261,6 +261,50 @@ export default async function HomePage() {
           viewAllHref="/movies"
         />
 
+        {/* The Ratist Method — explains the personalized,
+            multi-dimensional rating approach without revealing the actual
+            weights or formula. Positioned high (right after Popular) so
+            visitors meet the value proposition before scrolling further. */}
+        <section>
+          <div className="bg-[var(--surface)] border-l-4 border-l-[var(--ratist-red)] border border-[var(--border)] rounded-xl p-6 sm:p-8">
+            <p className="text-xs uppercase tracking-widest text-[var(--ratist-red)] font-semibold mb-2">
+              The Ratist Method
+            </p>
+            <h2 className="text-white text-xl sm:text-2xl font-bold mb-3">
+              Ratings tailored to you, not the crowd.
+            </h2>
+            <p className="text-[var(--foreground-muted)] text-sm sm:text-base leading-relaxed max-w-3xl mb-5">
+              Most sites give you one number — a global user average or a critic&apos;s take. Those tell you what <span className="text-white font-semibold">everyone else</span> thought. We tell you what <span className="text-white font-semibold">you&apos;d</span> think.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+              <div className="bg-black/20 rounded-lg p-4 border border-[var(--border)]/40">
+                <p className="text-sm font-bold text-white mb-1">Five weighted categories. Many fields.</p>
+                <p className="text-xs sm:text-sm text-[var(--foreground-muted)] leading-relaxed">
+                  A Ratist rating breaks a film down across Story, Production &amp; Style, Emotive Effect, Acting, and Pure Entertainment. Each category rolls up from specific sub-fields — plot, dialogue, cinematography, score, choreography, tone — so the score reflects the texture of the film, not just a vibe.
+                </p>
+              </div>
+              <div className="bg-black/20 rounded-lg p-4 border border-[var(--border)]/40">
+                <p className="text-sm font-bold text-white mb-1">Tuned to your taste.</p>
+                <p className="text-xs sm:text-sm text-[var(--foreground-muted)] leading-relaxed">
+                  Every rating you submit teaches the algorithm what <span className="text-white font-medium">you</span> care about — what makes a film a 9 for you instead of a 7. We then predict your scores for movies and shows you haven&apos;t seen yet, based on your taste, not the average viewer&apos;s.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[var(--foreground-muted)] text-sm leading-relaxed max-w-3xl mb-4">
+              Critics rate films through their own lens. Global averages flatten everyone into one number. The Ratist meets you in the middle — a community of detailed, multi-dimensional reviews, personalized to <span className="text-white font-medium">your</span> specific preferences.
+            </p>
+
+            <Link
+              href="/about"
+              className="text-[var(--ratist-red)] text-sm font-semibold hover:underline"
+            >
+              Read more about how it works &rarr;
+            </Link>
+          </div>
+        </section>
+
         {/* Popular Shows */}
         <ShowRow
           title="Popular TV Shows"
@@ -454,54 +498,6 @@ export default async function HomePage() {
             </div>
           </section>
         )}
-
-        {/* The Ratist Method — surfaces the actual rating formula and
-            category weights so the home page itself contains substantive
-            original methodology content (rather than only linking to /about). */}
-        <section>
-          <div className="bg-[var(--surface)] border-l-4 border-l-[var(--ratist-red)] border border-[var(--border)] rounded-xl p-6 sm:p-8">
-            <p className="text-xs uppercase tracking-widest text-[var(--ratist-red)] font-semibold mb-2">
-              The Ratist Method
-            </p>
-            <h2 className="text-white text-xl sm:text-2xl font-bold mb-3">
-              Five categories. One score that&apos;s actually yours.
-            </h2>
-            <p className="text-[var(--foreground-muted)] text-sm sm:text-base leading-relaxed max-w-3xl mb-5">
-              Most ratings collapse a movie or show into a single thumb or star. We don&apos;t. Every Ratist rating breaks a film down across five weighted categories, plus your gut-feel overall — and the algorithm folds in your personal taste profile, so a 7.2 from someone else isn&apos;t the same 7.2 you&apos;d give it.
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-5">
-              {[
-                { name: "Story & Narrative", weight: 5 },
-                { name: "Production & Style", weight: 3 },
-                { name: "Emotive Effect", weight: 3 },
-                { name: "Acting & Casting", weight: 3 },
-                { name: "Pure Entertainment", weight: 2 },
-              ].map((c) => (
-                <div key={c.name} className="bg-black/30 rounded-lg p-3 border border-[var(--border)]/40">
-                  <p className="text-[11px] uppercase tracking-wider text-[var(--foreground-muted)]">Weight ×{c.weight}</p>
-                  <p className="text-sm font-semibold text-white mt-0.5">{c.name}</p>
-                </div>
-              ))}
-            </div>
-
-            <pre className="text-xs sm:text-sm text-[var(--foreground-muted)] bg-black/40 border border-[var(--border)]/50 rounded-lg p-3 sm:p-4 overflow-x-auto mb-4 font-mono leading-relaxed">
-{`weighted_base  =  ( Story×5  +  Style×3  +  Emotive×3  +  Acting×3  +  Entertainment×2 )  /  16
-ratist_rating  =  ( weighted_base  +  your_overall )  /  2`}
-            </pre>
-
-            <p className="text-[var(--foreground-muted)] text-sm leading-relaxed max-w-3xl mb-4">
-              Each category has required and optional sub-criteria scored 1–10. Story carries the most weight because narrative is the spine of nearly every film; Pure Entertainment carries the least because rewatchability is real, but it&apos;s not why a movie is great. The blend with your overall score keeps the rubric honest — you can love something flawed or admire something cold.
-            </p>
-
-            <Link
-              href="/about"
-              className="text-[var(--ratist-red)] text-sm font-semibold hover:underline"
-            >
-              Read the full methodology &rarr;
-            </Link>
-          </div>
-        </section>
 
         {/* Born Today */}
         <BirthdaySection />
