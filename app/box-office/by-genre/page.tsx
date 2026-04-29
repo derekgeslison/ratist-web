@@ -4,7 +4,6 @@ import { Layers, Info } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getTopGrossingByGenre } from "@/lib/box-office-queries";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
-import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
 
 export const metadata: Metadata = {
   title: "Box Office by Genre",
@@ -55,25 +54,18 @@ export default async function BoxOfficeByGenrePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 mb-2">
-            <Layers className="w-6 h-6 text-[var(--ratist-red)]" />
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office by Genre</h1>
-          </div>
-          <p className="text-sm text-[var(--foreground-muted)]">
-            Highest-grossing films within each major genre.
-            {" "}
-            <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
-              ← Back to leaderboards
-            </Link>
-          </p>
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <Layers className="w-6 h-6 text-[var(--ratist-red)]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Box Office by Genre</h1>
         </div>
-        <BoxOfficeShare
-          path="/box-office/by-genre"
-          ogPath="/api/og/box-office?page=branded&title=Box+Office+by+Genre&subtitle=Top+grossing+per+major+genre"
-          shareText="Box Office by Genre — The Ratist"
-        />
+        <p className="text-sm text-[var(--foreground-muted)]">
+          Highest-grossing films within each major genre.
+          {" "}
+          <Link href="/box-office" className="text-[var(--ratist-red)] hover:underline">
+            ← Back to leaderboards
+          </Link>
+        </p>
       </div>
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
@@ -94,6 +86,11 @@ export default async function BoxOfficeByGenrePage() {
             rows={results[idx]}
             metric="revenue"
             viewAllHref={`/box-office/all?genres=${g.id}&sort=revenue-desc`}
+            share={{
+              path: `/box-office/all?genres=${g.id}&sort=revenue-desc`,
+              ogPath: `/api/og/box-office?page=genre&id=${g.id}&name=${encodeURIComponent(g.name)}`,
+              shareText: `Top Grossing ${g.name} Films — The Ratist`,
+            }}
           />
         ))}
       </div>

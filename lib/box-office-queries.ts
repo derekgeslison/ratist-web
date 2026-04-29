@@ -314,6 +314,97 @@ export async function getStudioMovies(studioId: number): Promise<{
   };
 }
 
+// ─── Generic filtered top-N (used by OG and /all share) ───────────────
+
+export interface BoxOfficeFilters {
+  sort: "revenue-desc" | "revenue-asc" | "budget-desc" | "budget-asc" | "year-desc" | "year-asc" | "title-asc" | "profit-desc" | "profit-asc" | "roi-desc" | "roi-asc";
+  genreIds?: number[];
+  mpaCodes?: string[];
+  languages?: string[];
+  releaseFrom?: string;
+  releaseTo?: string;
+}
+
+/**
+ * Filter-aware top-N. Mirrors the query shape of /api/box-office/list
+ * but exposed as a function so the OG generator can produce a top-5
+ * preview that actually reflects the user's current filters when
+ * sharing /box-office/all. Computed sorts (profit, ROI) require raw
+ * SQL because Prisma orderBy can't reference (revenue/budget); the
+ * standard sorts go through Prisma directly.
+ */
+export async function getTopFiltered(filters: BoxOfficeFilters, limit: number): Promise<BoxOfficeRow[]> {
+  const { sort, genreIds = [], mpaCodes = [], languages = [], releaseFrom, releaseTo } = filters;
+
+  if (sort === "profit-desc" || sort === "profit-asc" || sort === "roi-desc" || sort === "roi-asc") {
+    const params: unknown[] = [];
+    const wheres: string[] = [];
+    const push = (v: unknown) => { params.push(v); return `$${params.length}`; };
+    wheres.push(`m.revenue >= ${push(Number(BOX_OFFICE_FLOOR))}`);
+    wheres.push(`m.budget >= ${push(sort.startsWith("roi") ? Number(ROI_MIN_BUDGET) : Number(BOX_OFFICE_FLOOR))}`);
+    if (releaseFrom) wheres.push(`m.release_date >= ${push(releaseFrom)}`);
+    if (releaseTo) wheres.push(`m.release_date <= ${push(releaseTo)}`);
+    if (mpaCodes.length) wheres.push(`m.mpaa_rating IN (${mpaCodes.map((c) => push(c)).join(",")})`);
+    if (languages.length) wheres.push(`m.original_language IN (${languages.map((l) => push(l)).join(",")})`);
+    if (genreIds.length) {
+      wheres.push(`EXISTS (SELECT 1 FROM movie_genres mg WHERE mg.movie_id = m.id AND mg.genre_id IN (${genreIds.map((g) => push(g)).join(",")}))`);
+    }
+    const order =
+      sort === "profit-desc" ? "(m.revenue - m.budget) DESC"
+      : sort === "profit-asc" ? "(m.revenue - m.budget) ASC"
+      : sort === "roi-desc" ? "(m.revenue::float / m.budget::float) DESC"
+      : "(m.revenue::float / m.budget::float) ASC";
+    const sql = `
+      SELECT m.tmdb_id, m.title, m.poster_path, m.release_date, m.revenue, m.budget
+        FROM movies m
+       WHERE ${wheres.join(" AND ")}
+       ORDER BY ${order}
+       LIMIT ${push(limit)}`;
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      tmdb_id: number; title: string; poster_path: string | null;
+      release_date: string | null; revenue: bigint; budget: bigint;
+    }>>(sql, ...params);
+    return rows.map((r) => toBoxOfficeRow({
+      tmdbId: r.tmdb_id, title: r.title, posterPath: r.poster_path,
+      releaseDate: r.release_date, revenue: r.revenue, budget: r.budget,
+    }));
+  }
+
+  // Standard sort path — Prisma. Same field-presence guards as
+  // /api/box-office/list so we don't surface null-revenue rows
+  // when sorting by revenue.
+  const where: Record<string, unknown> = {};
+  if (sort.startsWith("revenue")) where.revenue = { gte: BOX_OFFICE_FLOOR };
+  else if (sort.startsWith("budget")) where.budget = { gte: BOX_OFFICE_FLOOR };
+  else if (sort.startsWith("year")) where.releaseDate = { not: null };
+  else where.revenue = { gte: BOX_OFFICE_FLOOR };
+
+  if (genreIds.length) where.genres = { some: { genreId: { in: genreIds } } };
+  if (mpaCodes.length) where.mpaaRating = { in: mpaCodes };
+  if (languages.length) where.originalLanguage = { in: languages };
+  if (releaseFrom || releaseTo) {
+    const rd: { gte?: string; lte?: string } = {};
+    if (releaseFrom) rd.gte = releaseFrom;
+    if (releaseTo) rd.lte = releaseTo;
+    where.releaseDate = { ...((where.releaseDate as object) ?? {}), ...rd };
+  }
+
+  const orderByMap: Record<string, object> = {
+    "revenue-desc": { revenue: "desc" }, "revenue-asc": { revenue: "asc" },
+    "budget-desc": { budget: "desc" }, "budget-asc": { budget: "asc" },
+    "year-desc": { releaseDate: "desc" }, "year-asc": { releaseDate: "asc" },
+    "title-asc": { title: "asc" },
+  };
+
+  const rows = await prisma.movie.findMany({
+    where,
+    orderBy: orderByMap[sort],
+    take: limit,
+    select: BASE_SELECT,
+  });
+  return rows.map(toBoxOfficeRow);
+}
+
 // ─── Per-movie ranks (Stage 5) ──────────────────────────────────────────
 
 /** A single rank entry for the Overview-tab badges. `total` is the

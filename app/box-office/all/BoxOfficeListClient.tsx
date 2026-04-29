@@ -261,18 +261,11 @@ export default function BoxOfficeListClient({ genres }: Props) {
     (releaseFrom ? 1 : 0) +
     (releaseTo ? 1 : 0);
 
-  // Share-URL derivation. Mirrors the sort→OG mapping from
-  // generateMetadata in page.tsx so a shared link with a "pure
-  // sort" view (no extra filters) gets the matching OG image.
-  // Once filters are added we drop back to the generic hub OG.
-  const SORT_OG: Record<string, string> = {
-    "revenue-desc": "topGrossing",
-    "profit-desc": "topProfit",
-    "roi-desc": "bestROI",
-    "roi-asc": "worstROI",
-    "budget-desc": "highestBudget",
-  };
-  const noFilters = filterCount === 0;
+  // Share derivation. The OG image always uses page=filtered with
+  // the user's exact current filter state, so the preview always
+  // matches what the share recipient will see — fixes the previous
+  // "shows the same results regardless of filters" complaint.
+  const noFilters = filterCount === 0 && sort === "revenue-desc";
   const sharePath = (() => {
     const sp = new URLSearchParams();
     if (sort !== "revenue-desc") sp.set("sort", sort);
@@ -284,12 +277,19 @@ export default function BoxOfficeListClient({ genres }: Props) {
     const qs = sp.toString();
     return qs ? `/box-office/all?${qs}` : "/box-office/all";
   })();
-  const shareOgPath = noFilters && SORT_OG[sort]
-    ? `/api/og/box-office?page=${SORT_OG[sort]}`
-    : "/api/og/box-office";
-  const shareText = noFilters && SORT_OG[sort]
-    ? `${SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "Box Office"} — The Ratist`
-    : "Box Office — The Ratist";
+  const shareOgPath = (() => {
+    if (noFilters) return "/api/og/box-office?page=topGrossing";
+    const sp = new URLSearchParams();
+    sp.set("page", "filtered");
+    sp.set("sort", sort);
+    if (selectedGenres.length) sp.set("genres", selectedGenres.join(","));
+    if (selectedMpa.length) sp.set("mpa", selectedMpa.join(","));
+    if (selectedLanguage) sp.set("languages", selectedLanguage);
+    if (releaseFrom) sp.set("releaseFrom", releaseFrom);
+    if (releaseTo) sp.set("releaseTo", releaseTo);
+    return `/api/og/box-office?${sp.toString()}`;
+  })();
+  const shareText = `Box Office — The Ratist`;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

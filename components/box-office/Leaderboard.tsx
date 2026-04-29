@@ -10,6 +10,17 @@ import {
   formatROI,
   type BoxOfficeRow,
 } from "@/lib/box-office";
+import { BoxOfficeShare } from "./BoxOfficeShare";
+
+export interface LeaderboardShareConfig {
+  /** Path of the page the share opens, beginning with /. Usually
+   *  the same as `viewAllHref` when one is set. */
+  path: string;
+  /** Path of the OG image endpoint, beginning with /api/og/. */
+  ogPath: string;
+  /** Text shown in the share modal title and the social template. */
+  shareText: string;
+}
 
 export interface LeaderboardProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -22,6 +33,11 @@ export interface LeaderboardProps {
   viewAllHref?: string;
   /** Empty-state message override; defaults to a generic line. */
   emptyMessage?: string;
+  /** When set, renders a small ShareButton next to the title — lets
+   *  users share an individual leaderboard rather than the page,
+   *  which is what they actually came for on a multi-leaderboard
+   *  hub like /box-office or /box-office/by-genre. */
+  share?: LeaderboardShareConfig;
 }
 
 export function Leaderboard({
@@ -32,15 +48,21 @@ export function Leaderboard({
   metric,
   viewAllHref,
   emptyMessage,
+  share,
 }: LeaderboardProps) {
   return (
     <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-      <header className="flex items-start gap-3 px-4 py-3 border-b border-[var(--border)]">
+      <header className="flex items-start gap-2 px-4 py-3 border-b border-[var(--border)]">
         <Icon className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-white truncate">{title}</h2>
           <p className="text-xs text-[var(--foreground-muted)] truncate">{subtitle}</p>
         </div>
+        {share && (
+          <div className="shrink-0 self-center">
+            <BoxOfficeShare path={share.path} ogPath={share.ogPath} shareText={share.shareText} compact />
+          </div>
+        )}
         {viewAllHref && (
           <Link
             href={viewAllHref}

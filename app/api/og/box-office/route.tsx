@@ -8,9 +8,15 @@ import {
   getFranchiseMovies,
   getStudioMovies,
   getTopGrossingByDateRange,
+  getTopGrossingByGenre,
+  getTopGrossingByMpa,
+  getTopGrossingByReleaseWindow,
+  getTopFiltered,
   formatDateYMD,
+  type BoxOfficeFilters,
 } from "@/lib/box-office-queries";
-import { formatBoxOffice, formatROI, type BoxOfficeRow } from "@/lib/box-office";
+import { prisma } from "@/lib/prisma";
+import { formatBoxOffice, formatROI, RELEASE_WINDOWS, type BoxOfficeRow } from "@/lib/box-office";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +39,15 @@ export const dynamic = "force-dynamic";
  *   - worstROI                         /box-office/all?sort=roi-asc
  *   - highestBudget                    /box-office/all?sort=budget-desc
  *   - recent                           /box-office/recent
+ *   - decade   (?from=YYYY&to=YYYY)    top 5 of a decade
+ *   - genre    (?id=N&name=…)          top 5 of a genre
+ *   - mpa      (?code=R)               top 5 of an MPA cert
+ *   - holiday  (?key=halloween)        top 5 of a release-window
+ *   - filtered (?sort=&genres=&mpa=&languages=&releaseFrom=&releaseTo=)
+ *                                       top 5 matching arbitrary filter
+ *                                       combo — used by /box-office/all
+ *                                       so the share preview reflects
+ *                                       the user's actual filter state
  *   - branded  (?title=…&subtitle=…)   aggregation hubs (no rows)
  */
 export async function GET(request: Request) {
@@ -70,6 +85,110 @@ export async function GET(request: Request) {
       title = "Recent Release Box Office";
       subtitle = "Top grossing of the last 90 days";
       topRows = (await getTopGrossingByDateRange(ninetyDaysAgo, formatDateYMD(now), 5)).map(toRow);
+    } else if (page === "decade") {
+      const fromY = searchParams.get("from") ?? "";
+      const toY = searchParams.get("to") ?? "";
+      if (!/^\d{4}$/.test(fromY) || !/^\d{4}$/.test(toY)) {
+        return new Response("Bad decade range", { status: 400 });
+      }
+      title = `Top Grossing of the ${fromY}s`;
+      subtitle = `${fromY}–${toY} releases by lifetime worldwide gross`;
+      topRows = (await getTopGrossing(5, fromY, toY)).map(toRow);
+    } else if (page === "genre") {
+      const idParam = parseInt(searchParams.get("id") ?? "", 10);
+      const name = searchParams.get("name") ?? "Genre";
+      if (Number.isNaN(idParam)) return new Response("Bad genre id", { status: 400 });
+      title = `Top Grossing ${name}`;
+      subtitle = `Highest-grossing ${name.toLowerCase()} films of all time`;
+      topRows = (await getTopGrossingByGenre(idParam, 5)).map(toRow);
+    } else if (page === "mpa") {
+      const code = searchParams.get("code") ?? "";
+      if (!code) return new Response("Bad MPA code", { status: 400 });
+      title = `Top ${code}-Rated of All Time`;
+      subtitle = `Highest-grossing ${code}-rated films`;
+      topRows = (await getTopGrossingByMpa(code, 5)).map(toRow);
+    } else if (page === "holiday") {
+      const key = searchParams.get("key") ?? "";
+      const window = RELEASE_WINDOWS.find((w) => w.key === key);
+      if (!window) return new Response("Bad holiday key", { status: 400 });
+      title = `Top ${window.label} Releases`;
+      subtitle = "Lifetime gross of films released in this window";
+      topRows = (await getTopGrossingByReleaseWindow(window.start, window.end, 5)).map(toRow);
+    } else if (page === "filtered") {
+      // Parse filter state matching /api/box-office/list. Render top 5
+      // with a title built from the active filters so the OG image
+      // genuinely represents what the share recipient will see.
+      const sortRaw = searchParams.get("sort") ?? "revenue-desc";
+      const validSorts: BoxOfficeFilters["sort"][] = [
+        "revenue-desc", "revenue-asc", "budget-desc", "budget-asc",
+        "profit-desc", "profit-asc", "roi-desc", "roi-asc",
+        "year-desc", "year-asc", "title-asc",
+      ];
+      const sort = (validSorts.includes(sortRaw as BoxOfficeFilters["sort"])
+        ? sortRaw
+        : "revenue-desc") as BoxOfficeFilters["sort"];
+      const genreIds = (searchParams.get("genres") ?? "").split(",")
+        .map((g) => parseInt(g, 10)).filter((n) => !Number.isNaN(n));
+      const mpaCodes = (searchParams.get("mpa") ?? "").split(",").filter(Boolean);
+      const languages = (searchParams.get("languages") ?? "").split(",").filter(Boolean);
+      const releaseFrom = searchParams.get("releaseFrom") ?? undefined;
+      const releaseTo = searchParams.get("releaseTo") ?? undefined;
+
+      // Build a human title from active filters. Order matters —
+      // "Top Grossing PG-13 Action of the 1990s" reads naturally.
+      const sortLabel: Record<BoxOfficeFilters["sort"], string> = {
+        "revenue-desc": "Top Grossing", "revenue-asc": "Lowest Grossing",
+        "budget-desc": "Highest Budget", "budget-asc": "Lowest Budget",
+        "profit-desc": "Biggest Profit", "profit-asc": "Biggest Loss",
+        "roi-desc": "Best ROI", "roi-asc": "Worst ROI",
+        "year-desc": "Newest", "year-asc": "Oldest",
+        "title-asc": "A–Z",
+      };
+      // Resolve genre + language names so the title reads naturally
+      // instead of showing raw IDs.
+      const [genreNames, langName] = await Promise.all([
+        genreIds.length
+          ? prisma.genre.findMany({
+              where: { id: { in: genreIds } },
+              select: { name: true },
+            }).then((rows) => rows.map((r) => r.name))
+          : Promise.resolve([] as string[]),
+        Promise.resolve(languages[0]
+          ? ({ en: "English", es: "Spanish", fr: "French", de: "German",
+              it: "Italian", ja: "Japanese", ko: "Korean", zh: "Chinese",
+              hi: "Hindi", ru: "Russian", pt: "Portuguese", ar: "Arabic" }[languages[0]]
+              ?? languages[0].toUpperCase())
+          : null),
+      ]);
+      const parts: string[] = [sortLabel[sort]];
+      if (mpaCodes.length === 1) parts.push(`${mpaCodes[0]}-Rated`);
+      if (genreNames.length === 1) parts.push(genreNames[0]);
+      if (langName) parts.push(`${langName}-Language`);
+      title = parts.join(" ");
+      if (releaseFrom || releaseTo) {
+        const fromY = releaseFrom?.slice(0, 4);
+        const toY = releaseTo?.slice(0, 4);
+        if (fromY && toY && fromY === toY) {
+          title += ` of ${fromY}`;
+        } else if (fromY && toY) {
+          title += ` ${fromY}–${toY}`;
+        } else if (fromY) {
+          title += ` since ${fromY}`;
+        } else if (toY) {
+          title += ` through ${toY}`;
+        }
+      }
+      subtitle = "Filtered view from /box-office/all";
+      // Metric column matches the active sort so the OG row reads
+      // the same as the corresponding column in /box-office/all.
+      const rowMapper = sort.startsWith("profit") ? toProfitRow
+        : sort.startsWith("roi") ? toROIRow
+        : sort.startsWith("budget") ? toBudgetRow
+        : toRow;
+      topRows = (await getTopFiltered(
+        { sort, genreIds, mpaCodes, languages, releaseFrom, releaseTo },
+        5,
+      )).map(rowMapper);
     } else if (page === "branded") {
       // Hub-style OG with no movie rows — used by aggregation hubs
       // (by-decade, by-genre, etc.) where no single top-5 list

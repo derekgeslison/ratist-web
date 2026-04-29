@@ -179,10 +179,14 @@ export default async function BoxOfficePage() {
         </Link>
       </div>
 
-      {/* Leaderboard grid. Each tile carries a `viewAllHref` that links
-          to /box-office/all with the equivalent filter+sort applied,
-          so users can drill from the top-10 view into the full list
-          for the same cut. */}
+      {/* Leaderboard grid. Each tile carries:
+            • viewAllHref → drill into /box-office/all with the
+              matching filter+sort
+            • share       → ShareButton in the tile header with a
+              targeted OG image for that specific leaderboard
+          The page-level share above covers the hub itself; the per-
+          tile shares cover the individual lists, which is what users
+          actually want to share. */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         <Leaderboard
           icon={TrendingUp}
@@ -191,6 +195,11 @@ export default async function BoxOfficePage() {
           rows={topGrossing}
           metric="revenue"
           viewAllHref="/box-office/all?sort=revenue-desc"
+          share={{
+            path: "/box-office/all?sort=revenue-desc",
+            ogPath: "/api/og/box-office?page=topGrossing",
+            shareText: "Top Grossing Movies of All Time — The Ratist",
+          }}
         />
         <Leaderboard
           icon={DollarSign}
@@ -199,6 +208,11 @@ export default async function BoxOfficePage() {
           rows={topProfit}
           metric="profit"
           viewAllHref="/box-office/all?sort=profit-desc"
+          share={{
+            path: "/box-office/all?sort=profit-desc",
+            ogPath: "/api/og/box-office?page=topProfit",
+            shareText: "Biggest Profit of All Time — The Ratist",
+          }}
         />
         <Leaderboard
           icon={BarChart3}
@@ -207,6 +221,11 @@ export default async function BoxOfficePage() {
           rows={bestROI}
           metric="roi"
           viewAllHref="/box-office/all?sort=roi-desc"
+          share={{
+            path: "/box-office/all?sort=roi-desc",
+            ogPath: "/api/og/box-office?page=bestROI",
+            shareText: "Best Box-Office ROI of All Time — The Ratist",
+          }}
         />
         <Leaderboard
           icon={AlertTriangle}
@@ -215,6 +234,11 @@ export default async function BoxOfficePage() {
           rows={worstROI}
           metric="roi"
           viewAllHref="/box-office/all?sort=roi-asc"
+          share={{
+            path: "/box-office/all?sort=roi-asc",
+            ogPath: "/api/og/box-office?page=worstROI",
+            shareText: "Biggest Box Office Bombs — The Ratist",
+          }}
         />
         <Leaderboard
           icon={Coins}
@@ -223,6 +247,11 @@ export default async function BoxOfficePage() {
           rows={highestBudget}
           metric="budget"
           viewAllHref="/box-office/all?sort=budget-desc"
+          share={{
+            path: "/box-office/all?sort=budget-desc",
+            ogPath: "/api/og/box-office?page=highestBudget",
+            shareText: "Highest Production Budgets — The Ratist",
+          }}
         />
         <Leaderboard
           icon={Calendar}
@@ -231,6 +260,11 @@ export default async function BoxOfficePage() {
           rows={topLastYear}
           metric="revenue"
           viewAllHref={`/box-office/year/${lastYear}`}
+          share={{
+            path: `/box-office/year/${lastYear}`,
+            ogPath: `/api/og/box-office?page=year&year=${lastYear}`,
+            shareText: `Highest Grossing Movies of ${lastYear} — The Ratist`,
+          }}
         />
         {/* YTD + recent tiles intentionally come after the "completed
             year" tile so the most reliable data lands first. The
@@ -246,6 +280,11 @@ export default async function BoxOfficePage() {
           metric="revenue"
           viewAllHref={`/box-office/year/${currentYear}`}
           emptyMessage="Not enough YTD data yet — TMDB lags theatrical numbers."
+          share={{
+            path: `/box-office/year/${currentYear}`,
+            ogPath: `/api/og/box-office?page=year&year=${currentYear}`,
+            shareText: `Top Grossing of ${currentYear} (YTD) — The Ratist`,
+          }}
         />
         <Leaderboard
           icon={Calendar}
@@ -254,6 +293,11 @@ export default async function BoxOfficePage() {
           rows={topThisDecade}
           metric="revenue"
           viewAllHref={`/box-office/all?sort=revenue-desc&releaseFrom=${decadeStart}-01-01&releaseTo=${currentYear}-12-31`}
+          share={{
+            path: `/box-office/all?sort=revenue-desc&releaseFrom=${decadeStart}-01-01&releaseTo=${currentYear}-12-31`,
+            ogPath: `/api/og/box-office?page=decade&from=${decadeStart}&to=${currentYear}`,
+            shareText: `Top Grossing of the ${decadeStart}s So Far — The Ratist`,
+          }}
         />
         {/* Most-recently-ended holiday window. Title is dynamic so
             this tile reads "Top Valentine's Releases" through April,
@@ -269,6 +313,11 @@ export default async function BoxOfficePage() {
             rows={topLastWindow}
             metric="revenue"
             viewAllHref="/box-office/holidays"
+            share={{
+              path: "/box-office/holidays",
+              ogPath: `/api/og/box-office?page=holiday&key=${lastWindow.window.key}`,
+              shareText: `Top ${lastWindow.window.label} Releases — The Ratist`,
+            }}
           />
         )}
       </div>
