@@ -265,36 +265,45 @@ export async function GET(request: Request) {
             </span>
           </div>
 
-          {/* Title block */}
-          <span style={{ color: "white", fontSize: 36, fontWeight: 800, lineHeight: 1.1, marginBottom: 6, maxWidth: 700 }}>
-            {title.length > 50 ? title.slice(0, 50) + "…" : title}
+          {/* Title block. Font size capped on the smaller side so a
+              two-line wrap fits inside the 520px canvas alongside 5
+              rows + footer; the previous 36px sometimes pushed the
+              footer up between the rows. */}
+          <span style={{ color: "white", fontSize: 30, fontWeight: 800, lineHeight: 1.1, marginBottom: 6, maxWidth: 700 }}>
+            {title.length > 60 ? title.slice(0, 60) + "…" : title}
           </span>
-          <span style={{ color: "#888", fontSize: 16, marginBottom: 22 }}>{subtitle}</span>
+          <span style={{ color: "#888", fontSize: 16, marginBottom: 16 }}>{subtitle}</span>
 
           {/* Top rows. Each row: rank, mini poster, title, metric.
               Branded variant skips rows entirely — it's the hub
               fallback where no single top-5 list represents the
               destination page. */}
+          {/* Rows. No flex:1 — that caused the rows container to
+              shrink/overflow when the title wrapped, with the result
+              that rows ended up rendered AFTER the footer in some
+              cases. Letting rows take their natural height and
+              pushing the footer down with marginTop:auto via an empty
+              spacer is more robust under Satori. */}
           {topRows.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {topRows.map((m, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <span style={{ color: "#444", fontSize: 18, fontWeight: 800, width: 24, textAlign: "right" as const }}>
+                  <span style={{ color: "#444", fontSize: 16, fontWeight: 800, width: 24, textAlign: "right" as const }}>
                     {i + 1}
                   </span>
                   {m.posterPath ? (
                     <img
                       src={`https://image.tmdb.org/t/p/w92${m.posterPath}`}
-                      width={32}
-                      height={48}
+                      width={28}
+                      height={42}
                       style={{ borderRadius: 4, objectFit: "cover" }}
                     />
                   ) : (
                     <div
                       style={{
                         display: "flex",
-                        width: 32,
-                        height: 48,
+                        width: 28,
+                        height: 42,
                         borderRadius: 4,
                         backgroundColor: "#1a1a1a",
                         alignItems: "center",
@@ -302,29 +311,32 @@ export async function GET(request: Request) {
                       }}
                     />
                   )}
-                  <span style={{ color: "#ddd", fontSize: 18, fontWeight: 600, flex: 1 }}>
+                  <span style={{ color: "#ddd", fontSize: 16, fontWeight: 600, flex: 1 }}>
                     {m.title.length > 38 ? m.title.slice(0, 38) + "…" : m.title}
                   </span>
-                  <span style={{ color: "#666", fontSize: 14 }}>{m.year}</span>
-                  <span style={{ color: "white", fontSize: 18, fontWeight: 800, width: 90, textAlign: "right" as const }}>
+                  <span style={{ color: "#666", fontSize: 13 }}>{m.year}</span>
+                  <span style={{ color: "white", fontSize: 16, fontWeight: 800, width: 90, textAlign: "right" as const }}>
                     {m.metric}
                   </span>
                 </div>
               ))}
             </div>
           ) : page === "branded" ? (
-            <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, paddingTop: 60, paddingBottom: 60 }}>
               <span style={{ color: "#ef3b36", fontSize: 16, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase" as const }}>
                 Lifetime Box Office
               </span>
             </div>
           ) : (
-            <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", paddingTop: 60, paddingBottom: 60 }}>
               <span style={{ color: "#444", fontSize: 18 }}>No tracked films yet</span>
             </div>
           )}
 
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
+          {/* Footer pinned to the bottom regardless of row count or
+              wrapped title. The auto top margin consumes whatever
+              vertical space remains in the column-flex parent. */}
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "auto", paddingTop: 12 }}>
             <span style={{ color: "#333", fontSize: 13 }}>theratist.com / box-office</span>
           </div>
         </div>
