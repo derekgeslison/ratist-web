@@ -63,14 +63,21 @@ const REGION_OPTIONS: Array<{ code: string; label: string }> = [
   { code: "KR", label: "South Korea" },
 ];
 
+// Horizon dropdown is a CLIENT-SIDE display filter, not a server query
+// param. The API always fetches 6 months of data; the dropdown narrows
+// what's visible from that loaded dataset. Querying TMDB for only
+// 30 or 90 days forced 8 pages of popularity-sort to surface niche
+// content because the well-known anticipated-release pool is sparse
+// at that horizon. 365 dropped — same dataset; "Look further out"
+// loads the next 6-month window if the user wants more.
 const HORIZON_OPTIONS: Array<{ value: string; label: string; days: number }> = [
   { value: "30",  label: "Next 30 days",   days: 30 },
   { value: "90",  label: "Next 90 days",   days: 90 },
   { value: "180", label: "Next 6 months",  days: 180 },
-  { value: "365", label: "Next 12 months", days: 365 },
 ];
 
 const DEFAULT_HORIZON = "180";
+const FETCH_WINDOW_DAYS = 180;
 
 interface FetchResponse {
   results: UnifiedRelease[];
@@ -128,22 +135,36 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
     + (region !== "US" ? 1 : 0)
     + (mediaType !== DEFAULT_MEDIA_TYPE ? 1 : 0);
 
-  // Build the query string used both for the API call and the
-  // shareable URL. `bare` excludes default values so the URL stays
-  // short when the user hasn't tweaked anything.
-  function buildParams(bare: boolean): URLSearchParams {
+  // Two query strings:
+  //   apiQuery — what we send to /api/releases. Excludes horizon
+  //     because horizon is now purely a client-side display filter.
+  //   shareQuery — what we put in the URL bar for sharing/back-nav.
+  //     Includes horizon so a shared link preserves the visible
+  //     window the sender was looking at.
+  // bare=true also skips default values so the URL stays clean
+  // ("/releases" instead of "/releases?horizon=180&region=US&type=all").
+  function buildShareParams(): URLSearchParams {
     const params = new URLSearchParams();
-    if (!bare || horizon !== DEFAULT_HORIZON) params.set("horizon", horizon);
-    if (!bare || region !== "US") params.set("region", region);
-    if (!bare || releaseType !== "all") params.set("type", releaseType);
-    if (!bare || mediaType !== DEFAULT_MEDIA_TYPE) params.set("mediaType", mediaType);
+    if (horizon !== DEFAULT_HORIZON) params.set("horizon", horizon);
+    if (region !== "US") params.set("region", region);
+    if (releaseType !== "all") params.set("type", releaseType);
+    if (mediaType !== DEFAULT_MEDIA_TYPE) params.set("mediaType", mediaType);
+    if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
+    if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
+    return params;
+  }
+  function buildApiParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    params.set("region", region);
+    params.set("type", releaseType);
+    params.set("mediaType", mediaType);
     if (selectedGenres.length) params.set("genres", selectedGenres.join(","));
     if (selectedMpa.length) params.set("mpa", selectedMpa.join(","));
     return params;
   }
 
-  const apiQuery = useMemo(() => buildParams(false).toString(), [horizon, region, releaseType, mediaType, selectedGenres, selectedMpa]);
-  const shareQuery = useMemo(() => buildParams(true).toString(), [horizon, region, releaseType, mediaType, selectedGenres, selectedMpa]);
+  const apiQuery = useMemo(() => buildApiParams().toString(), [region, releaseType, mediaType, selectedGenres, selectedMpa]);
+  const shareQuery = useMemo(() => buildShareParams().toString(), [horizon, region, releaseType, mediaType, selectedGenres, selectedMpa]);
 
   // Push to URL bar so back/forward + sharing work.
   useEffect(() => {
@@ -192,8 +213,12 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
 
   async function lookFurtherOut() {
     if (loadingFurther) return;
-    const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? 180;
-    const nextOffset = windowOffset + horizonDays;
+    // Always advance by the fetch window (6 months) regardless of the
+    // display horizon. Window size and display narrowness are now
+    // independent concepts — the user filters via the dropdown,
+    // and "Look further out" loads the next batch of well-known
+    // catalog from the API.
+    const nextOffset = windowOffset + FETCH_WINDOW_DAYS;
     setLoadingFurther(true);
     try {
       const params = new URLSearchParams(apiQuery);
@@ -245,16 +270,31 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
   // movie — group by that. Within a date, popularity-sorted order
   // is preserved from the API. Skip movies without a release_date
   // (rare for upcoming, but possible for premiere-only entries).
+  //
+  // Horizon is applied here as a client-side cutoff, NOT in the API
+  // call. The API always returns a 6-month window (or more, after
+  // "Look further out" clicks); this filter narrows display to
+  // today + horizon days. Streaming-launch entries dated to recent
+  // past pass naturally since their dates are <= cutoff.
   const grouped = useMemo(() => {
+    const horizonDays = HORIZON_OPTIONS.find((h) => h.value === horizon)?.days ?? FETCH_WINDOW_DAYS;
+    const cutoff = new Date(Date.now() + horizonDays * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
     const map = new Map<string, UnifiedRelease[]>();
     for (const m of feed) {
       const date = m.release_date;
       if (!date) continue;
+      if (date > cutoff) continue;
       if (!map.has(date)) map.set(date, []);
       map.get(date)!.push(m);
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [feed]);
+  }, [feed, horizon]);
+
+  const displayedCount = useMemo(
+    () => grouped.reduce((sum, [, items]) => sum + items.length, 0),
+    [grouped],
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -487,9 +527,9 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       <p className="text-xs text-[var(--foreground-muted)] mb-3">
         {loading
           ? "Loading…"
-          : feed.length === 0
+          : displayedCount === 0
             ? "No upcoming releases match these filters."
-            : `${feed.length} upcoming release${feed.length === 1 ? "" : "s"}`}
+            : `${displayedCount} upcoming release${displayedCount === 1 ? "" : "s"}`}
       </p>
 
       <div className="space-y-6">
@@ -532,13 +572,15 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
       })()}
 
       {/* Sliding-window pagination. Each click of "Look further out"
-            advances the date range forward by `horizon` days and
-            appends the next 8-page batch to the feed — so the
-            calendar continues forward in time rather than
-            re-paginating within the same window. The button hides
-            when a fetch returns 0 results (TMDB's far-future data
-            runs out around 2-3 windows ahead). */}
-      {feed.length > 0 && hasMoreFurther && !loading && (
+            advances the date range forward by 6 months and appends
+            the next 8-page batch to the feed. Hidden when:
+            - User has narrowed the display horizon (30/90 days):
+              loading more 6-month batches would just be hidden by
+              the client-side cutoff filter and confuse the user.
+              They should widen the horizon first.
+            - A prior fetch returned 0 results (TMDB's far-future
+              data runs out around 2-3 windows ahead). */}
+      {feed.length > 0 && hasMoreFurther && !loading && horizon === DEFAULT_HORIZON && (
         <div className="mt-8 text-center">
           <button
             onClick={lookFurtherOut}
