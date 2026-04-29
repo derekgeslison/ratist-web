@@ -602,36 +602,49 @@ export default function ReleasesClient({ thisWeek, forYou, topGenresCount, initi
         );
       })()}
 
-      {/* "Look further out" extends the visible cutoff by horizonDays
-            each click. At narrower horizons (30/90), early clicks
-            reveal cached data instantly; at wider horizons (180/365)
-            clicks trigger fetches for the next 6-month chunk. Hidden
-            only when both the cached and remote pools are exhausted. */}
-      {feed.length > 0 && showLfoButton && !loading && (
+      {/* Bottom-of-list state machine, in priority order:
+            1. !hasMoreFurther: TMDB returned empty on a fetch — we
+               truly can't load more, regardless of horizon.
+            2. showLfoButton: there's a next escalation step
+               (30→90→180→365). Button might be in loading state if
+               the previous escalation triggered a fetch.
+            3. loadingFurther at horizon=365: auto-fill is mid-flight
+               for the second 6-month chunk. Show a loading hint so
+               the user doesn't see a blank space.
+            4. None of the above: at horizon=365 with all data loaded
+               and TMDB happy. Render nothing — user has hit the
+               natural max view. */}
+      {feed.length > 0 && !loading && (
         <div className="mt-8 text-center">
-          <button
-            onClick={lookFurtherOut}
-            disabled={loadingFurther}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-60"
-          >
-            {loadingFurther ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading…
-              </>
-            ) : (
-              <>
-                Look further out
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
+          {!hasMoreFurther ? (
+            <p className="text-xs text-[var(--foreground-muted)]">
+              You've reached the end of available upcoming releases.
+            </p>
+          ) : showLfoButton ? (
+            <button
+              onClick={lookFurtherOut}
+              disabled={loadingFurther}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-60"
+            >
+              {loadingFurther ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading…
+                </>
+              ) : (
+                <>
+                  Look further out
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          ) : loadingFurther ? (
+            <div className="inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Loading more releases…
+            </div>
+          ) : null}
         </div>
-      )}
-      {feed.length > 0 && !showLfoButton && (
-        <p className="mt-8 text-center text-xs text-[var(--foreground-muted)]">
-          You've reached the end of available upcoming releases.
-        </p>
       )}
 
       {/* Footer link back to /movies */}
