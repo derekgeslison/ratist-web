@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "./client";
 import { STUDIOS } from "../studios";
-import { detectGenresFromPrompt } from "./genre-detection";
+import { detectGenresFromPrompt, stripVibeKeywords } from "./genre-detection";
 
 // Studio whitelist — must match lib/studios.ts entries by name. The AI returns
 // names; the API route resolves them to TMDB company IDs. Anything outside
@@ -272,6 +272,14 @@ keywords is an array of 1–3 short natural-language phrases that name themes ge
 
 Do NOT pad with keywords. If the user didn't name a specific theme, leave keywords empty. Genres + moods already cover most prompts. Pick at most 3, prefer 1–2. Single-word phrases are best.
 
+**NEVER put vibe/reputation descriptors in keywords.** Words like "cult", "cult classic", "underrated", "iconic", "groundbreaking", "essential", "must-see", "best", "greatest", "hidden gem", "obscure", "classic" (alone) are reputation/popularity adjectives — TMDB doesn't track them as keywords. Putting them in keywords gives near-zero results. Map them as follows:
+- "cult [classic]" / "cult films" / "weird" / "offbeat" / "indie" / "arthouse" / "quirky" → moods: ["offbeat"]
+- "underrated" / "hidden gem" / "obscure" → experience: ["hidden_gem"]
+- "iconic" / "classic" (alone) / "essential" / "must-see" → experience: ["classic"]
+- "best" / "greatest" / "top" → experience: ["popular"]
+
+So "cult classic comedies" → genres: ["Comedy"], moods: ["offbeat"]. NOT keywords: ["cult"].
+
 ### Exclude keywords (negative themes)
 excludeKeywords mirrors keywords but for themes the user wants to AVOID. Use the same vocabulary; the server resolves them to TMDB without_keywords. Use when the user says "no X" / "without X" / "nothing set in X" / "I don't want X" and X is a niche theme (not a whole genre).
 
@@ -517,10 +525,10 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     })(),
     minRating: typeof input.minRating === "number" && input.minRating >= 0 && input.minRating <= 10 ? input.minRating : null,
     keywords: Array.isArray(input.keywords)
-      ? input.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      ? stripVibeKeywords(input.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase())).slice(0, 3)
       : [],
     excludeKeywords: Array.isArray(input.excludeKeywords)
-      ? input.excludeKeywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      ? stripVibeKeywords(input.excludeKeywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase())).slice(0, 3)
       : [],
     studios: Array.isArray(input.studios)
       ? input.studios.filter((s): s is string => typeof s === "string" && (STUDIO_NAMES as readonly string[]).includes(s)).slice(0, 5)

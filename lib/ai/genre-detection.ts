@@ -44,3 +44,29 @@ export function detectGenresFromPrompt(prompt: string, validGenres?: ReadonlySet
   }
   return detected.slice(0, 3);
 }
+
+// Vibe / reputation descriptors that the AI sometimes puts into textQuery or
+// keywords despite the system prompt's instructions. TMDB doesn't tag films
+// this way — using them as filters returns near-zero results (e.g.
+// with_text_query=cult returns ~1 movie because almost no titles literally
+// have "cult" in their name or description). Stripping them defensively
+// rescues prompts where the AI ignored the prompt-level guidance.
+const VIBE_DESCRIPTORS = new Set<string>([
+  "cult", "cult classic", "cult film", "cult films", "cult movie", "cult movies",
+  "classic", "classics", "iconic", "essential", "essentials",
+  "underrated", "overrated", "obscure", "hidden gem", "hidden gems",
+  "best", "greatest", "top", "must-see", "must see",
+  "groundbreaking", "innovative", "influential",
+  "weird", "offbeat", "quirky", "indie", "arthouse",
+]);
+
+/** Returns true if the value is a single vibe/reputation descriptor that
+ *  should never be sent to TMDB as a literal text query or keyword. */
+export function isVibeDescriptor(value: string): boolean {
+  return VIBE_DESCRIPTORS.has(value.trim().toLowerCase());
+}
+
+/** Filter a keywords array, dropping any entries that are vibe descriptors. */
+export function stripVibeKeywords(keywords: string[]): string[] {
+  return keywords.filter((k) => !isVibeDescriptor(k));
+}

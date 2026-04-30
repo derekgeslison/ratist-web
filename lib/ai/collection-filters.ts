@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "./client";
 import { STUDIOS } from "../studios";
-import { detectGenresFromPrompt } from "./genre-detection";
+import { detectGenresFromPrompt, isVibeDescriptor, stripVibeKeywords } from "./genre-detection";
 
 const STUDIO_NAMES = STUDIOS.map((s) => s.name);
 
@@ -125,6 +125,14 @@ If a sub-genre IS well-represented by a canonical genre, use that genre ALONE �
 - "epic fantasy"/"sword & sorcery" → "Fantasy" + "Adventure" (no textQuery)
 
 ONLY use textQuery for truly niche concepts that are NOT captured by any main genre: "giallo", "mockumentary", "cyberpunk" (still primarily Sci-Fi, but has enough distinct feel that textQuery can help), very specific themes like "time loop", "found footage". Keep textQuery short (1-2 words).
+
+**NEVER put vibe descriptors in textQuery, keywords, or genres.** Words like "cult", "cult classic", "underrated", "iconic", "groundbreaking", "essential", "classic" (alone), "best", "greatest", "must-see", "hidden gem", "obscure" are reputation/popularity adjectives, not filterable attributes — TMDB doesn't tag films this way. They give over-narrow results (e.g. textQuery="cult" returns ~1 film). Map them as follows:
+- "cult [classic]" / "cult films" / "weird" / "offbeat" / "indie" / "arthouse" / "quirky" → moods: ["offbeat"]
+- "underrated" / "hidden gem" / "obscure" → leave all of these out; the user just wants well-curated results, not a magic filter.
+- "iconic" / "classic" (alone) / "essential" / "must-see" / "groundbreaking" → leave out; these are quality assertions, not filters.
+- "best" / "greatest" / "top" → leave out; the default sort is already top-rated.
+
+So "cult classic comedies" → genres: ["Comedy"], moods: ["offbeat"]. NOT textQuery: "cult", NOT keywords: ["cult"], NOT yearTo: anything.
 
 ### Year mapping
 Today's year is ${currentYear}. Use this for relative time phrases.
@@ -478,7 +486,16 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
       return y;
     })(),
     minRating: typeof raw.minRating === "number" && raw.minRating >= 0 && raw.minRating <= 10 ? raw.minRating : null,
-    textQuery: typeof raw.textQuery === "string" && raw.textQuery.trim().length > 0 ? raw.textQuery.trim() : null,
+    // Strip textQuery if it's a single vibe/reputation word — those over-
+    // narrow because TMDB doesn't tag films by reputation. The system
+    // prompt tells the AI to map them to moods, but this is the safety net.
+    textQuery: (() => {
+      if (typeof raw.textQuery !== "string") return null;
+      const t = raw.textQuery.trim();
+      if (t.length === 0) return null;
+      if (isVibeDescriptor(t)) return null;
+      return t;
+    })(),
     seenFilter: raw.seenFilter === "seen_only" || raw.seenFilter === "any" ? raw.seenFilter : "unseen",
     maxViolence: normalizeSeverity(raw.maxViolence),
     maxSexualContent: normalizeSeverity(raw.maxSexualContent),
@@ -496,10 +513,10 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
     excludeAnime: raw.excludeAnime === true,
     runtime: Array.isArray(raw.runtime) ? raw.runtime.filter((r): r is string => typeof r === "string" && ["short", "feature", "long", "epic"].includes(r)) : [],
     keywords: Array.isArray(raw.keywords)
-      ? raw.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      ? stripVibeKeywords(raw.keywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase())).slice(0, 3)
       : [],
     excludeKeywords: Array.isArray(raw.excludeKeywords)
-      ? raw.excludeKeywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase()).slice(0, 3)
+      ? stripVibeKeywords(raw.excludeKeywords.filter((k): k is string => typeof k === "string" && k.trim().length > 0 && k.length < 50).map((k) => k.trim().toLowerCase())).slice(0, 3)
       : [],
     studios: Array.isArray(raw.studios)
       ? raw.studios.filter((s): s is string => typeof s === "string" && (STUDIO_NAMES as readonly string[]).includes(s)).slice(0, 5)
