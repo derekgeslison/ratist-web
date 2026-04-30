@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "./client";
 import { STUDIOS } from "../studios";
+import { detectGenresFromPrompt } from "./genre-detection";
 
 // Studio whitelist — must match lib/studios.ts entries by name. The AI returns
 // names; the API route resolves them to TMDB company IDs. Anything outside
@@ -140,6 +141,17 @@ genreMode defaults to "any" (OR). Only set "all" (AND) when multiple genres are 
 - Mixed phrasing with "or" anywhere → "any" (the user explicitly opened the door to either).
 
 ### Genre mapping
+**If the prompt names a canonical genre directly, ALWAYS include it in \`genres\`.** This is the most common case. Examples:
+- "war movies" → genres: ["War"]
+- "horror movies" → genres: ["Horror"]
+- "comedies" → genres: ["Comedy"]
+- "westerns" → genres: ["Western"]
+- "thrillers" → genres: ["Thriller"]
+- "documentaries" → genres: ["Documentary"]
+
+The 18 canonical genres are: Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, Thriller, War, Western. If any of these (or obvious plural variants) appears in the prompt, it goes in \`genres\` — not in textQuery, not in keywords.
+
+Synonym mappings (for when the prompt uses a sub-genre or shorthand):
 - "sci-fi" / "science fiction" / "cyberpunk" / "space" → "Science Fiction"
 - "rom-com" → "Comedy" + "Romance"
 - "superhero" / "comic book" → "Action" + "Adventure"
@@ -459,9 +471,27 @@ export async function extractRecommendationFilters(userPrompt: string): Promise<
     throw new Error("AI did not return structured filters");
   }
   const input = toolUse.input as Partial<ExtractedFilters>;
+  const validGenres = new Set(GENRES as readonly string[]);
+  let extractedGenres = Array.isArray(input.genres)
+    ? input.genres.filter((g) => validGenres.has(g))
+    : [];
+
+  // Safety net for prompts that name a canonical genre but the AI returned
+  // empty genres anyway. Only fires on empty extraction so confident AI
+  // picks aren't second-guessed. See lib/ai/genre-detection.ts.
+  if (extractedGenres.length === 0) {
+    const detected = detectGenresFromPrompt(userPrompt, validGenres);
+    if (detected.length > 0) {
+      console.warn(
+        `Recommend AI: extracted empty genres for prompt "${userPrompt.slice(0, 60)}..." — force-added ${detected.join(", ")}`,
+      );
+      extractedGenres = detected;
+    }
+  }
+
   return {
     mediaType: (input.mediaType === "movie" || input.mediaType === "tv") ? input.mediaType : "any",
-    genres: Array.isArray(input.genres) ? input.genres.filter((g) => (GENRES as readonly string[]).includes(g)) : [],
+    genres: extractedGenres,
     experience: Array.isArray(input.experience) ? input.experience.filter((g) => (EXPERIENCE_TAGS as readonly string[]).includes(g)) : [],
     runtime: Array.isArray(input.runtime) ? input.runtime.filter((g) => (RUNTIME_BUCKETS as readonly string[]).includes(g)) : [],
     era: Array.isArray(input.era) ? input.era.filter((g) => (ERA_VALUES as readonly string[]).includes(g)) : [],

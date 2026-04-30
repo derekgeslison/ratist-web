@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "./client";
 import { STUDIOS } from "../studios";
+import { detectGenresFromPrompt } from "./genre-detection";
 
 const STUDIO_NAMES = STUDIOS.map((s) => s.name);
 
@@ -424,32 +425,6 @@ function normalizeSeverity(v: unknown): Severity | null {
   return (SEVERITY_ORDER as readonly string[]).includes(v) ? (v as Severity) : null;
 }
 
-// Word-boundary patterns for canonical genre names that appear directly in
-// user prompts. The post-extraction safety net uses these to force-add a
-// genre when the AI failed to extract one despite the prompt naming it.
-// Patterns are conservative — only triggered when the genre word is used
-// as a noun-like reference, not as a stray adjective or verb.
-const PROMPT_GENRE_PATTERNS: Array<[RegExp, string]> = [
-  [/\b(?:war\s+(?:movies?|films?|stories|epics?)|(?:movies?|films?)\s+about\s+wars?)\b/i, "War"],
-  [/\bhorror\b/i, "Horror"],
-  [/\b(?:comed(?:y|ies)|comedy\s+films?|funny\s+(?:movies?|films?))\b/i, "Comedy"],
-  [/\b(?:thrillers?|thriller\s+(?:movies?|films?))\b/i, "Thriller"],
-  [/\b(?:westerns?|western\s+(?:movies?|films?))\b/i, "Western"],
-  [/\b(?:documentar(?:y|ies)|docs?\b)/i, "Documentary"],
-  [/\b(?:myster(?:y|ies))\b/i, "Mystery"],
-  [/\b(?:musicals?)\b/i, "Music"],
-  [/\b(?:romance\s+(?:movies?|films?)|romantic\s+(?:movies?|films?)|rom-?coms?)\b/i, "Romance"],
-  [/\b(?:fantas(?:y|ies)\s+(?:movies?|films?)?|fantasy\b)/i, "Fantasy"],
-  [/\b(?:sci-?fi|science\s+fiction|scifi)\b/i, "Science Fiction"],
-  [/\b(?:dramas?\s+(?:movies?|films?)?|drama\s+films?)\b/i, "Drama"],
-  [/\b(?:family\s+(?:movies?|films?)|kids?\s+(?:movies?|films?))\b/i, "Family"],
-  [/\b(?:animated\s+(?:movies?|films?)|animation\s+(?:movies?|films?)?|cartoons?)\b/i, "Animation"],
-  [/\b(?:adventure\s+(?:movies?|films?))\b/i, "Adventure"],
-  [/\b(?:action\s+(?:movies?|films?))\b/i, "Action"],
-  [/\b(?:crime\s+(?:movies?|films?)|gangster\s+(?:movies?|films?)|mob\s+(?:movies?|films?))\b/i, "Crime"],
-  [/\b(?:historical\s+(?:movies?|films?)|history\s+(?:movies?|films?)|period\s+pieces?)\b/i, "History"],
-];
-
 export async function extractCollectionFilters(userPrompt: string): Promise<CollectionFilters> {
   const client = getAnthropic();
   const response = await client.messages.create({
@@ -473,19 +448,16 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
 
   // Safety net: AI sometimes whiffs on extraction and returns empty genres
   // even when the prompt names a canonical genre directly ("Classic war
-  // movies from before 2005" → returned []). Scan the prompt for known
-  // genre patterns and force-add anything missing. Only fires when the
-  // AI left genres empty — if it picked something, trust it.
+  // movies from before 2005" → returned []). detectGenresFromPrompt scans
+  // for canonical genre patterns and force-adds anything missing. Only
+  // fires when the AI left genres empty — if it picked something, trust it.
   if (extractedGenres.length === 0) {
-    const detected: string[] = [];
-    for (const [pattern, genre] of PROMPT_GENRE_PATTERNS) {
-      if (pattern.test(userPrompt) && !detected.includes(genre)) detected.push(genre);
-    }
+    const detected = detectGenresFromPrompt(userPrompt, validGenres);
     if (detected.length > 0) {
       console.warn(
         `Collection AI: extracted empty genres for prompt "${userPrompt.slice(0, 60)}..." — force-added ${detected.join(", ")}`,
       );
-      extractedGenres = detected.slice(0, 3);
+      extractedGenres = detected;
     }
   }
 
