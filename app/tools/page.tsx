@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import path from "node:path";
 import fs from "node:fs";
-import { Wrench, Users, Film, Map, Trophy, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp } from "lucide-react";
+import { Wrench, Users, Film, Map, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 import { getTopGrossing } from "@/lib/box-office-queries";
@@ -115,14 +115,6 @@ export default async function ToolsPage() {
       desc: "Visual plot maps for complex, hard-to-follow films. Perfect for Nolan, Lynch, Kaufman, and other mind-bending directors.",
       image: "/tools/movie-maps.png",
       fallbackTint: "rgb(74 222 128 / 0.2)", // green-400
-    },
-    {
-      href: "/tools/oscar-predictor",
-      icon: Trophy,
-      title: "Oscar Best Picture Predictor",
-      desc: "Updated throughout the year. Uses Ratist metrics + historical winner data to score each contender's likelihood of winning Best Picture.",
-      image: "/tools/oscar-predictor.png",
-      fallbackTint: "rgb(250 204 21 / 0.2)", // yellow-400
     },
     {
       href: "/tools/matchup",
