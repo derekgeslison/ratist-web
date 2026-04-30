@@ -21,8 +21,10 @@ type IconComp = React.ComponentType<{ className?: string }>;
 
 interface FeatureRow {
   name: string;
-  free: boolean;
-  pass: boolean;
+  /** `true` → green check, `false` → grey X, string → rendered as a numeric/limit label */
+  free: boolean | string;
+  /** Same encoding as `free`. String values (e.g. "5 / week") render as amber labels. */
+  pass: boolean | string;
   href?: string;
   icon?: IconComp;
 }
@@ -34,6 +36,9 @@ const FEATURES: FeatureRow[] = [
   { name: "For You personalized recommendations", free: true, pass: true },
   { name: "Cine-Q daily trivia", free: true, pass: true },
   { name: "Cinephile tools (What Should I Watch?, Shared Cast & Crew, The Matchup, and more)", free: true, pass: true },
+  { name: "Watch Companion (read scene-by-scene context as you watch)", free: true, pass: true },
+  { name: "Create new Watch Companions", free: "2 / week", pass: "5 / week" },
+  { name: "AI tools (movie search, recommendations, collections)", free: "10 / day", pass: "30 / day" },
   { name: "Join Screening Room sessions", free: true, pass: true },
   { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay, href: "/backstage-pass/screening-room" },
   { name: "Movie Club", free: false, pass: true, icon: Star, href: "/backstage-pass/movie-club" },
@@ -245,22 +250,34 @@ export default async function BackstagePassPage() {
           <h2 className="text-base font-semibold text-white">Free vs. Backstage Pass</h2>
         </div>
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="grid grid-cols-[1fr_70px_70px] border-b border-[var(--border)] px-4 py-2.5">
+          <div className="grid grid-cols-[1fr_90px_90px] border-b border-[var(--border)] px-4 py-2.5">
             <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Feature</span>
             <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider text-center">Free</span>
             <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider text-center">Pass</span>
           </div>
           {FEATURES.map((f, i) => {
             const row = (
-              <div key={i} className={`grid grid-cols-[1fr_70px_70px] px-4 py-2.5 ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""} ${f.href ? "hover:bg-[var(--surface-2)] cursor-pointer" : ""}`}>
+              <div key={i} className={`grid grid-cols-[1fr_90px_90px] px-4 py-2.5 items-center ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""} ${f.href ? "hover:bg-[var(--surface-2)] cursor-pointer" : ""}`}>
                 <span className={`text-sm text-white ${f.href ? "hover:text-amber-400 transition-colors" : ""}`}>
                   {f.name} {f.href && <span className="text-[10px] text-[var(--foreground-muted)]">→</span>}
                 </span>
                 <div className="flex justify-center">
-                  {f.free ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />}
+                  {typeof f.free === "string" ? (
+                    <span className="text-[11px] font-semibold text-emerald-400 whitespace-nowrap">{f.free}</span>
+                  ) : f.free ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />
+                  )}
                 </div>
                 <div className="flex justify-center">
-                  <Check className="w-4 h-4 text-amber-400" />
+                  {typeof f.pass === "string" ? (
+                    <span className="text-[11px] font-semibold text-amber-400 whitespace-nowrap">{f.pass}</span>
+                  ) : f.pass ? (
+                    <Check className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />
+                  )}
                 </div>
               </div>
             );
