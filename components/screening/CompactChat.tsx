@@ -20,13 +20,19 @@ interface Props {
 }
 
 export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase }: Props) {
-  const chatEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
+  // Auto-scroll the chat container only — never via scrollIntoView,
+  // which walks up scroll ancestors and yanks the WHOLE PAGE to the
+  // bottom of the chat element. That was scrolling the user to the
+  // bottom of the post-watch screens (both Rate and Compare) every
+  // time chatMessages mounted with any history. Setting scrollTop
+  // directly on the overflow container keeps the scroll local.
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const c = containerRef.current;
+    if (c) c.scrollTop = c.scrollHeight;
   }, [chatMessages]);
 
   function handleScroll() {
@@ -36,7 +42,8 @@ export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, c
   }
 
   function scrollToBottom() {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const c = containerRef.current;
+    if (c) c.scrollTo({ top: c.scrollHeight, behavior: "smooth" });
   }
 
   async function sendMessage(text: string, emoji?: string) {
@@ -86,7 +93,6 @@ export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, c
             </div>
           );
         })}
-        <div ref={chatEndRef} />
 
         {/* Scroll to bottom */}
         {showScrollBtn && (

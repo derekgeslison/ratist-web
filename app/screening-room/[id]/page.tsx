@@ -472,6 +472,31 @@ export default function ScreeningSessionPage() {
     if (c) c.scrollTop = c.scrollHeight;
   }, [chatMessages, session?.polls?.length]);
 
+  // Reset page scroll to top whenever the user enters a new phase.
+  // Without this, transitioning from countdown → watching, or from
+  // rate → compare, can leave the user mid-page (chat auto-scroll,
+  // focus events, or layout shifts can all push them down). For each
+  // phase the user wants to see the top: timer + controls in
+  // watching, rating form in post-watch rate, superlatives in
+  // post-watch compare.
+  const prevStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const cur = session?.status ?? null;
+    if (cur !== prevStatusRef.current) {
+      prevStatusRef.current = cur;
+      if (cur === "WATCHING" || cur === "POST_WATCH" || cur === "COMPLETE") {
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "auto" });
+      }
+    }
+  }, [session?.status]);
+
+  useEffect(() => {
+    if ((session?.status === "POST_WATCH" || session?.status === "COMPLETE")
+        && typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [postWatchPhase, session?.status]);
+
   // Countdown logic (with sound)
   useEffect(() => {
     if (session?.status !== "COUNTDOWN") { setCountdown(null); return; }
