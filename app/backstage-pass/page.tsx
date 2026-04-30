@@ -62,8 +62,8 @@ interface ShowcaseCard {
 const SHOWCASE: ShowcaseCard[] = [
   {
     icon: Star,
-    title: "Critics Mode",
-    desc: "Reviewer-grade rating breakdowns. Detailed prose alongside every category, formatted for serious analysis. Unlocks at 250 reviews.",
+    title: "Live Review / Critics Mode",
+    desc: "Live Review captures your reactions and ratings as you watch, scene by scene. Critics Mode unlocks reviewer-grade depth — long-form prose alongside every category — once you cross 250 reviews.",
     href: "/backstage-pass/critics-mode",
     image: "/backstage-pass/critics-mode.png",
     fallbackTint: "rgb(250 204 21 / 0.2)", // yellow-400
@@ -89,7 +89,7 @@ const SHOWCASE: ShowcaseCard[] = [
     title: "Host Screening Rooms",
     desc: "Run live, social watch-along sessions with your friends. Sync playback, chat in real time, run polls, and rate together when the credits roll.",
     href: "/backstage-pass/screening-room",
-    image: "/backstage-pass/screening-room-host.png",
+    image: "/tools/screening-room.png", // reuse from /tools — same illustration fits both surfaces
     fallbackTint: "rgb(168 85 247 / 0.2)", // purple-500
   },
   {
