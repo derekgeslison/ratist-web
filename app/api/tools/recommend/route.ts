@@ -244,7 +244,16 @@ export async function POST(req: NextRequest) {
     const excludeIds = excludeGenres.map((g: string) => nameToId.get(g)).filter(Boolean).map(String);
     const isTV = mediaType === "tv";
     const isBoth = mediaType === "any";
-    const actualPage = experienceArr.length === 0 ? Math.floor(Math.random() * 10) + 1 : page;
+    // Random page (1-10) when no experience is selected, so refreshing the
+    // tool shuffles in fresh titles instead of always showing the same TMDB
+    // page 1. EXCEPT when 2+ genres are selected — multi-genre AND-first
+    // matching only has data on the first page or two for narrow combos
+    // (Action+SciFi+Romance is sparse), so randomizing to page 5+ surfaces
+    // an empty AND query and the user only sees 1-of-N OR matches.
+    // Keeping page deterministic for multi-genre queries preserves the
+    // tiering: all-match → most-match → least-match.
+    const shouldRandomize = experienceArr.length === 0 && genreIds.length <= 1;
+    const actualPage = shouldRandomize ? Math.floor(Math.random() * 10) + 1 : page;
 
     // ── Experience-specific TMDB query params ──
     // Each experience type has its own criteria that produces the right kind of results.
