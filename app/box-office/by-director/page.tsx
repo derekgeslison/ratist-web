@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Top Grossing Directors of All Time",
     description: "Lifetime career box office across every directed film.",
-    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Directors&subtitle=Lifetime+career+box+office", width: 800, height: 520 }],
+    images: [{ url: "/api/og/box-office?page=topDirectors", width: 800, height: 520 }],
   },
 };
 
@@ -41,7 +41,7 @@ export default async function BoxOfficeByDirectorPage() {
         </div>
         <BoxOfficeShare
           path="/box-office/by-director"
-          ogPath="/api/og/box-office?page=branded&title=Top+Grossing+Directors&subtitle=Lifetime+career+box+office"
+          ogPath="/api/og/box-office?page=topDirectors"
           shareText="Top Grossing Directors of All Time — The Ratist"
         />
       </div>

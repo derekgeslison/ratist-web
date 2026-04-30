@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Top Grossing Actors of All Time",
     description: "Lifetime career box office across every credited role.",
-    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Actors&subtitle=Lifetime+career+box+office", width: 800, height: 520 }],
+    images: [{ url: "/api/og/box-office?page=topActors", width: 800, height: 520 }],
   },
 };
 
@@ -41,7 +41,7 @@ export default async function BoxOfficeByActorPage() {
         </div>
         <BoxOfficeShare
           path="/box-office/by-actor"
-          ogPath="/api/og/box-office?page=branded&title=Top+Grossing+Actors&subtitle=Lifetime+career+box+office"
+          ogPath="/api/og/box-office?page=topActors"
           shareText="Top Grossing Actors of All Time — The Ratist"
         />
       </div>

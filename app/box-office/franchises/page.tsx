@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Top Grossing Franchises of All Time",
     description: "Lifetime box office summed across every film in each franchise.",
-    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Franchises&subtitle=Lifetime+gross+per+series", width: 800, height: 520 }],
+    images: [{ url: "/api/og/box-office?page=topFranchises", width: 800, height: 520 }],
   },
 };
 
@@ -41,7 +41,7 @@ export default async function BoxOfficeFranchisesPage() {
         </div>
         <BoxOfficeShare
           path="/box-office/franchises"
-          ogPath="/api/og/box-office?page=branded&title=Top+Grossing+Franchises&subtitle=Lifetime+gross+per+series"
+          ogPath="/api/og/box-office?page=topFranchises"
           shareText="Top Grossing Franchises — The Ratist"
         />
       </div>

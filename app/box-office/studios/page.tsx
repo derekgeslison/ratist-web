@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Top Grossing Studios of All Time",
     description: "Lifetime box office summed across every film a studio is credited on.",
-    images: [{ url: "/api/og/box-office?page=branded&title=Top+Grossing+Studios&subtitle=Lifetime+gross+per+studio", width: 800, height: 520 }],
+    images: [{ url: "/api/og/box-office?page=topStudios", width: 800, height: 520 }],
   },
 };
 
@@ -41,7 +41,7 @@ export default async function BoxOfficeStudiosPage() {
         </div>
         <BoxOfficeShare
           path="/box-office/studios"
-          ogPath="/api/og/box-office?page=branded&title=Top+Grossing+Studios&subtitle=Lifetime+gross+per+studio"
+          ogPath="/api/og/box-office?page=topStudios"
           shareText="Top Grossing Studios — The Ratist"
         />
       </div>

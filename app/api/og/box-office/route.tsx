@@ -12,6 +12,9 @@ import {
   getTopGrossingByMpa,
   getTopGrossingByReleaseWindow,
   getTopFiltered,
+  getTopCelebrityCareers,
+  getTopStudios,
+  getTopFranchises,
   formatDateYMD,
   type BoxOfficeFilters,
 } from "@/lib/box-office-queries";
@@ -57,7 +60,20 @@ export async function GET(request: Request) {
   try {
     let title = "Box Office Insights";
     let subtitle = "Lifetime grosses, profits, and ROI";
-    let topRows: Array<{ title: string; posterPath: string | null; year: string; metric: string }> = [];
+    // imageStyle controls how the row's thumbnail renders:
+    //   - "poster": tall portrait, square corners (movies, franchises)
+    //   - "profile": square, circular crop (actors, directors)
+    //   - "logo": square, contain-fit on neutral background (studios)
+    // The middle column (`year`) is generic — for non-movie types it
+    // carries the film count instead of a release year.
+    type Row = {
+      title: string;
+      posterPath: string | null;
+      year: string;
+      metric: string;
+      imageStyle?: "poster" | "profile" | "logo";
+    };
+    let topRows: Row[] = [];
 
     if (page === "topGrossing") {
       title = "Top Grossing of All Time";
@@ -189,6 +205,37 @@ export async function GET(request: Request) {
         { sort, genreIds, mpaCodes, languages, releaseFrom, releaseTo },
         5,
       )).map(rowMapper);
+    } else if (page === "topActors" || page === "topDirectors") {
+      const role = page === "topActors" ? "actor" : "director";
+      title = role === "actor" ? "Top Grossing Actors" : "Top Grossing Directors";
+      subtitle = "Lifetime career box office across every credit";
+      topRows = (await getTopCelebrityCareers(role, 5)).map((r) => ({
+        title: r.name,
+        posterPath: r.profilePath,
+        year: `${r.filmCount} films`,
+        metric: formatBoxOffice(r.totalRevenue) ?? "—",
+        imageStyle: "profile" as const,
+      }));
+    } else if (page === "topStudios") {
+      title = "Top Grossing Studios";
+      subtitle = "Lifetime gross summed per studio credit";
+      topRows = (await getTopStudios(5)).map((r) => ({
+        title: r.name,
+        posterPath: r.logoPath,
+        year: `${r.filmCount} films`,
+        metric: formatBoxOffice(r.totalRevenue) ?? "—",
+        imageStyle: "logo" as const,
+      }));
+    } else if (page === "topFranchises") {
+      title = "Top Grossing Franchises";
+      subtitle = "Lifetime gross summed per series";
+      topRows = (await getTopFranchises(5)).map((r) => ({
+        title: r.name,
+        posterPath: r.topPosterPath,
+        year: `${r.filmCount} films`,
+        metric: formatBoxOffice(r.totalRevenue) ?? "—",
+        imageStyle: "poster" as const,
+      }));
     } else if (page === "branded") {
       // Hub-style OG with no movie rows — used by aggregation hubs
       // (by-decade, by-genre, etc.) where no single top-5 list
@@ -286,40 +333,56 @@ export async function GET(request: Request) {
               spacer is more robust under Satori. */}
           {topRows.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {topRows.map((m, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <span style={{ color: "#444", fontSize: 16, fontWeight: 800, width: 24, textAlign: "right" as const }}>
-                    {i + 1}
-                  </span>
-                  {m.posterPath ? (
-                    <img
-                      src={`https://image.tmdb.org/t/p/w92${m.posterPath}`}
-                      width={28}
-                      height={42}
-                      style={{ borderRadius: 4, objectFit: "cover" }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        display: "flex",
-                        width: 28,
-                        height: 42,
-                        borderRadius: 4,
-                        backgroundColor: "#1a1a1a",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    />
-                  )}
-                  <span style={{ color: "#ddd", fontSize: 16, fontWeight: 600, flex: 1 }}>
-                    {m.title.length > 38 ? m.title.slice(0, 38) + "…" : m.title}
-                  </span>
-                  <span style={{ color: "#666", fontSize: 13 }}>{m.year}</span>
-                  <span style={{ color: "white", fontSize: 16, fontWeight: 800, width: 90, textAlign: "right" as const }}>
-                    {m.metric}
-                  </span>
-                </div>
-              ))}
+              {topRows.map((m, i) => {
+                const style = m.imageStyle ?? "poster";
+                // Sizing per image type. Profile photos get a square
+                // box and a circular crop. Studio logos get a wider
+                // box with contain-fit on a dark background since
+                // logos are usually horizontal and would otherwise
+                // get cropped weirdly.
+                const imgWidth = style === "logo" ? 56 : style === "profile" ? 36 : 28;
+                const imgHeight = style === "logo" || style === "profile" ? 36 : 42;
+                const imgRadius = style === "profile" ? 999 : 4;
+                const imgFit = style === "logo" ? ("contain" as const) : ("cover" as const);
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <span style={{ color: "#444", fontSize: 16, fontWeight: 800, width: 24, textAlign: "right" as const }}>
+                      {i + 1}
+                    </span>
+                    {m.posterPath ? (
+                      <img
+                        src={`https://image.tmdb.org/t/p/w92${m.posterPath}`}
+                        width={imgWidth}
+                        height={imgHeight}
+                        style={{
+                          borderRadius: imgRadius,
+                          objectFit: imgFit,
+                          backgroundColor: style === "logo" ? "#1a1a1a" : "transparent",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          width: imgWidth,
+                          height: imgHeight,
+                          borderRadius: imgRadius,
+                          backgroundColor: "#1a1a1a",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      />
+                    )}
+                    <span style={{ color: "#ddd", fontSize: 16, fontWeight: 600, flex: 1 }}>
+                      {m.title.length > 38 ? m.title.slice(0, 38) + "…" : m.title}
+                    </span>
+                    <span style={{ color: "#666", fontSize: 13 }}>{m.year}</span>
+                    <span style={{ color: "white", fontSize: 16, fontWeight: 800, width: 90, textAlign: "right" as const }}>
+                      {m.metric}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ) : page === "branded" ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, paddingTop: 60, paddingBottom: 60 }}>
