@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
 import { extractCollectionFilters, SEVERITY_ORDER, type Severity } from "@/lib/ai/collection-filters";
 import { expandMoods } from "@/lib/ai/mood-expand";
-import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
+import { checkAiToolsRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Prompt is too long (max 500 characters)" }, { status: 400 });
   }
 
-  const rateLimitError = await checkAiRateLimit(user, "collection", { freeDaily: 20, paidDaily: 20 });
+  const rateLimitError = await checkAiToolsRateLimit(user);
   if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
 
   try {

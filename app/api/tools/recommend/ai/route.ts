@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { extractRecommendationFilters } from "@/lib/ai/recommend-filters";
-import { checkAiRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
+import { checkAiToolsRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Description is too long (max 500 characters)" }, { status: 400 });
   }
 
-  const rateLimitError = await checkAiRateLimit(user, "recommend", { freeDaily: 20, paidDaily: 50 });
+  const rateLimitError = await checkAiToolsRateLimit(user);
   if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
 
   try {

@@ -17,15 +17,12 @@ export interface AiLimits {
   paidDaily: number;
 }
 
-// Per-feature caps — exported so the admin heat-flag logic can read the same
-// numbers the routes enforce. Keep in sync with the checkAiRateLimit call
-// sites in app/api/tools/recommend/ai, app/api/movies/ai, and
-// app/api/tools/collections/ai. `free: 0` means the feature is fully blocked
-// for free users upstream (e.g. collection's subscription gate).
+// Per-feature daily caps for features that are NOT in the shared AI tools
+// pool. Keep in sync with the checkAiRateLimit call sites that still pass
+// in their own caps. The recommend/movies_search/collection features have
+// been pulled out of this map and now share a single pooled budget; see
+// AI_TOOLS_POOL + AI_TOOLS_LIMITS below.
 export const FEATURE_CAPS: Record<string, AiLimits> = {
-  recommend: { freeDaily: 20, paidDaily: 50 },
-  movies_search: { freeDaily: 20, paidDaily: 50 },
-  collection: { freeDaily: 0, paidDaily: 20 },
   // Admin-only endpoint — admins bypass the limiter before caps are checked,
   // so both caps stay at 0 as defense-in-depth: if requireAdmin is ever
   // removed, non-admins still get hard-blocked at the rate-limit layer.
@@ -35,6 +32,46 @@ export const FEATURE_CAPS: Record<string, AiLimits> = {
   // shared checker doesn't accidentally let non-admins through.
   watch_companion_generate: { freeDaily: 0, paidDaily: 0 },
 };
+
+// === Shared AI tools pool ===
+// The three user-facing AI tools (movies search, recommendations, AI
+// collections) share a single daily budget rather than having per-feature
+// caps. Free users only ever reach two of them — collection is gated to
+// Backstage Pass — but counting it here is harmless because the subscription
+// gate runs before the rate limiter.
+export const AI_TOOLS_POOL = ["recommend", "movies_search", "collection"] as const;
+export const AI_TOOLS_LIMITS: AiLimits = { freeDaily: 10, paidDaily: 30 };
+export type AiToolsFeature = (typeof AI_TOOLS_POOL)[number];
+
+/**
+ * Check the shared AI tools daily quota. Used by /api/tools/recommend/ai,
+ * /api/movies/ai, and /api/tools/collections/ai — they all consume from
+ * the same pool. Returns null if allowed, or a user-friendly error message.
+ */
+export async function checkAiToolsRateLimit(user: UserForRateLimit): Promise<string | null> {
+  if (user.aiDisabled) {
+    return "AI features have been disabled for your account. Contact support if you believe this is a mistake.";
+  }
+  if (user.isAdmin) return null;
+
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const count = await prisma.aiUsageLog.count({
+    where: {
+      userId: user.id,
+      feature: { in: [...AI_TOOLS_POOL] },
+      createdAt: { gte: dayAgo },
+    },
+  });
+
+  const isPaid = isSubscriptionActive(user);
+  const cap = isPaid ? AI_TOOLS_LIMITS.paidDaily : AI_TOOLS_LIMITS.freeDaily;
+  if (count >= cap) {
+    return isPaid
+      ? `You've reached the daily AI tools limit (${cap} per day, shared across AI movie search, recommendations, and collections). This cap resets every 24 hours.`
+      : `You've reached the daily AI tools limit (${cap} per day, shared across AI movie search and recommendations). Upgrade to Backstage Pass for a higher cap, or try the manual filters.`;
+  }
+  return null;
+}
 
 /**
  * Weekly rate limit for Watch Companion generation. Admins bypass. Free users

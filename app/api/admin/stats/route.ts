@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { FEATURE_CAPS } from "@/lib/ai/rate-limit";
+import { FEATURE_CAPS, AI_TOOLS_POOL, AI_TOOLS_LIMITS } from "@/lib/ai/rate-limit";
 import { isSubscriptionActive } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
@@ -214,11 +214,19 @@ async function countAiFlaggedUsers(since: Date): Promise<number> {
   });
   if (logs.length === 0) return 0;
 
-  // (userId, feature, yyyy-mm-dd) → count
+  // Bucket counts by (userId, category, yyyy-mm-dd). "category" is
+  // either the literal feature name (for non-pooled features like
+  // movie_map_draft) or "ai_tools" -- the shared bucket the three pooled
+  // AI tool endpoints all count toward. This way a user who maxes the
+  // shared cap by combining /recommend + /movies AI search trips the
+  // heat flag the same way as someone hammering a single feature.
+  const POOL_SET = new Set<string>(AI_TOOLS_POOL);
+  const POOL_KEY = "ai_tools";
   const dailyCounts = new Map<string, number>();
   for (const row of logs) {
     const day = row.createdAt.toISOString().slice(0, 10);
-    const key = `${row.userId}${row.feature}${day}`;
+    const category = POOL_SET.has(row.feature) ? POOL_KEY : row.feature;
+    const key = `${row.userId}|${category}|${day}`;
     dailyCounts.set(key, (dailyCounts.get(key) ?? 0) + 1);
   }
 
@@ -235,26 +243,34 @@ async function countAiFlaggedUsers(since: Date): Promise<number> {
 
   const daysAtCapByUser = new Map<string, Record<string, number>>();
   for (const [key, count] of dailyCounts) {
-    const [uid, feature] = key.split("");
-    const caps = FEATURE_CAPS[feature];
-    if (!caps) continue;
+    const [uid, category] = key.split("|");
     const u = userMap.get(uid);
     if (!u || u.isAdmin) continue; // admins don't count
+
     const isPaid = isSubscriptionActive(u);
-    const cap = isPaid ? caps.paidDaily : caps.freeDaily;
+    let cap: number;
+    if (category === POOL_KEY) {
+      cap = isPaid ? AI_TOOLS_LIMITS.paidDaily : AI_TOOLS_LIMITS.freeDaily;
+    } else {
+      const caps = FEATURE_CAPS[category];
+      if (!caps) continue;
+      cap = isPaid ? caps.paidDaily : caps.freeDaily;
+    }
     if (cap === 0) continue;
+
     if (count >= cap) {
       const existing = daysAtCapByUser.get(uid) ?? {};
-      existing[feature] = (existing[feature] ?? 0) + 1;
+      existing[category] = (existing[category] ?? 0) + 1;
       daysAtCapByUser.set(uid, existing);
     }
   }
 
-  // Flag threshold for a 7-day window: 4 days-at-cap on any feature.
+  // Flag threshold for a 7-day window: 4 days-at-cap on any single
+  // category (pooled or per-feature).
   const FLAG_THRESHOLD = 4;
   let flagged = 0;
-  for (const byFeature of daysAtCapByUser.values()) {
-    if (Object.values(byFeature).some((d) => d >= FLAG_THRESHOLD)) flagged++;
+  for (const byCategory of daysAtCapByUser.values()) {
+    if (Object.values(byCategory).some((d) => d >= FLAG_THRESHOLD)) flagged++;
   }
   return flagged;
 }
