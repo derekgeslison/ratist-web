@@ -95,6 +95,21 @@ When the user says "not X", "nothing too X", "avoid X", "but not X", "without X"
 - If X is a genre → put it in excludeGenres (NOT in genres), even if the overall topic is adjacent. Example: "Halloween movies for kids, nothing too scary" → genres: [Family, Fantasy], excludeGenres: [Horror].
 
 ### Genre mapping
+**If the prompt names a canonical TMDB genre directly, ALWAYS include it in \`genres\`.** This is the most common case and is non-negotiable. Examples:
+- "war movies" / "war films" → genres: ["War"]
+- "horror movies" / "horror films" → genres: ["Horror"]
+- "comedies" / "comedy films" → genres: ["Comedy"]
+- "westerns" → genres: ["Western"]
+- "thrillers" → genres: ["Thriller"]
+- "documentaries" → genres: ["Documentary"]
+- "mysteries" → genres: ["Mystery"]
+- "musicals" → genres: ["Music"]
+- "fantasy films" → genres: ["Fantasy"]
+- "dramas" → genres: ["Drama"]
+- "animated films" / "animation" → genres: ["Animation"]
+
+The 19 canonical TMDB genres are: Action, Adventure, Animation, Comedy, Crime, Documentary, Drama, Family, Fantasy, History, Horror, Music, Mystery, Romance, Science Fiction, TV Movie, Thriller, War, Western. If any of these (or their obvious plural/phrasing variants) appears in the prompt, it goes in \`genres\`. Don't put it in textQuery, don't put it in keywords — \`genres\` is the right field.
+
 Map synonyms to canonical genres: "sci-fi"/"cyberpunk"/"space" → "Science Fiction"; "rom-com" → "Comedy" + "Romance"; "superhero" → "Action" + "Adventure"; "slasher"/"gore" → "Horror".
 
 If a sub-genre IS well-represented by a canonical genre, use that genre ALONE — do NOT also add it to textQuery (textQuery combines with genre as AND and will over-narrow):
@@ -409,6 +424,32 @@ function normalizeSeverity(v: unknown): Severity | null {
   return (SEVERITY_ORDER as readonly string[]).includes(v) ? (v as Severity) : null;
 }
 
+// Word-boundary patterns for canonical genre names that appear directly in
+// user prompts. The post-extraction safety net uses these to force-add a
+// genre when the AI failed to extract one despite the prompt naming it.
+// Patterns are conservative — only triggered when the genre word is used
+// as a noun-like reference, not as a stray adjective or verb.
+const PROMPT_GENRE_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(?:war\s+(?:movies?|films?|stories|epics?)|(?:movies?|films?)\s+about\s+wars?)\b/i, "War"],
+  [/\bhorror\b/i, "Horror"],
+  [/\b(?:comed(?:y|ies)|comedy\s+films?|funny\s+(?:movies?|films?))\b/i, "Comedy"],
+  [/\b(?:thrillers?|thriller\s+(?:movies?|films?))\b/i, "Thriller"],
+  [/\b(?:westerns?|western\s+(?:movies?|films?))\b/i, "Western"],
+  [/\b(?:documentar(?:y|ies)|docs?\b)/i, "Documentary"],
+  [/\b(?:myster(?:y|ies))\b/i, "Mystery"],
+  [/\b(?:musicals?)\b/i, "Music"],
+  [/\b(?:romance\s+(?:movies?|films?)|romantic\s+(?:movies?|films?)|rom-?coms?)\b/i, "Romance"],
+  [/\b(?:fantas(?:y|ies)\s+(?:movies?|films?)?|fantasy\b)/i, "Fantasy"],
+  [/\b(?:sci-?fi|science\s+fiction|scifi)\b/i, "Science Fiction"],
+  [/\b(?:dramas?\s+(?:movies?|films?)?|drama\s+films?)\b/i, "Drama"],
+  [/\b(?:family\s+(?:movies?|films?)|kids?\s+(?:movies?|films?))\b/i, "Family"],
+  [/\b(?:animated\s+(?:movies?|films?)|animation\s+(?:movies?|films?)?|cartoons?)\b/i, "Animation"],
+  [/\b(?:adventure\s+(?:movies?|films?))\b/i, "Adventure"],
+  [/\b(?:action\s+(?:movies?|films?))\b/i, "Action"],
+  [/\b(?:crime\s+(?:movies?|films?)|gangster\s+(?:movies?|films?)|mob\s+(?:movies?|films?))\b/i, "Crime"],
+  [/\b(?:historical\s+(?:movies?|films?)|history\s+(?:movies?|films?)|period\s+pieces?)\b/i, "History"],
+];
+
 export async function extractCollectionFilters(userPrompt: string): Promise<CollectionFilters> {
   const client = getAnthropic();
   const response = await client.messages.create({
@@ -426,9 +467,31 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
   }
   const raw = toolUse.input as Partial<CollectionFilters>;
   const validGenres = new Set(TMDB_MOVIE_GENRES);
+  let extractedGenres = Array.isArray(raw.genres)
+    ? raw.genres.filter((g) => validGenres.has(g as (typeof TMDB_MOVIE_GENRES)[number]))
+    : [];
+
+  // Safety net: AI sometimes whiffs on extraction and returns empty genres
+  // even when the prompt names a canonical genre directly ("Classic war
+  // movies from before 2005" → returned []). Scan the prompt for known
+  // genre patterns and force-add anything missing. Only fires when the
+  // AI left genres empty — if it picked something, trust it.
+  if (extractedGenres.length === 0) {
+    const detected: string[] = [];
+    for (const [pattern, genre] of PROMPT_GENRE_PATTERNS) {
+      if (pattern.test(userPrompt) && !detected.includes(genre)) detected.push(genre);
+    }
+    if (detected.length > 0) {
+      console.warn(
+        `Collection AI: extracted empty genres for prompt "${userPrompt.slice(0, 60)}..." — force-added ${detected.join(", ")}`,
+      );
+      extractedGenres = detected.slice(0, 3);
+    }
+  }
+
   return {
     mediaType: (raw.mediaType === "tv" || raw.mediaType === "any") ? raw.mediaType : "movie",
-    genres: Array.isArray(raw.genres) ? raw.genres.filter((g) => validGenres.has(g as (typeof TMDB_MOVIE_GENRES)[number])) : [],
+    genres: extractedGenres,
     excludeGenres: Array.isArray(raw.excludeGenres) ? raw.excludeGenres.filter((g) => validGenres.has(g as (typeof TMDB_MOVIE_GENRES)[number])) : [],
     yearFrom: typeof raw.yearFrom === "number" && raw.yearFrom > 1800 ? Math.floor(raw.yearFrom) : null,
     // Strip yearTo when it's a redundant current-year ceiling paired with a
