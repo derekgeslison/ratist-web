@@ -10,6 +10,7 @@ import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
 import { resolveStudioNames } from "@/lib/studios";
+import { resolveTitles } from "@/lib/ai/title-resolver";
 
 interface SeverityCaps {
   maxViolence: Severity | null; maxSexualContent: Severity | null; maxLanguageSubstance: Severity | null; maxScaryIntense: Severity | null; maxSensitiveThemes: Severity | null;
@@ -145,10 +146,73 @@ export async function POST(req: NextRequest) {
       excludeIds = filters.excludeGenres.map((g) => movieNameToId.get(g)).filter((id): id is number => id != null);
     }
 
-    // ── seen_only mode: skip TMDB entirely, query user's own seen list from DB ──
     // genreMatchCount tracks how many of the user's selected genres this title
     // actually has — used to preserve AND-first ordering through the shuffle.
     type Item = { mediaType: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; genreMatchCount: number };
+
+    // ── Build comprehensive seen sets (movies + shows, favorites + ratings) ──
+    // Used by BOTH the AI-title pre-filter below and the existing TMDB
+    // discover-loop's seen filter. "Seen" = either marked as seen
+    // (UserFavoriteMovie/Show) or rated (MovieRating/TVShowRating).
+    let seenMovieIdsAll = new Set<number>();
+    let seenShowIdsAll = new Set<number>();
+    if (filters.seenFilter !== "any") {
+      const [movFavs, movRatings, showFavs, showRatings] = await Promise.all([
+        prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }),
+        prisma.movieRating.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }),
+        prisma.userFavoriteShow.findMany({ where: { userId: user.id }, select: { tvShow: { select: { tmdbId: true } } } }),
+        prisma.tVShowRating.findMany({ where: { userId: user.id }, select: { tvShow: { select: { tmdbId: true } } } }),
+      ]);
+      seenMovieIdsAll = new Set([
+        ...movFavs.map((s) => s.movie.tmdbId),
+        ...movRatings.map((s) => s.movie.tmdbId),
+      ]);
+      seenShowIdsAll = new Set([
+        ...showFavs.map((s) => s.tvShow.tmdbId),
+        ...showRatings.map((s) => s.tvShow.tmdbId),
+      ]);
+    }
+
+    // ── Hybrid step: resolve AI's curated title picks against TMDB ──
+    // The AI returns 10-20 specific titles for vibe/curation prompts that
+    // filter discovery can't capture ("cult classic comedies", "Almost
+    // Famous-style"). We resolve each to a TMDB id, apply the user's seen
+    // preference + excludeGenres + year window, and seed the collected
+    // pool. Filter-based discovery below pads any remaining slots.
+    const movieIncludedIdSetAll = new Set(includeIds.map(Number));
+    async function buildAiSeeds(): Promise<Item[]> {
+      if (filters.titles.length === 0) return [];
+      const resolved = await resolveTitles(filters.titles);
+      const seeds: Item[] = [];
+      const wantedMediaType: "movie" | "tv" | null = useTv ? "tv" : (filters.mediaType === "any" ? null : "movie");
+      for (const r of resolved) {
+        if (wantedMediaType !== null && r.mediaType !== wantedMediaType) continue;
+        const seenSet = r.mediaType === "tv" ? seenShowIdsAll : seenMovieIdsAll;
+        if (filters.seenFilter === "unseen" && seenSet.has(r.tmdbId)) continue;
+        if (filters.seenFilter === "seen_only" && !seenSet.has(r.tmdbId)) continue;
+        if (excludeIds.length > 0 && r.genreIds.some((id) => excludeIds.includes(id))) continue;
+        const itemYear = r.releaseDate ? parseInt(r.releaseDate.slice(0, 4), 10) : null;
+        if (filters.yearFrom != null && itemYear != null && itemYear < filters.yearFrom) continue;
+        if (filters.yearTo != null && itemYear != null && itemYear > filters.yearTo) continue;
+        seeds.push({
+          mediaType: r.mediaType,
+          tmdbId: r.tmdbId,
+          title: r.title,
+          posterPath: r.posterPath,
+          releaseDate: r.releaseDate,
+          voteAverage: r.voteAverage,
+          genreMatchCount: r.mediaType === "movie"
+            ? r.genreIds.filter((g) => movieIncludedIdSetAll.has(g)).length
+            : 0,
+        });
+      }
+      return seeds;
+    }
+    const aiSeeds = await buildAiSeeds();
+    // Track AI-seed identity so the tier-shuffle below preserves AI order.
+    const aiSeedKeys = new Set(aiSeeds.map((s) => `${s.mediaType}:${s.tmdbId}`));
+
+    // ── seen_only mode: skip TMDB entirely, query user's own seen list from DB ──
     if (filters.seenFilter === "seen_only" && !useTv) {
       const includeIdsNum = includeIds.map(Number);
       // Fetch a bigger quality-filtered pool, then randomly sample so repeat
@@ -175,34 +239,34 @@ export async function POST(req: NextRequest) {
         orderBy: { movie: { voteAverage: "desc" } },
         take: poolSize,
       });
-      // Fisher-Yates shuffle, take limit
+      // Fisher-Yates shuffle the DB-discovered pool — repeat prompts get
+      // variety in the filler. AI-resolved seeds (already filtered to the
+      // user's seen set above) take precedence and stay in AI-ranked order.
       const shuffled = [...seenRows];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      const collectedSeen: Item[] = shuffled.slice(0, filters.limit).map((r) => ({
-        mediaType: "movie" as const,
-        tmdbId: r.movie.tmdbId,
-        title: r.movie.title,
-        posterPath: r.movie.posterPath,
-        releaseDate: r.movie.releaseDate,
-        voteAverage: r.movie.voteAverage,
-        genreMatchCount: 0, // not tracked for seen_only — DB filter already enforces genres
-      }));
+      const dbSeenItems: Item[] = shuffled
+        .filter((r) => !aiSeedKeys.has(`movie:${r.movie.tmdbId}`))
+        .map((r) => ({
+          mediaType: "movie" as const,
+          tmdbId: r.movie.tmdbId,
+          title: r.movie.title,
+          posterPath: r.movie.posterPath,
+          releaseDate: r.movie.releaseDate,
+          voteAverage: r.movie.voteAverage,
+          genreMatchCount: 0, // not tracked for seen_only — DB filter already enforces genres
+        }));
+      const collectedSeen: Item[] = [...aiSeeds, ...dbSeenItems].slice(0, filters.limit);
       await logAiUsage(user.id, "collection");
       return NextResponse.json({ filters, items: collectedSeen });
     }
 
-    // Build user's seen-TMDB-IDs set when we need to EXCLUDE seen (unseen mode)
-    let seenTmdbIds = new Set<number>();
-    if (filters.seenFilter === "unseen" && !useTv) {
-      const seen = await prisma.userFavoriteMovie.findMany({
-        where: { userId: user.id },
-        select: { movie: { select: { tmdbId: true } } },
-      });
-      seenTmdbIds = new Set(seen.map((s) => s.movie.tmdbId));
-    }
+    // Movie-only seen-IDs alias for the existing collectLoop (which only
+    // checks movies, not shows). The comprehensive seen sets built above
+    // include both, but the loop's predicate only references this one.
+    const seenTmdbIds = filters.seenFilter === "unseen" && !useTv ? seenMovieIdsAll : new Set<number>();
 
     // Severity caps require a bulk cache lookup at the end. Collect a larger
     // candidate pool when any cap is set so filtering still leaves enough items.
@@ -367,8 +431,9 @@ export async function POST(req: NextRequest) {
 
     // Paginate through TMDB discover until we have `targetPool` items or exhaust pages (cap at 5 pages).
     // Factored as a reusable loop so we can run a no-keyword fallback pass
-    // when the keyword query yields too few hits.
-    const collected: Item[] = [];
+    // when the keyword query yields too few hits. Pre-seeded with the AI's
+    // resolved title picks so the curation flows in front of discovery.
+    const collected: Item[] = [...aiSeeds];
     const maxPages = 5;
     async function collectLoop(useKeywords: boolean) {
       let page = 1;
@@ -464,12 +529,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Shuffle WITHIN match-count tiers so repeat prompts give different results
-    // but 2-of-2 genre matches still beat 1-of-2 matches. Single-genre queries
-    // collapse to one tier (all items have match count 0 or 1), so it's just a
-    // straight shuffle in that case.
+    // Split into AI-seeds (preserve curation order) and discover-pool
+    // (tier-shuffle for variety). AI seeds always come first; the AI ranked
+    // them in its own preferred order and shuffling would dilute that.
+    // Discovered items still tier-shuffle so repeat prompts give variety in
+    // the filler and 2-of-2 genre matches still beat 1-of-2.
+    const aiSeedSurvivors = finalItems.filter((c) => aiSeedKeys.has(`${c.mediaType}:${c.tmdbId}`));
+    const discoverPool = finalItems.filter((c) => !aiSeedKeys.has(`${c.mediaType}:${c.tmdbId}`));
     const tiers = new Map<number, Item[]>();
-    for (const item of finalItems) {
+    for (const item of discoverPool) {
       const t = item.genreMatchCount;
       if (!tiers.has(t)) tiers.set(t, []);
       tiers.get(t)!.push(item);
@@ -484,7 +552,7 @@ export async function POST(req: NextRequest) {
       }
       tiered.push(...group);
     }
-    finalItems = tiered.slice(0, filters.limit);
+    finalItems = [...aiSeedSurvivors, ...tiered].slice(0, filters.limit);
 
     await logAiUsage(user.id, "collection");
 

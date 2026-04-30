@@ -80,6 +80,18 @@ export interface CollectionFilters {
   // Resolved to TMDB person IDs. Directors aren't natively filterable by
   // TMDB discover but the AI still extracts their names for consistency.
   cast: string[];
+  // AI-suggested titles for the collection. The hybrid route resolves these
+  // against TMDB first (curation-quality picks the AI specifically chose),
+  // then pads with filter-based discovery to reach `limit`. May be empty
+  // for purely filter-y prompts ("R-rated horror under 100 minutes") where
+  // discovery is more useful than the AI's recall.
+  titles: SuggestedTitle[];
+}
+
+export interface SuggestedTitle {
+  title: string;
+  year: number | null;
+  mediaType: "movie" | "tv";
 }
 
 const MPAA_RATINGS = ["G", "PG", "PG-13", "R", "NC-17"] as const;
@@ -87,9 +99,21 @@ const TV_RATINGS = ["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"] as const
 const ALL_CERTS = [...MPAA_RATINGS, ...TV_RATINGS] as const;
 
 function buildSystemPrompt(currentYear: number): string {
-  return `You extract structured filters for building a movie/TV collection from a user's natural-language prompt.
+  return `You build custom movie/TV collections from a user's natural-language prompt. You return TWO things in the same tool call:
+1. **titles** — your specific film/show picks for the collection (10-20 titles). This is your primary output for vibe-y prompts that filters can't capture (cult classics, comfort watches, "movies like X", curated personal taste).
+2. **filters** — structured filter values (genres, year range, etc.) that the server uses as a fallback to fill gaps when your titles can't be matched against the catalog.
 
-You do NOT name specific movies or shows. You only extract filter values. The site's recommendation engine will run the actual search against a real catalog.
+### When to populate \`titles\`
+- ALWAYS populate when the prompt is curation-flavored: "cult classic comedies", "best heist movies of all time", "90s romcoms I should rewatch", "comfort food horror", "movies like Almost Famous", "essential Scorsese", "underrated thrillers".
+- ALWAYS populate when the prompt asks for a specific niche your filter vocabulary can't capture (cult, iconic, underrated, comfort, "for me to rewatch", "for a date night").
+- LEAVE EMPTY when the prompt is purely filter-driven and discovery is more useful than recall: "R-rated horror under 100 minutes from the 90s", "documentaries from this year", "Korean thrillers". The server will run a TMDB discover query in those cases — your title list would just duplicate what discover already finds.
+- Cap at 20 titles. The user's collection wants 10-15, but oversample so the server can drop ones that don't pass cert/severity/seen filters.
+- Each title needs an integer \`year\` (release year, or first-air year for TV) when you're confident — helps the server disambiguate remakes (Dune 1984 vs 2021). Set to null only when uncertain.
+- Only include real titles you're confident exist. Don't invent. If you can't think of 10, give 5 — server will discover the rest.
+- For "movies like X" prompts, INCLUDE X itself in the titles list as the anchor, then surround with similar films.
+
+### Filter-extraction notes (for the fallback path)
+You ALSO populate the structured filters below. The server runs a TMDB discover with those filters when your title list is empty or when too few of your titles match the catalog. So even with strong title suggestions, set genres/year/etc. to enable the fallback.
 
 ### Negative constraints
 When the user says "not X", "nothing too X", "avoid X", "but not X", "without X":
@@ -422,8 +446,21 @@ const EXTRACT_COLLECTION_TOOL: Anthropic.Tool = {
       },
       limit: { type: "integer", minimum: 5, maximum: 25, description: "Number of titles to include (default 10)." },
       suggestedName: { type: "string", description: "Short friendly name for the collection." },
+      titles: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "Movie/show title as commonly known. Don't include parenthetical years here." },
+            year: { type: ["integer", "null"], description: "Release year (movies) or first-air year (TV). Helps disambiguate remakes/reboots. Null if uncertain." },
+            mediaType: { type: "string", enum: ["movie", "tv"], description: "movie or tv. Pick the form the title is best known as." },
+          },
+          required: ["title", "year", "mediaType"],
+        },
+        description: "10-20 specific titles you'd put in this collection. Lean on your own knowledge of films/TV — these are the curation-quality picks. Only include titles you're confident exist (real films/shows, not made up). Skip if the prompt is purely filter-driven ('R-rated horror under 100 min') where discovery beats recall — leave empty in that case.",
+      },
     },
-    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "runtime", "keywords", "excludeKeywords", "studios", "mpaaRatings", "cast", "limit", "suggestedName"],
+    required: ["mediaType", "genres", "excludeGenres", "yearFrom", "yearTo", "minRating", "textQuery", "seenFilter", "maxViolence", "maxSexualContent", "maxLanguageSubstance", "maxScaryIntense", "maxSensitiveThemes", "minViolence", "minSexualContent", "minLanguageSubstance", "minScaryIntense", "minSensitiveThemes", "moods", "originalLanguage", "excludeOriginalLanguages", "excludeAnime", "runtime", "keywords", "excludeKeywords", "studios", "mpaaRatings", "cast", "limit", "suggestedName", "titles"],
     additionalProperties: false,
   },
 };
@@ -529,5 +566,23 @@ export async function extractCollectionFilters(userPrompt: string): Promise<Coll
       : [],
     limit: typeof raw.limit === "number" ? Math.max(5, Math.min(25, Math.floor(raw.limit))) : 10,
     suggestedName: typeof raw.suggestedName === "string" && raw.suggestedName.trim().length > 0 ? raw.suggestedName.trim().slice(0, 80) : "Custom Collection",
+    // Title suggestions — parsed leniently. Cap at 25 (the schema cap is 20
+    // but the AI sometimes overshoots; we trim rather than rejecting).
+    titles: Array.isArray(raw.titles)
+      ? raw.titles
+          .map((t: unknown): SuggestedTitle | null => {
+            if (!t || typeof t !== "object") return null;
+            const o = t as { title?: unknown; year?: unknown; mediaType?: unknown };
+            const title = typeof o.title === "string" ? o.title.trim() : "";
+            if (title.length === 0 || title.length > 200) return null;
+            const year = typeof o.year === "number" && o.year > 1880 && o.year < 2100
+              ? Math.floor(o.year)
+              : null;
+            const mediaType = o.mediaType === "tv" ? "tv" : "movie";
+            return { title, year, mediaType };
+          })
+          .filter((t): t is SuggestedTitle => t !== null)
+          .slice(0, 25)
+      : [],
   };
 }
