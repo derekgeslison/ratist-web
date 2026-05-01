@@ -177,8 +177,8 @@ export default function AboutPage() {
             { icon: MessageSquare, title: "Forum", desc: "Long-form discussion, theory threads, polls, recommendation requests, and structured debates. With media linking, reactions, and follow-thread notifications.", href: "/forum" },
             { icon: HelpCircle, title: "Cine-Q Trivia", desc: "Daily movie trivia with weighted difficulty scoring. Climb the global leaderboard, earn badges, and prove you really know your cinema.", href: "/community/cineq" },
             { icon: Video, title: "Screening Room", desc: "A social watch-together tool. Sync up with friends, chat in real time, and rate together at the end.", href: "/screening-room" },
-            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Structured for/against debates per movie. Read both sides, submit your own arguments, and vote on the verdict.", href: "/two-thumbs" },
-            { icon: Map, title: "Movie Maps", desc: "Visual guides for confusing or branching narratives, plus curated viewing lists and themed deep-dives.", href: "/movie-maps" },
+            { icon: TwoThumbsIcon, title: "Two Thumbs", desc: "Structured for/against debates per movie. Read both sides, submit your own arguments, and vote on the verdict.", href: "/posts?type=PUNCH_AND_JUDY" },
+            { icon: Map, title: "Movie Maps", desc: "Visual guides for confusing or branching narratives, plus curated viewing lists and themed deep-dives.", href: "/posts?type=MOVIE_MAP" },
             { icon: RefreshCw, title: "Recasts", desc: "Suggest who should have played that role — the community votes on the best alternate casting.", href: "/community/recast" },
             { icon: Sparkles, title: "Looks Like", desc: "Celebrity lookalike pairs — vote on who could be twins.", href: "/community/looks-like" },
           ].map(({ icon: Icon, title, desc, href }) => (

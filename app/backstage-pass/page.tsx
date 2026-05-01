@@ -36,14 +36,14 @@ const FEATURES: FeatureRow[] = [
   { name: "For You personalized recommendations", free: true, pass: true },
   { name: "Cine-Q daily trivia", free: true, pass: true },
   { name: "Cinephile tools (What Should I Watch?, Shared Cast & Crew, The Matchup, and more)", free: true, pass: true },
-  { name: "Watch Companion (read scene-by-scene context as you watch)", free: true, pass: true },
+  { name: "Watch Companion (spoiler-safe reference guide as you watch)", free: true, pass: true },
   { name: "Create new Watch Companions", free: "2 / week", pass: "5 / week" },
   { name: "AI tools (movie search, recommendations, collections)", free: "10 / day", pass: "30 / day" },
   { name: "Join Screening Room sessions", free: true, pass: true },
   { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay, href: "/backstage-pass/screening-room" },
   { name: "Movie Club", free: false, pass: true, icon: Star, href: "/backstage-pass/movie-club" },
   { name: "My Analytics (detailed viewing stats)", free: false, pass: true, icon: BarChart3, href: "/backstage-pass/analytics" },
-  { name: "Collections (curated recommendations)", free: false, pass: true, icon: Sparkles, href: "/backstage-pass/collections" },
+  { name: "Collections (admin themes, community picks, build your own with personalized match scores)", free: false, pass: true, icon: Sparkles, href: "/backstage-pass/collections" },
   { name: "Critics Mode (250+ reviews required)", free: false, pass: true, icon: Star, href: "/backstage-pass/critics-mode" },
   { name: "Live Review feature", free: false, pass: true, icon: Star, href: "/backstage-pass/critics-mode" },
   { name: "Custom profile themes & colors", free: false, pass: true, icon: Palette, href: "/backstage-pass/custom-themes" },
@@ -84,7 +84,7 @@ const SHOWCASE: ShowcaseCard[] = [
   {
     icon: Sparkles,
     title: "Collections",
-    desc: "AI-curated recommendation lists tuned to your taste. Discover hidden gems, fill blind spots, and find titles by directors you love.",
+    desc: "Curated movie lists from admins, the community, and people you follow — each scored against your personal taste. Browse, save, and build your own to share with the community.",
     href: "/backstage-pass/collections",
     image: "/tools/collections.png", // reuse from /tools
     fallbackTint: "rgb(251 146 60 / 0.2)", // orange-400

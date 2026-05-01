@@ -109,7 +109,7 @@ export default async function ToolsPage() {
       fallbackTint: "rgb(192 132 252 / 0.2)", // purple-400
     },
     {
-      href: "/movie-maps",
+      href: "/posts?type=MOVIE_MAP",
       icon: Map,
       title: "Movie Maps",
       desc: "Visual plot maps for complex, hard-to-follow films. Perfect for Nolan, Lynch, Kaufman, and other mind-bending directors.",
@@ -152,7 +152,7 @@ export default async function ToolsPage() {
       href: "/tools/collections",
       icon: Sparkles,
       title: "Collections",
-      desc: "Personalized recommendations based on your taste. Discover hidden gems, fill blind spots, and find titles from directors you love.",
+      desc: "Curated movie lists from admins, the community, and people you follow. Each one is scored against your personal taste so you spot what's actually worth your time. Build your own and share them.",
       image: "/tools/collections.png",
       fallbackTint: "rgb(251 146 60 / 0.2)", // orange-400
       premium: true,

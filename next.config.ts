@@ -40,7 +40,14 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/home", destination: "/", permanent: true },
-      { source: "/blogs", destination: "/blog", permanent: true },
+      { source: "/blogs", destination: "/posts?type=BLOG", permanent: true },
+      // Listing-page consolidation — /blog, /movie-maps, /two-thumbs
+      // collapse onto the unified /posts surface with the appropriate
+      // type filter. Detail-page slug routes (/blog/[slug] etc.) stay
+      // canonical and are NOT redirected here.
+      { source: "/blog", destination: "/posts?type=BLOG", permanent: true },
+      { source: "/movie-maps", destination: "/posts?type=MOVIE_MAP", permanent: true },
+      { source: "/two-thumbs", destination: "/posts?type=PUNCH_AND_JUDY", permanent: true },
     ];
   },
 };

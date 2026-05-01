@@ -93,15 +93,66 @@ export default async function HomePage() {
       // Otherwise swap it in for the last item
       return [...recent.slice(0, 5), latestArticle];
     })(),
-    prisma.blogPost.findMany({
-      where: { published: true, publishedAt: { lte: new Date() } },
-      orderBy: { publishedAt: "desc" },
-      take: 6,
-      select: {
+    (async () => {
+      // Editorial post selection: latest 6 across all three types,
+      // BUT guaranteed to include at least one of each type when one
+      // exists. Mirrors the news/trailers "always include the latest
+      // editorial article" pattern. If a type has zero published
+      // posts, we just skip it — section quietly renders fewer cards.
+      const select = {
         id: true, slug: true, title: true, excerpt: true,
         coverImage: true, publishedAt: true, type: true,
-      },
-    }),
+      } as const;
+      const baseWhere = { published: true, publishedAt: { lte: new Date() } } as const;
+      const [recent, latestBlog, latestMovieMap, latestTwoThumbs] = await Promise.all([
+        prisma.blogPost.findMany({ where: baseWhere, orderBy: { publishedAt: "desc" }, take: 6, select }),
+        prisma.blogPost.findFirst({ where: { ...baseWhere, type: "BLOG" }, orderBy: { publishedAt: "desc" }, select }),
+        prisma.blogPost.findFirst({ where: { ...baseWhere, type: "MOVIE_MAP" }, orderBy: { publishedAt: "desc" }, select }),
+        prisma.blogPost.findFirst({ where: { ...baseWhere, type: "PUNCH_AND_JUDY" }, orderBy: { publishedAt: "desc" }, select }),
+      ]);
+      const result = [...recent];
+      const presentIds = new Set(result.map((r) => r.id));
+      const presentTypes = new Set(result.map((r) => r.type));
+      // For each missing type, replace from the tail forward — but
+      // only swap out an item whose type is NOT already a singleton
+      // we'd be removing (preventing infinite swaps).
+      const candidates = [
+        ["BLOG", latestBlog] as const,
+        ["MOVIE_MAP", latestMovieMap] as const,
+        ["PUNCH_AND_JUDY", latestTwoThumbs] as const,
+      ];
+      let tailIdx = result.length - 1;
+      for (const [wantType, candidate] of candidates) {
+        if (presentTypes.has(wantType) || !candidate || presentIds.has(candidate.id)) continue;
+        if (tailIdx < 0) {
+          // Fewer than 6 recent — append rather than swap
+          result.push(candidate);
+        } else {
+          // Walk from the tail to find an item of an over-represented
+          // type to evict. If we can't find one, append.
+          let evictAt = -1;
+          const overRepresented = new Set<string>();
+          const counts: Record<string, number> = {};
+          for (const r of result) counts[r.type] = (counts[r.type] ?? 0) + 1;
+          for (const [t, n] of Object.entries(counts)) if (n > 1) overRepresented.add(t);
+          for (let i = result.length - 1; i >= 0; i--) {
+            if (overRepresented.has(result[i].type)) { evictAt = i; break; }
+          }
+          if (evictAt >= 0) {
+            result.splice(evictAt, 1);
+            result.push(candidate);
+          } else {
+            result.push(candidate);
+          }
+        }
+        presentIds.add(candidate.id);
+        presentTypes.add(candidate.type);
+        tailIdx = result.length - 1;
+      }
+      // Re-sort by publishedAt (desc) so insertions don't always sit at the end visually.
+      result.sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
+      return result.slice(0, 6);
+    })(),
     prisma.forumThread.findMany({
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       take: 5,
@@ -377,7 +428,7 @@ export default async function HomePage() {
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">From Our Editors</h2>
-              <Link href="/blog" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
+              <Link href="/posts" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
                 View all posts &rarr;
               </Link>
             </div>
