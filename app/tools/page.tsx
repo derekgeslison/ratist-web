@@ -155,7 +155,9 @@ export default async function ToolsPage() {
       desc: "Curated movie lists from admins, the community, and people you follow. Each one is scored against your personal taste so you spot what's actually worth your time. Build your own and share them.",
       image: "/tools/collections.png",
       fallbackTint: "rgb(251 146 60 / 0.2)", // orange-400
-      premium: true,
+      // Featured collections are publicly browsable now — Backstage Pass
+      // unlocks the rest (Match scoring, building your own, etc.) once
+      // the user actually opens the surface.
     },
     {
       href: "/tools/analytics",

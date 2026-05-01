@@ -139,17 +139,22 @@ export default function CommunityCollectionsFeed() {
   }, [router, searchParams]);
 
   const fetchPage = useCallback(async (pageNum: number, replace: boolean) => {
-    if (!user) return;
     setLoading(true);
     try {
-      const token = await user.getIdToken();
+      // Featured tab is anonymous-friendly — only attach an Authorization
+      // header when we actually have a user. Other tabs are gated server-
+      // side and won't reach this code path for anonymous viewers anyway
+      // (isLocked short-circuits the effect).
+      const headers: Record<string, string> = {};
+      if (user) {
+        const token = await user.getIdToken();
+        headers.Authorization = `Bearer ${token}`;
+      }
       const params = new URLSearchParams({ tab: activeTab, page: String(pageNum) });
       if (tag) params.set("tag", tag);
       if (initialSearch) params.set("search", initialSearch);
       if (themePromptId) params.set("themePromptId", themePromptId);
-      const res = await fetch(`/api/community-collections?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`/api/community-collections?${params.toString()}`, { headers });
       if (!res.ok) {
         if (replace) setCollections([]);
         setHasMore(false);

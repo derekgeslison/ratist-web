@@ -57,7 +57,11 @@ function CollectionsPageInner() {
   function setTab(next: TopTab) {
     const params = new URLSearchParams(searchParams.toString());
     if (next === "my") {
-      params.delete("tab");
+      // Set tab=my explicitly. The lock-aware default below would
+      // otherwise bounce a non-Backstage user back to Community when
+      // tab is absent from the URL — making the My Collections paywall
+      // card unreachable for them.
+      params.set("tab", "my");
       // Clear community-specific params when leaving the community tab.
       params.delete("subtab");
       params.delete("tag");

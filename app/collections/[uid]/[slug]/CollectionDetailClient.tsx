@@ -89,7 +89,7 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
   const [copying, setCopying] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [wlMessage, setWlMessage] = useState<{ text: string; href?: string; type: "success" | "error" } | null>(null);
+  const [wlMessage, setWlMessage] = useState<{ text: string; href?: string; linkLabel?: string; type: "success" | "error" } | null>(null);
   // View mode is sticky per user (localStorage). Defaults to grid since
   // most users browse visually. List view shines on long ordered sagas.
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -126,7 +126,22 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
   useEffect(() => { load(); }, [load]);
 
   async function toggleSave() {
-    if (!user || !collection || saving) return;
+    if (!collection || saving) return;
+    // Pre-check tier so users hit a clear paywall message instead of a
+    // generic API error.
+    if (!user) {
+      setWlMessage({ text: "Sign in to bookmark collections.", type: "error", href: "/login", linkLabel: "Sign in" });
+      return;
+    }
+    if (!hasPass) {
+      setWlMessage({
+        text: "Bookmarking collections is a Backstage Pass feature.",
+        type: "error",
+        href: "/backstage-pass/collections",
+        linkLabel: "Learn more",
+      });
+      return;
+    }
     setSaving(true);
     const wasSaved = collection.isSaved;
     // Optimistic update — revert on failure.
@@ -181,7 +196,22 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
   // and doesn't duplicate items). Tags + theme don't carry over since
   // those are author-specific signals.
   async function copyToMyCollections() {
-    if (!user || !collection || copying) return;
+    if (!collection || copying) return;
+    // Pre-check tier so users see a paywall message instead of "Failed
+    // to copy collection" when the API 401/403s their request.
+    if (!user) {
+      setWlMessage({ text: "Sign in to save this collection.", type: "error", href: "/login", linkLabel: "Sign in" });
+      return;
+    }
+    if (!hasPass) {
+      setWlMessage({
+        text: "Saving as a personal collection is a Backstage Pass feature.",
+        type: "error",
+        href: "/backstage-pass/collections",
+        linkLabel: "Learn more",
+      });
+      return;
+    }
     setCopying(true);
     try {
       const token = await user.getIdToken();
@@ -469,7 +499,7 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
             wlMessage.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-300" : "bg-red-500/10 border border-red-500/30 text-red-300"
           }`}>
             <span className="flex-1">{wlMessage.text}</span>
-            {wlMessage.href && <Link href={wlMessage.href} className="text-white underline hover:no-underline">View</Link>}
+            {wlMessage.href && <Link href={wlMessage.href} className="text-white underline hover:no-underline">{wlMessage.linkLabel ?? "View"}</Link>}
             <button onClick={() => setWlMessage(null)} className="text-[var(--foreground-muted)] hover:text-white">✕</button>
           </div>
         )}
