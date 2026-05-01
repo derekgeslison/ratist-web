@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Wand2, Save, Sparkles, Trash2, X, ListPlus, Check } from "lucide-react";
+import { Wand2, Save, Sparkles, Trash2, X, ListPlus, Check, Pencil, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import MovieCard from "./MovieCard";
@@ -28,6 +28,7 @@ interface SavedCollection {
   itemCount: number;
   previewPosters: (string | null)[];
   createdAt: string;
+  visibility?: "private" | "public" | "unlisted";
 }
 
 interface PreviewState {
@@ -173,6 +174,12 @@ export default function CustomCollectionsSection() {
 
   const [creatingWlId, setCreatingWlId] = useState<string | null>(null);
   const [wlMessage, setWlMessage] = useState<{ text: string; href?: string; type: "success" | "error" } | null>(null);
+  // The AI builder is now collapsed by default — manual is the primary
+  // path. Toggle expands the original panel.
+  const [aiOpen, setAiOpen] = useState(false);
+  // Cap the saved-collections grid so the page doesn't grow unbounded.
+  // "Show more" reveals the full list in chunks of 6.
+  const [savedVisible, setSavedVisible] = useState(6);
 
   async function createWatchlist(collectionId: string, collectionName: string) {
     if (!user || creatingWlId) return;
@@ -221,40 +228,68 @@ export default function CustomCollectionsSection() {
 
   return (
     <div className="space-y-6 mb-8">
-      {/* AI Generator */}
-      <section className="bg-gradient-to-br from-[var(--ratist-red)]/10 to-transparent border border-[var(--ratist-red)]/30 rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Wand2 className="w-4 h-4 text-[var(--ratist-red)]" />
-          <h2 className="text-base font-semibold text-white">Create a custom collection with AI</h2>
+      {/* Primary CTA: build a collection manually. AI moved into a
+          collapsed section below to de-emphasize. */}
+      <Link
+        href="/tools/collections/new"
+        className="flex items-center justify-between gap-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] rounded-xl p-4 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="bg-white/15 rounded-full p-2">
+            <Plus className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-white">Create a new collection</p>
+            <p className="text-xs text-white/80">Pick the titles yourself, add notes, and keep it private or share it with the community.</p>
+          </div>
         </div>
-        <p className="text-xs text-[var(--foreground-muted)] mb-3">
-          Describe the vibe, genre, era, or mood you&apos;re after and we&apos;ll build a collection you can save and revisit.
-        </p>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={`e.g. "Classic gangster movies rated above 8 that I haven't seen"`}
-          rows={2}
-          maxLength={500}
-          className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-y mb-2"
-        />
-        {generateError && <p className="text-xs text-red-400 mb-2">{generateError}</p>}
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] text-[var(--foreground-muted)]">
-            Backstage Pass: 20/day
-          </p>
-          <button
-            onClick={handleGenerate}
-            disabled={generating || prompt.trim().length < 5}
-            className="flex items-center gap-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-1.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Wand2 className="w-3.5 h-3.5" />
-            {generating ? "Generating..." : "Generate"}
-          </button>
-        </div>
+        <Pencil className="w-4 h-4 text-white/80 group-hover:text-white" />
+      </Link>
 
-        {preview && (
-          <div className="mt-4 pt-4 border-t border-[var(--border)] space-y-3">
+      {/* AI builder — collapsed disclosure. Visually quieter and only
+          opens when the user explicitly asks for it. */}
+      <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl">
+        <button
+          type="button"
+          onClick={() => setAiOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 p-4 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Wand2 className="w-4 h-4 text-[var(--ratist-red)]" />
+            <span className="text-sm font-medium text-white">Or use the AI builder</span>
+            <span className="text-[10px] text-[var(--foreground-muted)]">— describe the vibe and we&apos;ll draft a list</span>
+          </div>
+          {aiOpen ? <ChevronUp className="w-4 h-4 text-[var(--foreground-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--foreground-muted)]" />}
+        </button>
+        {aiOpen && (
+          <div className="px-4 pb-4">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={`e.g. "Classic gangster movies rated above 8 that I haven't seen"`}
+              rows={2}
+              maxLength={500}
+              className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-y mb-2"
+            />
+            {generateError && <p className="text-xs text-red-400 mb-2">{generateError}</p>}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] text-[var(--foreground-muted)]">
+                Backstage Pass: 20/day
+              </p>
+              <button
+                onClick={handleGenerate}
+                disabled={generating || prompt.trim().length < 5}
+                className="flex items-center gap-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-1.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                {generating ? "Generating..." : "Generate"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {aiOpen && preview && (
+          <div className="px-4 pb-4 -mt-2 pt-4 border-t border-[var(--border)] space-y-3">
             <p className="text-xs text-[var(--foreground-muted)]">
               Preview — {preview.items.length} title{preview.items.length !== 1 ? "s" : ""}
             </p>
@@ -348,8 +383,13 @@ export default function CustomCollectionsSection() {
               <button onClick={() => setWlMessage(null)} className="text-[var(--foreground-muted)] hover:text-white"><X className="w-3 h-3" /></button>
             </div>
           )}
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs text-[var(--foreground-muted)]">
+              {savedList.length} saved collection{savedList.length === 1 ? "" : "s"}
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {savedList.map((c) => (
+            {savedList.slice(0, savedVisible).map((c) => (
               <div
                 key={c.id}
                 className="bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)]/50 rounded-xl p-3 transition-colors group"
@@ -369,7 +409,18 @@ export default function CustomCollectionsSection() {
                       <div key={`empty-${i}`} className="w-1/4 aspect-[2/3] rounded bg-[var(--surface-2)]" />
                     ))}
                   </div>
-                  <h3 className="text-sm font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{c.name}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1 flex-1">{c.name}</h3>
+                    {c.visibility && (
+                      <span className={`text-[9px] uppercase tracking-wider rounded-full border px-1.5 py-0.5 shrink-0 ${
+                        c.visibility === "public"
+                          ? "bg-green-500/15 text-green-300 border-green-500/40"
+                          : "bg-[var(--surface-2)] text-[var(--foreground-muted)] border-[var(--border)]"
+                      }`}>
+                        {c.visibility === "public" ? "Public" : "Private"}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
                     {c.itemCount} title{c.itemCount !== 1 ? "s" : ""}
                   </p>
@@ -392,6 +443,27 @@ export default function CustomCollectionsSection() {
               </div>
             ))}
           </div>
+          {savedList.length > savedVisible && (
+            <div className="text-center mt-4">
+              <button
+                onClick={() => setSavedVisible((v) => v + 6)}
+                className="text-xs text-[var(--foreground-muted)] hover:text-white border border-[var(--border)] hover:border-[var(--ratist-red)] rounded-full px-4 py-1.5 transition-colors"
+              >
+                Show {Math.min(6, savedList.length - savedVisible)} more
+                <span className="text-[var(--foreground-muted)]"> ({savedList.length - savedVisible} hidden)</span>
+              </button>
+            </div>
+          )}
+          {savedVisible > 6 && savedList.length > 6 && (
+            <div className="text-center mt-2">
+              <button
+                onClick={() => setSavedVisible(6)}
+                className="text-[10px] text-[var(--foreground-muted)] hover:text-white"
+              >
+                Show fewer
+              </button>
+            </div>
+          )}
         </section>
       )}
     </div>

@@ -141,7 +141,7 @@ export default function AboutPage() {
             { icon: Newspaper, title: "News & trailers", desc: "Editorial articles, fresh trailers auto-detected from TMDB, and headlines from Deadline, Variety, THR, Collider, and Screen Rant.", href: "/news" },
             { icon: Eye, title: "Watch Companion", desc: "Live, scene-aware annotations as you watch — explanations, trivia, and answers to common confusions, available on demand.", href: null },
             { icon: Users, title: "Taste matching", desc: "See how your taste compares to friends and other users. Follow people, build feeds, and find users who like the same things you do.", href: "/connections" },
-            { icon: Award, title: "Badge system", desc: "41 badges across 12 categories — milestone, taste, community, and rare achievements. Auto-awarded as you rate, watch, and engage.", href: "/badges" },
+            { icon: Award, title: "Badge system", desc: "43 badges across 12 categories — milestone, taste, community, and rare achievements. Auto-awarded as you rate, watch, and engage.", href: "/badges" },
             { icon: Brain, title: "Smart import", desc: "Bring your Letterboxd or IMDb history in seconds. Your ratings contribute to your profile immediately.", href: "/profile/import" },
           ].map(({ icon: Icon, title, desc, href }) => {
             const content = (

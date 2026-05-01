@@ -35,7 +35,9 @@ export type TriggerEvent =
   | "screening_end"
   | "cineq_submit"
   | "movie_club_rate"
-  | "oscar_vote";
+  | "oscar_vote"
+  | "collection_publish"
+  | "collection_save";
 
 // ─── Check functions ────────────────────────────────────────────────────────
 
@@ -501,7 +503,26 @@ async function checkTheBacklog(userId: string): Promise<boolean> {
 
 async function checkCompletionistSupreme(userId: string): Promise<boolean> {
   const count = await prisma.userBadge.count({ where: { userId } });
-  return count >= 40; // all other badges
+  return count >= 42; // all other badges (43 total minus this one)
+}
+
+async function checkPublishedCollectionCount(userId: string, target: number): Promise<boolean> {
+  const count = await prisma.customCollection.count({
+    where: { userId, visibility: "public", publishedAt: { not: null } },
+  });
+  return count >= target;
+}
+
+// Curator badge — earned when any one of the user's public collections
+// hits 30+ saves. Reasonable single-target so a popular list can earn
+// it; tiered "master" version was removed as too gated.
+async function checkCuratorBadge(userId: string): Promise<boolean> {
+  const top = await prisma.customCollection.findFirst({
+    where: { userId, visibility: "public", publishedAt: { not: null } },
+    orderBy: { saveCount: "desc" },
+    select: { saveCount: true },
+  });
+  return (top?.saveCount ?? 0) >= 30;
 }
 
 // ─── Badge Registry ─────────────────────────────────────────────────────────
@@ -569,6 +590,13 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   // ── Watchlist ──
   { slug: "the-backlog", name: "The Backlog", description: "Add 25 movies to your watchlist", category: "watchlist", icon: "ListPlus", permanent: true, check: checkTheBacklog },
 
+  // ── Curator ── (community collections)
+  // First Curation is permanent — the "you did it once" moment holds even
+  // after unpublishing. Curator depends on current state, so unpublishing
+  // or losing saves can revoke it via recheckBadges.
+  { slug: "first-curation", name: "First Curation", description: "Publish your first public collection", category: "community", icon: "Sparkles", permanent: true, check: (uid) => checkPublishedCollectionCount(uid, 1) },
+  { slug: "curator", name: "Curator", description: "Have one of your public collections earn 30+ saves", category: "community", icon: "Pencil", check: checkCuratorBadge },
+
   // ── Meta ──
   { slug: "completionist-supreme", name: "Completionist Supreme", description: "Acquire all other badges", category: "meta", icon: "Gem", permanent: true, check: checkCompletionistSupreme },
 ];
@@ -604,6 +632,10 @@ const TRIGGER_MAP: Record<TriggerEvent, string[]> = {
   cineq_submit: ["honor-student", "cram-session", "valedictorian"],
   movie_club_rate: ["club-member"],
   oscar_vote: ["ballot-caster", "awards-season"],
+  collection_publish: ["first-curation", "curator"],
+  // Saves contribute to the Curator save-count threshold for the
+  // collection's owner. First Curation is count-only so saves don't move it.
+  collection_save: ["curator"],
 };
 
 // Build a slug → def lookup

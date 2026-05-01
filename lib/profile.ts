@@ -215,6 +215,12 @@ export async function rebuildUserProfile(userId: string) {
     create: { userId, ...finalComponents, ...finalGenres },
     update: { ...finalComponents, ...finalGenres },
   });
+
+  // A profile shift moves every cached collection match score for this
+  // user, so wipe them. Inlined as a direct deleteMany rather than
+  // importing from collection-match.ts to avoid a circular import — that
+  // module imports the score estimators from this file.
+  await prisma.collectionMatchCache.deleteMany({ where: { userId } });
 }
 
 /**
@@ -441,6 +447,103 @@ export async function getBatchScoreEstimates(
     }
 
     result.set(movieId, Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10);
+  }
+
+  return result;
+}
+
+/**
+ * Batch TV-show score estimator. Mirror of getBatchScoreEstimates but
+ * sourced from tVShowRating with ratingScope = "series" so per-season
+ * rating rows don't double-count one show. Returns internal-id keyed
+ * Map; caller resolves TMDB → internal first.
+ */
+export async function getBatchScoreEstimatesTv(
+  userId: string,
+  tvShowIds: string[]
+): Promise<Map<string, number | null>> {
+  if (tvShowIds.length === 0) return new Map();
+
+  const [profile, communityAvgs, shows] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.tVShowRating.groupBy({
+      by: ["tvShowId"],
+      // ratingScope = "series" only — per-season ratings would tilt the
+      // community averages toward whatever seasons happened to be rated
+      // most often, which isn't representative of the show as a whole.
+      where: { tvShowId: { in: tvShowIds }, excluded: false, ratingScope: "series" },
+      _avg: {
+        plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+        relatability: true, characterDev: true, dialogueScripting: true,
+        overallEmotion: true, meaning: true, movingness: true,
+        cinematography: true, artisticEffect: true, visualEffects: true,
+        locationCost: true, musicSound: true,
+        casting: true, actingQuality: true, blockingChoreo: true,
+        appeal: true,
+      },
+      _count: { ratistRating: true },
+    }),
+    prisma.tVShow.findMany({
+      where: { id: { in: tvShowIds } },
+      include: { genres: true },
+    }),
+  ]);
+
+  const result = new Map<string, number | null>();
+
+  if (!profile) {
+    tvShowIds.forEach((id) => result.set(id, null));
+    return result;
+  }
+
+  const hasProfile = (Object.keys(FOCUSED_CATEGORIES) as FocusedKey[]).some(
+    (k) => (profile[k] as number) > 0
+  );
+  if (!hasProfile) {
+    tvShowIds.forEach((id) => result.set(id, null));
+    return result;
+  }
+
+  const communityMap = new Map(
+    communityAvgs.map((c) => [c.tvShowId, { avg: c._avg as Record<string, number | null>, count: c._count.ratistRating }])
+  );
+  const showMap = new Map(shows.map((s) => [s.id, s]));
+
+  for (const tvShowId of tvShowIds) {
+    const community = communityMap.get(tvShowId);
+    if (!community || community.count === 0) { result.set(tvShowId, null); continue; }
+
+    const avg = community.avg;
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
+      const showCategoryScore = subFieldAvg(avg, fields);
+      const userPref = profile[cat] as number;
+      if (showCategoryScore != null && userPref > 0) {
+        weightedSum += showCategoryScore * userPref;
+        totalWeight += userPref;
+      }
+    }
+
+    if (totalWeight === 0) { result.set(tvShowId, null); continue; }
+    const componentEstimate = weightedSum / totalWeight;
+
+    const show = showMap.get(tvShowId);
+    let estimate = componentEstimate;
+    if (show) {
+      const genreScores: number[] = [];
+      for (const sg of show.genres) {
+        const profileKey = TMDB_GENRE_TO_PROFILE[sg.genreId];
+        if (profileKey) genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+      }
+      if (genreScores.length > 0) {
+        const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
+        estimate = componentEstimate * 0.90 + genreScore * 0.10;
+      }
+    }
+
+    result.set(tvShowId, Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10);
   }
 
   return result;

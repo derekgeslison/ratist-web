@@ -5,7 +5,7 @@ import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsL
 
 export const dynamic = "force-dynamic";
 
-const VALID_TARGETS = ["review", "blog", "news", "lookslike", "recast", "hottake", "oscar_category", "pitch", "movieclub", "movieclub_prompt", "forumThread"];
+const VALID_TARGETS = ["review", "blog", "news", "lookslike", "recast", "hottake", "oscar_category", "pitch", "movieclub", "movieclub_prompt", "forumThread", "collection"];
 
 async function getAuthedUser(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -29,6 +29,21 @@ export async function GET(req: NextRequest) {
         user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
         _count: { select: { likes: true } },
         likes: user ? { where: { userId: user.id }, select: { userId: true } } : undefined,
+        // The linked collection is what powers the "reply with your own list"
+        // mini-tile. Pull a minimal poster preview here so the GET fully
+        // hydrates the comment thread without per-comment N+1 fetches on
+        // the client.
+        linkedCollection: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            visibility: true,
+            user: { select: { firebaseUid: true, name: true } },
+            items: { orderBy: { sortOrder: "asc" }, take: 4, select: { posterPath: true } },
+            _count: { select: { items: true } },
+          },
+        },
       },
       orderBy: { createdAt: "asc" },
     });
@@ -51,6 +66,22 @@ export async function GET(req: NextRequest) {
     }
 
     function serialize(node: CommentNode): Record<string, unknown> {
+      // Linked collection only renders if it's still public — a curator
+      // who unpublishes shouldn't have their old draft revealed via stale
+      // mini-tiles in other people's comments.
+      const lc = node.linkedCollection && node.linkedCollection.visibility === "public" && node.linkedCollection.slug
+        ? {
+            id: node.linkedCollection.id,
+            name: node.linkedCollection.name,
+            slug: node.linkedCollection.slug,
+            curator: {
+              firebaseUid: node.linkedCollection.user.firebaseUid,
+              name: node.linkedCollection.user.name,
+            },
+            previewPosters: node.linkedCollection.items.map((i) => i.posterPath).filter(Boolean) as string[],
+            itemCount: node.linkedCollection._count.items,
+          }
+        : null;
       return {
         id: node.id,
         text: node.text,
@@ -60,6 +91,7 @@ export async function GET(req: NextRequest) {
         user: { id: node.user.id, firebaseUid: node.user.firebaseUid, name: node.user.name, avatarUrl: node.user.avatarUrl },
         likeCount: node._count.likes,
         likedByMe: user ? (node.likes?.length ?? 0) > 0 : false,
+        linkedCollection: lc,
         replies: node.repliesArr.map(serialize),
       };
     }
@@ -77,12 +109,44 @@ export async function POST(req: NextRequest) {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { targetType, targetId, parentId, text, gifUrl } = await req.json();
+    const { targetType, targetId, parentId, text, gifUrl, linkedCollectionId: rawLinkedCollectionId } = await req.json();
     if (!targetType || !targetId) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
     if (!VALID_TARGETS.includes(targetType)) {
       return NextResponse.json({ error: "Invalid target type" }, { status: 400 });
+    }
+
+    // Comments on collections require the target to be public — a private
+    // collection isn't reachable from the community feed, so a comment on
+    // one would either be inaccessible or leak the curator's draft.
+    if (targetType === "collection") {
+      const target = await prisma.customCollection.findUnique({
+        where: { id: targetId },
+        select: { visibility: true },
+      });
+      if (!target || target.visibility !== "public") {
+        return NextResponse.json({ error: "Collection is not public." }, { status: 404 });
+      }
+    }
+
+    // Linked-collection embed ("reply with your own list"). Validate the
+    // referenced collection exists, is public, and is owned by the
+    // commenter — pasting a link to someone else's collection should go
+    // through plain text, not the official embed surface.
+    let linkedCollectionId: string | null = null;
+    if (typeof rawLinkedCollectionId === "string" && rawLinkedCollectionId.length > 0) {
+      const linked = await prisma.customCollection.findUnique({
+        where: { id: rawLinkedCollectionId },
+        select: { id: true, userId: true, visibility: true },
+      });
+      if (!linked || linked.visibility !== "public") {
+        return NextResponse.json({ error: "Linked collection is not public." }, { status: 400 });
+      }
+      if (linked.userId !== user.id) {
+        return NextResponse.json({ error: "You can only link your own collections." }, { status: 400 });
+      }
+      linkedCollectionId = linked.id;
     }
 
     // GIF picker only — comments may now be GIF-only, text-only, or both,
@@ -100,8 +164,10 @@ export async function POST(req: NextRequest) {
         }
       } catch { /* invalid URL — drop silently */ }
     }
-    if (!trimmedText && !safeGifUrl) {
-      return NextResponse.json({ error: "Add some text or a GIF" }, { status: 400 });
+    // A linked collection is content on its own (the embed renders without
+    // text or a GIF), so it satisfies the "must have something" check.
+    if (!trimmedText && !safeGifUrl && !linkedCollectionId) {
+      return NextResponse.json({ error: "Add some text, a GIF, or attach a collection" }, { status: 400 });
     }
 
     // If replying, verify parent exists and belongs to same target
@@ -113,8 +179,33 @@ export async function POST(req: NextRequest) {
     }
 
     const comment = await prisma.comment.create({
-      data: { userId: user.id, targetType, targetId, parentId: parentId || null, text: trimmedText, gifUrl: safeGifUrl },
-      include: { user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } } },
+      data: {
+        userId: user.id,
+        targetType,
+        targetId,
+        parentId: parentId || null,
+        text: trimmedText,
+        gifUrl: safeGifUrl,
+        linkedCollectionId,
+      },
+      include: {
+        user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
+        // Always include the linked-collection select so the response
+        // shape is stable. When linkedCollectionId is null Prisma returns
+        // linkedCollection: null without the join cost. Conditional
+        // includes confuse Prisma's type inference.
+        linkedCollection: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            visibility: true,
+            user: { select: { firebaseUid: true, name: true } },
+            items: { orderBy: { sortOrder: "asc" }, take: 4, select: { posterPath: true } },
+            _count: { select: { items: true } },
+          },
+        },
+      },
     });
 
     // Resolve content owner, title, label, and link for notifications
@@ -186,6 +277,18 @@ export async function POST(req: NextRequest) {
         link = `/forum/t/${thread.slug}`;
         const snippet = thread.title.length > 50 ? thread.title.slice(0, 50) + "…" : thread.title;
         notifMessage = `${user.name} commented on your thread "${snippet}"`;
+        replyMessage = `${user.name} replied to your comment on "${snippet}"`;
+      }
+    } else if (targetType === "collection") {
+      const c = await prisma.customCollection.findUnique({
+        where: { id: targetId },
+        select: { userId: true, name: true, slug: true, user: { select: { firebaseUid: true } } },
+      });
+      if (c?.slug) {
+        contentOwnerId = c.userId;
+        link = `/collections/${c.user.firebaseUid}/${c.slug}`;
+        const snippet = c.name.length > 50 ? c.name.slice(0, 50) + "…" : c.name;
+        notifMessage = `${user.name} commented on your collection "${snippet}"`;
         replyMessage = `${user.name} replied to your comment on "${snippet}"`;
       }
     }
@@ -270,6 +373,22 @@ export async function POST(req: NextRequest) {
       } catch { /* non-critical */ }
     }
 
+    // Build the linked-collection tile shape that the client renders. Match
+    // the GET serializer so optimistic inserts look identical to a refetch.
+    const lc = comment.linkedCollection && comment.linkedCollection.visibility === "public" && comment.linkedCollection.slug
+      ? {
+          id: comment.linkedCollection.id,
+          name: comment.linkedCollection.name,
+          slug: comment.linkedCollection.slug,
+          curator: {
+            firebaseUid: comment.linkedCollection.user.firebaseUid,
+            name: comment.linkedCollection.user.name,
+          },
+          previewPosters: comment.linkedCollection.items.map((i) => i.posterPath).filter(Boolean) as string[],
+          itemCount: comment.linkedCollection._count.items,
+        }
+      : null;
+
     return NextResponse.json({
       comment: {
         id: comment.id,
@@ -280,6 +399,7 @@ export async function POST(req: NextRequest) {
         user: comment.user,
         likeCount: 0,
         likedByMe: false,
+        linkedCollection: lc,
         replies: [],
       },
     });

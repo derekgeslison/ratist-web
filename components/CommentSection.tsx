@@ -3,18 +3,66 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SignInLink from "@/components/SignInLink";
 import { Heart, Reply, Trash2, ChevronDown, ChevronUp, X } from "lucide-react";
 import ReportButton from "./ReportButton";
 import EmojiButton from "./EmojiButton";
 import GifButton from "./GifButton";
 import { useAuth } from "@/context/AuthContext";
+import { posterUrl } from "@/lib/tmdb";
+
+// Custom icon: stacked horizontal lines (a list) with a back-pointing
+// reply arrow overlay. Distinguishes the "reply with your own list" CTA
+// from "add to watchlist" which uses a plus.
+function ListReplyIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <line x1="14" y1="6"  x2="21" y2="6" />
+      <line x1="14" y1="12" x2="21" y2="12" />
+      <line x1="14" y1="18" x2="21" y2="18" />
+      <polyline points="9 17 4 12 9 7" />
+      <path d="M4 12 H10" />
+    </svg>
+  );
+}
 
 interface CommentUser {
   id: string;
   firebaseUid: string;
   name: string;
   avatarUrl: string | null;
+}
+
+interface LinkedCollectionPreview {
+  id: string;
+  name: string;
+  // Slug only resolves once the collection is public — the comment-tile
+  // renderer treats null/empty slug as "not yet linkable".
+  slug: string;
+  curator: { firebaseUid: string; name: string };
+  previewPosters: string[];
+  itemCount: number;
+}
+
+// Picker-only data shape — includes visibility + slug-nullable so the
+// picker can offer to publish a private collection inline.
+interface PickerCollection {
+  id: string;
+  name: string;
+  slug: string | null;
+  visibility: "private" | "public" | "unlisted";
+  itemCount: number;
+  previewPosters: string[];
 }
 
 interface CommentData {
@@ -26,6 +74,7 @@ interface CommentData {
   user: CommentUser;
   likeCount: number;
   likedByMe: boolean;
+  linkedCollection: LinkedCollectionPreview | null;
   replies: CommentData[];
 }
 
@@ -34,6 +83,50 @@ interface Props {
   targetId: string;
   disabled?: boolean;
   isAdmin?: boolean;
+  // When true, surface a "Reply with your own list" affordance on the
+  // comment form. Only meaningful when targetType is "collection" — on
+  // any other target the picker would have nothing useful to do.
+  enableCollectionLink?: boolean;
+}
+
+// Mini-tile rendered inside a comment when linkedCollection is set. Pure
+// visual; tap takes the viewer to the linked collection page.
+function LinkedCollectionTile({ linked }: { linked: LinkedCollectionPreview }) {
+  const router = useRouter();
+  const href = `/collections/${linked.curator.firebaseUid}/${linked.slug}`;
+  // Use a button with explicit router.push instead of <Link> — soft-nav
+  // through a Link inside a comment was silently no-op'ing, possibly
+  // because the existing comment subtree intercepts certain click paths.
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        router.push(href);
+      }}
+      className="mt-2 flex items-center gap-3 bg-[var(--surface-2)] hover:bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)]/50 rounded-lg p-2 max-w-[360px] transition-colors group text-left w-full cursor-pointer"
+    >
+      <div className="flex gap-0.5 shrink-0">
+        {Array.from({ length: 4 }).map((_, i) => {
+          const p = linked.previewPosters[i];
+          return (
+            <div key={i} className="relative w-6 aspect-[2/3] rounded-sm overflow-hidden bg-[var(--surface)]">
+              {p ? (
+                <Image src={posterUrl(p, "w92")} alt="" fill sizes="24px" className="object-cover" />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{linked.name}</p>
+        <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">
+          {linked.itemCount} title{linked.itemCount === 1 ? "" : "s"} · by {linked.curator.name}
+        </p>
+      </div>
+    </button>
+  );
 }
 
 function timeAgo(dateStr: string) {
@@ -48,7 +141,7 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(days / 30)}mo`;
 }
 
-export default function CommentSection({ targetType, targetId, disabled, isAdmin: isAdminProp }: Props) {
+export default function CommentSection({ targetType, targetId, disabled, isAdmin: isAdminProp, enableCollectionLink }: Props) {
   const { user } = useAuth();
   const [comments, setComments] = useState<CommentData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +152,18 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
   const [replyText, setReplyText] = useState("");
   const [replyGifUrl, setReplyGifUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Linked-collection state ("reply with your own list"). One slot per
+  // form (top-level + active reply) so a user can have a draft going on
+  // both at once without them stepping on each other.
+  const [newLinked, setNewLinked] = useState<LinkedCollectionPreview | null>(null);
+  const [replyLinked, setReplyLinked] = useState<LinkedCollectionPreview | null>(null);
+  const [pickerOpen, setPickerOpen] = useState<"new" | "reply" | null>(null);
+  const [pickerOptions, setPickerOptions] = useState<PickerCollection[] | null>(null);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  // Tracks which private collection is currently being published from
+  // inside the picker so the row can show a spinner.
+  const [publishingFromPicker, setPublishingFromPicker] = useState<string | null>(null);
+  const [pickerError, setPickerError] = useState<string | null>(null);
   // Refs to the live textareas so the emoji picker can insert at the
   // current caret position. Auto-grow is handled by the inline onInput.
   const newTextRef = useRef<HTMLTextAreaElement | null>(null);
@@ -163,10 +268,11 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
   async function submitComment(parentId: string | null = null) {
     const text = parentId ? replyText : newText;
     const gifUrl = parentId ? replyGifUrl : newGifUrl;
-    // Comment must have either text or a GIF — server validates the same
-    // rule, so a stray empty submission won't slip through if the button
-    // disabled state ever desyncs.
-    if (!text.trim() && !gifUrl) return;
+    const linked = parentId ? replyLinked : newLinked;
+    // Comment must have either text, a GIF, or a linked collection. The
+    // linked-collection embed counts as content on its own so curators
+    // can drop in a list without typing a redundant "here's mine".
+    if (!text.trim() && !gifUrl && !linked) return;
     if (submitting) return;
     setSubmitting(true);
     const token = await getToken();
@@ -174,7 +280,14 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
     const res = await fetch("/api/comments", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType, targetId, parentId, text: text.trim(), gifUrl }),
+      body: JSON.stringify({
+        targetType,
+        targetId,
+        parentId,
+        text: text.trim(),
+        gifUrl,
+        linkedCollectionId: linked?.id ?? null,
+      }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -183,14 +296,110 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
         setExpandedThreads((prev) => new Set(prev).add(parentId));
         setReplyText("");
         setReplyGifUrl(null);
+        setReplyLinked(null);
         setReplyingTo(null);
       } else {
         setComments((prev) => [...prev, data.comment]);
         setNewText("");
         setNewGifUrl(null);
+        setNewLinked(null);
       }
+      setPickerOpen(null);
     }
     setSubmitting(false);
+  }
+
+  // Lazy-load ALL of the user's collections (public + private) so the
+  // picker can offer to publish a private one inline. Cached in state so
+  // subsequent opens don't refetch within the same session — but the
+  // publish action below busts the cache.
+  async function ensurePickerOptions() {
+    if (pickerOptions !== null || pickerLoading) return;
+    await refreshPickerOptions();
+  }
+
+  async function refreshPickerOptions() {
+    setPickerLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) { setPickerOptions([]); return; }
+      const res = await fetch("/api/custom-collections", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { setPickerOptions([]); return; }
+      const data = await res.json();
+      type IncomingPickerCollection = {
+        id: string;
+        name: string;
+        slug: string | null;
+        visibility?: "private" | "public" | "unlisted";
+        previewPosters: (string | null)[];
+        itemCount: number;
+      };
+      const opts: PickerCollection[] = (data.collections ?? []).map((c: IncomingPickerCollection) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug ?? null,
+        visibility: c.visibility ?? "private",
+        previewPosters: (c.previewPosters ?? []).filter((p: string | null): p is string => typeof p === "string"),
+        itemCount: c.itemCount,
+      }));
+      setPickerOptions(opts);
+    } catch {
+      setPickerOptions([]);
+    } finally {
+      setPickerLoading(false);
+    }
+  }
+
+  function selectLinkedFromPicker(slot: "new" | "reply", c: PickerCollection) {
+    if (c.visibility !== "public" || !c.slug) {
+      setPickerError("Private collections can't be linked. Use the Publish & link button.");
+      return;
+    }
+    const linked: LinkedCollectionPreview = {
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      curator: { firebaseUid: user?.uid ?? "", name: user?.displayName ?? "you" },
+      previewPosters: c.previewPosters,
+      itemCount: c.itemCount,
+    };
+    if (slot === "new") setNewLinked(linked);
+    else setReplyLinked(linked);
+    setPickerOpen(null);
+    setPickerError(null);
+  }
+
+  // Publish a private collection inline from the picker, then auto-link
+  // it. Backed by the existing /publish endpoint so the same 5-item
+  // minimum + rate limit + isOfficial gating apply.
+  async function publishAndLinkFromPicker(slot: "new" | "reply", c: PickerCollection) {
+    if (publishingFromPicker) return;
+    setPublishingFromPicker(c.id);
+    setPickerError(null);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/custom-collections/${c.id}/publish`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPickerError(data.error ?? "Couldn't publish that collection.");
+        return;
+      }
+      const newSlug: string | undefined = data.slug;
+      if (!newSlug) { setPickerError("Published, but no slug returned. Refresh to retry."); return; }
+      // Refresh the picker so other rows pick up the new visibility.
+      await refreshPickerOptions();
+      // Then immediately link it to the comment form.
+      selectLinkedFromPicker(slot, { ...c, visibility: "public", slug: newSlug });
+    } finally {
+      setPublishingFromPicker(null);
+    }
   }
 
   function insertReply(comments: CommentData[], parentId: string, reply: CommentData): CommentData[] {
@@ -327,6 +536,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                 <img src={comment.gifUrl} alt="GIF" className="rounded-lg border border-[var(--border)]/40 max-w-full h-auto" loading="lazy" />
               </a>
             )}
+            {comment.linkedCollection && <LinkedCollectionTile linked={comment.linkedCollection} />}
 
             {/* Actions */}
             <div className="flex items-center gap-3 mt-1">
@@ -387,6 +597,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                 obvious. */}
             {replyingTo === comment.id && (
               <div className="mt-2">
+                {renderSelectedLinkedChip("reply")}
                 {replyGifUrl && (
                   <div className="relative w-fit mb-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -417,15 +628,17 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                   <div className="flex items-center gap-1">
                     <EmojiButton onSelect={(emoji) => insertEmojiInto(replyTextRef, replyText, setReplyText, emoji)} />
                     <GifButton onSelect={(gifUrl) => setReplyGifUrl(gifUrl)} />
+                    {renderPickerButton("reply")}
                   </div>
                   <button
                     onClick={() => submitComment(comment.id)}
-                    disabled={(!replyText.trim() && !replyGifUrl) || submitting}
+                    disabled={(!replyText.trim() && !replyGifUrl && !replyLinked) || submitting}
                     className="px-3 py-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
                     {submitting ? "..." : "Post"}
                   </button>
                 </div>
+                {renderPickerDropdown("reply")}
               </div>
             )}
           </div>
@@ -440,6 +653,113 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
             </button>
             {isExpanded && comment.replies.map((reply) => renderComment(reply, depth + 1, depth >= 1 ? (depth1ParentId ?? comment.id) : undefined))}
           </>
+        )}
+      </div>
+    );
+  }
+
+  // Affordance gating — the "reply with your own list" button only makes
+  // sense on collection target pages. Hiding it elsewhere prevents a
+  // stray collection-link button from appearing on, say, a forum thread.
+  const showLinkedAffordance = !!enableCollectionLink && targetType === "collection";
+
+  function renderSelectedLinkedChip(slot: "new" | "reply") {
+    const linked = slot === "new" ? newLinked : replyLinked;
+    const setLinked = slot === "new" ? setNewLinked : setReplyLinked;
+    if (!linked) return null;
+    return (
+      <div className="flex items-center gap-2 mb-1.5 px-2 py-1 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] text-xs">
+        <ListReplyIcon className="w-3 h-3 text-[var(--ratist-red)]" />
+        <span className="text-white truncate flex-1">{linked.name}</span>
+        <button type="button" onClick={() => setLinked(null)} className="text-[var(--foreground-muted)] hover:text-white" title="Remove linked collection">
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  function renderPickerButton(slot: "new" | "reply") {
+    if (!showLinkedAffordance) return null;
+    const isOpen = pickerOpen === slot;
+    return (
+      <button
+        type="button"
+        title="Reply with your own list"
+        onClick={() => {
+          setPickerOpen(isOpen ? null : slot);
+          if (!isOpen) ensurePickerOptions();
+        }}
+        className={`p-1.5 rounded transition-colors ${
+          isOpen ? "bg-[var(--surface-2)] text-white" : "text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)]"
+        }`}
+      >
+        <ListReplyIcon className="w-4 h-4" />
+      </button>
+    );
+  }
+
+  function renderPickerDropdown(slot: "new" | "reply") {
+    if (!showLinkedAffordance || pickerOpen !== slot) return null;
+    return (
+      <div className="mt-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-2 max-h-[280px] overflow-y-auto">
+        <p className="text-[11px] text-[var(--foreground-muted)] px-1 pb-1.5">Pick one of your collections to attach</p>
+        {pickerError && (
+          <div className="text-[11px] text-red-300 bg-red-500/10 border border-red-500/30 rounded px-2 py-1 mb-1.5">
+            {pickerError}
+          </div>
+        )}
+        {pickerLoading ? (
+          <p className="text-xs text-[var(--foreground-muted)] py-3 text-center">Loading…</p>
+        ) : !pickerOptions || pickerOptions.length === 0 ? (
+          <p className="text-xs text-[var(--foreground-muted)] py-3 px-2">
+            You haven&apos;t built any collections yet. <Link href="/tools/collections/new" className="text-[var(--ratist-red)] hover:underline">Create one</Link> first.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {pickerOptions.map((c) => {
+              const isPublic = c.visibility === "public" && !!c.slug;
+              return (
+                <div key={c.id} className="flex items-center gap-2 hover:bg-[var(--surface)] rounded p-1.5 transition-colors">
+                  <div className="flex gap-0.5 shrink-0">
+                    {Array.from({ length: 4 }).map((_, i) => {
+                      const p = c.previewPosters[i];
+                      return (
+                        <div key={i} className="relative w-4 aspect-[2/3] rounded-sm overflow-hidden bg-[var(--surface)]">
+                          {p ? <Image src={posterUrl(p, "w92")} alt="" fill sizes="16px" className="object-cover" /> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-white truncate flex items-center gap-1.5">
+                      {c.name}
+                      {!isPublic && <span className="text-[9px] uppercase tracking-wider text-[var(--foreground-muted)] bg-[var(--surface)] border border-[var(--border)] rounded px-1">Private</span>}
+                    </p>
+                    <p className="text-[10px] text-[var(--foreground-muted)]">{c.itemCount} title{c.itemCount === 1 ? "" : "s"}</p>
+                  </div>
+                  {isPublic ? (
+                    <button
+                      type="button"
+                      onClick={() => selectLinkedFromPicker(slot, c)}
+                      className="text-[10px] font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] rounded-full px-2 py-0.5 transition-colors shrink-0"
+                    >
+                      Link
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => publishAndLinkFromPicker(slot, c)}
+                      disabled={publishingFromPicker === c.id}
+                      title="Publishing makes the collection public and links it to your comment"
+                      className="text-[10px] font-semibold text-white bg-[var(--ratist-red)]/70 hover:bg-[var(--ratist-red)] rounded-full px-2 py-0.5 transition-colors shrink-0 disabled:opacity-50"
+                    >
+                      {publishingFromPicker === c.id ? "…" : "Publish & link"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     );
@@ -465,6 +785,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
 
           {user && !disabled ? (
             <div className="mt-3">
+              {renderSelectedLinkedChip("new")}
               {newGifUrl && (
                 <div className="relative w-fit mb-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -483,7 +804,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                 ref={newTextRef}
                 value={newText}
                 onChange={(e) => setNewText(e.target.value)}
-                placeholder="Add a comment..."
+                placeholder={showLinkedAffordance ? "Add a comment, or reply with your own list…" : "Add a comment..."}
                 rows={1}
                 className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-none max-h-[7.5rem] overflow-y-auto"
                 onInput={(e) => autoGrow(e.target as HTMLTextAreaElement)}
@@ -493,15 +814,17 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
                 <div className="flex items-center gap-1">
                   <EmojiButton onSelect={(emoji) => insertEmojiInto(newTextRef, newText, setNewText, emoji)} />
                   <GifButton onSelect={(gifUrl) => setNewGifUrl(gifUrl)} />
+                  {renderPickerButton("new")}
                 </div>
                 <button
                   onClick={() => submitComment()}
-                  disabled={(!newText.trim() && !newGifUrl) || submitting}
+                  disabled={(!newText.trim() && !newGifUrl && !newLinked) || submitting}
                   className="px-4 py-1.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
                 >
                   {submitting ? "..." : "Post"}
                 </button>
               </div>
+              {renderPickerDropdown("new")}
             </div>
           ) : !user ? (
             <p className="text-xs text-[var(--foreground-muted)] mt-2">

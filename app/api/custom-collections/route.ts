@@ -9,8 +9,16 @@ export async function GET(req: NextRequest) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ collections: [] });
 
+  // Personal collections list — explicitly excludes the user's
+  // admin-curated "Ratist" collections so those don't pollute the
+  // personal surface. Admin official collections live on /admin/collections.
+  const visibility = new URL(req.url).searchParams.get("visibility");
+  const where = visibility === "public"
+    ? { userId: user.id, visibility: "public" as const, isOfficial: false }
+    : { userId: user.id, isOfficial: false };
+
   const collections = await prisma.customCollection.findMany({
-    where: { userId: user.id },
+    where,
     include: {
       items: {
         orderBy: { sortOrder: "asc" },
@@ -29,6 +37,10 @@ export async function GET(req: NextRequest) {
       description: c.description,
       prompt: c.prompt,
       mediaType: c.mediaType,
+      visibility: c.visibility,
+      slug: c.slug,
+      publishedAt: c.publishedAt?.toISOString() ?? null,
+      saveCount: c.saveCount,
       itemCount: c._count.items,
       previewPosters: c.items.map((i) => i.posterPath).filter(Boolean),
       createdAt: c.createdAt.toISOString(),
@@ -59,6 +71,17 @@ export async function POST(req: NextRequest) {
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim().slice(0, 1000) : "";
   const mediaType = body?.mediaType === "tv" || body?.mediaType === "any" ? body.mediaType : "movie";
   const items = Array.isArray(body?.items) ? body.items as IncomingItem[] : [];
+  // Optional response to an admin-authored prompt. Validate the prompt
+  // exists before linking — null is the unset case.
+  const themePromptId = typeof body?.themePromptId === "string" && body.themePromptId.length > 0 ? body.themePromptId : null;
+  if (themePromptId) {
+    const exists = await prisma.collectionPrompt.findUnique({ where: { id: themePromptId }, select: { id: true } });
+    if (!exists) return NextResponse.json({ error: "Theme prompt not found." }, { status: 400 });
+  }
+  // Admin-only: stamp the collection as official at creation so it gets
+  // routed to /admin/collections immediately rather than briefly
+  // appearing in the admin's personal list while the publish step runs.
+  const isOfficial = user.isAdmin && body?.isOfficial === true;
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (items.length === 0) return NextResponse.json({ error: "Collection must have at least one item" }, { status: 400 });
@@ -78,6 +101,8 @@ export async function POST(req: NextRequest) {
       description: description || null,
       prompt,
       mediaType,
+      themePromptId,
+      isOfficial,
       items: {
         create: valid.map((i, idx) => ({
           mediaType: i.mediaType,

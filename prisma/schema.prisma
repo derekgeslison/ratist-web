@@ -13,85 +13,85 @@ enum PostType {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  firebaseUid String   @unique @map("firebase_uid")
-  name        String
-  email       String   @unique
-  avatarUrl   String?  @map("avatar_url")
-  bio         String?
-  isPrivate   Boolean  @default(false) @map("is_private")
-  publicTabs  Json     @default("{\"overview\":true,\"ratings\":true,\"diary\":true,\"watchlist\":true,\"stats\":true,\"rankings\":true}") @map("public_tabs")
-  inviteCode  String   @unique @map("invite_code")
-  isAdmin     Boolean  @default(false) @map("is_admin")
-  isOwner     Boolean  @default(false) @map("is_owner")
-  aiDisabled  Boolean  @default(false) @map("ai_disabled") // admin-set: blocks all AI features for this user
+  id                               String    @id @default(cuid())
+  firebaseUid                      String    @unique @map("firebase_uid")
+  name                             String
+  email                            String    @unique
+  avatarUrl                        String?   @map("avatar_url")
+  bio                              String?
+  isPrivate                        Boolean   @default(false) @map("is_private")
+  publicTabs                       Json      @default("{\"overview\":true,\"ratings\":true,\"diary\":true,\"watchlist\":true,\"stats\":true,\"rankings\":true}") @map("public_tabs")
+  inviteCode                       String    @unique @map("invite_code")
+  isAdmin                          Boolean   @default(false) @map("is_admin")
+  isOwner                          Boolean   @default(false) @map("is_owner")
+  aiDisabled                       Boolean   @default(false) @map("ai_disabled") // admin-set: blocks all AI features for this user
   // Admin-set: blocks this user from submitting Watch Companion suggestions.
   // Used to shut down troll/low-signal submitters without hard-banning them
   // from the rest of the site.
-  companionSuggestionsBlocked Boolean @default(false) @map("companion_suggestions_blocked")
+  companionSuggestionsBlocked      Boolean   @default(false) @map("companion_suggestions_blocked")
   // Optional expiry — when set, the block auto-lifts after this timestamp.
   // Null means the block is permanent (until admin unblocks manually).
   companionSuggestionsBlockedUntil DateTime? @map("companion_suggestions_blocked_until")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  onboardedAt DateTime? @map("onboarded_at")
+  createdAt                        DateTime  @default(now()) @map("created_at")
+  updatedAt                        DateTime  @updatedAt @map("updated_at")
+  onboardedAt                      DateTime? @map("onboarded_at")
 
-  ratings        MovieRating[]
-  tvShowRatings  TVShowRating[]
-  profile        UserProfile?
-  favoriteMovies UserFavoriteMovie[]
-  favoriteShows  UserFavoriteShow[]
-  episodesSeen   EpisodeSeen[]
-  watchlistsOwned  Watchlist[]
-  watchlistCollab  WatchlistCollaborator[]
-  blogPosts      BlogPost[]
-  newsItems      NewsItem[]
-  comments         Comment[]
-  commentLikes     CommentLike[]
-  postLikes        PostLike[]
-  notifications    Notification[]    @relation("notifications")
-  notificationsOut Notification[]    @relation("notificationActor")
-  pjArguments    PunchAndJudyArgument[]
-  pjHelpfuls     PunchAndJudyHelpful[]
-  pjVotes        PunchAndJudyOverallVote[]
-  forumThreads   ForumThread[]
-  forumPosts     ForumPost[]
-  forumReactions ForumReaction[]
-  forumPollVotes ForumPollVote[]
-  forumDebateVotes ForumDebateVote[]
-  forumDebateOpponent ForumThread[] @relation("forumDebateOpponent")
-  forumThreadFollows  ForumThreadFollow[]
-  forumThreadViews    ForumThreadView[]
-  looksLikes     LooksLike[]
-  looksLikeVotes LooksLikeVote[]
-  oscarVotes     OscarVote[]
-  oscarSuggestions      OscarSuggestion[]      @relation("oscarSuggestions")
-  oscarSuggestionSeconds OscarSuggestionSecond[]
-  recasts        Recast[]
-  recastVotes    RecastVote[]
-  hotTakes       HotTake[]
-  hotTakeVotes   HotTakeVote[]
-  moviePitches     MoviePitch[]
-  moviePitchVotes  MoviePitchVote[]
-  cineqAttempts    CineQAttempt[]
-  movieClubMember       MovieClubMember?
-  movieClubRatings      MovieClubRating[]
-  movieClubNominations  MovieClubNomination[]
-  movieClubNomVotes     MovieClubNominationVote[]
-  movieClubRewatchPolls MovieClubRewatchPoll[]
-  movieClubReactions    MovieClubReviewReaction[]
-  screeningSessionsHosted  ScreeningSession[]       @relation("screeningHost")
-  screeningParticipations  ScreeningParticipant[]
-  screeningPredictions     ScreeningPrediction[]
-  screeningPolls           ScreeningPoll[]
-  screeningBookmarks       ScreeningBookmark[]
-  screeningChatHighlights  ScreeningChatHighlight[]
-  screeningRatings         ScreeningRating[]
-  watchLog       UserWatchLog[]
-  rankings       UserMovieRanking[]
-  rankingLists   UserRankingList[]
-  autoDateOnSeen          Boolean  @default(false) @map("auto_date_on_seen")
-  autoSeenOnWatchlistCheck Boolean  @default(false) @map("auto_seen_on_watchlist_check")
+  ratings                       MovieRating[]
+  tvShowRatings                 TVShowRating[]
+  profile                       UserProfile?
+  favoriteMovies                UserFavoriteMovie[]
+  favoriteShows                 UserFavoriteShow[]
+  episodesSeen                  EpisodeSeen[]
+  watchlistsOwned               Watchlist[]
+  watchlistCollab               WatchlistCollaborator[]
+  blogPosts                     BlogPost[]
+  newsItems                     NewsItem[]
+  comments                      Comment[]
+  commentLikes                  CommentLike[]
+  postLikes                     PostLike[]
+  notifications                 Notification[]            @relation("notifications")
+  notificationsOut              Notification[]            @relation("notificationActor")
+  pjArguments                   PunchAndJudyArgument[]
+  pjHelpfuls                    PunchAndJudyHelpful[]
+  pjVotes                       PunchAndJudyOverallVote[]
+  forumThreads                  ForumThread[]
+  forumPosts                    ForumPost[]
+  forumReactions                ForumReaction[]
+  forumPollVotes                ForumPollVote[]
+  forumDebateVotes              ForumDebateVote[]
+  forumDebateOpponent           ForumThread[]             @relation("forumDebateOpponent")
+  forumThreadFollows            ForumThreadFollow[]
+  forumThreadViews              ForumThreadView[]
+  looksLikes                    LooksLike[]
+  looksLikeVotes                LooksLikeVote[]
+  oscarVotes                    OscarVote[]
+  oscarSuggestions              OscarSuggestion[]         @relation("oscarSuggestions")
+  oscarSuggestionSeconds        OscarSuggestionSecond[]
+  recasts                       Recast[]
+  recastVotes                   RecastVote[]
+  hotTakes                      HotTake[]
+  hotTakeVotes                  HotTakeVote[]
+  moviePitches                  MoviePitch[]
+  moviePitchVotes               MoviePitchVote[]
+  cineqAttempts                 CineQAttempt[]
+  movieClubMember               MovieClubMember?
+  movieClubRatings              MovieClubRating[]
+  movieClubNominations          MovieClubNomination[]
+  movieClubNomVotes             MovieClubNominationVote[]
+  movieClubRewatchPolls         MovieClubRewatchPoll[]
+  movieClubReactions            MovieClubReviewReaction[]
+  screeningSessionsHosted       ScreeningSession[]        @relation("screeningHost")
+  screeningParticipations       ScreeningParticipant[]
+  screeningPredictions          ScreeningPrediction[]
+  screeningPolls                ScreeningPoll[]
+  screeningBookmarks            ScreeningBookmark[]
+  screeningChatHighlights       ScreeningChatHighlight[]
+  screeningRatings              ScreeningRating[]
+  watchLog                      UserWatchLog[]
+  rankings                      UserMovieRanking[]
+  rankingLists                  UserRankingList[]
+  autoDateOnSeen                Boolean                   @default(false) @map("auto_date_on_seen")
+  autoSeenOnWatchlistCheck      Boolean                   @default(false) @map("auto_seen_on_watchlist_check")
   // Watchlist settings — surfaced via the gear icon on /watchlist.
   // autoAddToDefaultWatchlist: when true, tapping the watchlist button
   //   on cards / detail pages auto-adds to the user's default
@@ -108,16 +108,16 @@ model User {
   //   secondary-sorted to the bottom of the active sort order on the
   //   watchlist display. Doesn't mutate sortOrder; reorder mode
   //   still shows true custom order.
-  autoAddToDefaultWatchlist     Boolean @default(true)  @map("auto_add_to_default_watchlist")
-  autoRemoveFromWatchlistOnSeen String  @default("none") @map("auto_remove_from_watchlist_on_seen")
-  defaultWatchlistFilter        String  @default("all")  @map("default_watchlist_filter")
-  watchlistAddPosition          String  @default("top")  @map("watchlist_add_position")
-  pinCheckedToBottom            Boolean @default(false) @map("pin_checked_to_bottom")
-  notificationPrefs Json     @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
-  emailOptOut       Boolean  @default(false) @map("email_opt_out") // legacy — use emailPrefs instead
-  emailPrefs        Json     @default("{\"promotional\":true,\"subscription\":true,\"activity\":true}") @map("email_prefs")
-  forYouOrder       Json?     @map("for_you_order") // Array of section keys for For You page ordering
-  lastExportAt      DateTime? @map("last_export_at")
+  autoAddToDefaultWatchlist     Boolean                   @default(true) @map("auto_add_to_default_watchlist")
+  autoRemoveFromWatchlistOnSeen String                    @default("none") @map("auto_remove_from_watchlist_on_seen")
+  defaultWatchlistFilter        String                    @default("all") @map("default_watchlist_filter")
+  watchlistAddPosition          String                    @default("top") @map("watchlist_add_position")
+  pinCheckedToBottom            Boolean                   @default(false) @map("pin_checked_to_bottom")
+  notificationPrefs             Json                      @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
+  emailOptOut                   Boolean                   @default(false) @map("email_opt_out") // legacy — use emailPrefs instead
+  emailPrefs                    Json                      @default("{\"promotional\":true,\"subscription\":true,\"activity\":true}") @map("email_prefs")
+  forYouOrder                   Json?                     @map("for_you_order") // Array of section keys for For You page ordering
+  lastExportAt                  DateTime?                 @map("last_export_at")
 
   // Backstage Pass subscription
   subscriptionTier     String?   @map("subscription_tier") // null = free, "backstage_pass" = paid
@@ -130,35 +130,38 @@ model User {
   promoRemindersSent   Json?     @map("promo_reminders_sent") // array of day thresholds already emailed, e.g. [30, 14]
 
   // Profile theme customization (Backstage Pass feature)
-  profileTheme         Json?     @map("profile_theme") // { preset?, accentColor?, surfaceColor?, textColor?, headerImage? }
+  profileTheme Json? @map("profile_theme") // { preset?, accentColor?, surfaceColor?, textColor?, headerImage? }
 
-  reportsMade      Report[]  @relation("reportsMade")
-  reportsResolved  Report[]  @relation("reportsResolved")
-  feedbackSubmitted Feedback[] @relation("feedbackSubmitted")
-  feedbackReplied   Feedback[] @relation("feedbackReplied")
-  contactsHandled   Contact[]  @relation("contactHandled")
-  ideasSubmitted    PostIdea[] @relation("ideasSubmitted")
-  ideasReviewed     PostIdea[] @relation("ideasReviewed")
-  aiUsageLogs       AiUsageLog[]
-  customCollections CustomCollection[]
-  adminLogs        AdminLog[] @relation("adminLogs")
-  followers        UserFollow[] @relation("following")
-  following        UserFollow[] @relation("followers")
-  blocksMade       UserBlock[]  @relation("blocker")
-  blocksReceived   UserBlock[]  @relation("blocked")
-  userBadges       UserBadge[]
-  companionsGenerated  WatchCompanion[]          @relation("companionGenerator")
-  companionSuggestions CompanionSuggestion[]     @relation("suggestionAuthor")
-  companionSuggestionVotes CompanionSuggestionVote[]
-  companionSuggestionResolutions CompanionSuggestion[] @relation("suggestionResolver")
-  watchCompanionRatings WatchCompanionRating[]
-  companionFollows     CompanionFollow[]
-  affiliateClicks      AffiliateClick[]
-  streamingWatches     StreamingWatch[]
+  reportsMade                    Report[]                  @relation("reportsMade")
+  reportsResolved                Report[]                  @relation("reportsResolved")
+  feedbackSubmitted              Feedback[]                @relation("feedbackSubmitted")
+  feedbackReplied                Feedback[]                @relation("feedbackReplied")
+  contactsHandled                Contact[]                 @relation("contactHandled")
+  ideasSubmitted                 PostIdea[]                @relation("ideasSubmitted")
+  ideasReviewed                  PostIdea[]                @relation("ideasReviewed")
+  aiUsageLogs                    AiUsageLog[]
+  customCollections              CustomCollection[]
+  collectionSaves                CollectionSave[]
+  collectionPromptsAuthored      CollectionPrompt[]        @relation("CollectionPromptAuthor")
+  collectionMatchCache           CollectionMatchCache[]
+  adminLogs                      AdminLog[]                @relation("adminLogs")
+  followers                      UserFollow[]              @relation("following")
+  following                      UserFollow[]              @relation("followers")
+  blocksMade                     UserBlock[]               @relation("blocker")
+  blocksReceived                 UserBlock[]               @relation("blocked")
+  userBadges                     UserBadge[]
+  companionsGenerated            WatchCompanion[]          @relation("companionGenerator")
+  companionSuggestions           CompanionSuggestion[]     @relation("suggestionAuthor")
+  companionSuggestionVotes       CompanionSuggestionVote[]
+  companionSuggestionResolutions CompanionSuggestion[]     @relation("suggestionResolver")
+  watchCompanionRatings          WatchCompanionRating[]
+  companionFollows               CompanionFollow[]
+  affiliateClicks                AffiliateClick[]
+  streamingWatches               StreamingWatch[]
 
   // Soft delete
-  deletedAt   DateTime? @map("deleted_at")
-  deletedBy   String?   @map("deleted_by") // "self" or admin user ID
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") // "self" or admin user ID
 
   // Ban/block
   bannedAt    DateTime? @map("banned_at")
@@ -211,6 +214,7 @@ model SiteConfig {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt @map("updated_at")
+
   @@map("site_config")
 }
 
@@ -219,36 +223,36 @@ model UserProfile {
   userId String @unique @map("user_id")
 
   // Component preferences (0-10)
-  narrativeFocused      Float @default(0) @map("narrative_focused")
-  characterFocused      Float @default(0) @map("character_focused")
-  messageFocused        Float @default(0) @map("message_focused")
-  cinematicFocused      Float @default(0) @map("cinematic_focused")
-  performanceFocused    Float @default(0) @map("performance_focused")
-  entertainmentFocused  Float @default(0) @map("entertainment_focused")
+  narrativeFocused     Float @default(0) @map("narrative_focused")
+  characterFocused     Float @default(0) @map("character_focused")
+  messageFocused       Float @default(0) @map("message_focused")
+  cinematicFocused     Float @default(0) @map("cinematic_focused")
+  performanceFocused   Float @default(0) @map("performance_focused")
+  entertainmentFocused Float @default(0) @map("entertainment_focused")
 
   // Genre preferences (0-10)
-  genreAction        Float @default(0) @map("genre_action")
-  genreHorror        Float @default(0) @map("genre_horror")
-  genreDrama         Float @default(0) @map("genre_drama")
-  genreHistorical    Float @default(0) @map("genre_historical")
-  genreScifi         Float @default(0) @map("genre_scifi")
-  genreThriller      Float @default(0) @map("genre_thriller")
-  genreComedy        Float @default(0) @map("genre_comedy")
-  genreBookAdapt     Float @default(0) @map("genre_book_adaptation")
-  genreFantasy       Float @default(0) @map("genre_fantasy")
-  genreRomance       Float @default(0) @map("genre_romance")
-  genreDocumentary   Float @default(0) @map("genre_documentary")
-  genreFamily        Float @default(0) @map("genre_family")
-  genreFilmNoir      Float @default(0) @map("genre_film_noir")
-  genreMusical       Float @default(0) @map("genre_musical")
-  genreBiopic        Float @default(0) @map("genre_biopic")
-  genreCrime         Float @default(0) @map("genre_crime")
-  genreWestern       Float @default(0) @map("genre_western")
-  genreMystery       Float @default(0) @map("genre_mystery")
+  genreAction      Float @default(0) @map("genre_action")
+  genreHorror      Float @default(0) @map("genre_horror")
+  genreDrama       Float @default(0) @map("genre_drama")
+  genreHistorical  Float @default(0) @map("genre_historical")
+  genreScifi       Float @default(0) @map("genre_scifi")
+  genreThriller    Float @default(0) @map("genre_thriller")
+  genreComedy      Float @default(0) @map("genre_comedy")
+  genreBookAdapt   Float @default(0) @map("genre_book_adaptation")
+  genreFantasy     Float @default(0) @map("genre_fantasy")
+  genreRomance     Float @default(0) @map("genre_romance")
+  genreDocumentary Float @default(0) @map("genre_documentary")
+  genreFamily      Float @default(0) @map("genre_family")
+  genreFilmNoir    Float @default(0) @map("genre_film_noir")
+  genreMusical     Float @default(0) @map("genre_musical")
+  genreBiopic      Float @default(0) @map("genre_biopic")
+  genreCrime       Float @default(0) @map("genre_crime")
+  genreWestern     Float @default(0) @map("genre_western")
+  genreMystery     Float @default(0) @map("genre_mystery")
 
   // Preserved copy of user's explicit onboarding/settings preferences
   // Used for blending with rating-derived scores until 10 full Ratist ratings
-  statedPrefs  Json?    @map("stated_prefs")
+  statedPrefs Json? @map("stated_prefs")
 
   updatedAt DateTime @updatedAt @map("updated_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -257,25 +261,25 @@ model UserProfile {
 }
 
 model Movie {
-  id           String   @id @default(cuid())
-  tmdbId       Int      @unique @map("tmdb_id")
-  imdbId       String?  @unique @map("imdb_id")
-  title        String
-  overview     String?
-  posterPath   String?  @map("poster_path")
-  backdropPath String?  @map("backdrop_path")
-  releaseDate  String?  @map("release_date")
-  runtime      Int?
-  mpaaRating   String?  @map("mpaa_rating")
-  tagline      String?
-  budget       BigInt?
-  revenue      BigInt?
-  popularity   Float?
-  voteAverage  Float?   @map("vote_average")
-  voteCount    Int?     @map("vote_count")
-  trailerKey   String?  @map("trailer_key")
-  status       String?
-  watchProviders    Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
+  id                 String    @id @default(cuid())
+  tmdbId             Int       @unique @map("tmdb_id")
+  imdbId             String?   @unique @map("imdb_id")
+  title              String
+  overview           String?
+  posterPath         String?   @map("poster_path")
+  backdropPath       String?   @map("backdrop_path")
+  releaseDate        String?   @map("release_date")
+  runtime            Int?
+  mpaaRating         String?   @map("mpaa_rating")
+  tagline            String?
+  budget             BigInt?
+  revenue            BigInt?
+  popularity         Float?
+  voteAverage        Float?    @map("vote_average")
+  voteCount          Int?      @map("vote_count")
+  trailerKey         String?   @map("trailer_key")
+  status             String?
+  watchProviders     Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
   providersUpdatedAt DateTime? @map("providers_updated_at")
   // TMDB belongs_to_collection — drives franchise aggregations on
   // /box-office/franchises. Stored inline rather than via a separate
@@ -288,24 +292,24 @@ model Movie {
   // leaderboards to non-English releases without us having to query
   // TMDB Discover at runtime.
   originalLanguage   String?   @map("original_language")
-  cachedAt     DateTime? @map("cached_at")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  cachedAt           DateTime? @map("cached_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  genres      MovieGenre[]
-  cast        MovieCast[]
-  ratings     MovieRating[]
-  favoritedBy UserFavoriteMovie[]
-  watchLog    UserWatchLog[]
-  watchlistEntries WatchlistMovie[]
-  rankings         UserMovieRanking[]
-  movieClubWeeks   MovieClubWeek[]
+  genres            MovieGenre[]
+  cast              MovieCast[]
+  ratings           MovieRating[]
+  favoritedBy       UserFavoriteMovie[]
+  watchLog          UserWatchLog[]
+  watchlistEntries  WatchlistMovie[]
+  rankings          UserMovieRanking[]
+  movieClubWeeks    MovieClubWeek[]
   screeningSessions ScreeningSession[]
   forumThreadMedia  ForumThreadMedia[]
   newsItemMedia     NewsItemMedia[]
   blogPostMedia     BlogPostMedia[]
-  awards            AwardNomination[] @relation("movieAwards")
-  awardForWork      AwardNomination[] @relation("forWorkMovie")
+  awards            AwardNomination[]   @relation("movieAwards")
+  awardForWork      AwardNomination[]   @relation("forWorkMovie")
   studios           MovieStudio[]
 
   @@index([tmdbCollectionId])
@@ -318,12 +322,12 @@ model Movie {
 // name (TMDB has duplicate names across regions for some studios,
 // but the ids are stable).
 model Studio {
-  id            Int           @id  // TMDB production_company id
+  id            Int     @id // TMDB production_company id
   name          String
-  logoPath      String?       @map("logo_path")
-  originCountry String?       @map("origin_country")
+  logoPath      String? @map("logo_path")
+  originCountry String? @map("origin_country")
 
-  movies        MovieStudio[]
+  movies MovieStudio[]
 
   @@map("studios")
 }
@@ -341,9 +345,9 @@ model MovieStudio {
 }
 
 model Genre {
-  id     Int    @id
-  name   String @unique
-  movies MovieGenre[]
+  id      Int           @id
+  name    String        @unique
+  movies  MovieGenre[]
   tvShows TVShowGenre[]
 
   @@map("genres")
@@ -375,12 +379,12 @@ model Celebrity {
   popularity         Float?
   cachedAt           DateTime? @map("cached_at")
 
-  movieRoles MovieCast[]
-  tvShowRoles TVShowCast[]
+  movieRoles        MovieCast[]
+  tvShowRoles       TVShowCast[]
   forumThreadPeople ForumThreadPerson[]
   newsItemPeople    NewsItemPerson[]
   blogPostPeople    BlogPostPerson[]
-  awards            AwardNomination[] @relation("celebrityAwards")
+  awards            AwardNomination[]   @relation("celebrityAwards")
 
   @@map("celebrities")
 }
@@ -405,59 +409,59 @@ model MovieCast {
 // ─── TV Shows ─────────────────────────────────────────────────────────────────
 
 model TVShow {
-  id             String   @id @default(cuid())
-  tmdbId         Int      @unique @map("tmdb_id")
-  imdbId         String?  @unique @map("imdb_id")
-  name           String
-  overview       String?  @db.Text
-  posterPath     String?  @map("poster_path")
-  backdropPath   String?  @map("backdrop_path")
-  firstAirDate   String?  @map("first_air_date")
-  lastAirDate    String?  @map("last_air_date")
-  status         String?  // "Returning Series", "Ended", "Canceled", etc.
-  numberOfSeasons  Int?   @map("number_of_seasons")
-  numberOfEpisodes Int?   @map("number_of_episodes")
-  episodeRunTime   Int?   @map("episode_run_time") // avg minutes
-  contentRating    String? @map("content_rating") // TV-Y, TV-G, TV-PG, TV-14, TV-MA
-  tagline        String?
-  popularity     Float?
-  voteAverage    Float?   @map("vote_average")
-  voteCount      Int?     @map("vote_count")
-  trailerKey     String?  @map("trailer_key")
-  networks       Json?    // [{ id, name, logo_path }]
-  watchProviders    Json?     @map("watch_providers")
+  id                 String    @id @default(cuid())
+  tmdbId             Int       @unique @map("tmdb_id")
+  imdbId             String?   @unique @map("imdb_id")
+  name               String
+  overview           String?   @db.Text
+  posterPath         String?   @map("poster_path")
+  backdropPath       String?   @map("backdrop_path")
+  firstAirDate       String?   @map("first_air_date")
+  lastAirDate        String?   @map("last_air_date")
+  status             String? // "Returning Series", "Ended", "Canceled", etc.
+  numberOfSeasons    Int?      @map("number_of_seasons")
+  numberOfEpisodes   Int?      @map("number_of_episodes")
+  episodeRunTime     Int?      @map("episode_run_time") // avg minutes
+  contentRating      String?   @map("content_rating") // TV-Y, TV-G, TV-PG, TV-14, TV-MA
+  tagline            String?
+  popularity         Float?
+  voteAverage        Float?    @map("vote_average")
+  voteCount          Int?      @map("vote_count")
+  trailerKey         String?   @map("trailer_key")
+  networks           Json? // [{ id, name, logo_path }]
+  watchProviders     Json?     @map("watch_providers")
   providersUpdatedAt DateTime? @map("providers_updated_at")
-  cachedAt       DateTime? @map("cached_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  cachedAt           DateTime? @map("cached_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  genres     TVShowGenre[]
-  cast       TVShowCast[]
-  seasons    TVSeason[]
-  ratings    TVShowRating[]
-  favoritedBy UserFavoriteShow[]
+  genres           TVShowGenre[]
+  cast             TVShowCast[]
+  seasons          TVSeason[]
+  ratings          TVShowRating[]
+  favoritedBy      UserFavoriteShow[]
   watchlistEntries WatchlistShow[]
   rankings         UserMovieRanking[]
   forumThreadMedia ForumThreadMedia[]
   newsItemMedia    NewsItemMedia[]
   blogPostMedia    BlogPostMedia[]
-  awards           AwardNomination[] @relation("tvShowAwards")
-  awardForWork     AwardNomination[] @relation("forWorkTvShow")
+  awards           AwardNomination[]  @relation("tvShowAwards")
+  awardForWork     AwardNomination[]  @relation("forWorkTvShow")
 
   @@map("tv_shows")
 }
 
 model TVSeason {
-  id            String   @id @default(cuid())
-  tvShowId      String   @map("tv_show_id")
-  tmdbId        Int      @map("tmdb_id") // TMDB season ID
-  seasonNumber  Int      @map("season_number")
-  name          String?
-  overview      String?  @db.Text
-  posterPath    String?  @map("poster_path")
-  airDate       String?  @map("air_date")
-  episodeCount  Int?     @map("episode_count")
-  voteAverage   Float?   @map("vote_average")
+  id           String  @id @default(cuid())
+  tvShowId     String  @map("tv_show_id")
+  tmdbId       Int     @map("tmdb_id") // TMDB season ID
+  seasonNumber Int     @map("season_number")
+  name         String?
+  overview     String? @db.Text
+  posterPath   String? @map("poster_path")
+  airDate      String? @map("air_date")
+  episodeCount Int?    @map("episode_count")
+  voteAverage  Float?  @map("vote_average")
 
   tvShow   TVShow      @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
   episodes TVEpisode[]
@@ -467,17 +471,17 @@ model TVSeason {
 }
 
 model TVEpisode {
-  id            String   @id @default(cuid())
-  seasonId      String   @map("season_id")
-  tmdbId        Int      @map("tmdb_id") // TMDB episode ID
-  episodeNumber Int      @map("episode_number")
+  id            String  @id @default(cuid())
+  seasonId      String  @map("season_id")
+  tmdbId        Int     @map("tmdb_id") // TMDB episode ID
+  episodeNumber Int     @map("episode_number")
   name          String?
-  overview      String?  @db.Text
-  stillPath     String?  @map("still_path") // episode screenshot
-  airDate       String?  @map("air_date")
+  overview      String? @db.Text
+  stillPath     String? @map("still_path") // episode screenshot
+  airDate       String? @map("air_date")
   runtime       Int?
-  voteAverage   Float?   @map("vote_average")
-  voteCount     Int?     @map("vote_count")
+  voteAverage   Float?  @map("vote_average")
+  voteCount     Int?    @map("vote_count")
 
   season TVSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
@@ -497,15 +501,15 @@ model TVShowGenre {
 }
 
 model TVShowCast {
-  id          String  @id @default(cuid())
-  tvShowId    String  @map("tv_show_id")
-  celebrityId String  @map("celebrity_id")
-  creditType  String  @default("cast") @map("credit_type") // "cast" | "crew"
-  character   String?
-  job         String  @default("")
-  department  String?
-  castOrder   Int     @default(0) @map("cast_order")
-  episodeCount Int?   @map("episode_count") // how many episodes they appeared in
+  id           String  @id @default(cuid())
+  tvShowId     String  @map("tv_show_id")
+  celebrityId  String  @map("celebrity_id")
+  creditType   String  @default("cast") @map("credit_type") // "cast" | "crew"
+  character    String?
+  job          String  @default("")
+  department   String?
+  castOrder    Int     @default(0) @map("cast_order")
+  episodeCount Int?    @map("episode_count") // how many episodes they appeared in
 
   tvShow    TVShow    @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
   celebrity Celebrity @relation(fields: [celebrityId], references: [id], onDelete: Cascade)
@@ -515,9 +519,9 @@ model TVShowCast {
 }
 
 model UserFavoriteShow {
-  userId    String    @map("user_id")
-  tvShowId  String    @map("tv_show_id")
-  createdAt DateTime  @default(now()) @map("created_at")
+  userId    String   @map("user_id")
+  tvShowId  String   @map("tv_show_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tvShow TVShow @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
@@ -560,13 +564,13 @@ model WatchlistShow {
 }
 
 model TVShowRating {
-  id        String @id @default(cuid())
-  userId    String @map("user_id")
-  tvShowId  String @map("tv_show_id")
+  id       String @id @default(cuid())
+  userId   String @map("user_id")
+  tvShowId String @map("tv_show_id")
 
   // "series" = overall show rating, or a specific season number
-  ratingScope   String  @default("series") @map("rating_scope") // "series" | "season"
-  seasonNumber  Int     @default(0) @map("season_number") // 0 for series-level, 1+ for seasons
+  ratingScope  String @default("series") @map("rating_scope") // "series" | "season"
+  seasonNumber Int    @default(0) @map("season_number") // 0 for series-level, 1+ for seasons
 
   // Story (weight 5)
   plot               Float?
@@ -576,12 +580,12 @@ model TVShowRating {
   pacingClimax       Float? @map("pacing_climax")
 
   // Production & Style (weight 3)
-  cinematography   Float?
-  locationCost     Float? @map("location_costuming")
-  realism          Float? @map("realism_believability")
-  artisticEffect   Float? @map("artistic_effect")
-  visualEffects    Float? @map("visual_effects")
-  musicSound       Float? @map("music_sound")
+  cinematography Float?
+  locationCost   Float? @map("location_costuming")
+  realism        Float? @map("realism_believability")
+  artisticEffect Float? @map("artistic_effect")
+  visualEffects  Float? @map("visual_effects")
+  musicSound     Float? @map("music_sound")
 
   // Emotive Effect (weight 3)
   overallEmotion Float? @map("overall_emotion")
@@ -590,10 +594,10 @@ model TVShowRating {
   movingness     Float?
 
   // Acting & Casting (weight 3)
-  casting            Float?
-  actingQuality      Float? @map("acting_quality")
-  dialogueScripting  Float? @map("dialogue_scripting")
-  blockingChoreo     Float? @map("blocking_choreography")
+  casting           Float?
+  actingQuality     Float? @map("acting_quality")
+  dialogueScripting Float? @map("dialogue_scripting")
+  blockingChoreo    Float? @map("blocking_choreography")
 
   // Pure Entertainment (weight 2)
   appeal            Float?
@@ -604,24 +608,24 @@ model TVShowRating {
   overallRating Float? @map("overall_rating")
 
   // Cached computed scores
-  storyScore        Float? @map("story_score")
-  styleScore        Float? @map("style_score")
-  emotiveScore      Float? @map("emotive_score")
-  actingScore       Float? @map("acting_score")
-  entertainScore    Float? @map("entertainment_score")
-  ratistRating      Float? @map("ratist_rating")
+  storyScore     Float? @map("story_score")
+  styleScore     Float? @map("style_score")
+  emotiveScore   Float? @map("emotive_score")
+  actingScore    Float? @map("acting_score")
+  entertainScore Float? @map("entertainment_score")
+  ratistRating   Float? @map("ratist_rating")
 
-  reviewText       String?  @map("review_text")
-  reviewType       String   @default("standard") @map("review_type")
-  fieldComments    Json?    @map("field_comments")
-  categoryComments Json?    @map("category_comments")
-  hasSpoilers      Boolean  @default(false) @map("has_spoilers")
-  commentsDisabled Boolean  @default(false) @map("comments_disabled")
-  excluded         Boolean  @default(false)
+  reviewText       String?   @map("review_text")
+  reviewType       String    @default("standard") @map("review_type")
+  fieldComments    Json?     @map("field_comments")
+  categoryComments Json?     @map("category_comments")
+  hasSpoilers      Boolean   @default(false) @map("has_spoilers")
+  commentsDisabled Boolean   @default(false) @map("comments_disabled")
+  excluded         Boolean   @default(false)
   excludedAt       DateTime? @map("excluded_at")
-  excludedReason   String?  @map("excluded_reason")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  excludedReason   String?   @map("excluded_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tvShow TVShow @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
@@ -643,12 +647,12 @@ model MovieRating {
   pacingClimax       Float? @map("pacing_climax")
 
   // Production & Style (weight 3) — required: cinematography, artisticEffect
-  cinematography   Float?
-  locationCost     Float? @map("location_costuming")
-  realism          Float? @map("realism_believability")
-  artisticEffect   Float? @map("artistic_effect")
-  visualEffects    Float? @map("visual_effects")
-  musicSound       Float? @map("music_sound")
+  cinematography Float?
+  locationCost   Float? @map("location_costuming")
+  realism        Float? @map("realism_believability")
+  artisticEffect Float? @map("artistic_effect")
+  visualEffects  Float? @map("visual_effects")
+  musicSound     Float? @map("music_sound")
 
   // Emotive Effect (weight 3) — required: overallEmotion, relatability
   overallEmotion Float? @map("overall_emotion")
@@ -657,10 +661,10 @@ model MovieRating {
   movingness     Float?
 
   // Acting & Casting (weight 3) — required: casting (Casting & Subjects), actingQuality (Performance Quality)
-  casting            Float?
-  actingQuality      Float? @map("acting_quality")
-  dialogueScripting  Float? @map("dialogue_scripting")
-  blockingChoreo     Float? @map("blocking_choreography")
+  casting           Float?
+  actingQuality     Float? @map("acting_quality")
+  dialogueScripting Float? @map("dialogue_scripting")
+  blockingChoreo    Float? @map("blocking_choreography")
 
   // Pure Entertainment (weight 2) — required: appeal
   appeal            Float?
@@ -691,25 +695,25 @@ model MovieRating {
   genreMystery     Float? @map("genre_mystery")
 
   // Cached computed scores
-  storyScore        Float? @map("story_score")
-  styleScore        Float? @map("style_score")
-  emotiveScore      Float? @map("emotive_score")
-  actingScore       Float? @map("acting_score")
-  entertainScore    Float? @map("entertainment_score")
-  ratistRating      Float? @map("ratist_rating")
+  storyScore     Float? @map("story_score")
+  styleScore     Float? @map("style_score")
+  emotiveScore   Float? @map("emotive_score")
+  actingScore    Float? @map("acting_score")
+  entertainScore Float? @map("entertainment_score")
+  ratistRating   Float? @map("ratist_rating")
 
-  reviewText   String?  @map("review_text")
-  importSource     String?  @map("import_source") // "letterboxd" | "imdb" | "trakt" etc.
-  reviewType       String   @default("standard") @map("review_type") // "basic" | "standard" | "critic"
-  fieldComments    Json?    @map("field_comments") // critic mode: { "plot": "comment", ... }
-  categoryComments Json?    @map("category_comments") // critic mode: { "story": "comment", ... }
-  hasSpoilers      Boolean  @default(false) @map("has_spoilers")
-  commentsDisabled Boolean  @default(false) @map("comments_disabled")
-  excluded         Boolean  @default(false)
+  reviewText       String?   @map("review_text")
+  importSource     String?   @map("import_source") // "letterboxd" | "imdb" | "trakt" etc.
+  reviewType       String    @default("standard") @map("review_type") // "basic" | "standard" | "critic"
+  fieldComments    Json?     @map("field_comments") // critic mode: { "plot": "comment", ... }
+  categoryComments Json?     @map("category_comments") // critic mode: { "story": "comment", ... }
+  hasSpoilers      Boolean   @default(false) @map("has_spoilers")
+  commentsDisabled Boolean   @default(false) @map("comments_disabled")
+  excluded         Boolean   @default(false)
   excludedAt       DateTime? @map("excluded_at")
-  excludedReason   String?  @map("excluded_reason")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  excludedReason   String?   @map("excluded_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
@@ -721,23 +725,29 @@ model MovieRating {
 // ─── Unified Comments & Likes ─────────────────────────────────────────────────
 
 model Comment {
-  id         String    @id @default(cuid())
-  userId     String    @map("user_id")
-  targetType String    @map("target_type") // "review" | "blog" | "lookslike" | "recast" | "hottake" | "oscar_category"
-  targetId   String    @map("target_id")
-  parentId   String?   @map("parent_id")
-  text       String
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  targetType         String   @map("target_type") // "review" | "blog" | "lookslike" | "recast" | "hottake" | "oscar_category" | "collection"
+  targetId           String   @map("target_id")
+  parentId           String?  @map("parent_id")
+  text               String
   // Optional GIPHY URL — comments can be text-only, GIF-only, or both.
   // Server requires at least one to be non-empty at insert time.
-  gifUrl     String?   @map("gif_url")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  gifUrl             String?  @map("gif_url")
+  // Optional embedded collection ("reply with your own list"). When set, the
+  // comment renders the linked collection as a tappable mini-tile inline.
+  // SetNull on collection delete so the comment text survives.
+  linkedCollectionId String?  @map("linked_collection_id")
+  createdAt          DateTime @default(now()) @map("created_at")
 
-  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent  Comment?      @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
-  replies Comment[]     @relation("CommentThread")
-  likes   CommentLike[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent           Comment?          @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies          Comment[]         @relation("CommentThread")
+  likes            CommentLike[]
+  linkedCollection CustomCollection? @relation("CommentLinkedCollection", fields: [linkedCollectionId], references: [id], onDelete: SetNull)
 
   @@index([targetType, targetId])
+  @@index([linkedCollectionId])
   @@map("comments")
 }
 
@@ -768,11 +778,11 @@ model PostLike {
 model Notification {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
-  type       String   // "comment" | "reply" | "comment_like" | "post_like" | "milestone" | "watchlist_invite" | "invite_accepted"
+  type       String // "comment" | "reply" | "comment_like" | "post_like" | "milestone" | "watchlist_invite" | "invite_accepted"
   actorId    String?  @map("actor_id")
   targetType String?  @map("target_type")
   targetId   String?  @map("target_id")
-  link       String?  // URL to navigate to when clicked
+  link       String? // URL to navigate to when clicked
   message    String
   read       Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")
@@ -894,15 +904,15 @@ model WatchlistCollaborator {
 }
 
 model BlogPost {
-  id         String   @id @default(cuid())
-  authorId   String   @map("author_id")
-  type       PostType @default(BLOG)
-  title      String
-  slug       String   @unique
-  content    String   @db.Text
-  excerpt    String?
-  coverImage String?  @map("cover_image")
-  published  Boolean  @default(false)
+  id          String    @id @default(cuid())
+  authorId    String    @map("author_id")
+  type        PostType  @default(BLOG)
+  title       String
+  slug        String    @unique
+  content     String    @db.Text
+  excerpt     String?
+  coverImage  String?   @map("cover_image")
+  published   Boolean   @default(false)
   // The "go-live" timestamp. Set when the admin flips published=true,
   // and may be set to a FUTURE date for scheduled posts (Squarespace-
   // style). Public-facing queries filter publishedAt <= now() so a
@@ -911,14 +921,14 @@ model BlogPost {
   // unpublished. Existing rows are backfilled to createdAt by the
   // 20260501 migration so historical posts don't disappear.
   publishedAt DateTime? @map("published_at")
-  showAuthor Boolean  @default(true) @map("show_author")
-  viewCount  Int      @default(0) @map("view_count")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  showAuthor  Boolean   @default(true) @map("show_author")
+  viewCount   Int       @default(0) @map("view_count")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  media    BlogPostMedia[]
-  people   BlogPostPerson[]
+  author User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media  BlogPostMedia[]
+  people BlogPostPerson[]
 
   @@map("blog_posts")
 }
@@ -958,11 +968,11 @@ model BlogPostPerson {
 
 // Punch & Judy — structured debate per movie
 model PunchAndJudyDebate {
-  id        String   @id @default(cuid())
-  movieId   Int      @unique @map("movie_id") // TMDB id (no FK, avoids requiring movie in DB)
-  movieTitle String  @map("movie_title")
-  posterPath String? @map("poster_path")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  movieId    Int      @unique @map("movie_id") // TMDB id (no FK, avoids requiring movie in DB)
+  movieTitle String   @map("movie_title")
+  posterPath String?  @map("poster_path")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   arguments PunchAndJudyArgument[]
   votes     PunchAndJudyOverallVote[]
@@ -974,13 +984,13 @@ model PunchAndJudyArgument {
   id        String   @id @default(cuid())
   debateId  String   @map("debate_id")
   authorId  String   @map("author_id")
-  side      String   // "for" | "against"
+  side      String // "for" | "against"
   content   String
   createdAt DateTime @default(now()) @map("created_at")
 
-  debate    PunchAndJudyDebate  @relation(fields: [debateId], references: [id], onDelete: Cascade)
-  author    User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  helpfuls  PunchAndJudyHelpful[]
+  debate   PunchAndJudyDebate    @relation(fields: [debateId], references: [id], onDelete: Cascade)
+  author   User                  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  helpfuls PunchAndJudyHelpful[]
 
   @@map("punch_and_judy_arguments")
 }
@@ -1010,23 +1020,23 @@ model PunchAndJudyOverallVote {
 
 // Forums
 model ForumThread {
-  id          String   @id @default(cuid())
-  authorId    String   @map("author_id")
-  title       String
-  slug        String   @unique
-  threadType  String   @default("discussion") @map("thread_type") // "discussion" | "theory" | "poll" | "recommendation" | "debate"
-  hasSpoilers Boolean  @default(false) @map("has_spoilers")
-  isPinned    Boolean  @default(false) @map("is_pinned")
-  isLocked    Boolean  @default(false) @map("is_locked")
-  viewCount   Int      @default(0) @map("view_count")
-  opponentId  String?  @map("opponent_id") // debate threads: open challenge, anyone can claim
+  id               String    @id @default(cuid())
+  authorId         String    @map("author_id")
+  title            String
+  slug             String    @unique
+  threadType       String    @default("discussion") @map("thread_type") // "discussion" | "theory" | "poll" | "recommendation" | "debate"
+  hasSpoilers      Boolean   @default(false) @map("has_spoilers")
+  isPinned         Boolean   @default(false) @map("is_pinned")
+  isLocked         Boolean   @default(false) @map("is_locked")
+  viewCount        Int       @default(0) @map("view_count")
+  opponentId       String?   @map("opponent_id") // debate threads: open challenge, anyone can claim
   opponentJoinedAt DateTime? @map("opponent_joined_at") // when the challenger accepted
-  bootedUserIds String[] @default([]) @map("booted_user_ids") // users who were booted from this debate
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  bootedUserIds    String[]  @default([]) @map("booted_user_ids") // users who were booted from this debate
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  author      User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  opponent    User?              @relation("forumDebateOpponent", fields: [opponentId], references: [id], onDelete: SetNull)
+  author      User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  opponent    User?               @relation("forumDebateOpponent", fields: [opponentId], references: [id], onDelete: SetNull)
   posts       ForumPost[]
   media       ForumThreadMedia[]
   people      ForumThreadPerson[]
@@ -1050,8 +1060,8 @@ model ForumPost {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  thread    ForumThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  thread    ForumThread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author    User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   reactions ForumReaction[]
 
   @@index([threadId, createdAt])
@@ -1117,7 +1127,7 @@ model ForumPoll {
   id       String @id @default(cuid())
   threadId String @unique @map("thread_id")
 
-  thread  ForumThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread  ForumThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
   options ForumPollOption[]
 
   @@map("forum_polls")
@@ -1159,8 +1169,8 @@ model ForumDebateVote {
 }
 
 model ForumThreadView {
-  userId    String   @map("user_id")
-  threadId  String   @map("thread_id")
+  userId       String   @map("user_id")
+  threadId     String   @map("thread_id")
   lastViewedAt DateTime @default(now()) @map("last_viewed_at")
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1171,8 +1181,8 @@ model ForumThreadView {
 }
 
 model ForumThreadFollow {
-  userId   String   @map("user_id")
-  threadId String   @map("thread_id")
+  userId    String   @map("user_id")
+  threadId  String   @map("thread_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1186,15 +1196,15 @@ model ForumThreadFollow {
 
 // Looks Like
 model LooksLike {
-  id               String   @id @default(cuid())
-  creatorId        String   @map("creator_id")
-  tmdbPersonId1    Int      @map("tmdb_person_id_1")
-  name1            String
-  profilePath1     String?  @map("profile_path_1")
-  tmdbPersonId2    Int      @map("tmdb_person_id_2")
-  name2            String
-  profilePath2     String?  @map("profile_path_2")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  creatorId     String   @map("creator_id")
+  tmdbPersonId1 Int      @map("tmdb_person_id_1")
+  name1         String
+  profilePath1  String?  @map("profile_path_1")
+  tmdbPersonId2 Int      @map("tmdb_person_id_2")
+  name2         String
+  profilePath2  String?  @map("profile_path_2")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   creator User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   votes   LooksLikeVote[]
@@ -1206,7 +1216,7 @@ model LooksLike {
 model LooksLikeVote {
   userId      String @map("user_id")
   looksLikeId String @map("looks_like_id")
-  value       Int    // 1 = upvote, -1 = downvote
+  value       Int // 1 = upvote, -1 = downvote
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   looksLike LooksLike @relation(fields: [looksLikeId], references: [id], onDelete: Cascade)
@@ -1217,11 +1227,11 @@ model LooksLikeVote {
 
 // Oscar Picks
 model OscarYear {
-  id            String    @id @default(cuid())
-  year          Int       @unique
-  ceremonyDate  DateTime? @map("ceremony_date")
-  isComplete    Boolean   @default(false) @map("is_complete") // real ceremony already happened
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id           String    @id @default(cuid())
+  year         Int       @unique
+  ceremonyDate DateTime? @map("ceremony_date")
+  isComplete   Boolean   @default(false) @map("is_complete") // real ceremony already happened
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   categories OscarCategory[]
 
@@ -1235,7 +1245,7 @@ model OscarCategory {
   slug        String // e.g. "best-picture"
   sortOrder   Int    @default(0) @map("sort_order")
 
-  oscarYear   OscarYear      @relation(fields: [oscarYearId], references: [id], onDelete: Cascade)
+  oscarYear   OscarYear         @relation(fields: [oscarYearId], references: [id], onDelete: Cascade)
   nominees    OscarNominee[]
   votes       OscarVote[]
   suggestions OscarSuggestion[]
@@ -1245,13 +1255,13 @@ model OscarCategory {
 }
 
 model OscarNominee {
-  id             String  @id @default(cuid())
-  categoryId     String  @map("category_id")
-  tmdbMovieId    Int?    @map("tmdb_movie_id")
-  movieTitle     String  @map("movie_title")
-  posterPath     String? @map("poster_path")
-  nomineeDetail  String? @map("nominee_detail") // e.g. actor name for acting categories
-  isWinner       Boolean @default(false) @map("is_winner") // real Oscar winner
+  id            String  @id @default(cuid())
+  categoryId    String  @map("category_id")
+  tmdbMovieId   Int?    @map("tmdb_movie_id")
+  movieTitle    String  @map("movie_title")
+  posterPath    String? @map("poster_path")
+  nomineeDetail String? @map("nominee_detail") // e.g. actor name for acting categories
+  isWinner      Boolean @default(false) @map("is_winner") // real Oscar winner
 
   category OscarCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   votes    OscarVote[]
@@ -1273,19 +1283,19 @@ model OscarVote {
 }
 
 model OscarSuggestion {
-  id           String   @id @default(cuid())
-  categoryId   String   @map("category_id")
-  suggesterId  String   @map("suggester_id")
-  tmdbMovieId  Int      @map("tmdb_movie_id")
-  movieTitle   String   @map("movie_title")
-  posterPath   String?  @map("poster_path")
-  nomineeDetail String? @map("nominee_detail") // actor/director name for acting categories
-  isApproved   Boolean  @default(false) @map("is_approved") // true once auto-approved at threshold
-  isRejected   Boolean  @default(false) @map("is_rejected") // admin rejected
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  categoryId    String   @map("category_id")
+  suggesterId   String   @map("suggester_id")
+  tmdbMovieId   Int      @map("tmdb_movie_id")
+  movieTitle    String   @map("movie_title")
+  posterPath    String?  @map("poster_path")
+  nomineeDetail String?  @map("nominee_detail") // actor/director name for acting categories
+  isApproved    Boolean  @default(false) @map("is_approved") // true once auto-approved at threshold
+  isRejected    Boolean  @default(false) @map("is_rejected") // admin rejected
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  category  OscarCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  suggester User                 @relation("oscarSuggestions", fields: [suggesterId], references: [id], onDelete: Cascade)
+  category  OscarCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  suggester User                    @relation("oscarSuggestions", fields: [suggesterId], references: [id], onDelete: Cascade)
   seconds   OscarSuggestionSecond[]
 
   @@unique([categoryId, tmdbMovieId, nomineeDetail])
@@ -1293,12 +1303,12 @@ model OscarSuggestion {
 }
 
 model OscarSuggestionSecond {
-  userId       String @map("user_id")
-  suggestionId String @map("suggestion_id")
+  userId       String   @map("user_id")
+  suggestionId String   @map("suggestion_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  suggestion OscarSuggestion  @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestion OscarSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
 
   @@id([userId, suggestionId])
   @@map("oscar_suggestion_seconds")
@@ -1306,18 +1316,18 @@ model OscarSuggestionSecond {
 
 // Recast
 model Recast {
-  id                      String   @id @default(cuid())
-  creatorId               String   @map("creator_id")
-  tmdbMovieId             Int      @map("tmdb_movie_id")
-  movieTitle              String   @map("movie_title")
-  posterPath              String?  @map("poster_path")
-  characterName           String   @map("character_name")
-  originalActorName       String   @map("original_actor_name")
-  originalActorTmdbId     Int?     @map("original_actor_tmdb_id")
-  suggestedActorName      String   @map("suggested_actor_name")
-  suggestedActorTmdbId    Int?     @map("suggested_actor_tmdb_id")
-  suggestedActorProfile   String?  @map("suggested_actor_profile")
-  createdAt               DateTime @default(now()) @map("created_at")
+  id                    String   @id @default(cuid())
+  creatorId             String   @map("creator_id")
+  tmdbMovieId           Int      @map("tmdb_movie_id")
+  movieTitle            String   @map("movie_title")
+  posterPath            String?  @map("poster_path")
+  characterName         String   @map("character_name")
+  originalActorName     String   @map("original_actor_name")
+  originalActorTmdbId   Int?     @map("original_actor_tmdb_id")
+  suggestedActorName    String   @map("suggested_actor_name")
+  suggestedActorTmdbId  Int?     @map("suggested_actor_tmdb_id")
+  suggestedActorProfile String?  @map("suggested_actor_profile")
+  createdAt             DateTime @default(now()) @map("created_at")
 
   creator User         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   votes   RecastVote[]
@@ -1328,7 +1338,7 @@ model Recast {
 model RecastVote {
   userId   String @map("user_id")
   recastId String @map("recast_id")
-  value    Int    // 1 = agree, -1 = disagree
+  value    Int // 1 = agree, -1 = disagree
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   recast Recast @relation(fields: [recastId], references: [id], onDelete: Cascade)
@@ -1341,7 +1351,7 @@ model RecastVote {
 model HotTake {
   id        String   @id @default(cuid())
   authorId  String   @map("author_id")
-  content   String   // max 280 chars
+  content   String // max 280 chars
   createdAt DateTime @default(now()) @map("created_at")
 
   author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -1353,7 +1363,7 @@ model HotTake {
 model HotTakeVote {
   userId    String @map("user_id")
   hotTakeId String @map("hot_take_id")
-  value     Int    // 1 = "hot", -1 = "not"
+  value     Int // 1 = "hot", -1 = "not"
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   hotTake HotTake @relation(fields: [hotTakeId], references: [id], onDelete: Cascade)
@@ -1366,10 +1376,10 @@ model HotTakeVote {
 
 model CineQDaily {
   id         String   @id @default(cuid())
-  date       String   // "2026-04-06" (Pacific time)
-  mediaType  String   @map("media_type")  // "movie" | "tv" | "both"
-  difficulty String   // "easy" | "medium" | "hard"
-  questions  Json     // array of question objects (title, tmdbId, clues, options)
+  date       String // "2026-04-06" (Pacific time)
+  mediaType  String   @map("media_type") // "movie" | "tv" | "both"
+  difficulty String // "easy" | "medium" | "hard"
+  questions  Json // array of question objects (title, tmdbId, clues, options)
   createdAt  DateTime @default(now()) @map("created_at")
 
   attempts CineQAttempt[]
@@ -1381,13 +1391,13 @@ model CineQDaily {
 model CineQAttempt {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
-  dailyId    String?  @map("daily_id")  // null for practice mode
+  dailyId    String?  @map("daily_id") // null for practice mode
   mediaType  String   @map("media_type")
   difficulty String
   mode       String   @default("daily") // "daily" | "practice"
   status     String   @default("completed") // "in_progress" | "completed" | "abandoned"
   rawScore   Float    @default(0) @map("raw_score")
-  answers    Json?    // array of { questionIndex, correct, timeElapsed, wrongGuesses }
+  answers    Json? // array of { questionIndex, correct, timeElapsed, wrongGuesses }
   createdAt  DateTime @default(now()) @map("created_at")
 
   user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1400,39 +1410,39 @@ model CineQAttempt {
 // ─── Movie Club ──────────────────────────────────────────────────────────────
 
 model MovieClubWeek {
-  id            String   @id @default(cuid())
-  weekNumber    Int      @map("week_number")
-  startDate     String   @map("start_date")  // "2026-04-07" Monday
-  endDate       String   @map("end_date")    // "2026-04-13" Sunday
+  id         String @id @default(cuid())
+  weekNumber Int    @map("week_number")
+  startDate  String @map("start_date") // "2026-04-07" Monday
+  endDate    String @map("end_date") // "2026-04-13" Sunday
   // scheduled → voting (community_vote only, Mon-Tue) → watching (Wed or Mon) → discussion (Fri 8pm ET) → archived (next Mon)
-  status        String   @default("scheduled")
+  status     String @default("scheduled")
 
-  pickMethod    String   @default("random") @map("pick_method") // "admin" | "random" | "community_vote"
-  pickFilters   Json?    @map("pick_filters")
-  pickTeaser    String?  @map("pick_teaser")
-  revealEarly   Boolean  @default(false) @map("reveal_early") // show movie in Coming Up before week starts
+  pickMethod  String  @default("random") @map("pick_method") // "admin" | "random" | "community_vote"
+  pickFilters Json?   @map("pick_filters")
+  pickTeaser  String? @map("pick_teaser")
+  revealEarly Boolean @default(false) @map("reveal_early") // show movie in Coming Up before week starts
 
-  movieId       String?  @map("movie_id")
-  movieTmdbId   Int?     @map("movie_tmdb_id")
-  movieTitle    String?  @map("movie_title")
-  moviePoster   String?  @map("movie_poster")
+  movieId     String? @map("movie_id")
+  movieTmdbId Int?    @map("movie_tmdb_id")
+  movieTitle  String? @map("movie_title")
+  moviePoster String? @map("movie_poster")
 
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  movie         Movie?    @relation(fields: [movieId], references: [id])
-  ratings       MovieClubRating[]
-  nominations   MovieClubNomination[]
-  rewatchPolls  MovieClubRewatchPoll[]
+  movie        Movie?                 @relation(fields: [movieId], references: [id])
+  ratings      MovieClubRating[]
+  nominations  MovieClubNomination[]
+  rewatchPolls MovieClubRewatchPoll[]
 
   @@unique([weekNumber])
   @@map("movie_club_weeks")
 }
 
 model MovieClubMember {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  id       String   @id @default(cuid())
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1444,16 +1454,16 @@ model MovieClubRating {
   id           String   @id @default(cuid())
   userId       String   @map("user_id")
   weekId       String   @map("week_id")
-  rating       Float    // overall 1-10
-  reviewText   String?  @db.Text @map("review_text")
+  rating       Float // overall 1-10
+  reviewText   String?  @map("review_text") @db.Text
   reviewType   String   @default("quick") @map("review_type") // "quick" | "standard"
   formData     Json?    @map("form_data") // full rubric scores from ScreeningRateForm
   isRewatch    Boolean  @default(false) @map("is_rewatch")
   madeOfficial Boolean  @default(false) @map("made_official")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  week      MovieClubWeek           @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week      MovieClubWeek             @relation(fields: [weekId], references: [id], onDelete: Cascade)
   reactions MovieClubReviewReaction[]
 
   @@unique([userId, weekId])
@@ -1461,16 +1471,16 @@ model MovieClubRating {
 }
 
 model MovieClubNomination {
-  id        String   @id @default(cuid())
-  weekId    String   @map("week_id")
-  userId    String   @map("user_id")
-  tmdbId    Int      @map("tmdb_id")
-  title     String
-  posterPath String? @map("poster_path")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  weekId     String   @map("week_id")
+  userId     String   @map("user_id")
+  tmdbId     Int      @map("tmdb_id")
+  title      String
+  posterPath String?  @map("poster_path")
+  createdAt  DateTime @default(now()) @map("created_at")
 
-  week  MovieClubWeek          @relation(fields: [weekId], references: [id], onDelete: Cascade)
-  user  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  week  MovieClubWeek             @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  user  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   votes MovieClubNominationVote[]
 
   @@unique([weekId, tmdbId]) // no duplicate nominations per week
@@ -1491,10 +1501,10 @@ model MovieClubNominationVote {
 }
 
 model MovieClubRewatchPoll {
-  id       String @id @default(cuid())
-  userId   String @map("user_id")
-  weekId   String @map("week_id")
-  vote     String // "yes" | "no" | "maybe"
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  weekId String @map("week_id")
+  vote   String // "yes" | "no" | "maybe"
 
   user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   week MovieClubWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
@@ -1520,10 +1530,10 @@ model MovieClubReviewReaction {
 model MoviePitch {
   id          String   @id @default(cuid())
   authorId    String   @map("author_id")
-  title       String   // pitch title (max 100)
+  title       String // pitch title (max 100)
   description String   @db.Text // longer description (max 1000)
   mediaType   String   @default("movie") @map("media_type") // "movie" | "tv"
-  genre       String?  // optional genre tag
+  genre       String? // optional genre tag
   createdAt   DateTime @default(now()) @map("created_at")
 
   author User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -1535,7 +1545,7 @@ model MoviePitch {
 model MoviePitchVote {
   userId  String @map("user_id")
   pitchId String @map("pitch_id")
-  value   Int    // 1 = upvote, -1 = downvote
+  value   Int // 1 = upvote, -1 = downvote
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   pitch MoviePitch @relation(fields: [pitchId], references: [id], onDelete: Cascade)
@@ -1555,22 +1565,22 @@ enum ScreeningSessionStatus {
 }
 
 model ScreeningSession {
-  id          String                  @id @default(cuid())
-  hostId      String                  @map("host_id")
-  movieId     String?                 @map("movie_id")
-  tmdbId      Int?                    @map("tmdb_id")
-  movieTitle  String?                 @map("movie_title")
-  posterPath  String?                 @map("poster_path")
-  mediaType   String                  @default("movie") @map("media_type")
-  status      ScreeningSessionStatus  @default(LOBBY)
-  inviteCode  String                  @unique @map("invite_code")
-  startedAt   DateTime?               @map("started_at")
-  finishedAt  DateTime?               @map("finished_at")
-  createdAt   DateTime                @default(now()) @map("created_at")
-  updatedAt   DateTime                @updatedAt @map("updated_at")
+  id         String                 @id @default(cuid())
+  hostId     String                 @map("host_id")
+  movieId    String?                @map("movie_id")
+  tmdbId     Int?                   @map("tmdb_id")
+  movieTitle String?                @map("movie_title")
+  posterPath String?                @map("poster_path")
+  mediaType  String                 @default("movie") @map("media_type")
+  status     ScreeningSessionStatus @default(LOBBY)
+  inviteCode String                 @unique @map("invite_code")
+  startedAt  DateTime?              @map("started_at")
+  finishedAt DateTime?              @map("finished_at")
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
 
-  host           User                      @relation("screeningHost", fields: [hostId], references: [id], onDelete: Cascade)
-  movie          Movie?                    @relation(fields: [movieId], references: [id])
+  host           User                     @relation("screeningHost", fields: [hostId], references: [id], onDelete: Cascade)
+  movie          Movie?                   @relation(fields: [movieId], references: [id])
   participants   ScreeningParticipant[]
   predictions    ScreeningPrediction[]
   polls          ScreeningPoll[]
@@ -1616,7 +1626,7 @@ model ScreeningPoll {
   sessionId String    @map("session_id")
   creatorId String    @map("creator_id")
   question  String
-  options   Json      // string[]
+  options   Json // string[]
   votes     Json      @default("{}") // { [userId]: optionIndex }
   revealAt  String    @default("instant") @map("reveal_at") // "instant" | "end"
   closedAt  DateTime? @map("closed_at")
@@ -1632,7 +1642,7 @@ model ScreeningBookmark {
   id        String   @id @default(cuid())
   sessionId String   @map("session_id")
   userId    String   @map("user_id")
-  timestamp String   // movie timestamp e.g. "01:23:45"
+  timestamp String // movie timestamp e.g. "01:23:45"
   note      String?
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1643,15 +1653,15 @@ model ScreeningBookmark {
 }
 
 model ScreeningChatHighlight {
-  id           String   @id @default(cuid())
-  sessionId    String   @map("session_id")
-  userId       String   @map("user_id")
-  text         String
-  emoji        String?
-  reactCount   Int      @default(0) @map("react_count")  // total messages in this window
-  windowGroup  Int      @default(0) @map("window_group") // which burst this belongs to (0, 1, 2)
-  timestamp    DateTime
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  userId      String   @map("user_id")
+  text        String
+  emoji       String?
+  reactCount  Int      @default(0) @map("react_count") // total messages in this window
+  windowGroup Int      @default(0) @map("window_group") // which burst this belongs to (0, 1, 2)
+  timestamp   DateTime
+  createdAt   DateTime @default(now()) @map("created_at")
 
   session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1674,12 +1684,12 @@ model ScreeningRating {
   pacingClimax       Float? @map("pacing_climax")
 
   // Production & Style
-  cinematography   Float?
-  locationCost     Float? @map("location_costuming")
-  realism          Float? @map("realism_believability")
-  artisticEffect   Float? @map("artistic_effect")
-  visualEffects    Float? @map("visual_effects")
-  musicSound       Float? @map("music_sound")
+  cinematography Float?
+  locationCost   Float? @map("location_costuming")
+  realism        Float? @map("realism_believability")
+  artisticEffect Float? @map("artistic_effect")
+  visualEffects  Float? @map("visual_effects")
+  musicSound     Float? @map("music_sound")
 
   // Emotive Effect
   overallEmotion Float? @map("overall_emotion")
@@ -1688,10 +1698,10 @@ model ScreeningRating {
   movingness     Float?
 
   // Acting & Casting
-  casting            Float?
-  actingQuality      Float? @map("acting_quality")
-  dialogueScripting  Float? @map("dialogue_scripting")
-  blockingChoreo     Float? @map("blocking_choreography")
+  casting           Float?
+  actingQuality     Float? @map("acting_quality")
+  dialogueScripting Float? @map("dialogue_scripting")
+  blockingChoreo    Float? @map("blocking_choreography")
 
   // Pure Entertainment
   appeal            Float?
@@ -1709,7 +1719,7 @@ model ScreeningRating {
   entertainScore Float? @map("entertainment_score")
   ratistRating   Float? @map("ratist_rating")
 
-  reviewText String? @map("review_text")
+  reviewText String?  @map("review_text")
   createdAt  DateTime @default(now()) @map("created_at")
 
   session ScreeningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -1720,37 +1730,37 @@ model ScreeningRating {
 }
 
 model Report {
-  id          String   @id @default(cuid())
-  targetType  String   @map("target_type") // "review" | "comment" | "forumPost" | "hotTake" | "recast" | "looksLike"
-  targetId    String   @map("target_id")
-  reporterId  String   @map("reporter_id")
-  reason      String   // "spam" | "harassment" | "inappropriate" | "spoilers" | "other"
-  details     String?  // optional user-provided detail
-  status      String   @default("pending") // "pending" | "dismissed" | "removed" | "warned" | "banned"
-  resolvedBy  String?  @map("resolved_by") // admin user ID
-  resolvedAt  DateTime? @map("resolved_at")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String    @id @default(cuid())
+  targetType String    @map("target_type") // "review" | "comment" | "forumPost" | "hotTake" | "recast" | "looksLike"
+  targetId   String    @map("target_id")
+  reporterId String    @map("reporter_id")
+  reason     String // "spam" | "harassment" | "inappropriate" | "spoilers" | "other"
+  details    String? // optional user-provided detail
+  status     String    @default("pending") // "pending" | "dismissed" | "removed" | "warned" | "banned"
+  resolvedBy String?   @map("resolved_by") // admin user ID
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
-  reporter User @relation("reportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter User  @relation("reportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
   resolver User? @relation("reportsResolved", fields: [resolvedBy], references: [id], onDelete: SetNull)
 
   @@map("reports")
 }
 
 model Feedback {
-  id           String    @id @default(cuid())
-  userId       String?   @map("user_id") // null for non-logged-in users
-  email        String?   // for non-logged-in users or contact
-  category     String    // "bug" | "inaccurate_info" | "feature_request" | "account_issue" | "content_issue" | "other"
-  message      String    @db.Text
-  status       String    @default("open") // "open" | "in_progress" | "resolved" | "closed"
-  adminReply   String?   @db.Text @map("admin_reply")
-  repliedBy    String?   @map("replied_by")
-  repliedAt    DateTime? @map("replied_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id         String    @id @default(cuid())
+  userId     String?   @map("user_id") // null for non-logged-in users
+  email      String? // for non-logged-in users or contact
+  category   String // "bug" | "inaccurate_info" | "feature_request" | "account_issue" | "content_issue" | "other"
+  message    String    @db.Text
+  status     String    @default("open") // "open" | "in_progress" | "resolved" | "closed"
+  adminReply String?   @map("admin_reply") @db.Text
+  repliedBy  String?   @map("replied_by")
+  repliedAt  DateTime? @map("replied_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
-  user     User? @relation("feedbackSubmitted", fields: [userId], references: [id], onDelete: SetNull)
-  replier  User? @relation("feedbackReplied", fields: [repliedBy], references: [id], onDelete: SetNull)
+  user    User? @relation("feedbackSubmitted", fields: [userId], references: [id], onDelete: SetNull)
+  replier User? @relation("feedbackReplied", fields: [repliedBy], references: [id], onDelete: SetNull)
 
   @@map("feedback")
 }
@@ -1763,18 +1773,18 @@ model Feedback {
 // address, so we only track internal notes + handler audit, not an
 // in-app reply thread.
 model Contact {
-  id          String    @id @default(cuid())
-  name        String
-  email       String
-  company     String?
-  category    String    // "general" | "advertising" | "press" | "partnerships" | "dmca" | "other"
-  subject     String?
-  message     String    @db.Text
-  status      String    @default("open") // "open" | "in_progress" | "resolved" | "closed"
-  adminNotes  String?   @db.Text @map("admin_notes")
-  handledBy   String?   @map("handled_by")
-  handledAt   DateTime? @map("handled_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id         String    @id @default(cuid())
+  name       String
+  email      String
+  company    String?
+  category   String // "general" | "advertising" | "press" | "partnerships" | "dmca" | "other"
+  subject    String?
+  message    String    @db.Text
+  status     String    @default("open") // "open" | "in_progress" | "resolved" | "closed"
+  adminNotes String?   @map("admin_notes") @db.Text
+  handledBy  String?   @map("handled_by")
+  handledAt  DateTime? @map("handled_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   handler User? @relation("contactHandled", fields: [handledBy], references: [id], onDelete: SetNull)
 
@@ -1801,7 +1811,7 @@ model PostIdea {
   personProfilePath String? @map("person_profile_path")
 
   status     String    @default("pending") // "pending" | "accepted" | "rejected" | "completed"
-  adminNotes String?   @db.Text @map("admin_notes")
+  adminNotes String?   @map("admin_notes") @db.Text
   reviewedBy String?   @map("reviewed_by")
   reviewedAt DateTime? @map("reviewed_at")
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -1817,19 +1827,55 @@ model PostIdea {
 // User-saved AI-generated collections. The items array is a frozen snapshot
 // so we can render saved collections without re-hitting TMDB for metadata.
 model CustomCollection {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  name        String
-  description String?  @db.Text
-  prompt      String   @db.Text
-  mediaType   String   @default("movie") @map("media_type") // "movie" | "tv" | "any"
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  name          String
+  description   String?   @db.Text
+  prompt        String    @db.Text
+  mediaType     String    @default("movie") @map("media_type") // "movie" | "tv" | "any"
+  // "private" (default) — only the owner sees it. AI-built collections stay
+  // here unless the owner opts in. "public" — listed in the community feed,
+  // commentable, saveable. "unlisted" — accessible by direct URL but not
+  // surfaced in the feed; used when a curator wants to share a draft link
+  // without committing to public discovery.
+  visibility    String    @default("private")
+  // Slug + publishedAt are set together when a collection is published. Both
+  // null means draft/private. Slug is unique per user so two curators can use
+  // the same human-readable name.
+  slug          String?
+  publishedAt   DateTime? @map("published_at")
+  // Optional hero image (TMDB backdrop path or uploaded asset).
+  coverPath     String?   @map("cover_path")
+  // FK to an admin-authored theme prompt the curator was responding to.
+  // Drives the "Theme" tab on the community feed (Phase 3 UI; column ships
+  // now so we don't need a follow-up migration).
+  themePromptId String?   @map("theme_prompt_id")
+  // Admin-flagged "official" curation. The collection still has a userId
+  // (every row needs an author), but the public-facing UI suppresses the
+  // curator's name in favour of "Curated by Ratist" attribution and the
+  // Featured tab pulls from this flag instead of curator.isAdmin.
+  isOfficial    Boolean   @default(false) @map("is_official")
+  // Denormalized engagement counts kept in sync by the save toggle / view
+  // tracker. Used for popular-sort and milestone notifications.
+  saveCount     Int       @default(0) @map("save_count")
+  viewCount     Int       @default(0) @map("view_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  user  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items CustomCollectionItem[]
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  themePrompt CollectionPrompt?      @relation(fields: [themePromptId], references: [id], onDelete: SetNull)
+  items       CustomCollectionItem[]
+  tags        CollectionTag[]
+  saves       CollectionSave[]
+  comments    Comment[]              @relation("CommentLinkedCollection")
+  matchCache  CollectionMatchCache[]
 
+  @@unique([userId, slug])
   @@index([userId, createdAt])
+  @@index([visibility, publishedAt])
+  @@index([visibility, saveCount])
+  @@index([themePromptId])
+  @@index([isOfficial, publishedAt])
   @@map("custom_collections")
 }
 
@@ -1843,6 +1889,9 @@ model CustomCollectionItem {
   releaseDate  String? @map("release_date")
   voteAverage  Float?  @map("vote_average")
   sortOrder    Int     @default(0) @map("sort_order")
+  // Curator's per-entry note ("why this one"). Surfaced inline in the
+  // public detail view; nullable so AI-built items don't need to backfill.
+  blurb        String? @db.Text
 
   collection CustomCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
@@ -1851,19 +1900,98 @@ model CustomCollectionItem {
   @@map("custom_collection_items")
 }
 
+// Free-form lowercase tags on a collection. Mirrors ForumThreadTag —
+// sanitized client-side ([a-z0-9-]), no admin allowlist. Only public
+// collections expose tags in the community feed.
+model CollectionTag {
+  id           String @id @default(cuid())
+  collectionId String @map("collection_id")
+  tag          String
+
+  collection CustomCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, tag])
+  @@index([tag])
+  @@map("collection_tags")
+}
+
+// Bookmark / "I want to come back to this" on a public collection.
+// Drives popular-sort (saveCount denormalized on the parent) and
+// milestone notifications.
+model CollectionSave {
+  userId       String   @map("user_id")
+  collectionId String   @map("collection_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection CustomCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, collectionId])
+  @@index([userId, createdAt])
+  @@index([collectionId, createdAt])
+  @@map("collection_saves")
+}
+
+// Cached per-user match score for a collection (0-100 or null when not
+// enough community data exists to predict). Computed lazily on first
+// feed view via getOrComputeMatchScoresBatch and invalidated on item
+// changes (collection-side) or profile rebuild (user-side).
+model CollectionMatchCache {
+  userId       String   @map("user_id")
+  collectionId String   @map("collection_id")
+  // Caching null avoids redundant compute when the prediction returns
+  // nothing — e.g. a user with no profile yet, or a collection of
+  // movies with no community ratings. Refresh happens on cache wipe.
+  score        Int?
+  computedAt   DateTime @default(now()) @map("computed_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection CustomCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, collectionId])
+  // Wipe-by-collection (item changes) and wipe-by-user (profile rebuild).
+  @@index([collectionId])
+  // Match-tab orderBy uses (userId, score desc).
+  @@index([userId, score])
+  @@map("collection_match_cache")
+}
+
+// Admin-authored themed prompts ("Films that aged like wine"). Curators
+// respond by tagging their collection with the prompt; the Theme tab on
+// the community feed groups responses.
+// Phase 3 surfaces this in admin UI; Phase 1 ships the table only.
+model CollectionPrompt {
+  id          String    @id @default(cuid())
+  title       String
+  description String?   @db.Text
+  activeFrom  DateTime? @map("active_from")
+  activeTo    DateTime? @map("active_to")
+  featured    Boolean   @default(false)
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  createdBy   User?              @relation("CollectionPromptAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  collections CustomCollection[]
+
+  @@index([activeFrom, activeTo])
+  @@index([featured])
+  @@map("collection_prompts")
+}
+
 // Cached parents'-guide severities (from DoesTheDogDie) per movie. Written
 // through on every /api/movies/[id]/parents-guide fetch so values track live
 // DDD vote data. Read by AI filter routes without triggering DDD calls.
 model MovieParentsGuide {
-  tmdbId                     Int      @id @map("tmdb_id")
-  violenceSeverity           String   @map("violence_severity") // "none" | "mild" | "mild-moderate" | "moderate" | "moderate-severe" | "severe"
-  sexualSeverity             String   @map("sexual_severity")
-  languageSubstanceSeverity  String   @map("language_substance_severity")
-  scaryIntenseSeverity       String   @map("scary_intense_severity")
-  sensitiveThemesSeverity    String   @map("sensitive_themes_severity")
-  totalVoters                Int      @default(0) @map("total_voters")
-  limitedData                Boolean  @default(false) @map("limited_data")
-  fetchedAt                  DateTime @default(now()) @map("fetched_at")
+  tmdbId                    Int      @id @map("tmdb_id")
+  violenceSeverity          String   @map("violence_severity") // "none" | "mild" | "mild-moderate" | "moderate" | "moderate-severe" | "severe"
+  sexualSeverity            String   @map("sexual_severity")
+  languageSubstanceSeverity String   @map("language_substance_severity")
+  scaryIntenseSeverity      String   @map("scary_intense_severity")
+  sensitiveThemesSeverity   String   @map("sensitive_themes_severity")
+  totalVoters               Int      @default(0) @map("total_voters")
+  limitedData               Boolean  @default(false) @map("limited_data")
+  fetchedAt                 DateTime @default(now()) @map("fetched_at")
 
   @@map("movie_parents_guides")
 }
@@ -1888,7 +2016,7 @@ model ReviewDigest {
 model AiUsageLog {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
-  feature   String   // e.g. "recommend"
+  feature   String // e.g. "recommend"
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1922,9 +2050,9 @@ model SiteSpotlight {
 model AdminLog {
   id        String   @id @default(cuid())
   adminId   String   @map("admin_id")
-  action    String   // "ban" | "unban" | "softDelete" | "restore" | "permanentDelete" | "toggleAdmin" | "removeContent" | "notify" | "resolveReport"
-  targetId  String?  @map("target_id")   // user or report ID
-  details   String?  // description of what happened
+  action    String // "ban" | "unban" | "softDelete" | "restore" | "permanentDelete" | "toggleAdmin" | "removeContent" | "notify" | "resolveReport"
+  targetId  String?  @map("target_id") // user or report ID
+  details   String? // description of what happened
   createdAt DateTime @default(now()) @map("created_at")
 
   admin User @relation("adminLogs", fields: [adminId], references: [id], onDelete: Cascade)
@@ -1938,7 +2066,7 @@ model AdminLog {
 model UserBadge {
   id       String   @id @default(cuid())
   userId   String   @map("user_id")
-  slug     String   // matches code-side badge registry key
+  slug     String // matches code-side badge registry key
   earnedAt DateTime @default(now()) @map("earned_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1952,9 +2080,9 @@ model UserBadge {
 
 model AwardBody {
   id         String   @id @default(cuid())
-  slug       String   @unique                  // "oscar", "golden-globe", "bafta", "sag", "cannes"
-  name       String                             // "Academy Awards"
-  shortName  String   @map("short_name")        // "Oscar"
+  slug       String   @unique // "oscar", "golden-globe", "bafta", "sag", "cannes"
+  name       String // "Academy Awards"
+  shortName  String   @map("short_name") // "Oscar"
   wikidataId String?  @unique @map("wikidata_id") // Q19020 for Oscars
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -1964,12 +2092,12 @@ model AwardBody {
 }
 
 model AwardCategory {
-  id          String @id @default(cuid())
-  awardBodyId String @map("award_body_id")
+  id          String  @id @default(cuid())
+  awardBodyId String  @map("award_body_id")
   slug        String // "best-picture", "best-director"
   name        String // "Best Picture"
   wikidataId  String? @map("wikidata_id")
-  sortOrder   Int    @default(0) @map("sort_order")
+  sortOrder   Int     @default(0) @map("sort_order")
 
   awardBody   AwardBody         @relation(fields: [awardBodyId], references: [id], onDelete: Cascade)
   nominations AwardNomination[]
@@ -1979,23 +2107,23 @@ model AwardCategory {
 }
 
 model AwardNomination {
-  id           String  @id @default(cuid())
-  categoryId   String  @map("category_id")
-  isWinner     Boolean @default(false) @map("is_winner")
-  year         Int?
-  ceremony     String?
+  id         String  @id @default(cuid())
+  categoryId String  @map("category_id")
+  isWinner   Boolean @default(false) @map("is_winner")
+  year       Int?
+  ceremony   String?
 
   // Polymorphic subject — the entity that was nominated/won
-  movieId      String? @map("movie_id")
-  tvShowId     String? @map("tv_show_id")
-  celebrityId  String? @map("celebrity_id")
+  movieId     String? @map("movie_id")
+  tvShowId    String? @map("tv_show_id")
+  celebrityId String? @map("celebrity_id")
 
   // "For work" reference — person won award FOR this specific film/show
-  forMovieId   String? @map("for_movie_id")
-  forTvShowId  String? @map("for_tv_show_id")
+  forMovieId  String? @map("for_movie_id")
+  forTvShowId String? @map("for_tv_show_id")
 
-  wikidataId   String? @map("wikidata_id") // for dedup during import
-  dedupKey     String  @unique @map("dedup_key") // computed key for upsert dedup
+  wikidataId String? @map("wikidata_id") // for dedup during import
+  dedupKey   String  @unique @map("dedup_key") // computed key for upsert dedup
 
   category  AwardCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   movie     Movie?        @relation("movieAwards", fields: [movieId], references: [id], onDelete: Cascade)
@@ -2003,6 +2131,7 @@ model AwardNomination {
   celebrity Celebrity?    @relation("celebrityAwards", fields: [celebrityId], references: [id], onDelete: Cascade)
   forMovie  Movie?        @relation("forWorkMovie", fields: [forMovieId], references: [id], onDelete: SetNull)
   forTvShow TVShow?       @relation("forWorkTvShow", fields: [forTvShowId], references: [id], onDelete: SetNull)
+
   @@index([movieId])
   @@index([tvShowId])
   @@index([celebrityId])
@@ -2043,26 +2172,25 @@ model NewsItem {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  authorId    String?      @map("author_id")
-  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId String? @map("author_id")
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
-  movieTmdbId Int?         @map("movie_tmdb_id")
-  showTmdbId  Int?         @map("show_tmdb_id")
-  posterPath  String?      @map("poster_path")
+  movieTmdbId Int?    @map("movie_tmdb_id")
+  showTmdbId  Int?    @map("show_tmdb_id")
+  posterPath  String? @map("poster_path")
 
-  youtubeKey  String?      @map("youtube_key")
-  sourceUrl   String?      @map("source_url")
-  sourceName  String?      @map("source_name")
-  meta        Json?
+  youtubeKey String? @map("youtube_key")
+  sourceUrl  String? @map("source_url")
+  sourceName String? @map("source_name")
+  meta       Json?
 
-  showAuthor  Boolean      @default(true) @map("show_author")
-  externalKey String?      @unique @map("external_key")
-  viewCount   Int          @default(0) @map("view_count")
-
-  @@index([published, publishedAt])
+  showAuthor  Boolean          @default(true) @map("show_author")
+  externalKey String?          @unique @map("external_key")
+  viewCount   Int              @default(0) @map("view_count")
   media       NewsItemMedia[]
   people      NewsItemPerson[]
 
+  @@index([published, publishedAt])
   @@index([type, published])
   @@map("news_items")
 }
@@ -2116,26 +2244,26 @@ model RssHeadline {
 // ─── Fraud Detection ──────────────────────────────────────────────────────────
 
 model FraudFlag {
-  id          String   @id @default(cuid())
-  type        String   // "duplicate_cluster" | "review_bomb" | "thin_account"
-  status      String   @default("open") // "open" | "excluded" | "dismissed"
-  severity    String   @default("medium") // "low" | "medium" | "high"
+  id       String @id @default(cuid())
+  type     String // "duplicate_cluster" | "review_bomb" | "thin_account"
+  status   String @default("open") // "open" | "excluded" | "dismissed"
+  severity String @default("medium") // "low" | "medium" | "high"
 
   // For duplicate_cluster: JSON array of user IDs in the cluster
   // For review_bomb: the target movie/show tmdb ID
   // For thin_account: the user ID
-  userIds     Json     @map("user_ids") // string[]
-  targetType  String?  @map("target_type") // "movie" | "show" | null
-  targetId    String?  @map("target_id") // movie or tvShow DB id
+  userIds    Json    @map("user_ids") // string[]
+  targetType String? @map("target_type") // "movie" | "show" | null
+  targetId   String? @map("target_id") // movie or tvShow DB id
 
   // Evidence snapshot
-  evidence    Json     // { matchRate, sharedCount, ratings, ... }
+  evidence Json // { matchRate, sharedCount, ratings, ... }
 
-  resolvedAt  DateTime? @map("resolved_at")
-  resolvedBy  String?   @map("resolved_by") // admin user ID
+  resolvedAt DateTime? @map("resolved_at")
+  resolvedBy String?   @map("resolved_by") // admin user ID
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status, type])
   @@map("fraud_flags")
@@ -2147,22 +2275,22 @@ model FraudFlag {
 // the same companion record; seasonsGenerated tracks which are populated.
 
 model WatchCompanion {
-  id             String   @id @default(cuid())
-  tmdbId         Int      @map("tmdb_id")
-  mediaType      String   @map("media_type") // "movie" | "tv"
-  title          String   // snapshot of movie/show title at generation time
-  runtimeSeconds Int?     @map("runtime_seconds") // for movies — spoiler-slider max
+  id               String @id @default(cuid())
+  tmdbId           Int    @map("tmdb_id")
+  mediaType        String @map("media_type") // "movie" | "tv"
+  title            String // snapshot of movie/show title at generation time
+  runtimeSeconds   Int?   @map("runtime_seconds") // for movies — spoiler-slider max
   seasonsGenerated Int[]  @default([]) @map("seasons_generated") // for tv — which seasons have been populated
 
   // Published/draft workflow. Drafts exist only for admin review; published
   // companions render publicly on the show/movie page.
-  status         String   @default("draft") // "draft" | "published"
-  generatedBy    String?  @map("generated_by") // userId who triggered the first generation
+  status          String    @default("draft") // "draft" | "published"
+  generatedBy     String?   @map("generated_by") // userId who triggered the first generation
   lastGeneratedAt DateTime? @map("last_generated_at")
-  publishedAt    DateTime? @map("published_at")
+  publishedAt     DateTime? @map("published_at")
 
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Recap blob for the "what happened previously" tab. Movies store
   //   { current: { title, year, text }, prior: [{tmdbId, title, year, text}, ...] }
@@ -2173,16 +2301,16 @@ model WatchCompanion {
   // reveal button on the public viewer because the recap intentionally
   // contains full spoilers — it's a "catch me up before the next
   // installment" tool, not a slider-gated discovery surface.
-  recaps      Json?
-  generator   User? @relation("companionGenerator", fields: [generatedBy], references: [id], onDelete: SetNull)
-  characters  CompanionCharacter[]
+  recaps        Json?
+  generator     User?                    @relation("companionGenerator", fields: [generatedBy], references: [id], onDelete: SetNull)
+  characters    CompanionCharacter[]
   relationships CompanionRelationship[]
-  timeline    CompanionTimelineEvent[]
-  glossary    CompanionGlossaryTerm[]
-  suggestions CompanionSuggestion[]
-  ratings     WatchCompanionRating[]
+  timeline      CompanionTimelineEvent[]
+  glossary      CompanionGlossaryTerm[]
+  suggestions   CompanionSuggestion[]
+  ratings       WatchCompanionRating[]
   airingSeasons CompanionAiringSeason[]
-  follows     CompanionFollow[]
+  follows       CompanionFollow[]
 
   @@unique([tmdbId, mediaType])
   @@index([status])
@@ -2197,18 +2325,18 @@ model WatchCompanion {
 // companion delete; SetNull on user delete so admin can still see
 // historical feedback after an account is removed.
 model WatchCompanionRating {
-  id          String   @id @default(cuid())
-  companionId String   @map("companion_id")
-  userId      String?  @map("user_id")
+  id           String   @id @default(cuid())
+  companionId  String   @map("companion_id")
+  userId       String?  @map("user_id")
   // Season scope. 0 for movies (no seasons), 1+ for TV seasons. Lets a
   // viewer rate Season 1 of GoT positively and Season 2 negatively as
   // independent votes — the unique constraint is per-season so the
   // upsert in the rate endpoint targets the right row.
-  seasonNumber Int     @default(0) @map("season_number")
-  vote        Int      // 1 (thumbs up) or -1 (thumbs down)
-  comment     String?  @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  seasonNumber Int      @default(0) @map("season_number")
+  vote         Int // 1 (thumbs up) or -1 (thumbs down)
+  comment      String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
   user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -2223,30 +2351,30 @@ model WatchCompanionRating {
 // arcs, deaths) live in CompanionFact with per-moment visibleAfter.
 
 model CompanionCharacter {
-  id           String @id @default(cuid())
-  companionId  String @map("companion_id")
+  id              String  @id @default(cuid())
+  companionId     String  @map("companion_id")
   // Per-season ownership for TV companions. Null for movies. A character who
   // appears in S1 and S2 exists as TWO rows (one per season) so the
   // regeneration of S2 leaves S1 untouched and each season's row can carry
   // a different baseDescription / facts / imageUrl snapshot.
-  seasonNumber Int?   @map("season_number")
-  name         String
+  seasonNumber    Int?    @map("season_number")
+  name            String
   // Primary actor — kept for backward compatibility with pre-multi-actor
   // data and as a fallback when the CompanionCharacterActor side-table is
   // empty. New generations populate this with the earliest (first-visible)
   // actor and ALSO write the full list to the side-table.
-  actorName    String? @map("actor_name")
-  actorTmdbId  Int?    @map("actor_tmdb_id")
-  baseDescription String @db.Text @map("base_description")
+  actorName       String? @map("actor_name")
+  actorTmdbId     Int?    @map("actor_tmdb_id")
+  baseDescription String  @map("base_description") @db.Text
 
   // When the character first appears. For movies: seconds into runtime.
   // For shows: { season, episode, seconds? }.
-  visibleAfter Json   @map("visible_after") // { seconds?, season?, episode? }
+  visibleAfter Json @map("visible_after") // { seconds?, season?, episode? }
 
   // Optional primary faction / group (for coloring in diagrams — "Waystar",
   // "House Stark", etc.)
-  group        String?
-  imageUrl     String? @map("image_url") // headshot; usually TMDB profile path
+  group    String?
+  imageUrl String? @map("image_url") // headshot; usually TMDB profile path
 
   // Alias names for twist-reveal characters. Array of { name, visibleAfter }
   // where each entry is the name the character is known by after its reveal
@@ -2255,7 +2383,7 @@ model CompanionCharacter {
   // Example: Star Trek Into Darkness —
   //   name: "John Harrison"
   //   nameAliases: [{ name: "Khan", visibleAfter: { seconds: 6300 } }]
-  nameAliases  Json?  @map("name_aliases")
+  nameAliases Json? @map("name_aliases")
 
   // Group/faction history for characters who switch sides or have hidden
   // allegiances. Same shape as nameAliases — array of { group, visibleAfter }.
@@ -2265,15 +2393,15 @@ model CompanionCharacter {
   //     { group: "Order of the Phoenix", visibleAfter: <reveal moment> }
   //   - FN-2187 → Finn: group "First Order", groupHistory entry
   //     { group: "Resistance", visibleAfter: <defection moment> }
-  groupHistory Json?  @map("group_history")
+  groupHistory Json? @map("group_history")
 
-  sortOrder    Int     @default(0) @map("sort_order")
+  sortOrder Int @default(0) @map("sort_order")
 
-  companion    WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
-  actors       CompanionCharacterActor[]
-  facts        CompanionFact[]
-  fromRelationships CompanionRelationship[] @relation("relFrom")
-  toRelationships   CompanionRelationship[] @relation("relTo")
+  companion         WatchCompanion            @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  actors            CompanionCharacterActor[]
+  facts             CompanionFact[]
+  fromRelationships CompanionRelationship[]   @relation("relFrom")
+  toRelationships   CompanionRelationship[]   @relation("relTo")
 
   @@index([companionId])
   @@index([companionId, seasonNumber])
@@ -2287,18 +2415,18 @@ model CompanionCharacter {
 // its own visibleAfter so the viewer can unlock actors one at a time as
 // the story reveals them.
 model CompanionCharacterActor {
-  id           String @id @default(cuid())
-  characterId  String @map("character_id")
-  actorName    String @map("actor_name")
-  actorTmdbId  Int?   @map("actor_tmdb_id")
+  id           String  @id @default(cuid())
+  characterId  String  @map("character_id")
+  actorName    String  @map("actor_name")
+  actorTmdbId  Int?    @map("actor_tmdb_id")
   // Human-readable context label: "young", "adult", "elderly", "twin",
   // etc. Null for single-actor characters where the label would be noise.
   note         String?
   // When this actor's version of the character is first revealed on-screen.
-  visibleAfter Json   @map("visible_after")
-  sortOrder    Int    @default(0) @map("sort_order")
+  visibleAfter Json    @map("visible_after")
+  sortOrder    Int     @default(0) @map("sort_order")
 
-  character    CompanionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  character CompanionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@index([characterId])
   @@map("companion_character_actors")
@@ -2309,32 +2437,32 @@ model CompanionCharacterActor {
 // community suggestions can target a specific fact.
 
 model CompanionFact {
-  id          String @id @default(cuid())
-  characterId String @map("character_id")
-  fact        String @db.Text
-  factType    String @map("fact_type") // "role_change" | "relationship_change" | "arc" | "death" | "reveal" | "other"
-  visibleAfter Json  @map("visible_after")
+  id           String @id @default(cuid())
+  characterId  String @map("character_id")
+  fact         String @db.Text
+  factType     String @map("fact_type") // "role_change" | "relationship_change" | "arc" | "death" | "reveal" | "other"
+  visibleAfter Json   @map("visible_after")
 
-  character   CompanionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  character CompanionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@index([characterId])
   @@map("companion_facts")
 }
 
 model CompanionRelationship {
-  id          String @id @default(cuid())
-  companionId String @map("companion_id")
-  seasonNumber Int?  @map("season_number") // null for movies; required for TV
-  fromCharacterId String @map("from_character_id")
-  toCharacterId   String @map("to_character_id")
-  relationshipType String @map("relationship_type") // "family" | "romantic" | "business" | "rivalry" | "alliance" | "mentor" | "other"
-  label       String // human-readable: "father of", "ex-wife", "reports to", "rival"
-  visibleAfter Json @map("visible_after")
-  directed    Boolean @default(true) // false for symmetric (siblings, allies)
+  id               String  @id @default(cuid())
+  companionId      String  @map("companion_id")
+  seasonNumber     Int?    @map("season_number") // null for movies; required for TV
+  fromCharacterId  String  @map("from_character_id")
+  toCharacterId    String  @map("to_character_id")
+  relationshipType String  @map("relationship_type") // "family" | "romantic" | "business" | "rivalry" | "alliance" | "mentor" | "other"
+  label            String // human-readable: "father of", "ex-wife", "reports to", "rival"
+  visibleAfter     Json    @map("visible_after")
+  directed         Boolean @default(true) // false for symmetric (siblings, allies)
 
-  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
-  from        CompanionCharacter @relation("relFrom", fields: [fromCharacterId], references: [id], onDelete: Cascade)
-  to          CompanionCharacter @relation("relTo", fields: [toCharacterId], references: [id], onDelete: Cascade)
+  companion WatchCompanion     @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  from      CompanionCharacter @relation("relFrom", fields: [fromCharacterId], references: [id], onDelete: Cascade)
+  to        CompanionCharacter @relation("relTo", fields: [toCharacterId], references: [id], onDelete: Cascade)
 
   @@index([companionId])
   @@index([companionId, seasonNumber])
@@ -2342,15 +2470,15 @@ model CompanionRelationship {
 }
 
 model CompanionTimelineEvent {
-  id          String @id @default(cuid())
-  companionId String @map("companion_id")
-  seasonNumber Int?  @map("season_number") // null for movies; required for TV
-  description String @db.Text
-  visibleAfter Json  @map("visible_after")
+  id           String   @id @default(cuid())
+  companionId  String   @map("companion_id")
+  seasonNumber Int?     @map("season_number") // null for movies; required for TV
+  description  String   @db.Text
+  visibleAfter Json     @map("visible_after")
   characterIds String[] @default([]) @map("character_ids") // which characters are involved
-  importance  Int     @default(3) // 1-5 — drives filtering ("show only major beats")
+  importance   Int      @default(3) // 1-5 — drives filtering ("show only major beats")
 
-  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
 
   @@index([companionId])
   @@index([companionId, seasonNumber])
@@ -2358,16 +2486,16 @@ model CompanionTimelineEvent {
 }
 
 model CompanionGlossaryTerm {
-  id          String @id @default(cuid())
-  companionId String @map("companion_id")
-  seasonNumber Int?  @map("season_number") // null for movies; required for TV
-  term        String
-  definition  String @db.Text
-  visibleAfter Json @map("visible_after")
-  category    String? // "world" | "faction" | "jargon" | "concept"
-  sortOrder   Int    @default(0) @map("sort_order") // Claude orders most-obscure-first; preserved at write time
+  id           String  @id @default(cuid())
+  companionId  String  @map("companion_id")
+  seasonNumber Int?    @map("season_number") // null for movies; required for TV
+  term         String
+  definition   String  @db.Text
+  visibleAfter Json    @map("visible_after")
+  category     String? // "world" | "faction" | "jargon" | "concept"
+  sortOrder    Int     @default(0) @map("sort_order") // Claude orders most-obscure-first; preserved at write time
 
-  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
 
   @@index([companionId])
   @@index([companionId, seasonNumber])
@@ -2380,19 +2508,19 @@ model CompanionGlossaryTerm {
 // the ask. When the resulting companion ships to "published", any still-open
 // requests targeting that (tmdbId, mediaType, season) get notified.
 model CompanionGenerationRequest {
-  id             String   @id @default(cuid())
-  requesterId    String   @map("requester_id")
-  tmdbId         Int      @map("tmdb_id")
-  mediaType      String   @map("media_type") // "movie" | "tv"
-  season         Int?     // null for movies; required for tv
-  rationale      String?  @db.Text // optional user note ("why I want this")
-  status         String   @default("pending") // "pending" | "approved" | "denied" | "fulfilled"
-  resolvedById   String?  @map("resolved_by_id")
-  resolvedAt     DateTime? @map("resolved_at")
-  denyReason     String?  @db.Text @map("deny_reason")
-  companionId    String?  @map("companion_id") // set when published so notify step can link to it
-  notifiedAt     DateTime? @map("notified_at")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id           String    @id @default(cuid())
+  requesterId  String    @map("requester_id")
+  tmdbId       Int       @map("tmdb_id")
+  mediaType    String    @map("media_type") // "movie" | "tv"
+  season       Int? // null for movies; required for tv
+  rationale    String?   @db.Text // optional user note ("why I want this")
+  status       String    @default("pending") // "pending" | "approved" | "denied" | "fulfilled"
+  resolvedById String?   @map("resolved_by_id")
+  resolvedAt   DateTime? @map("resolved_at")
+  denyReason   String?   @map("deny_reason") @db.Text
+  companionId  String?   @map("companion_id") // set when published so notify step can link to it
+  notifiedAt   DateTime? @map("notified_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   @@index([status])
   @@index([tmdbId, mediaType, season])
@@ -2409,13 +2537,13 @@ model CompanionSuggestion {
   submitterId String @map("submitter_id")
 
   // What kind of change
-  action      String // "add" | "edit" | "remove"
-  targetType  String @map("target_type") // "character" | "fact" | "relationship" | "timeline" | "glossary" | "baseDescription"
-  targetId    String? @map("target_id") // null for "add"; otherwise references the existing row
+  action     String // "add" | "edit" | "remove"
+  targetType String  @map("target_type") // "character" | "fact" | "relationship" | "timeline" | "glossary" | "baseDescription"
+  targetId   String? @map("target_id") // null for "add"; otherwise references the existing row
 
   // Free-text rationale + structured payload describing the proposed change
-  rationale   String? @db.Text
-  payload     Json // shape depends on targetType
+  rationale String? @db.Text
+  payload   Json // shape depends on targetType
 
   // Voting + moderation
   status      String @default("pending") // "pending" | "approved" | "dismissed"
@@ -2423,27 +2551,27 @@ model CompanionSuggestion {
   voteCount   Int    @default(0) @map("vote_count")
 
   // Resolution
-  resolvedById String? @map("resolved_by_id")
-  resolvedAt   DateTime? @map("resolved_at")
-  resolutionNote String? @db.Text @map("resolution_note")
+  resolvedById     String?   @map("resolved_by_id")
+  resolvedAt       DateTime? @map("resolved_at")
+  resolutionNote   String?   @map("resolution_note") @db.Text
   // When an "add" suggestion is approved, the new row's id is captured here
   // so the viewer can show a "community-sourced" badge on the specific
   // row that came from this suggestion. Null for edits / removes.
-  appliedItemId String? @map("applied_item_id")
+  appliedItemId    String?   @map("applied_item_id")
   // Pre-change state of the target, captured at apply-time. For edits:
   // the fields about to be overwritten. For removes: the row's data so an
   // admin can restore it. For adds: null (no prior state). Powers the
   // Revert admin action — critical for undoing troll brigades without
   // losing the original AI content permanently.
-  originalSnapshot Json? @map("original_snapshot")
+  originalSnapshot Json?     @map("original_snapshot")
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
-  submitter   User @relation("suggestionAuthor", fields: [submitterId], references: [id], onDelete: Cascade)
-  resolver    User? @relation("suggestionResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
-  votes       CompanionSuggestionVote[]
+  companion WatchCompanion            @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  submitter User                      @relation("suggestionAuthor", fields: [submitterId], references: [id], onDelete: Cascade)
+  resolver  User?                     @relation("suggestionResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  votes     CompanionSuggestionVote[]
 
   @@index([companionId, status])
   @@index([status, createdAt])
@@ -2451,15 +2579,15 @@ model CompanionSuggestion {
 }
 
 model CompanionSuggestionVote {
-  id           String @id @default(cuid())
-  suggestionId String @map("suggestion_id")
-  voterId      String @map("voter_id")
-  vote         Int    // +1 or -1
-  weight       Int    @default(1) // 1 for regular, 3 for critic (snapshot at vote time)
+  id           String   @id @default(cuid())
+  suggestionId String   @map("suggestion_id")
+  voterId      String   @map("voter_id")
+  vote         Int // +1 or -1
+  weight       Int      @default(1) // 1 for regular, 3 for critic (snapshot at vote time)
   createdAt    DateTime @default(now()) @map("created_at")
 
-  suggestion   CompanionSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
-  voter        User @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  suggestion CompanionSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+  voter      User                @relation(fields: [voterId], references: [id], onDelete: Cascade)
 
   @@unique([suggestionId, voterId])
   @@map("companion_suggestion_votes")
@@ -2485,18 +2613,18 @@ model CompanionSuggestionVote {
 // they were subscribed to in their account history; future re-watches
 // would create a new row.
 model StreamingWatch {
-  id          String    @id @default(cuid())
-  userId      String    @map("user_id")
-  tmdbId      Int       @map("tmdb_id")
-  mediaType   String    @map("media_type") // "movie" | "tv"
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  tmdbId            Int       @map("tmdb_id")
+  mediaType         String    @map("media_type") // "movie" | "tv"
+  createdAt         DateTime  @default(now()) @map("created_at")
   // Set when the streaming-availability notification has been delivered.
   // Null = still watching. Non-null = already alerted, treated as
   // resolved so the cron skips it.
-  notifiedAt  DateTime? @map("notified_at")
+  notifiedAt        DateTime? @map("notified_at")
   // Snapshot of the providers that triggered the notification — small
   // diagnostic for the user ("Netflix is now streaming Hoppers!").
-  notifiedProviders String? @db.Text @map("notified_providers")
+  notifiedProviders String?   @map("notified_providers") @db.Text
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2525,14 +2653,14 @@ model AffiliateClick {
   // Full target URL the click sent the user to. Captured for diagnostic
   // verification (did the affiliate ID embed correctly?) and for spot-
   // checks when reviewing the report.
-  targetUrl    String   @db.Text @map("target_url")
+  targetUrl    String   @map("target_url") @db.Text
   userId       String?  @map("user_id")
   // What media the user was clicking FROM, when applicable. Lets the
   // admin see which titles drive the most outbound traffic per provider.
   mediaType    String?  @map("media_type")
   tmdbId       Int?     @map("tmdb_id")
   // Page path the user was on at click time, e.g. "/movies/123".
-  referrerPath String?  @db.Text @map("referrer_path")
+  referrerPath String?  @map("referrer_path") @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -2543,15 +2671,15 @@ model AffiliateClick {
 }
 
 model CompanionGenerationLock {
-  id          String   @id @default(cuid())
-  tmdbId      Int      @map("tmdb_id")
-  mediaType   String   @map("media_type")
+  id         String   @id @default(cuid())
+  tmdbId     Int      @map("tmdb_id")
+  mediaType  String   @map("media_type")
   // 0 = movie sentinel, 1+ = TV season number.
-  season      Int
-  acquiredAt  DateTime @default(now()) @map("acquired_at")
+  season     Int
+  acquiredAt DateTime @default(now()) @map("acquired_at")
   // userId of whoever's generation currently holds the lock — useful for
   // the "another generation is in progress" error message + diagnostics.
-  acquiredBy  String?  @map("acquired_by")
+  acquiredBy String?  @map("acquired_by")
 
   @@unique([tmdbId, mediaType, season])
   @@map("companion_generation_locks")
@@ -2564,30 +2692,30 @@ model CompanionGenerationLock {
 // and graduates to status="completed" once all episodes are generated AND
 // the recap chunks have run for the season.
 model CompanionAiringSeason {
-  id           String   @id @default(cuid())
-  companionId  String   @map("companion_id")
-  seasonNumber Int      @map("season_number")
+  id                String    @id @default(cuid())
+  companionId       String    @map("companion_id")
+  seasonNumber      Int       @map("season_number")
   // Episode numbers already generated for this season. Initial gen seeds
   // every episode whose air_date + 2 days <= today; the cron appends as
   // additional episodes pass the buffer. Recap is intentionally NOT stored
   // here — it runs once at finalization, writing into WatchCompanion.recaps.
-  episodesGenerated Int[] @default([]) @map("episodes_generated")
+  episodesGenerated Int[]     @default([]) @map("episodes_generated")
   // "airing" while waiting for more episodes to become eligible;
   // "completed" once last_episode + 2 days has passed AND recap chunks
   // have run AND the season has been pushed into seasonsGenerated.
-  status       String   @default("airing")
+  status            String    @default("airing")
   // Stamped at the end of each cron pass so admins can see liveness.
-  lastSweepAt  DateTime? @map("last_sweep_at")
+  lastSweepAt       DateTime? @map("last_sweep_at")
   // Consecutive cron failures for the next pending episode. Resets on
   // success. Powers the failsafe — after N retries the cron falls back
   // to TMDB-overview-only generation for that episode and resets to 0.
-  failureCount Int      @default(0) @map("failure_count")
+  failureCount      Int       @default(0) @map("failure_count")
   // Last error string captured by the cron, surfaced in admin UI.
-  lastError    String?  @db.Text @map("last_error")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  lastError         String?   @map("last_error") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  companion    WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
 
   @@unique([companionId, seasonNumber])
   @@index([status])
@@ -2605,8 +2733,8 @@ model CompanionFollow {
   userId      String   @map("user_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  companion   WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companion WatchCompanion @relation(fields: [companionId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([companionId, userId])
   @@index([companionId])
@@ -2628,9 +2756,9 @@ model MediaProviderSnapshot {
   id           String   @id @default(cuid())
   tmdbId       Int      @map("tmdb_id")
   mediaType    String   @map("media_type") // "movie" | "tv"
-  region       String   // ISO 3166-1 alpha-2 (e.g. "US")
+  region       String // ISO 3166-1 alpha-2 (e.g. "US")
   providerIds  Int[]    @map("provider_ids") // TMDB provider ids the item is on (subscription/free flatrate only — rentals/buys excluded by the cron)
-  snapshotDate DateTime @db.Date @map("snapshot_date")
+  snapshotDate DateTime @map("snapshot_date") @db.Date
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@unique([tmdbId, mediaType, region, snapshotDate])

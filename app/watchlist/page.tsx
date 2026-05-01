@@ -10,7 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
-  Film, Tv, Monitor, ListOrdered, GripVertical, Copy, BarChart3,
+  Film, Tv, Monitor, ListOrdered, GripVertical, Copy, BarChart3, Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
@@ -1158,6 +1158,15 @@ export default function WatchlistPage() {
                         >
                           <Copy className="w-4 h-4" />
                         </button>
+                      )}
+                      {activeList.isOwner && movies.length > 0 && (
+                        <Link
+                          href={`/tools/collections/new?from=watchlist&id=${activeList.id}`}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
+                          title="Save as collection"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                        </Link>
                       )}
                       {activeList.isOwner && !activeList.isDefault && (
                         <>

@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, ScrollText,
   Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb, Cpu,
-  MonitorPlay, ExternalLink, Mail,
+  MonitorPlay, ExternalLink, Mail, Sparkles, BookOpen,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -57,6 +57,8 @@ const SUB_TABS: Record<string, SubTab[]> = {
     { label: "Movie Maps", icon: Map, href: "/admin/posts?type=MOVIE_MAP", pathPrefix: "/admin/posts", typeValue: "MOVIE_MAP" },
     { label: "Companions", icon: MonitorPlay, href: "/admin/watch-companions", pathPrefix: "/admin/watch-companions" },
     { label: "Ideas", icon: Lightbulb, href: "/admin/ideas", pathPrefix: "/admin/ideas", countKey: "ideas" },
+    { label: "Collection Prompts", icon: Sparkles, href: "/admin/collection-prompts", pathPrefix: "/admin/collection-prompts" },
+    { label: "Ratist Collections", icon: BookOpen, href: "/admin/collections", pathPrefix: "/admin/collections" },
   ],
   community: [
     { label: "Moderation", icon: Flag, href: "/admin/moderation", pathPrefix: "/admin/moderation", countKey: "reports" },
@@ -77,7 +79,7 @@ const SUB_TABS: Record<string, SubTab[]> = {
 
 function activeGroup(pathname: string): string {
   if (pathname === "/admin") return "dashboard";
-  if (pathname.startsWith("/admin/posts") || pathname.startsWith("/admin/news") || pathname.startsWith("/admin/ideas") || pathname.startsWith("/admin/watch-companions")) return "posts";
+  if (pathname.startsWith("/admin/posts") || pathname.startsWith("/admin/news") || pathname.startsWith("/admin/ideas") || pathname.startsWith("/admin/watch-companions") || pathname.startsWith("/admin/collection-prompts") || pathname.startsWith("/admin/collections")) return "posts";
   if (pathname.startsWith("/admin/spotlights")) return "spotlights";
   if (pathname.startsWith("/admin/moderation") || pathname.startsWith("/admin/feedback") || pathname.startsWith("/admin/contact") || pathname.startsWith("/admin/fraud")) return "community";
   if (pathname.startsWith("/admin/users")) return "users";

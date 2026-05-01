@@ -204,6 +204,14 @@ export async function getCommentTargetLink(
         if (t) base = `/forum/t/${t.slug}`;
         break;
       }
+      case "collection": {
+        const c = await prisma.customCollection.findUnique({
+          where: { id: targetId },
+          select: { slug: true, user: { select: { firebaseUid: true } } },
+        });
+        if (c?.slug) base = `/collections/${c.user.firebaseUid}/${c.slug}`;
+        break;
+      }
       // Community pages — no per-item URL, but the destination page
       // does render and surface the item.
       case "lookslike":       base = "/community/looks-like"; break;

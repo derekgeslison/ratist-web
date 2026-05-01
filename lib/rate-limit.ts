@@ -8,6 +8,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
   moviePitch: { max: 1, windowDays: 5 },
   forumThread: { max: 5, windowDays: 1 },
   postIdea: { max: 3, windowDays: 7 },
+  collection: { max: 3, windowDays: 1 },
 };
 
 /**
@@ -18,7 +19,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
 export async function checkCommunityRateLimit(
   userId: string,
   isAdmin: boolean,
-  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread" | "postIdea"
+  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread" | "postIdea" | "collection"
 ): Promise<string | null> {
   if (isAdmin) return null;
 
@@ -62,6 +63,16 @@ export async function checkCommunityRateLimit(
     recentCount = await prisma.postIdea.count({
       where: { submitterId: userId, createdAt: { gte: windowStart } },
     });
+  } else if (featureType === "collection") {
+    // Only count collections published into the public feed; drafts and
+    // private/AI-only collections don't tax the limit.
+    recentCount = await prisma.customCollection.count({
+      where: {
+        userId,
+        visibility: "public",
+        publishedAt: { gte: windowStart, not: null },
+      },
+    });
   }
 
   if (recentCount >= limits.max) {
@@ -72,12 +83,16 @@ export async function checkCommunityRateLimit(
       moviePitch: "Pitches",
       forumThread: "forum threads",
       postIdea: "idea submissions",
+      collection: "public collections",
     };
     if (featureType === "forumThread") {
       return `You can create up to ${limits.max} forum threads per day.`;
     }
     if (featureType === "moviePitch") {
       return "You can only submit 1 pitch every 5 days. This is to prevent spam, and it ensures your submission is more likely to be read and interacted with.";
+    }
+    if (featureType === "collection") {
+      return `You can publish up to ${limits.max} public collections per day. Private collections don't count — keep iterating and publish when you're ready.`;
     }
     return `To prevent spam, we limit users to ${limits.max} ${featureNames[featureType]} every ${limits.windowDays} days. Your submissions are also more likely to get engagement if you spread them out.`;
   }

@@ -12,9 +12,9 @@ import { TIER_LABELS, TIER_COLORS, TOTAL_BADGES } from "@/lib/badge-defs";
 // Inclusive thresholds. Mirrors lib/badge-defs#computeTier so the
 // "to next tier" hint matches reality.
 const TIER_THRESHOLDS: Record<Exclude<BadgeTier, "none">, number> = {
-  bronze: 10,
-  silver: 21,
-  gold: 31,
+  bronze: 11,
+  silver: 22,
+  gold: 33,
   premiere: TOTAL_BADGES,
 };
 

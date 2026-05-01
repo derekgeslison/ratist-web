@@ -17,13 +17,15 @@ export type BadgeCategory =
 
 export type BadgeTier = "none" | "bronze" | "silver" | "gold" | "premiere";
 
-export const TOTAL_BADGES = 41;
+export const TOTAL_BADGES = 43;
 
+// Tier thresholds at ~25% / 50% / 75% / 100% of the total. Update both
+// TOTAL_BADGES and the threshold ints together — they aren't computed.
 export function computeTier(earnedCount: number): BadgeTier {
   if (earnedCount >= TOTAL_BADGES) return "premiere";
-  if (earnedCount >= 31) return "gold";
-  if (earnedCount >= 21) return "silver";
-  if (earnedCount >= 10) return "bronze";
+  if (earnedCount >= 33) return "gold";
+  if (earnedCount >= 22) return "silver";
+  if (earnedCount >= 11) return "bronze";
   return "none";
 }
 

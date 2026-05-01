@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Sparkles, BookmarkPlus, ListPlus, Eye, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Sparkles, ListPlus, ChevronDown, ChevronUp, AlertCircle, Users, User as UserIcon, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
 import CustomCollectionsSection from "@/components/CustomCollectionsSection";
+import CommunityCollectionsFeed from "@/components/CommunityCollectionsFeed";
 
 interface CollectionMovie {
   id: string;
@@ -28,15 +28,45 @@ interface Collection {
   movies: CollectionMovie[];
 }
 
+type TopTab = "my" | "community";
+
+// useSearchParams in client routes needs a Suspense wrapper to keep
+// prerender happy on Next.js 16. Page is the boundary; the inner
+// component owns the URL state.
 export default function CollectionsPage() {
+  return (
+    <Suspense fallback={<div className="py-20 text-center text-[var(--foreground-muted)]"><Loader2 className="w-6 h-6 animate-spin inline" /></div>}>
+      <CollectionsPageInner />
+    </Suspense>
+  );
+}
+
+function CollectionsPageInner() {
   const { user, loading: authLoading } = useAuth();
   const { hasPass, loading: subLoading } = useSubscription();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: TopTab = tabParam === "community" ? "community" : "my";
+
+  function setTab(next: TopTab) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "my") {
+      params.delete("tab");
+      // Clear community-specific params when leaving the community tab.
+      params.delete("subtab");
+      params.delete("tag");
+      params.delete("search");
+    } else {
+      params.set("tab", "community");
+    }
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
   const [collections, setCollections] = useState<Collection[]>([]);
   const [ratistReviewCount, setRatistReviewCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [addingToWatchlist, setAddingToWatchlist] = useState<string | null>(null);
   const [creatingWatchlist, setCreatingWatchlist] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -45,6 +75,7 @@ export default function CollectionsPage() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
+    if (activeTab !== "my") { setLoading(false); return; }
     (async () => {
       try {
         const token = await getToken();
@@ -60,7 +91,7 @@ export default function CollectionsPage() {
         setLoading(false);
       }
     })();
-  }, [user, getToken]);
+  }, [user, getToken, activeTab]);
 
   function toggleExpand(key: string) {
     setExpanded((prev) => {
@@ -70,37 +101,19 @@ export default function CollectionsPage() {
     });
   }
 
-  async function addToDefaultWatchlist(movie: CollectionMovie) {
-    try {
-      const token = await getToken();
-      if (!token) return;
-      setAddingToWatchlist(movie.id);
-      const res = await fetch(`/api/movies/${movie.tmdbId}/watchlist`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      if (!res.ok) setError("Failed to add to watchlist.");
-    } catch {
-      setError("Failed to add to watchlist.");
-    } finally {
-      setAddingToWatchlist(null);
-    }
-  }
-
   function showSuccess(msg: string) {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 3000);
   }
 
   async function createWatchlistFromCollection(collection: Collection) {
-    const name = prompt("Name for the watchlist:", collection.title);
+    const name = window.prompt("Name for the watchlist:", collection.title);
     if (!name?.trim()) return;
     setCreatingWatchlist(collection.key);
     try {
       const token = await getToken();
       if (!token) return;
 
-      // Create the watchlist
       const res = await fetch("/api/watchlist", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -111,7 +124,6 @@ export default function CollectionsPage() {
       const wlId = data.watchlist?.id ?? data.id;
       if (!wlId) { setError("Failed to create watchlist."); return; }
 
-      // Add all movies in parallel
       const results = await Promise.allSettled(
         collection.movies.map((movie) =>
           fetch(`/api/watchlist/${wlId}/movies`, {
@@ -142,7 +154,9 @@ export default function CollectionsPage() {
     if (!authLoading && !user) router.replace("/backstage-pass/collections");
   }, [authLoading, user, router]);
 
-  if (authLoading || subLoading || !hasPass || !user) return <div className="py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
+  if (authLoading || subLoading || !hasPass || !user) {
+    return <div className="py-20 text-center text-[var(--foreground-muted)]"><Loader2 className="w-6 h-6 animate-spin inline" /></div>;
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -150,22 +164,33 @@ export default function CollectionsPage() {
         <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Collections</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-4">Personalized movie recommendations based on your taste, ratings, and watch history.</p>
+      <p className="text-[var(--foreground-muted)] mb-4">
+        {activeTab === "my"
+          ? "Personalized movie recommendations based on your taste, ratings, and watch history."
+          : "Browse collections curated by the community. Save the ones you like."}
+      </p>
 
-      <CustomCollectionsSection />
-
-      {ratistReviewCount != null && ratistReviewCount < 10 && (
-        <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm text-white font-medium">Your collections will improve with more reviews</p>
-            <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-              You have {ratistReviewCount}{" "}of 10 Ratist reviews needed for personalized collections.
-              Quick reviews don&apos;t count — fill out the full rating form for better results.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Top toggle */}
+      <div className="inline-flex items-center bg-[var(--surface)] border border-[var(--border)] rounded-full p-1 mb-6">
+        <button
+          onClick={() => setTab("my")}
+          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-full transition-colors ${
+            activeTab === "my" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"
+          }`}
+        >
+          <UserIcon className="w-3.5 h-3.5" />
+          My Collections
+        </button>
+        <button
+          onClick={() => setTab("community")}
+          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-full transition-colors ${
+            activeTab === "community" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          Community
+        </button>
+      </div>
 
       {error && (
         <div className="bg-red-900/40 border border-red-700 text-red-200 text-sm rounded-lg px-4 py-2.5 mb-4 flex items-center justify-between">
@@ -179,77 +204,96 @@ export default function CollectionsPage() {
         </div>
       )}
 
-      {loading ? (
-        <p className="text-[var(--foreground-muted)] text-center py-10">Generating your collections...</p>
-      ) : collections.length === 0 ? (
-        <div className="text-center py-10">
-          <p className="text-[var(--foreground-muted)] mb-2">Not enough data to generate collections yet.</p>
-          <p className="text-sm text-[var(--foreground-muted)]">Rate more movies to unlock personalized recommendations.</p>
-          <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline mt-4 inline-block">Browse movies →</Link>
-        </div>
+      {activeTab === "community" ? (
+        <CommunityCollectionsFeed />
       ) : (
-        <div className="space-y-6">
-          {collections.map((collection) => {
-            const isExpanded = expanded.has(collection.key);
-            const displayMovies = isExpanded ? collection.movies : collection.movies.slice(0, 6);
-            return (
-              <section key={collection.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-                {/* Header */}
-                <div className="px-5 py-4 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl flex-shrink-0">{collection.emoji}</span>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-base font-semibold text-white">{collection.title}</h2>
-                      <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{collection.description}</p>
+        <>
+          <CustomCollectionsSection />
+
+          {ratistReviewCount != null && ratistReviewCount < 10 && (
+            <div className="bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-white font-medium">Your collections will improve with more reviews</p>
+                <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                  You have {ratistReviewCount}{" "}of 10 Ratist reviews needed for personalized collections.
+                  Quick reviews don&apos;t count — fill out the full rating form for better results.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <p className="text-[var(--foreground-muted)] text-center py-10">Generating your collections...</p>
+          ) : collections.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-[var(--foreground-muted)] mb-2">Not enough data to generate collections yet.</p>
+              <p className="text-sm text-[var(--foreground-muted)]">Rate more movies to unlock personalized recommendations.</p>
+              <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline mt-4 inline-block">Browse movies →</Link>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {collections.map((collection) => {
+                const isExpanded = expanded.has(collection.key);
+                const displayMovies = isExpanded ? collection.movies : collection.movies.slice(0, 6);
+                return (
+                  <section key={collection.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+                    <div className="px-5 py-4 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl flex-shrink-0">{collection.emoji}</span>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="text-base font-semibold text-white">{collection.title}</h2>
+                          <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{collection.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => createWatchlistFromCollection(collection)}
+                          disabled={creatingWatchlist === collection.key}
+                          className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 transition-colors"
+                          title="Create watchlist from this collection"
+                        >
+                          <ListPlus className="w-3 h-3" />
+                          {creatingWatchlist === collection.key ? "Creating..." : "Save as Watchlist"}
+                        </button>
+                        <span className="text-xs text-[var(--foreground-muted)]">{collection.movies.length} films</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      onClick={() => createWatchlistFromCollection(collection)}
-                      disabled={creatingWatchlist === collection.key}
-                      className="flex items-center gap-1 text-[10px] text-[var(--foreground-muted)] hover:text-white bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5 transition-colors"
-                      title="Create watchlist from this collection"
-                    >
-                      <ListPlus className="w-3 h-3" />
-                      {creatingWatchlist === collection.key ? "Creating..." : "Save as Watchlist"}
-                    </button>
-                    <span className="text-xs text-[var(--foreground-muted)]">{collection.movies.length} films</span>
-                  </div>
-                </div>
 
-                {/* Movie grid */}
-                <div className="px-5 pb-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {displayMovies.map((movie) => (
-                      <MovieCard
-                        key={movie.id}
-                        movie={{
-                          id: movie.tmdbId,
-                          title: movie.title,
-                          poster_path: movie.posterPath,
-                          vote_average: movie.voteAverage ?? 0,
-                          release_date: movie.releaseDate ?? "",
-                          backdrop_path: null,
-                          overview: "",
-                          genre_ids: [],
-                        } as never}
-                      />
-                    ))}
-                  </div>
+                    <div className="px-5 pb-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {displayMovies.map((movie) => (
+                          <MovieCard
+                            key={movie.id}
+                            movie={{
+                              id: movie.tmdbId,
+                              title: movie.title,
+                              poster_path: movie.posterPath,
+                              vote_average: movie.voteAverage ?? 0,
+                              release_date: movie.releaseDate ?? "",
+                              backdrop_path: null,
+                              overview: "",
+                              genre_ids: [],
+                            } as never}
+                          />
+                        ))}
+                      </div>
 
-                  {/* Expand/collapse */}
-                  {collection.movies.length > 6 && (
-                    <button onClick={() => toggleExpand(collection.key)}
-                      className="flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline mt-3 mx-auto">
-                      {isExpanded ? <><ChevronUp className="w-3 h-3" /> Show less</> : <><ChevronDown className="w-3 h-3" /> Show all {collection.movies.length}</>}
-                    </button>
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+                      {collection.movies.length > 6 && (
+                        <button onClick={() => toggleExpand(collection.key)}
+                          className="flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline mt-3 mx-auto">
+                          {isExpanded ? <><ChevronUp className="w-3 h-3" /> Show less</> : <><ChevronDown className="w-3 h-3" /> Show all {collection.movies.length}</>}
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
+
     </div>
   );
 }
