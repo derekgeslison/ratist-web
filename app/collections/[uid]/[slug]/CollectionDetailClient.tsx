@@ -24,6 +24,9 @@ interface CollectionItem {
   voteAverage: number | null;
   sortOrder: number;
   blurb: string | null;
+  // Server-enriched from Movie/TVShow tables — empty string when the
+  // title isn't synced yet. List view renders this next to the row.
+  overview?: string;
   curatorRating: number | null;
   predictedRating: number | null;
 }
@@ -540,7 +543,10 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
           {collection.items.map((item, idx) => (
             <div key={item.id} className="space-y-2 relative">
               {collection.numberedOrder && (
-                <span className="absolute top-1.5 left-1.5 z-10 pointer-events-none flex items-center justify-center min-w-[24px] h-6 px-1.5 bg-[var(--ratist-red)] text-white text-[11px] font-bold rounded-full shadow-md">
+                /* Top-right corner avoids ShowCard's TV badge (which
+                   lives top-left). Both share z-10 but they're never in
+                   the same corner now. */
+                <span className="absolute top-1.5 right-1.5 z-10 pointer-events-none flex items-center justify-center min-w-[24px] h-6 px-1.5 bg-[var(--ratist-red)] text-white text-[11px] font-bold rounded-full shadow-md">
                   {idx + 1}
                 </span>
               )}
@@ -608,7 +614,7 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
                     show={{
                       id: item.tmdbId,
                       name: item.title,
-                      overview: "",
+                      overview: item.overview ?? "",
                       poster_path: item.posterPath,
                       backdrop_path: null,
                       first_air_date: item.releaseDate ?? "",
@@ -622,7 +628,7 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
                     movie={{
                       id: item.tmdbId,
                       title: item.title,
-                      overview: "",
+                      overview: item.overview ?? "",
                       poster_path: item.posterPath,
                       backdrop_path: null,
                       release_date: item.releaseDate ?? "",

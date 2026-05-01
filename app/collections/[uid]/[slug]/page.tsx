@@ -40,7 +40,36 @@ async function loadPublicCollection(uid: string, slug: string) {
     },
   });
   if (!collection) return null;
-  return { curator, collection };
+
+  // Enrich each item with the overview from Movie/TVShow tables — list
+  // view renders the description next to each row, but CustomCollectionItem
+  // only stores the basics (title/poster/release/rating). Bulk-fetch in
+  // two queries (one per media type) and key by tmdbId for O(1) lookup.
+  const movieTmdbIds = collection.items.filter((i) => i.mediaType === "movie").map((i) => i.tmdbId);
+  const tvTmdbIds    = collection.items.filter((i) => i.mediaType === "tv").map((i) => i.tmdbId);
+  const [movieOverviews, tvOverviews] = await Promise.all([
+    movieTmdbIds.length > 0
+      ? prisma.movie.findMany({
+          where: { tmdbId: { in: movieTmdbIds } },
+          select: { tmdbId: true, overview: true },
+        })
+      : Promise.resolve([]),
+    tvTmdbIds.length > 0
+      ? prisma.tVShow.findMany({
+          where: { tmdbId: { in: tvTmdbIds } },
+          select: { tmdbId: true, overview: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const movieOverviewMap = new Map(movieOverviews.map((m) => [m.tmdbId, m.overview]));
+  const tvOverviewMap = new Map(tvOverviews.map((s) => [s.tmdbId, s.overview]));
+  const overviewByItem = new Map<string, string | null>();
+  for (const item of collection.items) {
+    const map = item.mediaType === "tv" ? tvOverviewMap : movieOverviewMap;
+    overviewByItem.set(item.id, map.get(item.tmdbId) ?? null);
+  }
+
+  return { curator, collection, overviewByItem };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -100,6 +129,7 @@ export default async function CollectionDetailPage({ params }: Props) {
   // returns. Viewer-specific fields (isOwner, isSaved, matchScore,
   // watched, predictedRating per item) start unset and the client
   // refetches to fill them when an authed Backstage user is on the page.
+  const overviewMap = data.overviewByItem;
   const initialData = {
     id: collection.id,
     name: collection.name,
@@ -121,6 +151,9 @@ export default async function CollectionDetailPage({ params }: Props) {
       voteAverage: i.voteAverage,
       sortOrder: i.sortOrder,
       blurb: i.blurb,
+      // Overview pulled from Movie/TVShow tables for list-view display.
+      // Falls back to empty string when the title isn't in our DB yet.
+      overview: overviewMap.get(i.id) ?? "",
       curatorRating: null,
       predictedRating: null,
     })),

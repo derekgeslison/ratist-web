@@ -31,9 +31,10 @@ interface Props {
 export default function BadgeGrid({ badges, categories, tier, earnedCount, totalCount }: Props) {
   const percent = Math.round((earnedCount / totalCount) * 100);
 
-  // Next tier info
+  // Next tier info — keep these thresholds in lockstep with
+  // lib/badge-defs#computeTier and components/BadgeTrophyCase#TIER_THRESHOLDS.
   const nextTier = tier === "none" ? "bronze" : tier === "bronze" ? "silver" : tier === "silver" ? "gold" : tier === "gold" ? "premiere" : null;
-  const nextThreshold = nextTier === "bronze" ? 10 : nextTier === "silver" ? 21 : nextTier === "gold" ? 31 : nextTier === "premiere" ? 42 : null;
+  const nextThreshold = nextTier === "bronze" ? 11 : nextTier === "silver" ? 22 : nextTier === "gold" ? 33 : nextTier === "premiere" ? 43 : null;
 
   return (
     <div>

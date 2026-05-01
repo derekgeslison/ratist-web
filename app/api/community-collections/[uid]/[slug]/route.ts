@@ -60,7 +60,7 @@ export async function GET(
   // in parallel. Curator ratings come from the same component-rated
   // tables used elsewhere on the site; series-scope only on TV so per-
   // season ratings don't override the curator's headline opinion.
-  const [save, curatorMovieRatings, curatorTvRatings, predictions, scoreMap, watched] = await Promise.all([
+  const [save, curatorMovieRatings, curatorTvRatings, predictions, scoreMap, watched, movieOverviews, tvOverviews] = await Promise.all([
     user
       ? prisma.collectionSave.findUnique({
           where: { userId_collectionId: { userId: user.id, collectionId: collection.id } },
@@ -99,7 +99,24 @@ export async function GET(
     isBackstage
       ? getWatchedProgress(user!.id, { id: collection.id, items: itemRefs })
       : Promise.resolve(null as { watched: number; total: number } | null),
+    // Overview enrichment for list-view rendering. Server page uses the
+    // same maps; the API returns them too so client-side refetches don't
+    // wipe the descriptions.
+    movieTmdbIds.length > 0
+      ? prisma.movie.findMany({
+          where: { tmdbId: { in: movieTmdbIds } },
+          select: { tmdbId: true, overview: true },
+        })
+      : Promise.resolve([]),
+    tvTmdbIds.length > 0
+      ? prisma.tVShow.findMany({
+          where: { tmdbId: { in: tvTmdbIds } },
+          select: { tmdbId: true, overview: true },
+        })
+      : Promise.resolve([]),
   ]);
+  const movieOverviewMap = new Map(movieOverviews.map((m) => [m.tmdbId, m.overview]));
+  const tvOverviewMap = new Map(tvOverviews.map((s) => [s.tmdbId, s.overview]));
 
   // Build TMDB-keyed lookup maps. The curator-rating queries already
   // joined movie/tvShow so we can key by tmdbId without extra resolution.
@@ -137,6 +154,9 @@ export async function GET(
         const curatorRating = i.mediaType === "tv"
           ? curatorTvRating.get(i.tmdbId) ?? null
           : curatorMovieRating.get(i.tmdbId) ?? null;
+        const overview = i.mediaType === "tv"
+          ? tvOverviewMap.get(i.tmdbId) ?? ""
+          : movieOverviewMap.get(i.tmdbId) ?? "";
         return {
           id: i.id,
           mediaType: i.mediaType,
@@ -147,6 +167,7 @@ export async function GET(
           voteAverage: i.voteAverage,
           sortOrder: i.sortOrder,
           blurb: i.blurb,
+          overview,
           curatorRating,
           predictedRating: predictions.get(key) ?? null,
         };

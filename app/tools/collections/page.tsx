@@ -234,6 +234,8 @@ function CollectionsPageInner() {
             </div>
           )}
 
+          {/* Show 10 titles by default before "Show all" — most of these
+              auto-curated lists have 15-20 items and 6 felt cramped. */}
           {loading ? (
             <p className="text-[var(--foreground-muted)] text-center py-10">Generating your collections...</p>
           ) : collections.length === 0 ? (
@@ -246,7 +248,7 @@ function CollectionsPageInner() {
             <div className="space-y-6">
               {collections.map((collection) => {
                 const isExpanded = expanded.has(collection.key);
-                const displayMovies = isExpanded ? collection.movies : collection.movies.slice(0, 6);
+                const displayMovies = isExpanded ? collection.movies : collection.movies.slice(0, 10);
                 return (
                   <section key={collection.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
                     <div className="px-5 py-4 space-y-2">
@@ -290,7 +292,7 @@ function CollectionsPageInner() {
                         ))}
                       </div>
 
-                      {collection.movies.length > 6 && (
+                      {collection.movies.length > 10 && (
                         <button onClick={() => toggleExpand(collection.key)}
                           className="flex items-center gap-1 text-xs text-[var(--ratist-red)] hover:underline mt-3 mx-auto">
                           {isExpanded ? <><ChevronUp className="w-3 h-3" /> Show less</> : <><ChevronDown className="w-3 h-3" /> Show all {collection.movies.length}</>}
