@@ -206,12 +206,13 @@ export default function CustomCollectionsSection() {
       if (!wlId) { setWlMessage({ text: "Failed to create watchlist.", type: "error" }); return; }
 
       const results = await Promise.allSettled(
-        items.map((item) =>
+        items.map((item, idx) =>
           fetch(`/api/watchlist/${wlId}/movies`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               tmdbId: item.tmdbId, title: item.title, posterPath: item.posterPath, releaseDate: item.releaseDate, mediaType: item.mediaType,
+              sortOrder: idx,
             }),
           })
         )

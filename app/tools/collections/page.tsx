@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, ListPlus, ChevronDown, ChevronUp, AlertCircle, Users, User as UserIcon, Loader2 } from "lucide-react";
+import { Sparkles, ListPlus, ChevronDown, ChevronUp, AlertCircle, Users, User as UserIcon, Loader2, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
 import CustomCollectionsSection from "@/components/CustomCollectionsSection";
 import CommunityCollectionsFeed from "@/components/CommunityCollectionsFeed";
+import CollectionsPaywallCard from "@/components/CollectionsPaywallCard";
 
 interface CollectionMovie {
   id: string;
@@ -47,7 +48,11 @@ function CollectionsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab: TopTab = tabParam === "community" ? "community" : "my";
+  // Non-Backstage and anonymous users land on Community → Featured by
+  // default, since "My Collections" is a Backstage feature. Backstage
+  // users get the original My-default behavior.
+  const myLocked = !user || !hasPass;
+  const activeTab: TopTab = tabParam === "community" ? "community" : (tabParam === "my" ? "my" : (myLocked ? "community" : "my"));
 
   function setTab(next: TopTab) {
     const params = new URLSearchParams(searchParams.toString());
@@ -125,11 +130,11 @@ function CollectionsPageInner() {
       if (!wlId) { setError("Failed to create watchlist."); return; }
 
       const results = await Promise.allSettled(
-        collection.movies.map((movie) =>
+        collection.movies.map((movie, idx) =>
           fetch(`/api/watchlist/${wlId}/movies`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ tmdbId: movie.tmdbId, title: movie.title, posterPath: movie.posterPath, releaseDate: movie.releaseDate }),
+            body: JSON.stringify({ tmdbId: movie.tmdbId, title: movie.title, posterPath: movie.posterPath, releaseDate: movie.releaseDate, sortOrder: idx }),
           })
         )
       );
@@ -146,15 +151,10 @@ function CollectionsPageInner() {
     }
   }
 
-  useEffect(() => {
-    if (!subLoading && !hasPass) router.replace("/backstage-pass/collections");
-  }, [subLoading, hasPass, router]);
-
-  useEffect(() => {
-    if (!authLoading && !user) router.replace("/backstage-pass/collections");
-  }, [authLoading, user, router]);
-
-  if (authLoading || subLoading || !hasPass || !user) {
+  // Auth/Backstage no longer redirect — Featured is publicly browsable
+  // for SEO + freemium funnel. Locked tabs render an in-page paywall
+  // card (My Collections, all community sub-tabs except Featured).
+  if (authLoading || subLoading) {
     return <div className="py-20 text-center text-[var(--foreground-muted)]"><Loader2 className="w-6 h-6 animate-spin inline" /></div>;
   }
 
@@ -170,7 +170,8 @@ function CollectionsPageInner() {
           : "Browse collections curated by the community. Save the ones you like."}
       </p>
 
-      {/* Top toggle */}
+      {/* Top toggle. My Collections is locked for non-Backstage; clicking
+          still routes there so the paywall card explains why. */}
       <div className="inline-flex items-center bg-[var(--surface)] border border-[var(--border)] rounded-full p-1 mb-6">
         <button
           onClick={() => setTab("my")}
@@ -180,6 +181,7 @@ function CollectionsPageInner() {
         >
           <UserIcon className="w-3.5 h-3.5" />
           My Collections
+          {myLocked && <Lock className="w-3 h-3 opacity-60" />}
         </button>
         <button
           onClick={() => setTab("community")}
@@ -206,6 +208,11 @@ function CollectionsPageInner() {
 
       {activeTab === "community" ? (
         <CommunityCollectionsFeed />
+      ) : myLocked ? (
+        <CollectionsPaywallCard
+          title="My Collections is a Backstage Pass feature"
+          body="Build, save, and manage your own collections. Get personalized recommendations based on your taste, ratings, and watch history."
+        />
       ) : (
         <>
           <CustomCollectionsSection />
@@ -297,3 +304,4 @@ function CollectionsPageInner() {
     </div>
   );
 }
+

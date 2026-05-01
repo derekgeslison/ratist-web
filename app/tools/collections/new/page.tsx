@@ -61,10 +61,15 @@ function NewCollectionPageInner() {
           const entries: Array<{
             tmdbId: number; mediaType?: "movie" | "tv"; title: string;
             posterPath: string | null; year?: string; voteAverage: number | null;
+            sortOrder?: number;
           }> = data.movies ?? [];
           const wlName: string | undefined = data.watchlist?.name;
 
-          const promoted: BuilderItem[] = entries.slice(0, MAX_ITEMS).map((e) => ({
+          // Watchlist API returns items by addedAt desc, but the
+          // watchlist UI displays in sortOrder. Promote in sortOrder so
+          // the user's curated arrangement carries over.
+          const sorted = [...entries].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+          const promoted: BuilderItem[] = sorted.slice(0, MAX_ITEMS).map((e) => ({
             tmdbId: e.tmdbId,
             mediaType: e.mediaType === "tv" ? "tv" : "movie",
             title: e.title,

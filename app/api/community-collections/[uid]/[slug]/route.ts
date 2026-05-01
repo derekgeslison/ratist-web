@@ -15,11 +15,12 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ uid: string; slug: string }> },
 ) {
+  // Detail page is public for SEO + freemium funnel. Anyone (including
+  // anonymous visitors) can read base data. Viewer-specific enrichments
+  // (matchScore, watched, isSaved, predictedRating) only fill in for
+  // Backstage-eligible users; everyone else gets nulls.
   const user = await getAuthedUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!user.isAdmin && !isSubscriptionActive(user)) {
-    return NextResponse.json({ error: "Community collections are a Backstage Pass feature." }, { status: 403 });
-  }
+  const isBackstage = !!user && (user.isAdmin || isSubscriptionActive(user));
 
   const { uid, slug } = await params;
 
@@ -59,11 +60,13 @@ export async function GET(
   // in parallel. Curator ratings come from the same component-rated
   // tables used elsewhere on the site; series-scope only on TV so per-
   // season ratings don't override the curator's headline opinion.
-  const [save, curatorMovieRatings, curatorTvRatings, predictions, scoreMap, watched, movieRows, showRows] = await Promise.all([
-    prisma.collectionSave.findUnique({
-      where: { userId_collectionId: { userId: user.id, collectionId: collection.id } },
-      select: { userId: true },
-    }),
+  const [save, curatorMovieRatings, curatorTvRatings, predictions, scoreMap, watched] = await Promise.all([
+    user
+      ? prisma.collectionSave.findUnique({
+          where: { userId_collectionId: { userId: user.id, collectionId: collection.id } },
+          select: { userId: true },
+        })
+      : Promise.resolve(null),
     movieTmdbIds.length > 0
       ? prisma.movieRating.findMany({
           where: {
@@ -87,36 +90,24 @@ export async function GET(
           select: { ratistRating: true, tvShow: { select: { tmdbId: true } } },
         })
       : Promise.resolve([]),
-    predictRatingsBatch(user.id, itemRefs),
-    getOrComputeMatchScoresBatch(user.id, [{ id: collection.id, items: itemRefs }]),
-    getWatchedProgress(user.id, {
-      id: collection.id,
-      items: itemRefs,
-    }),
-    movieTmdbIds.length > 0
-      ? prisma.movie.findMany({
-          where: { tmdbId: { in: movieTmdbIds } },
-          select: { id: true, tmdbId: true },
-        })
-      : Promise.resolve([]),
-    tvTmdbIds.length > 0
-      ? prisma.tVShow.findMany({
-          where: { tmdbId: { in: tvTmdbIds } },
-          select: { id: true, tmdbId: true },
-        })
-      : Promise.resolve([]),
+    isBackstage
+      ? predictRatingsBatch(user!.id, itemRefs)
+      : Promise.resolve(new Map<string, number | null>()),
+    isBackstage
+      ? getOrComputeMatchScoresBatch(user!.id, [{ id: collection.id, items: itemRefs }])
+      : Promise.resolve(new Map<string, number | null>()),
+    isBackstage
+      ? getWatchedProgress(user!.id, { id: collection.id, items: itemRefs })
+      : Promise.resolve(null as { watched: number; total: number } | null),
   ]);
 
   // Build TMDB-keyed lookup maps. The curator-rating queries already
-  // joined movie/tvShow so we can key by tmdbId without extra resolution;
-  // movieRows/showRows are kept for the watched-progress side which uses
-  // internal IDs, but they're already resolved by the helper.
-  void movieRows; void showRows;
+  // joined movie/tvShow so we can key by tmdbId without extra resolution.
   const curatorMovieRating = new Map(curatorMovieRatings.map((r) => [r.movie.tmdbId, r.ratistRating]));
   const curatorTvRating    = new Map(curatorTvRatings.map((r) => [r.tvShow.tmdbId, r.ratistRating]));
 
   // Fire-and-forget view increment. Owner views don't inflate the count.
-  if (collection.userId !== user.id) {
+  if (!user || collection.userId !== user.id) {
     prisma.customCollection
       .update({ where: { id: collection.id }, data: { viewCount: { increment: 1 } } })
       .catch(() => { /* non-critical */ });
@@ -136,6 +127,7 @@ export async function GET(
       createdAt: collection.createdAt.toISOString(),
       tags: collection.tags.map((t) => t.tag),
       isOfficial: collection.isOfficial,
+      numberedOrder: collection.numberedOrder,
       themePromptId: collection.themePromptId,
       themePrompt: collection.themePrompt ? { id: collection.themePrompt.id, title: collection.themePrompt.title } : null,
       matchScore: scoreMap.get(collection.id) ?? null,
@@ -167,7 +159,7 @@ export async function GET(
         isAdmin: curator.isAdmin,
         bio: curator.bio,
       },
-      isOwner: collection.userId === user.id,
+      isOwner: !!user && collection.userId === user.id,
       isSaved: !!save,
     },
   });

@@ -26,8 +26,16 @@ export async function POST(req: NextRequest, { params }: Props) {
     const isEditor = watchlist.collaborators.some((c) => c.role === "editor" && c.status === "accepted");
     if (!isOwner && !isEditor) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const { tmdbId, title, posterPath, releaseDate, mediaType } = await req.json();
+    const { tmdbId, title, posterPath, releaseDate, mediaType, sortOrder: explicitSortOrder } = await req.json();
     if (!tmdbId) return NextResponse.json({ error: "tmdbId required" }, { status: 400 });
+
+    // Accept an explicit sortOrder for bulk-import flows (e.g. promote a
+    // collection to a watchlist) where the caller knows the precise
+    // ordering it wants and the auto-derived "top/bottom" behavior would
+    // shuffle the result.
+    const explicitSort = typeof explicitSortOrder === "number" && Number.isFinite(explicitSortOrder)
+      ? explicitSortOrder
+      : null;
 
     if (mediaType === "tv") {
       const tvShow = await prisma.tVShow.upsert({
@@ -40,7 +48,7 @@ export async function POST(req: NextRequest, { params }: Props) {
         where: { watchlistId_tvShowId: { watchlistId, tvShowId: tvShow.id } },
       });
       if (!existing) {
-        const sortOrder = await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
+        const sortOrder = explicitSort ?? await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
         await prisma.watchlistShow.create({
           data: { watchlistId, tvShowId: tvShow.id, sortOrder },
         });
@@ -56,7 +64,7 @@ export async function POST(req: NextRequest, { params }: Props) {
         where: { watchlistId_movieId: { watchlistId, movieId: movie.id } },
       });
       if (!existing) {
-        const sortOrder = await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
+        const sortOrder = explicitSort ?? await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
         await prisma.watchlistMovie.create({
           data: { watchlistId, movieId: movie.id, sortOrder },
         });

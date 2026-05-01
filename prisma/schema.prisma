@@ -1855,6 +1855,10 @@ model CustomCollection {
   // curator's name in favour of "Curated by Ratist" attribution and the
   // Featured tab pulls from this flag instead of curator.isAdmin.
   isOfficial    Boolean   @default(false) @map("is_official")
+  // When true, the public detail page renders ordinal numbers (1, 2, 3…)
+  // alongside each item — used for canonical watch orders on saga
+  // collections (e.g. MCU Infinity Saga in chronological order).
+  numberedOrder Boolean   @default(false) @map("numbered_order")
   // Denormalized engagement counts kept in sync by the save toggle / view
   // tracker. Used for popular-sort and milestone notifications.
   saveCount     Int       @default(0) @map("save_count")

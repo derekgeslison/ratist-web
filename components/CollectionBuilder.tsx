@@ -34,6 +34,7 @@ export interface BuilderInitialState {
   tags?: string[];
   themePromptId?: string | null;
   isOfficial?: boolean;
+  numberedOrder?: boolean;
   // For edit mode — was the collection already public when we loaded it?
   alreadyPublic?: boolean;
   // Default the publish-to-community toggle to ON. Used by the admin
@@ -79,6 +80,7 @@ export default function CollectionBuilder({
   const [activePrompts, setActivePrompts] = useState<{ id: string; title: string; description: string | null; featured: boolean }[]>([]);
   const [publishAsOfficial, setPublishAsOfficial] = useState(initialState?.isOfficial ?? false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [numberedOrder, setNumberedOrder] = useState(initialState?.numberedOrder ?? false);
 
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -243,6 +245,7 @@ export default function CollectionBuilder({
             // out of the personal list immediately. Server still gates on
             // user.isAdmin so non-admins sending this are silently ignored.
             isOfficial: isAdmin && publishAsOfficial,
+            numberedOrder,
             // POST doesn't take blurbs/tags; PATCH does. Send items
             // without blurbs here so the row exists, then PATCH them.
             items: itemsPayload().map(({ blurb, ...rest }) => { void blurb; return rest; }),
@@ -267,6 +270,7 @@ export default function CollectionBuilder({
         items: itemsPayload(),
         tags,
         themePromptId,
+        numberedOrder,
       };
       const patchRes = await fetch(`/api/custom-collections/${resolvedId}`, {
         method: "PATCH",
@@ -457,6 +461,24 @@ export default function CollectionBuilder({
             Collections cap at {MAX_ITEMS} titles.
           </p>
         </div>
+
+        {/* Numbered display toggle — when on, the public detail page
+            renders 1, 2, 3 badges on each item so viewers see the
+            curator's intended watch order (e.g. canonical vs release). */}
+        <label className="flex items-start gap-2 mb-3 text-xs text-white cursor-pointer">
+          <input
+            type="checkbox"
+            checked={numberedOrder}
+            onChange={(e) => setNumberedOrder(e.target.checked)}
+            className="mt-0.5 accent-[var(--ratist-red)]"
+          />
+          <span className="flex-1">
+            <span className="block">Show as numbered watch order</span>
+            <span className="block text-[10px] text-[var(--foreground-muted)] mt-0.5">
+              Adds 1, 2, 3 badges to each item on the public page. Use the up/down arrows below to set the order.
+            </span>
+          </span>
+        </label>
         {items.length === 0 ? (
           <div className="text-center py-8 text-sm text-[var(--foreground-muted)] border border-dashed border-[var(--border)] rounded-lg">
             Search above to start adding titles.

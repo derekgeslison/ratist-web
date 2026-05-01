@@ -1,531 +1,192 @@
-"use client";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { prisma } from "@/lib/prisma";
+import { posterUrl } from "@/lib/tmdb";
+import CollectionDetailClient from "./CollectionDetailClient";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
-import Link from "next/link";
-import { Bookmark, BookmarkCheck, ListPlus, Eye, Lock, Reply, Loader2, Copy, Pencil, Trash2, X, Lightbulb } from "lucide-react";
-import BackButton from "@/components/BackButton";
-import { useAuth } from "@/context/AuthContext";
-import { useSubscription } from "@/hooks/useSubscription";
-import MovieCard from "@/components/MovieCard";
-import ShowCard from "@/components/ShowCard";
-import CommentSection from "@/components/CommentSection";
+export const dynamic = "force-dynamic";
 
-interface CollectionItem {
-  id: string;
-  mediaType: "movie" | "tv";
-  tmdbId: number;
-  title: string;
-  posterPath: string | null;
-  releaseDate: string | null;
-  voteAverage: number | null;
-  sortOrder: number;
-  blurb: string | null;
-  curatorRating: number | null;
-  predictedRating: number | null;
-}
-
-interface CollectionDetail {
-  id: string;
-  name: string;
-  description: string | null;
+interface RouteParams {
+  uid: string;
   slug: string;
-  mediaType: string;
-  coverPath: string | null;
-  saveCount: number;
-  viewCount: number;
-  publishedAt: string | null;
-  tags: string[];
-  items: CollectionItem[];
-  curator: {
-    id: string;
-    name: string;
-    firebaseUid: string;
-    avatarUrl: string | null;
-    isAdmin: boolean;
-    bio: string | null;
-  };
-  isOwner: boolean;
-  isSaved: boolean;
-  isOfficial: boolean;
-  themePromptId: string | null;
-  themePrompt: { id: string; title: string } | null;
-  matchScore: number | null;
-  watched: { watched: number; total: number } | null;
 }
 
-// Same color anchor as the card so the detail header reads consistently.
-function matchClasses(score: number): string {
-  if (score >= 85) return "bg-green-500/15 text-green-300 border-green-500/40";
-  if (score >= 70) return "bg-lime-500/15 text-lime-300 border-lime-500/40";
-  if (score >= 55) return "bg-yellow-500/15 text-yellow-300 border-yellow-500/40";
-  if (score >= 40) return "bg-orange-500/15 text-orange-300 border-orange-500/40";
-  return "bg-red-500/15 text-red-300 border-red-500/40";
+interface Props {
+  params: Promise<RouteParams>;
 }
 
-export default function CollectionDetailPage() {
-  const { uid, slug } = useParams<{ uid: string; slug: string }>();
-  const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
-  const { hasPass, loading: subLoading } = useSubscription();
+const SITE_BASE = "https://www.theratist.com";
 
-  const [collection, setCollection] = useState<CollectionDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [creatingWatchlist, setCreatingWatchlist] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [wlMessage, setWlMessage] = useState<{ text: string; href?: string; type: "success" | "error" } | null>(null);
-
-  // Gate the page on Backstage Pass — community is paid-only.
-  useEffect(() => {
-    if (!authLoading && !user) router.replace("/backstage-pass/collections");
-  }, [authLoading, user, router]);
-  useEffect(() => {
-    if (!subLoading && user && !hasPass) router.replace("/backstage-pass/collections");
-  }, [subLoading, hasPass, user, router]);
-
-  const load = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/community-collections/${uid}/${slug}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 404) { setError("This collection isn't public or doesn't exist."); setLoading(false); return; }
-      if (!res.ok) { setError("Failed to load collection."); setLoading(false); return; }
-      const data = await res.json();
-      setCollection(data.collection);
-    } catch {
-      setError("Failed to load collection.");
-    } finally {
-      setLoading(false);
-    }
-  }, [user, uid, slug]);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function toggleSave() {
-    if (!user || !collection || saving) return;
-    setSaving(true);
-    const wasSaved = collection.isSaved;
-    // Optimistic update — revert on failure.
-    setCollection({ ...collection, isSaved: !wasSaved, saveCount: collection.saveCount + (wasSaved ? -1 : 1) });
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/custom-collections/${collection.id}/save`, {
-        method: wasSaved ? "DELETE" : "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        setCollection({ ...collection, isSaved: wasSaved, saveCount: collection.saveCount });
-      }
-    } catch {
-      setCollection({ ...collection, isSaved: wasSaved, saveCount: collection.saveCount });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!user || !collection || deleting) return;
-    setDeleting(true);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch(`/api/custom-collections/${collection.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) router.push(collection.isOfficial ? "/admin/collections" : "/tools/collections");
-    } finally {
-      setDeleting(false);
-      setConfirmingDelete(false);
-    }
-  }
-
-  async function handleRemoveTheme() {
-    if (!user || !collection || !collection.themePromptId) return;
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/custom-collections/${collection.id}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ themePromptId: null }),
-    });
-    if (res.ok) {
-      setCollection({ ...collection, themePromptId: null, themePrompt: null });
-    }
-  }
-
-  // Saves a private copy of this collection to the viewer's personal
-  // collections — different from Bookmark (which only adds to bookmarks
-  // and doesn't duplicate items). Tags + theme don't carry over since
-  // those are author-specific signals.
-  async function copyToMyCollections() {
-    if (!user || !collection || copying) return;
-    setCopying(true);
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/custom-collections", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${collection.name} (copy)`.slice(0, 80),
-          description: collection.description ?? null,
-          prompt: "",
-          mediaType: collection.mediaType,
-          items: collection.items.map((i) => ({
-            mediaType: i.mediaType,
-            tmdbId: i.tmdbId,
-            title: i.title,
-            posterPath: i.posterPath,
-            releaseDate: i.releaseDate,
-            voteAverage: i.voteAverage,
-          })),
-        }),
-      });
-      if (!res.ok) {
-        setWlMessage({ text: "Failed to copy collection.", type: "error" });
-        return;
-      }
-      const data = await res.json();
-      const newId: string | undefined = data.collection?.id;
-      if (!newId) { setWlMessage({ text: "Failed to copy collection.", type: "error" }); return; }
-      router.push(`/tools/collections/custom/${newId}`);
-    } catch {
-      setWlMessage({ text: "Failed to copy collection.", type: "error" });
-    } finally {
-      setCopying(false);
-    }
-  }
-
-  async function createWatchlistFromCollection() {
-    if (!user || !collection || creatingWatchlist) return;
-    const name = window.prompt("Name for the watchlist:", collection.name);
-    if (!name?.trim()) return;
-    setCreatingWatchlist(true);
-    setWlMessage(null);
-    try {
-      const token = await user.getIdToken();
-      const createRes = await fetch("/api/watchlist", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      if (!createRes.ok) { setWlMessage({ text: "Failed to create watchlist.", type: "error" }); return; }
-      const created = await createRes.json();
-      const wlId: string | undefined = created.watchlist?.id ?? created.id;
-      if (!wlId) { setWlMessage({ text: "Failed to create watchlist.", type: "error" }); return; }
-
-      const results = await Promise.allSettled(
-        collection.items.map((item) =>
-          fetch(`/api/watchlist/${wlId}/movies`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              tmdbId: item.tmdbId,
-              title: item.title,
-              posterPath: item.posterPath,
-              releaseDate: item.releaseDate,
-              mediaType: item.mediaType,
-            }),
-          }),
-        ),
-      );
-      const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)).length;
-      const added = collection.items.length - failed;
-      setWlMessage({
-        text: `Watchlist "${name}" created with ${added}/${collection.items.length} title${collection.items.length === 1 ? "" : "s"}.`,
-        href: `/watchlist?list=${wlId}`,
-        type: "success",
-      });
-    } catch {
-      setWlMessage({ text: "Failed to create watchlist.", type: "error" });
-    } finally {
-      setCreatingWatchlist(false);
-    }
-  }
-
-  if (authLoading || subLoading || loading) {
-    return <div className="py-20 text-center text-[var(--foreground-muted)]"><Loader2 className="w-6 h-6 animate-spin inline" /></div>;
-  }
-  if (error) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center">
-        <Lock className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-3" />
-        <p className="text-white text-lg mb-2">{error}</p>
-        <Link href="/tools/collections" className="text-sm text-[var(--ratist-red)] hover:underline">Back to collections</Link>
-      </div>
-    );
-  }
+// Server-side fetch shared by generateMetadata + the page render so we
+// don't double-query Postgres on every request. Returns null when the
+// curator/collection isn't published or doesn't exist.
+async function loadPublicCollection(uid: string, slug: string) {
+  const curator = await prisma.user.findUnique({
+    where: { firebaseUid: uid },
+    select: { id: true, name: true, firebaseUid: true, avatarUrl: true, isAdmin: true, bio: true },
+  });
+  if (!curator) return null;
+  const collection = await prisma.customCollection.findFirst({
+    where: {
+      userId: curator.id,
+      slug,
+      visibility: "public",
+      publishedAt: { not: null },
+    },
+    include: {
+      items: { orderBy: { sortOrder: "asc" } },
+      tags:  { orderBy: { tag: "asc" }, select: { tag: true } },
+      themePrompt: { select: { id: true, title: true } },
+    },
+  });
   if (!collection) return null;
+  return { curator, collection };
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { uid, slug } = await params;
+  const data = await loadPublicCollection(uid, slug);
+  if (!data) return { title: "Collection not found" };
+
+  const { curator, collection } = data;
+  const attribution = collection.isOfficial ? "The Ratist" : curator.name;
+  const title = `${collection.name} — ${attribution}`;
+  const description = collection.description ??
+    `A curated collection of ${collection.items.length} title${collection.items.length === 1 ? "" : "s"} by ${attribution} on The Ratist.`;
+  const canonical = `/collections/${uid}/${slug}`;
+  // OG image: prefer the explicit cover, fall back to the first item's
+  // poster. Either way we get a recognizable preview when shared.
+  const firstPoster = collection.items.find((i) => i.posterPath)?.posterPath ?? null;
+  const ogImage = collection.coverPath
+    ? posterUrl(collection.coverPath, "w780")
+    : firstPoster
+      ? posterUrl(firstPoster, "w780")
+      : null;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      url: `${SITE_BASE}${canonical}`,
+      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(ogImage ? { images: [ogImage] } : {}),
+    },
+  };
+}
+
+export default async function CollectionDetailPage({ params }: Props) {
+  const { uid, slug } = await params;
+  const data = await loadPublicCollection(uid, slug);
+  if (!data) notFound();
+
+  // Fire-and-forget view counter — avoids blocking the render. Owners
+  // viewing their own collection don't inflate the count.
+  // (Owner check has to happen client-side since we don't know the
+  // viewer's user ID at server-render time without auth — the existing
+  // /api endpoint does that correctly when the client refetches.)
+
+  const { curator, collection } = data;
+
+  // Build the initial-data payload in the same shape the client API
+  // returns. Viewer-specific fields (isOwner, isSaved, matchScore,
+  // watched, predictedRating per item) start unset and the client
+  // refetches to fill them when an authed Backstage user is on the page.
+  const initialData = {
+    id: collection.id,
+    name: collection.name,
+    description: collection.description,
+    slug: collection.slug as string,
+    mediaType: collection.mediaType,
+    coverPath: collection.coverPath,
+    saveCount: collection.saveCount,
+    viewCount: collection.viewCount,
+    publishedAt: collection.publishedAt?.toISOString() ?? null,
+    tags: collection.tags.map((t) => t.tag),
+    items: collection.items.map((i) => ({
+      id: i.id,
+      mediaType: i.mediaType as "movie" | "tv",
+      tmdbId: i.tmdbId,
+      title: i.title,
+      posterPath: i.posterPath,
+      releaseDate: i.releaseDate,
+      voteAverage: i.voteAverage,
+      sortOrder: i.sortOrder,
+      blurb: i.blurb,
+      curatorRating: null,
+      predictedRating: null,
+    })),
+    curator: {
+      id: curator.id,
+      name: curator.name,
+      firebaseUid: curator.firebaseUid,
+      avatarUrl: curator.avatarUrl,
+      isAdmin: curator.isAdmin,
+      bio: curator.bio,
+    },
+    isOwner: false,
+    isSaved: false,
+    isOfficial: collection.isOfficial,
+    numberedOrder: collection.numberedOrder,
+    themePromptId: collection.themePromptId,
+    themePrompt: collection.themePrompt ? { id: collection.themePrompt.id, title: collection.themePrompt.title } : null,
+    matchScore: null,
+    watched: null,
+  };
+
+  // ItemList structured data — gives Google a clean ordered roster of
+  // titles in the collection so rich results can surface them.
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: collection.name,
+    description: collection.description ?? undefined,
+    numberOfItems: collection.items.length,
+    url: `${SITE_BASE}/collections/${uid}/${slug}`,
+    itemListOrder: collection.numberedOrder ? "https://schema.org/ItemListOrderAscending" : "https://schema.org/ItemListUnordered",
+    itemListElement: collection.items.map((item, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      item: {
+        "@type": item.mediaType === "tv" ? "TVSeries" : "Movie",
+        name: item.title,
+        ...(item.releaseDate ? { datePublished: item.releaseDate } : {}),
+        ...(item.posterPath ? { image: posterUrl(item.posterPath, "w500") } : {}),
+      },
+    })),
+  };
+
+  // Breadcrumb: site → tools/collections → this collection.
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Collections", item: `${SITE_BASE}/tools/collections` },
+      { "@type": "ListItem", position: 2, name: collection.name, item: `${SITE_BASE}/collections/${uid}/${slug}` },
+    ],
+  };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <BackButton
-        fallback="/tools/collections"
-        label="Back to collections"
-        className="inline-flex items-center gap-1 text-xs text-[var(--foreground-muted)] hover:text-white mb-4"
+    <>
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
       />
-
-      {/* Curator header — Official curations swap the admin user's name +
-          avatar for the Ratist mark so the attribution reads as the brand
-          rather than an individual employee. */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-6">
-        <div className="flex items-start gap-4">
-          {collection.isOfficial ? (
-            <div className="w-12 h-12 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-white text-lg font-bold shrink-0">
-              ✦
-            </div>
-          ) : (
-            <Link href={`/profile/${collection.curator.firebaseUid}`} className="shrink-0">
-              {collection.curator.avatarUrl ? (
-                <Image src={collection.curator.avatarUrl} alt={collection.curator.name} width={48} height={48} className="rounded-full" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-base text-[var(--foreground-muted)]">
-                  {collection.curator.name.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </Link>
-          )}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white">{collection.name}</h1>
-            <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)] mt-1">
-              {collection.isOfficial ? (
-                <span className="text-[var(--ratist-red)] font-semibold tracking-wide">Curated by The Ratist</span>
-              ) : (
-                <>
-                  <span>by</span>
-                  <Link href={`/profile/${collection.curator.firebaseUid}`} className="text-white hover:text-[var(--ratist-red)] transition-colors">
-                    {collection.curator.name}
-                  </Link>
-                </>
-              )}
-              {collection.publishedAt && (
-                <>
-                  <span>•</span>
-                  <span>{new Date(collection.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
-                </>
-              )}
-            </div>
-            {collection.description && (
-              <p className="text-sm text-white/85 mt-3 whitespace-pre-wrap">{collection.description}</p>
-            )}
-            {collection.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {collection.tags.map((tag) => (
-                  <Link key={tag} href={`/tools/collections?tab=community&tag=${encodeURIComponent(tag)}`} className="text-[10px] uppercase tracking-wider bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:text-white px-2 py-0.5 rounded transition-colors">
-                    {tag}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-[var(--border)]">
-          <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)] flex-wrap">
-            {/* Hide the predicted-match badge from the curator — they
-                already know what's on their own list. */}
-            {!collection.isOwner && typeof collection.matchScore === "number" && (
-              <span
-                className={`text-[10px] font-bold rounded-full border px-2 py-0.5 ${matchClasses(collection.matchScore)}`}
-                title="Predicted match for your taste"
-              >
-                {collection.matchScore}% match
-              </span>
-            )}
-            {collection.watched && collection.watched.watched > 0 && (
-              <span className="flex items-center gap-1 text-green-400" title="Items you've already seen">
-                <Eye className="w-3.5 h-3.5" /> {collection.watched.watched}/{collection.watched.total} watched
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <Bookmark className="w-3.5 h-3.5" /> {collection.saveCount.toLocaleString()}
-            </span>
-            <span className="flex items-center gap-1">
-              <Eye className="w-3.5 h-3.5" /> {collection.viewCount.toLocaleString()}
-            </span>
-            <span>{collection.items.length} title{collection.items.length === 1 ? "" : "s"}</span>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Owner controls only for personal collections. Official
-                Ratist collections are managed exclusively from the admin
-                panel — even an admin viewing the public page should see
-                the same UI a regular user does. */}
-            {collection.isOwner && !collection.isOfficial ? (
-              <>
-                <Link
-                  href={`/tools/collections/custom/${collection.id}/edit`}
-                  className="flex items-center gap-1.5 text-sm font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] rounded-full px-4 py-1.5 transition-colors"
-                >
-                  <Pencil className="w-3.5 h-3.5" /> Edit
-                </Link>
-                {confirmingDelete ? (
-                  <span className="flex items-center gap-2 text-xs">
-                    <button onClick={handleDelete} disabled={deleting} className="text-red-400 hover:text-red-300 font-medium">
-                      {deleting ? "Deleting…" : "Confirm"}
-                    </button>
-                    <button onClick={() => setConfirmingDelete(false)} className="text-[var(--foreground-muted)] hover:text-white">Cancel</button>
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => setConfirmingDelete(true)}
-                    title="Delete this collection"
-                    className="p-1.5 rounded-full text-[var(--foreground-muted)] hover:text-red-400 border border-[var(--border)] hover:border-red-400/50 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </>
-            ) : (
-              // Two save actions on someone else's collection:
-              //   - Save as my collection: copies items into a new private
-              //     personal collection so you can edit and curate.
-              //   - Bookmark: adds to your bookmarks list (engagement
-              //     signal, doesn't duplicate items).
-              // Save-as-my-collection is the primary action.
-              <>
-                <button
-                  onClick={copyToMyCollections}
-                  disabled={copying}
-                  title="Copy this collection's items into a new private collection of your own"
-                  className="flex items-center gap-1.5 text-sm font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] rounded-full px-4 py-1.5 transition-colors disabled:opacity-50"
-                >
-                  {copying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copying ? "Copying…" : "Save as my collection"}
-                </button>
-                <button
-                  onClick={toggleSave}
-                  disabled={saving}
-                  title={collection.isSaved ? "Bookmarked — click to remove" : "Bookmark to find this collection later (doesn't copy items)"}
-                  className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 transition-colors disabled:opacity-50 ${
-                    collection.isSaved
-                      ? "bg-[var(--ratist-red)] text-white hover:bg-[var(--ratist-red-hover)]"
-                      : "bg-[var(--surface-2)] text-white border border-[var(--border)] hover:border-[var(--ratist-red)]"
-                  }`}
-                >
-                  {collection.isSaved ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
-                  {collection.isSaved ? "Bookmarked" : "Bookmark"}
-                </button>
-              </>
-            )}
-            <button
-              onClick={createWatchlistFromCollection}
-              disabled={creatingWatchlist}
-              className="flex items-center gap-1.5 text-xs text-white bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--ratist-red)] rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
-            >
-              <ListPlus className="w-3.5 h-3.5" />
-              {creatingWatchlist ? "Creating…" : "Save as watchlist"}
-            </button>
-          </div>
-        </div>
-
-        {/* Theme association — personal-collection owners get an inline X
-            to untag. Official Ratist collections route theme changes
-            through the admin panel only. */}
-        {collection.themePrompt && (
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--border)] text-xs">
-            <Lightbulb className="w-3.5 h-3.5 text-[var(--ratist-red)]" />
-            <span className="text-[var(--foreground-muted)]">Responding to theme:</span>
-            <span className="text-white font-medium">{collection.themePrompt.title}</span>
-            {collection.isOwner && !collection.isOfficial && (
-              <button
-                onClick={handleRemoveTheme}
-                title="Remove from theme"
-                className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {wlMessage && (
-          <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${
-            wlMessage.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-300" : "bg-red-500/10 border border-red-500/30 text-red-300"
-          }`}>
-            <span className="flex-1">{wlMessage.text}</span>
-            {wlMessage.href && <Link href={wlMessage.href} className="text-white underline hover:no-underline">View</Link>}
-            <button onClick={() => setWlMessage(null)} className="text-[var(--foreground-muted)] hover:text-white">✕</button>
-          </div>
-        )}
-      </div>
-
-      {/* Items */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-8">
-        {collection.items.map((item) => (
-          <div key={item.id} className="space-y-2">
-            {item.mediaType === "tv" ? (
-              <ShowCard
-                show={{
-                  id: item.tmdbId,
-                  name: item.title,
-                  overview: "",
-                  poster_path: item.posterPath,
-                  backdrop_path: null,
-                  first_air_date: item.releaseDate ?? "",
-                  popularity: 0,
-                  vote_average: item.voteAverage ?? 0,
-                  vote_count: 0,
-                }}
-              />
-            ) : (
-              <MovieCard
-                movie={{
-                  id: item.tmdbId,
-                  title: item.title,
-                  overview: "",
-                  poster_path: item.posterPath,
-                  backdrop_path: null,
-                  release_date: item.releaseDate ?? "",
-                  popularity: 0,
-                  vote_average: item.voteAverage ?? 0,
-                  vote_count: 0,
-                }}
-              />
-            )}
-            {/* Inline curator vs predicted rating. Hidden for the owner
-                (their own ratings on their own list = noise) and when
-                neither side is available. */}
-            {!collection.isOwner && (item.curatorRating != null || item.predictedRating != null) && (
-              <div className="flex items-center justify-between gap-2 px-1 text-[10px]">
-                {item.curatorRating != null ? (
-                  <span className="text-[var(--foreground-muted)]" title={`${collection.curator.name}'s rating`}>
-                    Curator <span className="text-white font-semibold">{item.curatorRating.toFixed(1)}</span>
-                  </span>
-                ) : <span />}
-                {item.predictedRating != null && (
-                  <span className="text-[var(--ratist-red)]" title="Your predicted rating">
-                    You <span className="font-semibold">{item.predictedRating.toFixed(1)}</span>
-                  </span>
-                )}
-              </div>
-            )}
-            {item.blurb && (
-              <p className="text-[11px] text-[var(--foreground-muted)] italic px-1 leading-snug">{item.blurb}</p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Comments + reply with your own list */}
-      <div className="border-t border-[var(--border)] pt-6">
-        <div className="flex items-center gap-2 mb-3">
-          <Reply className="w-4 h-4 text-[var(--ratist-red)]" />
-          <h2 className="text-base font-semibold text-white">Discussion</h2>
-        </div>
-        <CommentSection
-          targetType="collection"
-          targetId={collection.id}
-          enableCollectionLink
-        />
-      </div>
-
-    </div>
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <CollectionDetailClient initialData={initialData} uid={uid} slug={slug} />
+    </>
   );
 }

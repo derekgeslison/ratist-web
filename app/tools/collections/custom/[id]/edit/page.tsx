@@ -33,6 +33,7 @@ export default function EditCollectionPage() {
         description: c.description ?? "",
         themePromptId: c.themePromptId ?? null,
         isOfficial: !!c.isOfficial,
+        numberedOrder: !!c.numberedOrder,
         alreadyPublic: c.visibility === "public",
         tags: c.tags ?? [],
         items: (c.items ?? []).map((i: {

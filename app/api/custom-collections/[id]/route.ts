@@ -42,6 +42,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       themePromptId: c.themePromptId,
       themePrompt: c.themePrompt ? { id: c.themePrompt.id, title: c.themePrompt.title } : null,
       isOfficial: c.isOfficial,
+      numberedOrder: c.numberedOrder,
       saveCount: c.saveCount,
       viewCount: c.viewCount,
       createdAt: c.createdAt.toISOString(),
@@ -116,6 +117,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // so a curated UI accidentally sending the field can't escalate.
   if (typeof body.isOfficial === "boolean" && user.isAdmin) {
     data.isOfficial = body.isOfficial;
+  }
+
+  // Curator-controlled: numbered watch order display.
+  if (typeof body.numberedOrder === "boolean") {
+    data.numberedOrder = body.numberedOrder;
   }
 
   // Items: full replace when present.

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Filter, Loader2, Users, Flame, Sparkles, Shield, Target, Lightbulb, Star, ArrowLeft, Plus, Bookmark, BookmarkCheck } from "lucide-react";
+import { Search, Filter, Loader2, Users, Flame, Sparkles, Shield, Target, Lightbulb, Star, ArrowLeft, Plus, Bookmark, BookmarkCheck, Lock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useSubscription } from "@/hooks/useSubscription";
 import { posterUrl } from "@/lib/tmdb";
 import CommunityCollectionCard, { CommunityCollectionCardData } from "./CommunityCollectionCard";
+import CollectionsPaywallCard from "./CollectionsPaywallCard";
 
 type Tab = "match" | "admin" | "following" | "popular" | "new" | "theme" | "bookmarked";
 
@@ -62,16 +64,33 @@ interface MyCollection {
   themePromptTitle: string | null;
 }
 
+// Tab gating for non-Backstage / anonymous users. Featured ("admin")
+// is the only readable surface; everything else is the paid value prop.
+const FREE_TABS: Tab[] = ["admin"];
+const TAB_PAYWALL_COPY: Record<Tab, { title: string; body: string }> = {
+  match:      { title: "Match scores need a Backstage Pass", body: "We score every collection against your taste profile so you see the most relevant lists first. Rate a few movies and shows to seed your persona." },
+  theme:      { title: "Themed prompts need a Backstage Pass", body: "Editorial prompts curators are responding to right now (e.g. 'Films that aged like wine'). Browse responses or build your own." },
+  admin:      { title: "", body: "" }, // never used — featured is free
+  following:  { title: "Following is a Backstage Pass feature", body: "See new collections from curators you follow as soon as they publish." },
+  popular:    { title: "Popular is a Backstage Pass feature", body: "Browse the most-saved collections this week, sorted by community engagement." },
+  new:        { title: "New is a Backstage Pass feature", body: "See the latest published collections from curators across the community." },
+  bookmarked: { title: "Bookmarks are a Backstage Pass feature", body: "Save collections you want to come back to and find them all in one place." },
+};
+
 export default function CommunityCollectionsFeed() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { hasPass } = useSubscription();
+  const isBackstage = !!user && hasPass;
 
-  // Default to "match" — the personalized score is the headline reason
-  // to use this surface vs. a generic Letterboxd feed. Cold-start users
-  // hit the empty state's "rate more to unlock" copy.
-  const tab = (searchParams.get("subtab") as Tab) ?? "match";
-  const activeTab: Tab = TABS.some((t) => t.id === tab) ? tab : "match";
+  // Default subtab depends on subscription tier: Backstage users land
+  // on Match (the headline differentiator); free + anonymous users land
+  // on Featured (the only tab they can read).
+  const defaultTab: Tab = isBackstage ? "match" : "admin";
+  const tab = (searchParams.get("subtab") as Tab) ?? defaultTab;
+  const activeTab: Tab = TABS.some((t) => t.id === tab) ? tab : defaultTab;
+  const isLocked = !isBackstage && !FREE_TABS.includes(activeTab);
   const tag = searchParams.get("tag") ?? "";
   const initialSearch = searchParams.get("search") ?? "";
   const themePromptId = searchParams.get("themePromptId") ?? "";
@@ -153,12 +172,14 @@ export default function CommunityCollectionsFeed() {
     }
   }, [user, activeTab, tag, initialSearch, themePromptId]);
 
-  // Reset + refetch whenever the filter shape changes.
+  // Reset + refetch whenever the filter shape changes. Skip the fetch
+  // when the active tab is locked for the current viewer — the body
+  // renders a paywall card instead of any list.
   useEffect(() => {
     setCollections([]);
     setPage(1);
-    fetchPage(1, true);
-  }, [fetchPage]);
+    if (!isLocked) fetchPage(1, true);
+  }, [fetchPage, isLocked]);
 
   // Active prompts drive both the "Theme" tab strip and the
   // "responding to a theme" picker on the create flow. We fetch once on
@@ -361,6 +382,7 @@ export default function CommunityCollectionsFeed() {
         {TABS.map((t) => {
           const Icon = t.icon;
           const isActive = activeTab === t.id;
+          const tabLocked = !isBackstage && !FREE_TABS.includes(t.id);
           return (
             <button
               key={t.id}
@@ -373,15 +395,21 @@ export default function CommunityCollectionsFeed() {
             >
               <Icon className="w-3.5 h-3.5" />
               {t.label}
+              {tabLocked && <Lock className="w-3 h-3 opacity-60" />}
             </button>
           );
         })}
       </div>
 
-      {/* Theme tab — tile-based hub. Each prompt is its own card with a
-          row of top responses. Drilling in (themePromptId set) flips into
-          the regular flat grid scoped to that prompt. */}
-      {activeTab === "theme" && !themePromptId ? (
+      {/* Locked tab → paywall card. Short-circuits everything below
+          (theme tile view, search, grid) so the user just sees the
+          upgrade prompt with a brief description of what the tab does. */}
+      {isLocked ? (
+        <CollectionsPaywallCard
+          title={TAB_PAYWALL_COPY[activeTab].title}
+          body={TAB_PAYWALL_COPY[activeTab].body}
+        />
+      ) : activeTab === "theme" && !themePromptId ? (
         activePrompts.length === 0 ? (
           <div className="py-12 text-center text-sm text-[var(--foreground-muted)]">
             No themed prompts active right now. Check back — they rotate.

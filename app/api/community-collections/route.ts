@@ -27,13 +27,15 @@ function parseTab(raw: string | null): Tab {
 
 export async function GET(req: NextRequest) {
   const user = await getAuthedUser(req);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!user.isAdmin && !isSubscriptionActive(user)) {
-    return NextResponse.json({ error: "Community collections are a Backstage Pass feature." }, { status: 403 });
-  }
-
   const url = new URL(req.url);
   const tab = parseTab(url.searchParams.get("tab"));
+
+  // Featured ("admin") is the freemium funnel — accessible to anyone
+  // including anonymous visitors. All other tabs require Backstage Pass.
+  const isBackstage = !!user && (user.isAdmin || isSubscriptionActive(user));
+  if (tab !== "admin" && !isBackstage) {
+    return NextResponse.json({ error: "Community collections are a Backstage Pass feature." }, { status: 403 });
+  }
   const tag = (url.searchParams.get("tag") ?? "").trim().toLowerCase();
   const search = (url.searchParams.get("search") ?? "").trim();
   const annotatedOnly = url.searchParams.get("annotated") === "true";
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
     baseWhere.isOfficial = true;
   } else if (tab === "following") {
     const follows = await prisma.userFollow.findMany({
-      where: { followerId: user.id, status: "accepted" },
+      where: { followerId: user!.id, status: "accepted" },
       select: { followingId: true },
     });
     if (follows.length === 0) {
@@ -63,7 +65,7 @@ export async function GET(req: NextRequest) {
     // Bookmarked tab — collections the requesting user has saved. Scope
     // by user's CollectionSave rows and order by save recency.
     const saves = await prisma.collectionSave.findMany({
-      where: { userId: user.id },
+      where: { userId: user!.id },
       orderBy: { createdAt: "desc" },
       select: { collectionId: true },
     });
@@ -121,11 +123,18 @@ export async function GET(req: NextRequest) {
   // for this user, sort by score desc, then materialize the requested
   // page. Cap the pool to keep the prediction batch bounded.
   if (tab === "match") {
-    // Exclude the user's own collections — Match is for discovering
-    // someone else's curation, not for scoring yourself. (The user
-    // already knows what's on their own list.)
+    // Exclude the user's own personal collections — Match is for
+    // discovering someone else's curation. Admin-official collections
+    // are conceptually authored by Ratist, so they're not "your own"
+    // even when the userId column matches the viewer (admin curator).
     const candidates = await prisma.customCollection.findMany({
-      where: { ...baseWhere, userId: { not: user.id } },
+      where: {
+        ...baseWhere,
+        OR: [
+          { userId: { not: user!.id } },
+          { isOfficial: true },
+        ],
+      },
       orderBy: [{ saveCount: "desc" }, { publishedAt: "desc" }],
       take: MATCH_CANDIDATE_LIMIT,
       select: {
@@ -144,7 +153,7 @@ export async function GET(req: NextRequest) {
         mediaType: i.mediaType === "tv" ? "tv" : "movie",
       })),
     }));
-    const scoreMap = await getOrComputeMatchScoresBatch(user.id, candidatesWithItems);
+    const scoreMap = await getOrComputeMatchScoresBatch(user!.id, candidatesWithItems);
 
     // Sort: non-null scores descending, nulls last. Stable secondary sort
     // by saveCount (already pre-sorted by the candidates query).
@@ -163,7 +172,7 @@ export async function GET(req: NextRequest) {
     if (pagedIds.length === 0) {
       return NextResponse.json({ collections: [], hasMore: false, page });
     }
-    return await renderPage(user.id, pagedIds, scoreMap, candidatesWithItems, hasMore, page);
+    return await renderPage(user!.id, pagedIds, scoreMap, candidatesWithItems, hasMore, page);
   }
 
   // Non-match tabs: page first, then enrich.
@@ -193,16 +202,22 @@ export async function GET(req: NextRequest) {
       mediaType: i.mediaType === "tv" ? "tv" : "movie",
     })),
   }));
-  const scoreMap = await getOrComputeMatchScoresBatch(user.id, itemsForCards);
+  // Match scores + bookmark state + watched progress are viewer-specific.
+  // For anonymous / non-Backstage viewers (Featured tab), skip the
+  // expensive enrichment passes and return empty maps.
+  const scoreMap = user
+    ? await getOrComputeMatchScoresBatch(user.id, itemsForCards)
+    : new Map<string, number | null>();
 
-  return await renderPage(user.id, pagedIds, scoreMap, itemsForCards, hasMore, page);
+  return await renderPage(user?.id ?? null, pagedIds, scoreMap, itemsForCards, hasMore, page);
 }
 
 // Shared finisher: pulls full card-shape data for a list of collection
 // IDs, attaches save state + match score + watched progress, and returns
-// the response in the order of pagedIds.
+// the response in the order of pagedIds. userId may be null for the
+// anonymous Featured-tab path.
 async function renderPage(
-  userId: string,
+  userId: string | null,
   pagedIds: string[],
   scoreMap: Map<string, number | null>,
   itemsByCollection: { id: string; items: CollectionItemRef[] }[],
@@ -219,11 +234,15 @@ async function renderPage(
         _count: { select: { items: true } },
       },
     }),
-    prisma.collectionSave.findMany({
-      where: { userId, collectionId: { in: pagedIds } },
-      select: { collectionId: true },
-    }),
-    getWatchedProgressBatch(userId, itemsByCollection.filter((c) => pagedIds.includes(c.id))),
+    userId
+      ? prisma.collectionSave.findMany({
+          where: { userId, collectionId: { in: pagedIds } },
+          select: { collectionId: true },
+        })
+      : Promise.resolve([] as { collectionId: string }[]),
+    userId
+      ? getWatchedProgressBatch(userId, itemsByCollection.filter((c) => pagedIds.includes(c.id)))
+      : Promise.resolve(new Map<string, { watched: number; total: number }>()),
     // Pull one non-empty blurb per collection (the first by sortOrder)
     // so the card can preview a snippet of curatorial voice. Done as a
     // raw findMany over items rather than nested into the parent so we

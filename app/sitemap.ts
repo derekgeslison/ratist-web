@@ -50,7 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const [
     movies, shows, blogPosts, newsArticles, movieMaps, twoThumbs, celebrities, forumThreads,
-    boxOfficeFranchises, boxOfficeStudios,
+    boxOfficeFranchises, boxOfficeStudios, publicCollections,
   ] = await Promise.all([
     safe(() => prisma.movie.findMany({
       select: { tmdbId: true, updatedAt: true },
@@ -99,6 +99,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     safe(() => prisma.studio.findMany({
       where: { movies: { some: { movie: { revenue: { gte: BigInt(1000) } } } } },
       select: { id: true },
+    })),
+    // Public custom collections — needs the curator's firebaseUid for
+    // the canonical URL pattern /collections/[uid]/[slug].
+    safe(() => prisma.customCollection.findMany({
+      where: { visibility: "public", publishedAt: { not: null }, slug: { not: null } },
+      select: {
+        slug: true,
+        updatedAt: true,
+        isOfficial: true,
+        user: { select: { firebaseUid: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 5000,
     })),
   ]);
 
@@ -179,6 +192,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority: 0.5,
     })),
+    // Public custom collections — official Ratist curation gets a higher
+    // priority so search engines weight them above user submissions.
+    ...publicCollections
+      .filter((c): c is typeof c & { slug: string } => typeof c.slug === "string")
+      .map((c) => ({
+        url: `${base}/collections/${c.user.firebaseUid}/${c.slug}`,
+        lastModified: c.updatedAt,
+        changeFrequency: "weekly" as const,
+        priority: c.isOfficial ? 0.7 : 0.5,
+      })),
   ];
 
   return [...staticPages, ...yearUrls, ...dynamicPages];

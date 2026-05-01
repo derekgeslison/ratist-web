@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
   // routed to /admin/collections immediately rather than briefly
   // appearing in the admin's personal list while the publish step runs.
   const isOfficial = user.isAdmin && body?.isOfficial === true;
+  // Curator-controlled: numbered watch order display.
+  const numberedOrder = body?.numberedOrder === true;
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (items.length === 0) return NextResponse.json({ error: "Collection must have at least one item" }, { status: 400 });
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
       mediaType,
       themePromptId,
       isOfficial,
+      numberedOrder,
       items: {
         create: valid.map((i, idx) => ({
           mediaType: i.mediaType,
