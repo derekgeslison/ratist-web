@@ -207,11 +207,16 @@ export default function CollectionBuilder({
 
   // Saves the collection. Returns the collection id (existing for edit,
   // new for create) plus the publish slug if the save also flipped public.
+  // In lockOfficial mode, the publish step is conditional on items >= 5
+  // — fewer items save as a private isOfficial draft so admins can come
+  // back to finish later.
   async function save(): Promise<void> {
     if (!user) return;
     if (!title.trim()) { setError("Title is required."); return; }
     if (items.length === 0) { setError("Add at least one title."); return; }
-    if (publishToCommunity && items.length < MIN_ITEMS_TO_PUBLISH) {
+    // Only the user-controlled publishToCommunity toggle is hard-blocked
+    // by the 5-item floor. lockOfficial mode is allowed to save short.
+    if (!initialState?.lockOfficial && publishToCommunity && items.length < MIN_ITEMS_TO_PUBLISH) {
       setError(`A public collection needs at least ${MIN_ITEMS_TO_PUBLISH} titles.`);
       return;
     }
@@ -280,10 +285,16 @@ export default function CollectionBuilder({
       //                              (admin path). Nothing else to do.
       //   wasPublic + want private → POST DELETE on /publish
       //   wasPrivate + want public → POST /publish (with isOfficial)
+      // lockOfficial mode + items < 5 → keep private (admin draft); the
+      // create POST already stamped isOfficial=true so it's discoverable
+      // from /admin/collections.
       const wasPublic = !!initialState?.alreadyPublic;
+      const wantPublic = initialState?.lockOfficial
+        ? items.length >= MIN_ITEMS_TO_PUBLISH
+        : publishToCommunity;
       let publishedSlug: string | null = null;
 
-      if (publishToCommunity && !wasPublic) {
+      if (wantPublic && !wasPublic) {
         const pubRes = await fetch(`/api/custom-collections/${resolvedId}/publish`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -295,12 +306,12 @@ export default function CollectionBuilder({
         } else {
           publishedSlug = data.slug ?? null;
         }
-      } else if (!publishToCommunity && wasPublic) {
+      } else if (!wantPublic && wasPublic) {
         await fetch(`/api/custom-collections/${resolvedId}/publish`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
-      } else if (publishToCommunity && wasPublic && isAdmin) {
+      } else if (wantPublic && wasPublic && isAdmin) {
         // Toggling official-ness on an already-public collection — handled
         // via PATCH so the row updates without re-publishing.
         await fetch(`/api/custom-collections/${resolvedId}`, {
@@ -498,17 +509,19 @@ export default function CollectionBuilder({
 
       <div className="pt-4 border-t border-[var(--border)] space-y-3">
         {initialState?.lockOfficial ? (
-          // Admin Ratist flow — both toggles are implicit. Show a small
-          // banner instead of redundant checkboxes.
+          // Admin Ratist flow — both toggles are implicit. Banner copy
+          // pivots based on whether the collection has enough titles to
+          // publish; under-5 saves as a private isOfficial draft.
           <div className="flex items-start gap-2 px-3 py-2 bg-[var(--ratist-red)]/10 border border-[var(--ratist-red)]/30 rounded-lg text-xs text-white">
             <span className="text-[var(--ratist-red)] font-semibold shrink-0">✦</span>
             <span>
-              This will publish as an official Ratist collection — listed on the Featured tab and attributed to The Ratist.
-              {items.length < MIN_ITEMS_TO_PUBLISH && (
-                <span className="block text-[var(--foreground-muted)] mt-1">
-                  Add at least {MIN_ITEMS_TO_PUBLISH} titles to publish (currently {items.length}).
-                </span>
-              )}
+              {items.length >= MIN_ITEMS_TO_PUBLISH
+                ? "Save will publish as an official Ratist collection — listed on the Featured tab and attributed to The Ratist."
+                : (
+                  <>
+                    Save keeps this as a private Ratist draft (visible only on /admin/collections). Add at least {MIN_ITEMS_TO_PUBLISH} titles ({items.length}/{MIN_ITEMS_TO_PUBLISH} so far) and Save again to publish to Featured.
+                  </>
+                )}
             </span>
           </div>
         ) : (
@@ -535,22 +548,11 @@ export default function CollectionBuilder({
               </span>
             </label>
 
-            {publishToCommunity && isAdmin && (
-              <label className="flex items-start gap-2 text-sm text-white cursor-pointer ml-6">
-                <input
-                  type="checkbox"
-                  checked={publishAsOfficial}
-                  onChange={(e) => setPublishAsOfficial(e.target.checked)}
-                  className="mt-0.5 accent-[var(--ratist-red)]"
-                />
-                <span className="flex-1">
-                  <span className="block">Publish as Ratist (official curation)</span>
-                  <span className="block text-[11px] text-[var(--foreground-muted)] mt-0.5">
-                    Replaces your name with the Ratist mark and surfaces this on the Featured tab.
-                  </span>
-                </span>
-              </label>
-            )}
+            {/* "Publish as Ratist" used to live here gated by isAdmin.
+                Removed on purpose — the only path to an official Ratist
+                collection is /admin/collections → New Ratist (lockOfficial
+                mode), so admins editing a personal collection don't
+                accidentally promote it. */}
           </>
         )}
 
@@ -575,14 +577,14 @@ export default function CollectionBuilder({
 
           <button
             onClick={save}
-            disabled={saving || items.length === 0 || !title.trim() || (initialState?.lockOfficial && items.length < MIN_ITEMS_TO_PUBLISH)}
+            disabled={saving || items.length === 0 || !title.trim()}
             className="flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] rounded-full px-5 py-2 transition-colors disabled:opacity-40"
           >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : publishToCommunity ? <Send className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (publishToCommunity || (initialState?.lockOfficial && items.length >= MIN_ITEMS_TO_PUBLISH)) ? <Send className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
             {saving
               ? "Saving…"
               : initialState?.lockOfficial
-                ? "Save & publish as Ratist"
+                ? items.length >= MIN_ITEMS_TO_PUBLISH ? "Save & publish as Ratist" : "Save draft"
                 : publishToCommunity && !initialState?.alreadyPublic
                   ? "Save & publish"
                   : "Save"}

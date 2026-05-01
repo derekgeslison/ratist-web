@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
         take: 4, // preview posters only
         select: { posterPath: true },
       },
+      // Theme info is exposed so theme-reassign UIs can warn the user
+      // before overwriting an existing tag.
+      themePrompt: { select: { id: true, title: true } },
       _count: { select: { items: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -40,6 +43,8 @@ export async function GET(req: NextRequest) {
       visibility: c.visibility,
       slug: c.slug,
       publishedAt: c.publishedAt?.toISOString() ?? null,
+      themePromptId: c.themePromptId,
+      themePromptTitle: c.themePrompt?.title ?? null,
       saveCount: c.saveCount,
       itemCount: c._count.items,
       previewPosters: c.items.map((i) => i.posterPath).filter(Boolean),

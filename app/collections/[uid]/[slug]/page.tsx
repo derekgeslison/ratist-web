@@ -329,7 +329,9 @@ export default function CollectionDetailPage() {
 
         <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-[var(--border)]">
           <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)] flex-wrap">
-            {typeof collection.matchScore === "number" && (
+            {/* Hide the predicted-match badge from the curator — they
+                already know what's on their own list. */}
+            {!collection.isOwner && typeof collection.matchScore === "number" && (
               <span
                 className={`text-[10px] font-bold rounded-full border px-2 py-0.5 ${matchClasses(collection.matchScore)}`}
                 title="Predicted match for your taste"
@@ -487,10 +489,10 @@ export default function CollectionDetailPage() {
                 }}
               />
             )}
-            {/* Inline curator vs predicted rating. Hidden when neither is
-                available so cold-start users / un-rated items don't see
-                a noisy "—" placeholder under every poster. */}
-            {(item.curatorRating != null || item.predictedRating != null) && (
+            {/* Inline curator vs predicted rating. Hidden for the owner
+                (their own ratings on their own list = noise) and when
+                neither side is available. */}
+            {!collection.isOwner && (item.curatorRating != null || item.predictedRating != null) && (
               <div className="flex items-center justify-between gap-2 px-1 text-[10px]">
                 {item.curatorRating != null ? (
                   <span className="text-[var(--foreground-muted)]" title={`${collection.curator.name}'s rating`}>

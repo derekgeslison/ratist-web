@@ -56,6 +56,10 @@ interface MyCollection {
   visibility: "private" | "public" | "unlisted";
   itemCount: number;
   previewPosters: string[];
+  // Surfaced so the theme-respond picker can warn before overwriting an
+  // existing tag — themePromptId is single-valued on a collection.
+  themePromptId: string | null;
+  themePromptTitle: string | null;
 }
 
 export default function CommunityCollectionsFeed() {
@@ -198,12 +202,19 @@ export default function CommunityCollectionsFeed() {
       const res = await fetch("/api/custom-collections", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) { setMyCollections([]); return; }
       const data = await res.json();
-      type Incoming = { id: string; name: string; slug: string | null; visibility?: "private" | "public" | "unlisted"; previewPosters: (string | null)[]; itemCount: number };
+      type Incoming = {
+        id: string; name: string; slug: string | null;
+        visibility?: "private" | "public" | "unlisted";
+        previewPosters: (string | null)[]; itemCount: number;
+        themePromptId?: string | null; themePromptTitle?: string | null;
+      };
       setMyCollections((data.collections ?? []).map((c: Incoming): MyCollection => ({
         id: c.id, name: c.name, slug: c.slug ?? null,
         visibility: c.visibility ?? "private",
         itemCount: c.itemCount,
         previewPosters: (c.previewPosters ?? []).filter((p: string | null): p is string => typeof p === "string"),
+        themePromptId: c.themePromptId ?? null,
+        themePromptTitle: c.themePromptTitle ?? null,
       })));
     } finally {
       setLoadingMy(false);
@@ -231,9 +242,17 @@ export default function CommunityCollectionsFeed() {
   }
 
   // PATCH the collection's themePromptId. Used to tag an already-public
-  // collection without touching its visibility.
+  // collection without touching its visibility. Confirms before
+  // overwriting an existing theme tag.
   async function tagWithTheme(promptId: string, c: MyCollection) {
     if (!user || taggingId) return;
+    if (c.themePromptId && c.themePromptId !== promptId) {
+      const newTitle = activePrompts.find((p) => p.id === promptId)?.title ?? "this theme";
+      const oldTitle = c.themePromptTitle ?? "another theme";
+      if (!window.confirm(
+        `"${c.name}" is already responding to "${oldTitle}". A collection can only respond to one theme at a time — replace with "${newTitle}"?`,
+      )) return;
+    }
     setTaggingId(c.id);
     setRespondError(null);
     try {
@@ -257,8 +276,20 @@ export default function CommunityCollectionsFeed() {
 
   // For private collections: publish first, then PATCH the theme. Two
   // round-trips so the rate limit + 5-item floor enforce on /publish.
+  // Confirms before flipping visibility (publishing makes the collection
+  // public) and before overwriting an existing theme tag.
   async function publishAndTag(promptId: string, c: MyCollection) {
     if (!user || taggingId) return;
+    if (c.themePromptId && c.themePromptId !== promptId) {
+      const newTitle = activePrompts.find((p) => p.id === promptId)?.title ?? "this theme";
+      const oldTitle = c.themePromptTitle ?? "another theme";
+      if (!window.confirm(
+        `"${c.name}" is already responding to "${oldTitle}". A collection can only respond to one theme at a time — replace with "${newTitle}"?`,
+      )) return;
+    }
+    if (!window.confirm(
+      `"${c.name}" is currently private. Publishing will make it visible on the community feed (and visible to anyone with the link). Continue?`,
+    )) return;
     setTaggingId(c.id);
     setRespondError(null);
     try {

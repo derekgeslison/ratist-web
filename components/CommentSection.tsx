@@ -373,9 +373,13 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
 
   // Publish a private collection inline from the picker, then auto-link
   // it. Backed by the existing /publish endpoint so the same 5-item
-  // minimum + rate limit + isOfficial gating apply.
+  // minimum + rate limit + isOfficial gating apply. Confirms first
+  // since publishing makes the collection visible to everyone.
   async function publishAndLinkFromPicker(slot: "new" | "reply", c: PickerCollection) {
     if (publishingFromPicker) return;
+    if (!window.confirm(
+      `"${c.name}" is currently private. Publishing will make it visible on the community feed and to anyone with the link. Continue?`,
+    )) return;
     setPublishingFromPicker(c.id);
     setPickerError(null);
     try {

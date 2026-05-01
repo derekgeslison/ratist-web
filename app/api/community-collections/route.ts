@@ -121,8 +121,11 @@ export async function GET(req: NextRequest) {
   // for this user, sort by score desc, then materialize the requested
   // page. Cap the pool to keep the prediction batch bounded.
   if (tab === "match") {
+    // Exclude the user's own collections — Match is for discovering
+    // someone else's curation, not for scoring yourself. (The user
+    // already knows what's on their own list.)
     const candidates = await prisma.customCollection.findMany({
-      where: baseWhere,
+      where: { ...baseWhere, userId: { not: user.id } },
       orderBy: [{ saveCount: "desc" }, { publishedAt: "desc" }],
       take: MATCH_CANDIDATE_LIMIT,
       select: {

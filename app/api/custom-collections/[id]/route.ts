@@ -187,6 +187,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { id } = await params;
   const existing = await prisma.customCollection.findUnique({ where: { id }, select: { userId: true } });
   if (!existing || existing.userId !== user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Comments are polymorphic (no FK to CustomCollection), so the
+  // collection delete won't cascade them. Cleanup explicitly so we
+  // don't leave orphan comment+like rows behind. CommentLike rows
+  // cascade off Comment, so deleting comments handles those too.
+  await prisma.comment.deleteMany({
+    where: { targetType: "collection", targetId: id },
+  });
+
   await prisma.customCollection.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
