@@ -105,18 +105,18 @@ export async function GET(
     movieTmdbIds.length > 0
       ? prisma.movie.findMany({
           where: { tmdbId: { in: movieTmdbIds } },
-          select: { tmdbId: true, overview: true },
+          select: { tmdbId: true, overview: true, voteAverage: true },
         })
       : Promise.resolve([]),
     tvTmdbIds.length > 0
       ? prisma.tVShow.findMany({
           where: { tmdbId: { in: tvTmdbIds } },
-          select: { tmdbId: true, overview: true },
+          select: { tmdbId: true, overview: true, voteAverage: true },
         })
       : Promise.resolve([]),
   ]);
-  const movieOverviewMap = new Map(movieOverviews.map((m) => [m.tmdbId, m.overview]));
-  const tvOverviewMap = new Map(tvOverviews.map((s) => [s.tmdbId, s.overview]));
+  const movieOverviewMap = new Map(movieOverviews.map((m) => [m.tmdbId, { overview: m.overview, voteAverage: m.voteAverage }]));
+  const tvOverviewMap = new Map(tvOverviews.map((s) => [s.tmdbId, { overview: s.overview, voteAverage: s.voteAverage }]));
 
   // Build TMDB-keyed lookup maps. The curator-rating queries already
   // joined movie/tvShow so we can key by tmdbId without extra resolution.
@@ -154,9 +154,9 @@ export async function GET(
         const curatorRating = i.mediaType === "tv"
           ? curatorTvRating.get(i.tmdbId) ?? null
           : curatorMovieRating.get(i.tmdbId) ?? null;
-        const overview = i.mediaType === "tv"
-          ? tvOverviewMap.get(i.tmdbId) ?? ""
-          : movieOverviewMap.get(i.tmdbId) ?? "";
+        const live = i.mediaType === "tv"
+          ? tvOverviewMap.get(i.tmdbId)
+          : movieOverviewMap.get(i.tmdbId);
         return {
           id: i.id,
           mediaType: i.mediaType,
@@ -164,10 +164,12 @@ export async function GET(
           title: i.title,
           posterPath: i.posterPath,
           releaseDate: i.releaseDate,
-          voteAverage: i.voteAverage,
+          // Prefer live vote_average from Movie/TVShow over the snapshot
+          // saved on the collection item (often null for older rows).
+          voteAverage: live?.voteAverage ?? i.voteAverage,
           sortOrder: i.sortOrder,
           blurb: i.blurb,
-          overview,
+          overview: live?.overview ?? "",
           curatorRating,
           predictedRating: predictions.get(key) ?? null,
         };

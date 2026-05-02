@@ -41,35 +41,35 @@ async function loadPublicCollection(uid: string, slug: string) {
   });
   if (!collection) return null;
 
-  // Enrich each item with the overview from Movie/TVShow tables — list
-  // view renders the description next to each row, but CustomCollectionItem
-  // only stores the basics (title/poster/release/rating). Bulk-fetch in
-  // two queries (one per media type) and key by tmdbId for O(1) lookup.
+  // Enrich each item with overview + the live vote_average from
+  // Movie/TVShow tables. CustomCollectionItem stores a snapshot of the
+  // rating at add-time and many older rows have it null/0 — that's why
+  // the community star badge was rendering blank on the cards.
   const movieTmdbIds = collection.items.filter((i) => i.mediaType === "movie").map((i) => i.tmdbId);
   const tvTmdbIds    = collection.items.filter((i) => i.mediaType === "tv").map((i) => i.tmdbId);
-  const [movieOverviews, tvOverviews] = await Promise.all([
+  const [movieRows, tvRows] = await Promise.all([
     movieTmdbIds.length > 0
       ? prisma.movie.findMany({
           where: { tmdbId: { in: movieTmdbIds } },
-          select: { tmdbId: true, overview: true },
+          select: { tmdbId: true, overview: true, voteAverage: true },
         })
       : Promise.resolve([]),
     tvTmdbIds.length > 0
       ? prisma.tVShow.findMany({
           where: { tmdbId: { in: tvTmdbIds } },
-          select: { tmdbId: true, overview: true },
+          select: { tmdbId: true, overview: true, voteAverage: true },
         })
       : Promise.resolve([]),
   ]);
-  const movieOverviewMap = new Map(movieOverviews.map((m) => [m.tmdbId, m.overview]));
-  const tvOverviewMap = new Map(tvOverviews.map((s) => [s.tmdbId, s.overview]));
-  const overviewByItem = new Map<string, string | null>();
+  const movieEnrich = new Map(movieRows.map((m) => [m.tmdbId, { overview: m.overview, voteAverage: m.voteAverage }]));
+  const tvEnrich = new Map(tvRows.map((s) => [s.tmdbId, { overview: s.overview, voteAverage: s.voteAverage }]));
+  const enrichByItem = new Map<string, { overview: string | null; voteAverage: number | null }>();
   for (const item of collection.items) {
-    const map = item.mediaType === "tv" ? tvOverviewMap : movieOverviewMap;
-    overviewByItem.set(item.id, map.get(item.tmdbId) ?? null);
+    const map = item.mediaType === "tv" ? tvEnrich : movieEnrich;
+    enrichByItem.set(item.id, map.get(item.tmdbId) ?? { overview: null, voteAverage: null });
   }
 
-  return { curator, collection, overviewByItem };
+  return { curator, collection, enrichByItem };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -129,7 +129,7 @@ export default async function CollectionDetailPage({ params }: Props) {
   // returns. Viewer-specific fields (isOwner, isSaved, matchScore,
   // watched, predictedRating per item) start unset and the client
   // refetches to fill them when an authed Backstage user is on the page.
-  const overviewMap = data.overviewByItem;
+  const enrichMap = data.enrichByItem;
   const initialData = {
     id: collection.id,
     name: collection.name,
@@ -141,22 +141,26 @@ export default async function CollectionDetailPage({ params }: Props) {
     viewCount: collection.viewCount,
     publishedAt: collection.publishedAt?.toISOString() ?? null,
     tags: collection.tags.map((t) => t.tag),
-    items: collection.items.map((i) => ({
-      id: i.id,
-      mediaType: i.mediaType as "movie" | "tv",
-      tmdbId: i.tmdbId,
-      title: i.title,
-      posterPath: i.posterPath,
-      releaseDate: i.releaseDate,
-      voteAverage: i.voteAverage,
-      sortOrder: i.sortOrder,
-      blurb: i.blurb,
-      // Overview pulled from Movie/TVShow tables for list-view display.
-      // Falls back to empty string when the title isn't in our DB yet.
-      overview: overviewMap.get(i.id) ?? "",
-      curatorRating: null,
-      predictedRating: null,
-    })),
+    items: collection.items.map((i) => {
+      const live = enrichMap.get(i.id);
+      return {
+        id: i.id,
+        mediaType: i.mediaType as "movie" | "tv",
+        tmdbId: i.tmdbId,
+        title: i.title,
+        posterPath: i.posterPath,
+        releaseDate: i.releaseDate,
+        // Prefer the live vote_average from Movie/TVShow over the
+        // CustomCollectionItem snapshot — older items often have null
+        // voteAverage which made the star badge render blank.
+        voteAverage: live?.voteAverage ?? i.voteAverage,
+        sortOrder: i.sortOrder,
+        blurb: i.blurb,
+        overview: live?.overview ?? "",
+        curatorRating: null,
+        predictedRating: null,
+      };
+    }),
     curator: {
       id: curator.id,
       name: curator.name,
