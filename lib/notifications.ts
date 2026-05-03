@@ -10,6 +10,12 @@ interface NotifyOpts {
   targetId: string;
   message: string;
   link?: string;             // URL to navigate to
+  /** Allow recipient === actor. For passive notifications (someone
+   *  liked/commented on your stuff) the self-skip is a sanity guard.
+   *  For opt-in subscriptions (Watch Companion follow → per-episode
+   *  pings) the original generator may still want the notification,
+   *  since the cron — not the user — is what fired the gen. */
+  allowSelfNotify?: boolean;
 }
 
 interface NotificationPrefs {
@@ -52,8 +58,10 @@ function getPrefKey(type: string): keyof NotificationPrefs | null {
  */
 export async function notify(opts: NotifyOpts): Promise<void> {
   try {
-    // Don't notify yourself
-    if (opts.recipientId === opts.actorId) return;
+    // Don't notify yourself, unless the caller explicitly opts in
+    // (subscription-style notifications where the actor is a backend
+    // job, not a peer action).
+    if (opts.recipientId === opts.actorId && !opts.allowSelfNotify) return;
 
     // Check recipient preferences
     const recipient = await prisma.user.findUnique({

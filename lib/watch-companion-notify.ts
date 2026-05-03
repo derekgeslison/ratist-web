@@ -9,8 +9,10 @@ import { notify } from "@/lib/notifications";
  * the full targetId).
  *
  * Intended to be called by the cron sweep after a successful episode-
- * mode generation. Self-follower (the original generator) is skipped by
- * notify() automatically.
+ * mode generation. The original generator IS notified if they follow
+ * their own companion — `allowSelfNotify` opts out of the self-skip
+ * because following is an opt-in subscription, and the cron (not the
+ * user) is what triggered this episode's generation.
  */
 export async function notifyFollowersOfNewEpisode(opts: {
   companionId: string;
@@ -52,6 +54,7 @@ export async function notifyFollowersOfNewEpisode(opts: {
         targetId,
         message,
         link,
+        allowSelfNotify: true,
       });
     }
   } catch (err) {
@@ -97,6 +100,7 @@ export async function notifyFollowersOfSeasonFinalized(opts: {
         targetId,
         message,
         link,
+        allowSelfNotify: true,
       });
     }
   } catch (err) {
