@@ -255,22 +255,36 @@ export default function WatchlistPage() {
   const [providerData, setProviderData] = useState<Record<string, { flatrate: { name: string; logo: string }[]; rent: { name: string; logo: string }[] }>>({});
   const [loadingProviders, setLoadingProviders] = useState(false);
 
-  // Fetch providers when streaming toggle is on
+  // Fetch providers when streaming toggle is on. The /api/providers
+  // endpoint caps each request at 30 items (TMDB rate-limit headroom),
+  // so we chunk client-side and merge results as they come in.
   useEffect(() => {
     if (!showStreaming || movies.length === 0) return;
     // Only fetch for movies we don't already have data for
     const needed = movies.filter((m) => !providerData[`${m.mediaType ?? "movie"}-${m.tmdbId}`]);
     if (needed.length === 0) return;
     setLoadingProviders(true);
-    fetch("/api/providers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: needed.map((m) => ({ tmdbId: m.tmdbId, mediaType: m.mediaType ?? "movie" })) }),
-    })
-      .then((r) => r.json())
-      .then((data) => setProviderData((prev) => ({ ...prev, ...(data.providers ?? {}) })))
-      .catch(() => {})
-      .finally(() => setLoadingProviders(false));
+    let cancelled = false;
+    (async () => {
+      const CHUNK = 30;
+      for (let i = 0; i < needed.length; i += CHUNK) {
+        if (cancelled) return;
+        const slice = needed.slice(i, i + CHUNK);
+        try {
+          const r = await fetch("/api/providers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: slice.map((m) => ({ tmdbId: m.tmdbId, mediaType: m.mediaType ?? "movie" })) }),
+          });
+          if (!r.ok || cancelled) continue;
+          const data = await r.json();
+          if (cancelled) return;
+          setProviderData((prev) => ({ ...prev, ...(data.providers ?? {}) }));
+        } catch { /* swallow — next chunk continues */ }
+      }
+      if (!cancelled) setLoadingProviders(false);
+    })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showStreaming, movies.length]);
 

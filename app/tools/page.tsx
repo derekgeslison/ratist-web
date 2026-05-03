@@ -183,8 +183,14 @@ export default async function ToolsPage() {
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_TOOLS ?? ""} format="auto" className="mb-6" />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {TOOLS.map((tool) => {
+        {TOOLS.map((tool, idx) => {
           const Icon = tool.icon;
+          // Tiles above the fold (3 on desktop, 2 on tablet, 1 on mobile)
+          // get priority loading. With `images.unoptimized: true` in
+          // next.config.ts the PNGs are served raw — without `priority`
+          // they sit behind lazy-loading and the user sees broken-image
+          // chrome until each one finishes downloading.
+          const isAboveFold = idx < 3;
           return (
             <Link
               key={tool.href}
@@ -206,6 +212,8 @@ export default async function ToolsPage() {
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     className="object-cover"
+                    priority={isAboveFold}
+                    loading={isAboveFold ? "eager" : "lazy"}
                   />
                 ) : (
                   <div

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { rebuildUserProfile } from "@/lib/profile";
+import { checkBadges } from "@/lib/badges";
 
 interface ImportRow {
   title: string;
@@ -308,9 +309,16 @@ export async function POST(req: NextRequest) {
       await prisma.movieRating.update({ where: { id: s.id }, data: { ratistRating: s.overallRating } }).catch(() => {});
     }
 
-    // Rebuild user profile after import
+    // Rebuild user profile after import + run badge checks. Without
+    // these the diary-derived badges (marathon-runner, diary-keeper,
+    // weekly-ritual, first-watch) wouldn't fire on rows added by the
+    // import path — every other entry point calls checkBadges, but
+    // the bulk loop here had been missing it.
     if (imported > 0) {
       rebuildUserProfile(user.id).catch((err) => console.error("Profile rebuild after import error:", err));
+      checkBadges(user.id, "seen").catch(() => {});
+      checkBadges(user.id, "watchlog").catch(() => {});
+      checkBadges(user.id, "rate").catch(() => {});
     }
 
     return NextResponse.json({ imported, skipped, failed, errors: errors.slice(0, 20) });
