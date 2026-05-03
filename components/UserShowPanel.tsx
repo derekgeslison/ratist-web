@@ -108,11 +108,28 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
         setSeenError(data.error ?? "You have episodes marked as seen. Remove them first.");
         setTimeout(() => setSeenError(null), 6000);
       }
+      setMarkingSeen(false);
+      return false;
     } else if (res?.ok) {
       const data = await res.json();
       setSeen(data.seen);
+      setMarkingSeen(false);
+      return data.seen as boolean;
     }
     setMarkingSeen(false);
+    return false;
+  }
+
+  async function handleSeenClick() {
+    if (!user || markingSeen) return;
+    if (seen) { toggleSeen(); return; }
+    // Tap when not seen: mark show as seen FIRST, then surface the
+    // optional series/seasons follow-up modal. Closing the modal
+    // (X / click-away) leaves the show marked seen.
+    const nowSeen = await toggleSeen();
+    if (nowSeen && seasons && seasons.length > 0) {
+      setShowSeenModal(true);
+    }
   }
 
   async function handleWatchlistClick() {
@@ -330,11 +347,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
               </div>
               <div className="relative">
                 <button
-                  onClick={() => {
-                    if (seen) { toggleSeen(); return; }
-                    if (seasons && seasons.length > 0) { setShowSeenModal(true); return; }
-                    toggleSeen();
-                  }}
+                  onClick={handleSeenClick}
                   disabled={markingSeen}
                   className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-full border transition-colors ${
                     seen

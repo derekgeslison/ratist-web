@@ -186,15 +186,17 @@ function WatchlistCard({ name, movieCount, isPrivate, movies, href, isOwnProfile
               href={`/${m.mediaType === "tv" ? "shows" : "movies"}/${m.tmdbId}`}
               className="group"
             >
-              <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
-                <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
-                {m.mediaType === "tv" && (
-                  <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
-                    <Tv className="w-2.5 h-2.5" />
-                    <span className="text-[8px] font-bold leading-none">TV</span>
-                  </div>
-                )}
-              </div>
+              <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} mediaType={m.mediaType ?? "movie"}>
+                <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors mb-1">
+                  <Image src={m.posterPath ? posterUrl(m.posterPath, "w185") : "/placeholder-poster.svg"} alt={m.title} fill sizes="100px" className="object-cover" />
+                  {m.mediaType === "tv" && (
+                    <div className="absolute top-1 left-1 bg-blue-600/90 text-white rounded px-1 py-0.5 flex items-center gap-0.5 z-10">
+                      <Tv className="w-2.5 h-2.5" />
+                      <span className="text-[8px] font-bold leading-none">TV</span>
+                    </div>
+                  )}
+                </div>
+              </PosterOverlay>
               <p className="text-[11px] text-[var(--foreground-muted)] line-clamp-1">{m.title}</p>
             </Link>
           ))}
@@ -546,13 +548,15 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {ratings.filter((r) => r.ratingStatus === "complete").slice(0, 12).map((r) => (
                     <Link key={r.id} href={`/${r.mediaType === "tv" ? "shows" : "movies"}/${r.tmdbId}`} className="group">
-                      <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                        {r.posterPath ? (
-                          <Image src={posterUrl(r.posterPath, "w92")} alt={r.title} fill sizes="80px" className="object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
-                        )}
-                      </div>
+                      <PosterOverlay tmdbId={r.tmdbId} title={r.title} posterPath={r.posterPath} voteAverage={r.voteAverage} mediaType={r.mediaType ?? "movie"}>
+                        <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                          {r.posterPath ? (
+                            <Image src={posterUrl(r.posterPath, "w92")} alt={r.title} fill sizes="80px" className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
+                          )}
+                        </div>
+                      </PosterOverlay>
                       <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
                         {r.voteAverage != null && r.voteAverage > 0 && (
                           <RatingBadge type="community" score={r.voteAverage} size="sm" />
@@ -577,16 +581,18 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {topRatedThisYear.map((m, i) => (
                     <Link key={m.tmdbId} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group relative">
-                      <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
-                        {m.posterPath ? (
-                          <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
-                        )}
-                        <div className="absolute top-1 left-1 w-5 h-5 rounded bg-black/70 flex items-center justify-center text-[10px] font-bold text-white">
-                          {i + 1}
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType ?? "movie"}>
+                        <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                          {m.posterPath ? (
+                            <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
+                          )}
+                          <div className="absolute top-1 left-1 w-5 h-5 rounded bg-black/70 flex items-center justify-center text-[10px] font-bold text-white">
+                            {i + 1}
+                          </div>
                         </div>
-                      </div>
+                      </PosterOverlay>
                       {m.ratistRating != null && (
                         <div className="flex justify-center mt-1">
                           <RatingBadge type="ratist" score={m.ratistRating} size="sm" />

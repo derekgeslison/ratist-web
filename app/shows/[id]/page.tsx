@@ -482,12 +482,13 @@ export default async function ShowDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Currently-airing banner. Surfaces when TMDB lists a future
-           next_episode_to_air on this show, so viewers know the season
-           is mid-broadcast and a Watch Companion follow flow is
-           available. The next-episode line shows when present; falls
-           back to a generic "currently airing" tagline when the air date
-           is unknown (TBA / not yet announced).
+        {/* Currently-airing banner. Surfaces only while a season is
+           mid-broadcast — i.e. at least one episode has aired AND
+           more episodes are still scheduled. We require that
+           last_episode_to_air and next_episode_to_air both belong to
+           the same season; if last is from an earlier season, the
+           upcoming season hasn't started yet (don't surface) and if
+           next is null the show has finished airing.
 
            Annual events (e.g. The Oscars, /shows/27023) list each year's
            ceremony as its own season with a single scheduled episode,
@@ -496,6 +497,8 @@ export default async function ShowDetailPage({ params }: Props) {
         {(() => {
           if (!show.next_episode_to_air) return null;
           const next = show.next_episode_to_air;
+          const last = show.last_episode_to_air;
+          if (!last || last.season_number !== next.season_number) return null;
           const targetSeason = seasons.find((s) => s.season_number === next.season_number);
           if (targetSeason && (targetSeason.episode_count ?? 0) <= 1) return null;
           const date = next.air_date ? new Date(next.air_date) : null;

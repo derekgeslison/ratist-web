@@ -115,8 +115,9 @@ function SeasonCard({
   onUpdateSeasonDate: (seasonNumber: number, episodes: TMDBEpisode[], date: string | null) => void;
   isLoggedIn: boolean;
   aggregate?: SeasonAggregate;
-  /** True when this season matches show.next_episode_to_air.season_number
-   *  — drives the "Currently Airing" pill on the row header. */
+  /** True when this season is mid-broadcast — both
+   *  next_episode_to_air and last_episode_to_air resolve to this
+   *  season. Drives the "Currently Airing" pill on the row header. */
   isAiring?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -921,7 +922,11 @@ export default function ShowDetailTabs({
               onUpdateSeasonDate={updateSeasonDate}
               isLoggedIn={isLoggedIn}
               aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === s.season_number)}
-              isAiring={show.next_episode_to_air?.season_number === s.season_number && (s.episode_count ?? 0) > 1}
+              isAiring={
+                show.next_episode_to_air?.season_number === s.season_number
+                && show.last_episode_to_air?.season_number === s.season_number
+                && (s.episode_count ?? 0) > 1
+              }
             />
           ))}
           {specials && specials.episode_count > 0 && (

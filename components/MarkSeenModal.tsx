@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { X, Tv, List, Check, Loader2 } from "lucide-react";
+import { X, Tv, List, Check, Loader2, CheckCircle2 } from "lucide-react";
 
 interface Props {
   showTmdbId: number;
@@ -103,8 +103,15 @@ export default function MarkSeenModal({
           <X size={20} />
         </button>
 
-        {/* Title */}
-        <h2 className="text-lg font-semibold text-white pr-8 mb-5">{showName}</h2>
+        {/* Title — show is already marked seen by the time this opens.
+            Modal acts as confirmation + optional follow-ups. */}
+        <div className="flex items-start gap-2 pr-8 mb-1">
+          <CheckCircle2 size={20} className="text-green-400 shrink-0 mt-0.5" />
+          <h2 className="text-lg font-semibold text-white">Marked &ldquo;{showName}&rdquo; as seen</h2>
+        </div>
+        <p className="text-sm text-gray-400 mb-5">
+          Want to also track individual episodes? You can mark the full series or pick specific seasons — both optional.
+        </p>
 
         {mode === "pick" && (
           <div className="space-y-3">
@@ -141,13 +148,13 @@ export default function MarkSeenModal({
               </div>
             </button>
 
-            {/* Cancel */}
+            {/* Done — closing leaves the show marked seen. */}
             <div className="pt-2 text-center">
               <button
                 onClick={onClose}
                 className="text-sm text-gray-400 hover:text-white transition-colors"
               >
-                Cancel
+                Done
               </button>
             </div>
           </div>
