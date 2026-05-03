@@ -8,6 +8,7 @@ import ShowListItem from "@/components/ShowListItem";
 import MoviesFilterBar from "@/components/MoviesFilterBar";
 import MoviesAiSearch from "@/components/MoviesAiSearch";
 import SeenFilterRunner from "@/components/SeenFilterRunner";
+import SeenMoviesView from "@/components/SeenMoviesView";
 import NavEntryRegister from "@/components/NavEntryRegister";
 import AdUnit from "@/components/AdUnit";
 import SpotlightCards from "@/components/SpotlightCards";
@@ -67,6 +68,16 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   // Content type: "all" | "movie" | "tv"
   const contentType = params.type ?? "all";
+
+  // Seen-filter mode. When `seenStatus=seen`, querying TMDB Discover
+  // doesn't make sense (it has no concept of the user's seen list), so
+  // we render <SeenMoviesView /> which queries our DB instead. The
+  // legacy DOM-walking SeenFilterRunner only handled the post-fetch
+  // hide pass; on a "Seen + Horror" query the page would still surface
+  // 13k unrelated results because TMDB had returned the global horror
+  // catalog and we just hid the unseen tiles.
+  const seenStatus = params.seenStatus;
+  const seenOnlyMode = seenStatus === "seen";
 
   // New multi-value filters
   const genres = params.genres?.split(",").filter(Boolean);
@@ -203,8 +214,10 @@ export default async function MoviesPage({ searchParams }: Props) {
   const showMovies = contentType === "all" || contentType === "movie";
   const showShows = contentType === "all" || contentType === "tv";
 
-  // Fetch movies
-  if (showMovies) {
+  // Fetch movies — skipped entirely in seen-only mode (the SeenMoviesView
+  // client component queries our DB and renders below in place of these
+  // TMDB-backed results).
+  if (showMovies && !seenOnlyMode) {
     if (params.search && !hasFilters && sort === "popular") {
       movieResult = await fetchMoviePages((p) => searchMovies(params.search!, p));
       pageTitle = `Search: "${params.search}"`;
@@ -248,7 +261,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       && !hasMaxCap
       && !hasMinCap
   );
-  if (showShows && shouldFetchShows) {
+  if (showShows && shouldFetchShows && !seenOnlyMode) {
     const isSearchOrFilter = !!(params.search || hasFilters);
     const tvGenres = genres?.length ? translateGenresForTV(genres) : undefined;
     const tvExcludeGenres = excludeGenres.length > 0 ? translateGenresForTV(excludeGenres) : undefined;
@@ -301,6 +314,9 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   if (!params.search && !hasFilters && contentType === "all") {
     pageTitle = "Movies & TV";
+  }
+  if (seenOnlyMode) {
+    pageTitle = contentType === "movie" ? "Seen Movies" : contentType === "tv" ? "Seen TV Shows" : "Seen";
   }
 
   // ── AI-driven post-filters ──
@@ -536,14 +552,21 @@ export default async function MoviesPage({ searchParams }: Props) {
       <MoviesFilterBar
         genres={genreList.genres}
         totalResults={totalResults}
+        hideTotalResults={seenOnlyMode}
       />
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIES ?? ""} format="auto" className="mb-4" />
 
       <TapHoldHint pageKey="movies" />
 
+      {/* Seen-only mode: replace the TMDB grid with a DB-backed view.
+         Pagination and "no results" rendering happen inside the component;
+         the rest of the page (filter bar, ads, etc.) stays put so the
+         filter UX is identical. */}
+      {seenOnlyMode && <SeenMoviesView view={view as "grid" | "list"} pageTitle={pageTitle} />}
+
       {/* Mixed results — when searching/filtering in "all" mode, interleave by relevance */}
-      {isSearchMode && mixedResults.length > 0 && (
+      {!seenOnlyMode && isSearchMode && mixedResults.length > 0 && (
         view === "list" ? (
           <div className="flex flex-col divide-y divide-[var(--border)]">
             {mixedResults.map((item) =>
@@ -568,7 +591,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       )}
 
       {/* Separate sections — browsing mode (no search/filters in "all" mode) */}
-      {!isSearchMode && movieResult && movieResult.results.length > 0 && (
+      {!seenOnlyMode && !isSearchMode && movieResult && movieResult.results.length > 0 && (
         <>
           {contentType === "all" && showResult && showResult.results.length > 0 && <h2 className="text-lg font-semibold text-white mb-4">Movies</h2>}
           {view === "list" ? (
@@ -587,7 +610,7 @@ export default async function MoviesPage({ searchParams }: Props) {
         </>
       )}
 
-      {!isSearchMode && showResult && showResult.results.length > 0 && (
+      {!seenOnlyMode && !isSearchMode && showResult && showResult.results.length > 0 && (
         <div className={!isSearchMode && movieResult && movieResult.results.length > 0 ? "mt-10" : ""}>
           {contentType === "all" && movieResult && movieResult.results.length > 0 && <h2 className="text-lg font-semibold text-white mb-4">TV Shows</h2>}
           {view === "list" ? (
@@ -607,11 +630,11 @@ export default async function MoviesPage({ searchParams }: Props) {
       )}
 
       {/* No results */}
-      {(isSearchMode ? mixedResults.length === 0 : ((!movieResult || movieResult.results.length === 0) && (!showResult || showResult.results.length === 0))) && (
+      {!seenOnlyMode && (isSearchMode ? mixedResults.length === 0 : ((!movieResult || movieResult.results.length === 0) && (!showResult || showResult.results.length === 0))) && (
         <p className="text-[var(--foreground-muted)] text-center py-20">No results found.</p>
       )}
 
-      {totalPages > 1 && (
+      {!seenOnlyMode && totalPages > 1 && (
         <Pagination current={page} total={totalPages} params={params} />
       )}
       {/* Seen-filter overlay — hides cards client-side based on

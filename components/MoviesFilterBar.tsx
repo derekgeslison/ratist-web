@@ -92,9 +92,13 @@ interface ActorOption {
 interface Props {
   genres: TMDBGenre[];
   totalResults: number;
+  /** Hide the result-count line. The seen-only view runs its own
+   *  count below the filter bar; without this the bar would read
+   *  "0 results" while SeenMoviesView is still loading. */
+  hideTotalResults?: boolean;
 }
 
-export default function MoviesFilterBar({ genres, totalResults }: Props) {
+export default function MoviesFilterBar({ genres, totalResults, hideTotalResults = false }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isTyping = useIsTyping();
@@ -465,7 +469,9 @@ export default function MoviesFilterBar({ genres, totalResults }: Props) {
           </button>
         </div>
 
-        <p className="text-sm text-[var(--foreground-muted)]">{totalResults.toLocaleString()} {currentType === "tv" ? "shows" : currentType === "movie" ? "movies" : "results"}</p>
+        {!hideTotalResults && (
+          <p className="text-sm text-[var(--foreground-muted)]">{totalResults.toLocaleString()} {currentType === "tv" ? "shows" : currentType === "movie" ? "movies" : "results"}</p>
+        )}
       </div>
 
       {/* Active filter chips (when panel is closed) */}
