@@ -127,10 +127,10 @@ export default function MarkSeenModal({
                 <Tv size={22} className="text-[var(--ratist-red)] shrink-0" />
               )}
               <div>
-                <p className="text-white font-medium">Mark entire series as seen</p>
+                <p className="text-white font-medium">Mark all aired episodes as seen</p>
                 <p className="text-sm text-gray-400">
-                  {totalEpisodes} episodes across {regularSeasons.length} season
-                  {regularSeasons.length !== 1 ? "s" : ""}
+                  Up to {totalEpisodes} episodes across {regularSeasons.length} season
+                  {regularSeasons.length !== 1 ? "s" : ""}. Future-scheduled episodes are skipped.
                 </p>
               </div>
             </button>
@@ -144,7 +144,7 @@ export default function MarkSeenModal({
               <List size={22} className="text-[var(--ratist-red)] shrink-0" />
               <div>
                 <p className="text-white font-medium">Choose seasons...</p>
-                <p className="text-sm text-gray-400">Select which seasons you&apos;ve watched</p>
+                <p className="text-sm text-gray-400">Aired episodes from the seasons you pick</p>
               </div>
             </button>
 

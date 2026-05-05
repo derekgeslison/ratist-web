@@ -95,6 +95,14 @@ export async function POST(req: NextRequest, { params }: Props) {
       update: {},
     });
 
+    // Episode is "aired" iff TMDB has an air_date and it is on or before
+    // today. Future-scheduled episodes (announced but not yet released)
+    // are excluded so "Mark entire series as seen" doesn't credit the
+    // user for episodes they couldn't have watched.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const hasAired = (airDate: string | null | undefined): boolean =>
+      !!airDate && airDate.length >= 10 && airDate.slice(0, 10) <= todayStr;
+
     if (mode === "series") {
       // Mark entire series: fetch all seasons from TMDB, collect all episodes
       const show = await getShowDetails(showTmdbId);
@@ -110,9 +118,16 @@ export async function POST(req: NextRequest, { params }: Props) {
         for (const sd of seasonDetails) {
           if (!sd?.episodes) continue;
           for (const ep of sd.episodes) {
+            // Only credit aired episodes — leave future-scheduled rows
+            // out so the user can re-mark when they actually watch.
+            // Filtering here is safe for the remove branch too: that
+            // branch deletes by (userId, showTmdbId) directly and
+            // doesn't consult allEpisodes.
+            if (!hasAired(ep.air_date)) continue;
             allEpisodes.push({ seasonNumber: ep.season_number, episodeNumber: ep.episode_number });
           }
-          // Cache episode names to DB (fire-and-forget)
+          // Cache episode names to DB (fire-and-forget) — we still cache
+          // unaired episodes so their metadata is ready when they air.
           cacheSeasonEpisodes(tvShow.id, showTmdbId, sd.episodes[0]?.season_number ?? 0, sd.episodes).catch(() => {});
         }
       }
@@ -142,13 +157,21 @@ export async function POST(req: NextRequest, { params }: Props) {
       const seasonDetail = await getShowSeasonDetails(showTmdbId, seasonNumber).catch(() => null);
       if (!seasonDetail?.episodes) return NextResponse.json({ error: "Season not found" }, { status: 404 });
 
-      // Cache episode names to DB (fire-and-forget)
+      // Cache episode names to DB (fire-and-forget) — cache unaired
+      // too so metadata is ready once they air.
       cacheSeasonEpisodes(tvShow.id, showTmdbId, seasonNumber, seasonDetail.episodes).catch(() => {});
 
-      const seasonEpisodes = seasonDetail.episodes.map((ep) => ({
-        seasonNumber: ep.season_number,
-        episodeNumber: ep.episode_number,
-      }));
+      // For the add path, drop episodes that haven't aired yet —
+      // marking a partially-released season seen shouldn't credit
+      // future episodes. remove and update_date operate by
+      // (userId, showTmdbId, seasonNumber) and don't read this list,
+      // so they're unaffected.
+      const seasonEpisodes = seasonDetail.episodes
+        .filter((ep) => action !== "add" || hasAired(ep.air_date))
+        .map((ep) => ({
+          seasonNumber: ep.season_number,
+          episodeNumber: ep.episode_number,
+        }));
 
       if (action === "remove") {
         await prisma.episodeSeen.deleteMany({
@@ -204,9 +227,14 @@ export async function POST(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
     }
 
-    // Check remaining episode count and sync show-level seen
+    // Check remaining episode count and sync show-level seen. We only
+    // clear the show-level flag on the explicit remove path — an "add"
+    // that ends up with zero rows (e.g. a user picks a season whose
+    // episodes are all future-scheduled) should leave any existing
+    // show-level seen flag in place rather than silently un-seeing the
+    // show the user just marked seen on the panel.
     const remainingCount = await prisma.episodeSeen.count({ where: { userId: user.id, showTmdbId } });
-    if (remainingCount === 0 && mode !== "series") {
+    if (action === "remove" && remainingCount === 0 && mode !== "series") {
       // No episodes left — remove show-level seen
       await prisma.userFavoriteShow.deleteMany({
         where: { userId: user.id, tvShowId: tvShow.id },
