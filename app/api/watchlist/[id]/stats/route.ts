@@ -42,9 +42,19 @@ export async function GET(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Private watchlist" }, { status: 403 });
     }
 
-    // Stats are computed from the OWNER's perspective — the list belongs to
-    // them, and "rated %"/"rewatched" describe their journey through it.
-    const ownerId = watchlist.userId;
+    // Stats roll up the owner + every accepted collaborator. "Rated %",
+    // "avg rating", "rewatches", and the rating distribution combine
+    // every contributor's data on items in this list — a collaborative
+    // list is a shared journey, so a movie one collaborator rated counts
+    // toward "rated" the same way an owner's would.
+    //
+    // (Watched %, top genres/decades/directors/actors, and total runtime
+    // are list-wide regardless of contributor — they read the items
+    // themselves, not anyone's user-state.)
+    const contributorIds: string[] = [
+      watchlist.userId,
+      ...watchlist.collaborators.filter((c) => c.status === "accepted").map((c) => c.userId),
+    ];
 
     const [movieEntries, showEntries] = await Promise.all([
       prisma.watchlistMovie.findMany({
@@ -76,27 +86,28 @@ export async function GET(req: NextRequest, { params }: Props) {
     const movieIds = movieEntries.map((e) => e.movie.id);
     const showIds = showEntries.map((e) => e.tvShow.id);
 
-    // Owner's ratings, owner's rewatches, and credits in parallel. ratingScope:
-    // "series" so we only count series-level TV ratings — per-season ratings
-    // would inflate the rated % if a user rated multiple seasons of the same
-    // show. For actors we cap castOrder ≤ 3 to focus on leads — billed cast
-    // gets very long for ensemble pieces and would noise out top-by-count.
+    // Combined-contributor ratings, rewatches, and credits in parallel.
+    // ratingScope: "series" so we only count series-level TV ratings —
+    // per-season ratings would inflate the rated % if a user rated multiple
+    // seasons of the same show. For actors we cap castOrder ≤ 3 to focus on
+    // leads — billed cast gets very long for ensemble pieces and would
+    // noise out top-by-count.
     const [movieRatings, showRatings, rewatchLogs, directorCredits, actorCredits] = await Promise.all([
       movieIds.length
         ? prisma.movieRating.findMany({
-            where: { userId: ownerId, movieId: { in: movieIds } },
+            where: { userId: { in: contributorIds }, movieId: { in: movieIds } },
             select: { movieId: true, ratistRating: true },
           })
         : Promise.resolve([] as { movieId: string; ratistRating: number | null }[]),
       showIds.length
         ? prisma.tVShowRating.findMany({
-            where: { userId: ownerId, tvShowId: { in: showIds }, ratingScope: "series" },
+            where: { userId: { in: contributorIds }, tvShowId: { in: showIds }, ratingScope: "series" },
             select: { tvShowId: true, ratistRating: true },
           })
         : Promise.resolve([] as { tvShowId: string; ratistRating: number | null }[]),
       movieIds.length
         ? prisma.userWatchLog.count({
-            where: { userId: ownerId, movieId: { in: movieIds }, isRewatch: true },
+            where: { userId: { in: contributorIds }, movieId: { in: movieIds }, isRewatch: true },
           })
         : Promise.resolve(0),
       movieIds.length
@@ -123,9 +134,11 @@ export async function GET(req: NextRequest, { params }: Props) {
     const watchedShows = showEntries.filter((e) => e.isChecked).length;
     const watchedCount = watchedMovies + watchedShows;
 
-    // ── Rated ── (a rating row exists for this owner + item)
-    // Cap at 1 per item so duplicates can't push percent above 100. Series-
-    // scope filter on TV already collapses per-season rows.
+    // ── Rated ── ("any contributor has a rating row for this item")
+    // De-dupe by movie/show so two contributors rating the same item
+    // count once toward "rated %" (the percent should never exceed 100).
+    // Avg + distribution below DON'T de-dupe — both ratings still
+    // contribute their score to the aggregate.
     const ratedMovieSet = new Set(movieRatings.filter((r) => r.ratistRating != null).map((r) => r.movieId));
     const ratedShowSet = new Set(showRatings.filter((r) => r.ratistRating != null).map((r) => r.tvShowId));
     const ratedCount = ratedMovieSet.size + ratedShowSet.size;
