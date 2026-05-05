@@ -408,12 +408,12 @@ export async function getSuperlatives(weekId: string): Promise<Superlative[]> {
     const earlyPicks = await prisma.watchlistMovie.findMany({
       where: {
         movieId: week.movieId,
-        createdAt: { lt: announcedAt },
+        addedAt: { lt: announcedAt },
         watchlist: { userId: { in: raterIds } },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { addedAt: "asc" },
       select: {
-        createdAt: true,
+        addedAt: true,
         watchlist: { select: { userId: true } },
       },
     });
@@ -422,7 +422,7 @@ export async function getSuperlatives(weekId: string): Promise<Superlative[]> {
       const ownerId = earliest.watchlist.userId;
       const rater = ratings.find((r) => r.user.id === ownerId);
       if (rater) {
-        const days = Math.max(1, Math.floor((announcedAt.getTime() - earliest.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+        const days = Math.max(1, Math.floor((announcedAt.getTime() - earliest.addedAt.getTime()) / (1000 * 60 * 60 * 24)));
         superlatives.push({
           label: "Watchlist Prophet",
           userName: rater.user.name,
