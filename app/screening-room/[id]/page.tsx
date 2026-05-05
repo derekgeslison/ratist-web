@@ -1418,6 +1418,8 @@ export default function ScreeningSessionPage() {
                 chatMessages={chatMessages}
                 maxHeight="200px"
                 label="Post-Watch Chat" phase="postwatch"
+                sessionStartedAt={session?.startedAt}
+                totalPausedMs={totalPausedMsRef.current}
               />
 
               {/* Leave session (non-host) */}
@@ -1639,6 +1641,8 @@ export default function ScreeningSessionPage() {
                 chatMessages={chatMessages}
                 maxHeight="200px"
                 label="Post-Watch Chat" phase="postwatch"
+                sessionStartedAt={session?.startedAt}
+                totalPausedMs={totalPausedMsRef.current}
               />
 
               {/* Footer */}

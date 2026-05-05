@@ -17,9 +17,23 @@ interface Props {
   maxHeight?: string;
   label?: string;
   phase?: "lobby" | "postwatch";
+  /** Wall-clock when the watch began. When provided alongside
+   *  phase="postwatch", messages sent during the watch render with
+   *  their elapsed-time stamp so the chat-highlights jump-to-point
+   *  feature still has visible anchors after the movie ends. */
+  sessionStartedAt?: string | null;
+  /** Final paused-time total accumulated during the watch (ms).
+   *  Subtracted from raw elapsed so paused stretches don't inflate
+   *  per-message timestamps. */
+  totalPausedMs?: number;
 }
 
-export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase }: Props) {
+function formatElapsed(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase, sessionStartedAt, totalPausedMs = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -84,10 +98,24 @@ export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, c
         )}
         {userMessages.map((msg) => {
           const isMine = msg.userId === myUserId;
+          // Render the elapsed-time stamp on watching-phase messages
+          // when this CompactChat is the post-watch instance. Mirrors
+          // the inline render in the watching-phase chat (page.tsx
+          // ~line 1271). Lobby phase leaves the stamp off — the watch
+          // hasn't started, every message is pre-watch by definition.
+          const startedAtMs = sessionStartedAt ? new Date(sessionStartedAt).getTime() : null;
+          const isPreWatch = startedAtMs == null || msg.timestamp < startedAtMs;
+          const showElapsed = phase === "postwatch" && !isPreWatch && startedAtMs != null;
+          const elapsedStr = showElapsed
+            ? formatElapsed((msg.timestamp - startedAtMs - totalPausedMs) / 1000)
+            : "";
           return (
             <div key={msg.key} data-msg-ts={msg.timestamp} className={`flex items-start gap-1.5 ${isMine ? "flex-row-reverse" : ""}`}>
               <div className={`max-w-[80%] rounded-lg px-2.5 py-1.5 ${isMine ? "bg-[var(--ratist-red)]/20" : "bg-[var(--surface-2)]"}`}>
-                {!isMine && <p className="text-[9px] text-[var(--foreground-muted)]">{msg.userName}</p>}
+                <div className={`flex items-center gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
+                  {!isMine && <p className="text-[9px] text-[var(--foreground-muted)]">{msg.userName}</p>}
+                  {elapsedStr && <p className="text-[9px] text-[var(--foreground-muted)]">{elapsedStr}</p>}
+                </div>
                 {msg.emoji ? <span className="text-lg">{msg.emoji}</span> : <p className="text-xs text-white">{msg.text}</p>}
               </div>
             </div>
