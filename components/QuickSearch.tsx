@@ -13,7 +13,7 @@ interface QuickPerson { id: number; name: string; profilePath: string | null; de
 
 const TMDB_PROFILE = "https://image.tmdb.org/t/p/w45";
 
-export default function QuickSearch({ className, inputClassName, onNavigate }: { className?: string; inputClassName?: string; onNavigate?: () => void }) {
+export default function QuickSearch({ className, inputClassName, onNavigate, autoFocus = false }: { className?: string; inputClassName?: string; onNavigate?: () => void; autoFocus?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState<QuickMovie[]>([]);
@@ -123,6 +123,7 @@ export default function QuickSearch({ className, inputClassName, onNavigate }: {
             onKeyDown={handleKeyDown}
             onFocus={() => { if (totalResults > 0 && query.length >= 2) setOpen(true); }}
             placeholder="Search movies, shows & people..."
+            autoFocus={autoFocus}
             className={inputClassName ?? "bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] w-44 lg:w-60 transition-all"}
           />
         </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Star, Bell, Ticket, Newspaper } from "lucide-react";
+import { Menu, X, User, LogOut, ChevronDown, Eye, Bookmark, ListOrdered, Settings, BookOpen, Star, Bell, Ticket, Newspaper, Search } from "lucide-react";
 import TwoThumbsIcon from "./TwoThumbsIcon";
 import { useSubscription } from "@/hooks/useSubscription";
 import { usePathname } from "next/navigation";
@@ -23,6 +23,11 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [readMenuOpen, setReadMenuOpen] = useState(false);
+  // Mobile-only inline search overlay. The desktop QuickSearch is
+  // hidden below sm and was buried inside the hamburger menu before
+  // this — surfacing a search icon next to the bell makes the
+  // capability discoverable without a tab into the menu.
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -94,6 +99,7 @@ export default function Navbar() {
     setReadMenuOpen(false);
     setUserMenuOpen(false);
     setMenuOpen(false);
+    setMobileSearchOpen(false);
   }, [pathname]);
 
   // Lock body scroll when mobile menu is open
@@ -164,6 +170,17 @@ export default function Navbar() {
           {/* Search + Auth */}
           <div className="flex items-center gap-3">
             <QuickSearch className="hidden sm:block" />
+
+            {/* Mobile-only search trigger. Pairs with the inline overlay
+                below the header. Visible regardless of auth state — search
+                doesn't require sign-in. */}
+            <button
+              onClick={() => setMobileSearchOpen((v) => !v)}
+              aria-label="Search"
+              className="sm:hidden text-[var(--foreground-muted)] hover:text-white transition-colors"
+            >
+              {mobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+            </button>
 
             {user ? (
               <div className="flex items-center gap-3">
@@ -247,6 +264,19 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile search overlay — slides in below the header when the
+          search icon is tapped. Reuses QuickSearch so the result UI
+          is identical to the desktop and hamburger-menu paths. */}
+      {mobileSearchOpen && (
+        <div className="sm:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 py-3">
+          <QuickSearch
+            inputClassName="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-full pl-9 pr-4 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+            onNavigate={() => setMobileSearchOpen(false)}
+            autoFocus
+          />
+        </div>
+      )}
 
       {/* Mobile menu */}
       {menuOpen && (
