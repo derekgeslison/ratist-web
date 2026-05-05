@@ -278,11 +278,17 @@ export interface Superlative {
 }
 
 export async function getSuperlatives(weekId: string): Promise<Superlative[]> {
-  const ratings = await prisma.movieClubRating.findMany({
-    where: { weekId },
-    include: { user: { select: { name: true, avatarUrl: true, firebaseUid: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const [ratings, week] = await Promise.all([
+    prisma.movieClubRating.findMany({
+      where: { weekId },
+      include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.movieClubWeek.findUnique({
+      where: { id: weekId },
+      select: { startDate: true, movieId: true },
+    }),
+  ]);
 
   if (ratings.length === 0) return [];
 
@@ -317,13 +323,115 @@ export async function getSuperlatives(weekId: string): Promise<Superlative[]> {
     superlatives.push({ label: "Most Detailed Review", userName: detailed[0].user.name, userAvatar: detailed[0].user.avatarUrl, userUid: detailed[0].user.firebaseUid, value: `${detailed[0].reviewText!.length} chars` });
   }
 
-  // Speed Watcher (fastest to submit, measured from the week's start)
-  superlatives.push({ label: "Speed Watcher", userName: first.user.name, userAvatar: first.user.avatarUrl, userUid: first.user.firebaseUid, value: "First to finish" });
-
   // Rewatch count
   const rewatchers = ratings.filter((r) => r.isRewatch);
   if (rewatchers.length > 0) {
     superlatives.push({ label: "Rewatchers", userName: `${rewatchers.length} member${rewatchers.length !== 1 ? "s" : ""}`, userAvatar: null, userUid: "", value: "Already seen it" });
+  }
+
+  // ─── First-Timer / Streaker / Watchlist Prophet ─────────────────────
+  // These three superlatives need cross-week / cross-table data, so
+  // they're computed in a single batch after the rating-only metrics.
+  const raterIds = ratings.map((r) => r.user.id);
+
+  // First-Timer: a rater whose only MovieClubRating row is the one for
+  // this week. If multiple users qualify, pick the one with the
+  // earliest createdAt to keep output stable week-to-week.
+  const priorRatings = await prisma.movieClubRating.findMany({
+    where: { userId: { in: raterIds }, weekId: { not: weekId } },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  const haveHistory = new Set(priorRatings.map((r) => r.userId));
+  const firstTimers = ratings.filter((r) => !haveHistory.has(r.user.id));
+  if (firstTimers.length > 0) {
+    const ft = firstTimers[0]; // already sorted by createdAt asc
+    superlatives.push({
+      label: "First-Timer",
+      userName: ft.user.name,
+      userAvatar: ft.user.avatarUrl,
+      userUid: ft.user.firebaseUid,
+      value: firstTimers.length > 1 ? `+${firstTimers.length - 1} more` : "First week",
+    });
+  }
+
+  // Streaker: rater who has submitted for this week + the previous two
+  // weeks (3-week run ending now). Look up the prior two weeks by
+  // startDate, then check each rater's coverage. We award the rater
+  // with the longest streak — if multiple are tied, the alphabetically-
+  // first name keeps output deterministic.
+  if (week?.startDate) {
+    const priorWeeks = await prisma.movieClubWeek.findMany({
+      where: { startDate: { lt: week.startDate } },
+      orderBy: { startDate: "desc" },
+      take: 2,
+      select: { id: true },
+    });
+    if (priorWeeks.length === 2) {
+      const priorWeekIds = priorWeeks.map((w) => w.id);
+      const priorParticipations = await prisma.movieClubRating.findMany({
+        where: { userId: { in: raterIds }, weekId: { in: priorWeekIds } },
+        select: { userId: true, weekId: true },
+      });
+      // userId → set of priorWeekIds they participated in
+      const byUser = new Map<string, Set<string>>();
+      for (const p of priorParticipations) {
+        if (!byUser.has(p.userId)) byUser.set(p.userId, new Set());
+        byUser.get(p.userId)!.add(p.weekId);
+      }
+      // Streak qualifier: hit BOTH prior weeks (plus this one = 3 in a row)
+      const streakers = ratings.filter((r) => {
+        const set = byUser.get(r.user.id);
+        return !!set && set.size === 2;
+      });
+      if (streakers.length > 0) {
+        const s = streakers[0];
+        superlatives.push({
+          label: "Streaker",
+          userName: s.user.name,
+          userAvatar: s.user.avatarUrl,
+          userUid: s.user.firebaseUid,
+          value: streakers.length > 1 ? `${streakers.length} on a 3-week run` : "3 weeks in a row",
+        });
+      }
+    }
+  }
+
+  // Watchlist Prophet: a rater who had this week's movie on one of
+  // their watchlists before the week started. The week's startDate is
+  // the cleanest "announcement" boundary — even on revealEarly weeks
+  // the pick wasn't surfaced before the week's row existed, and we
+  // don't store a separate pickAnnouncedAt. Award the user who added
+  // it earliest.
+  if (week?.movieId && week.startDate) {
+    const announcedAt = new Date(`${week.startDate}T00:00:00`);
+    const earlyPicks = await prisma.watchlistMovie.findMany({
+      where: {
+        movieId: week.movieId,
+        createdAt: { lt: announcedAt },
+        watchlist: { userId: { in: raterIds } },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        createdAt: true,
+        watchlist: { select: { userId: true } },
+      },
+    });
+    if (earlyPicks.length > 0) {
+      const earliest = earlyPicks[0];
+      const ownerId = earliest.watchlist.userId;
+      const rater = ratings.find((r) => r.user.id === ownerId);
+      if (rater) {
+        const days = Math.max(1, Math.floor((announcedAt.getTime() - earliest.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+        superlatives.push({
+          label: "Watchlist Prophet",
+          userName: rater.user.name,
+          userAvatar: rater.user.avatarUrl,
+          userUid: rater.user.firebaseUid,
+          value: `Saved ${days} day${days !== 1 ? "s" : ""} early`,
+        });
+      }
+    }
   }
 
   return superlatives;
