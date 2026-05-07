@@ -129,7 +129,15 @@ export async function draftFacts(
     // facts, hit the cap, SDK returned a partial tool_use that parsed
     // to {} → empty array → silent zero. callTool now also throws on
     // stop_reason: "max_tokens" so this can't fail silently again.
-    maxTokens: 8192,
+    //
+    // Raised 8192 → 16384 after Game of Thrones S1 hit 8192. Dense
+    // serialized shows (large casts × 4–8 facts × visibleAfter
+    // {season, episode, seconds} JSON overhead per row) push past
+    // 8k regularly. Sonnet 4.6 has a 64k output ceiling so 16k is a
+    // safe doubling without bumping latency or cost meaningfully on
+    // the typical short-cast case (model stops when it's done, not
+    // when it hits the limit).
+    maxTokens: 16384,
   });
 
   // Forgiving name match — strict equality dropped huge swaths of facts
