@@ -238,52 +238,64 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
   }
   yield { kind: "step", step: "characters", status: "done", count: characters.length };
 
-  // 3. Facts
+  // 3-6. Facts / Relationships / Timeline / Glossary in parallel.
+  //
+  // All four read from `grounding` + `characters` (immutable here) and
+  // don't share state. Running them sequentially adds up to ~3 minutes
+  // of wall-clock on a dense show, which on a Vercel function with a
+  // 300s ceiling left no headroom — Game of Thrones S1 hit "stream
+  // ended without completing" because the function timed out before
+  // recap + persist could finish. Parallel execution cuts the total
+  // to ~max(F,R,T,G) instead of F+R+T+G.
+  //
+  // Anthropic's default Sonnet rate limit is 4000 RPM, so 4 concurrent
+  // calls don't trip throttling.
+  //
+  // We yield the four "running" events up front so the admin UI shows
+  // progress immediately, then the "done" events as each settles.
+  // Promise.allSettled is used so a failure in one chunk doesn't
+  // race-cancel the others — we collect the first failure and yield
+  // a single error event after all settle, matching the prior
+  // behavior where one chunk's failure short-circuits the gen.
   yield { kind: "step", step: "facts", status: "running" };
-  let facts: DraftFact[];
-  try {
-    facts = await draftFacts(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg);
-  } catch (err) {
-    yield { kind: "error", message: `Facts draft failed: ${err instanceof Error ? err.message : String(err)}` };
-    return;
-  }
-  facts = filterScopeToEligible(facts, airingArg, episodeArg, seasonArg);
-  yield { kind: "step", step: "facts", status: "done", count: facts.length };
-
-  // 4. Relationships
   yield { kind: "step", step: "relationships", status: "running" };
-  let relationships: DraftRelationship[];
-  try {
-    relationships = await draftRelationships(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg);
-  } catch (err) {
-    yield { kind: "error", message: `Relationships draft failed: ${err instanceof Error ? err.message : String(err)}` };
-    return;
-  }
-  relationships = filterScopeToEligible(relationships, airingArg, episodeArg, seasonArg);
-  yield { kind: "step", step: "relationships", status: "done", count: relationships.length };
-
-  // 5. Timeline
   yield { kind: "step", step: "timeline", status: "running" };
-  let timelineEvents: DraftTimelineEvent[];
-  try {
-    timelineEvents = await draftTimeline(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg);
-  } catch (err) {
-    yield { kind: "error", message: `Timeline draft failed: ${err instanceof Error ? err.message : String(err)}` };
-    return;
-  }
-  timelineEvents = filterScopeToEligible(timelineEvents, airingArg, episodeArg, seasonArg);
-  yield { kind: "step", step: "timeline", status: "done", count: timelineEvents.length };
-
-  // 6. Glossary
   yield { kind: "step", step: "glossary", status: "running" };
-  let glossary: DraftGlossaryTerm[];
-  try {
-    glossary = await draftGlossary(client, grounding, seasonArg, priorCanon, episodeArg, airingArg);
-  } catch (err) {
-    yield { kind: "error", message: `Glossary draft failed: ${err instanceof Error ? err.message : String(err)}` };
+
+  const [factsResult, relsResult, timelineResult, glossaryResult] = await Promise.allSettled([
+    draftFacts(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg),
+    draftRelationships(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg),
+    draftTimeline(client, grounding, seasonArg, characters, priorCanon, episodeArg, airingArg),
+    draftGlossary(client, grounding, seasonArg, priorCanon, episodeArg, airingArg),
+  ]);
+
+  // Surface the first failure with the same chunk-name framing the
+  // sequential version used, so admin error logs stay readable.
+  if (factsResult.status === "rejected") {
+    yield { kind: "error", message: `Facts draft failed: ${factsResult.reason instanceof Error ? factsResult.reason.message : String(factsResult.reason)}` };
     return;
   }
-  glossary = filterScopeToEligible(glossary, airingArg, episodeArg, seasonArg);
+  if (relsResult.status === "rejected") {
+    yield { kind: "error", message: `Relationships draft failed: ${relsResult.reason instanceof Error ? relsResult.reason.message : String(relsResult.reason)}` };
+    return;
+  }
+  if (timelineResult.status === "rejected") {
+    yield { kind: "error", message: `Timeline draft failed: ${timelineResult.reason instanceof Error ? timelineResult.reason.message : String(timelineResult.reason)}` };
+    return;
+  }
+  if (glossaryResult.status === "rejected") {
+    yield { kind: "error", message: `Glossary draft failed: ${glossaryResult.reason instanceof Error ? glossaryResult.reason.message : String(glossaryResult.reason)}` };
+    return;
+  }
+
+  const facts = filterScopeToEligible(factsResult.value, airingArg, episodeArg, seasonArg);
+  const relationships = filterScopeToEligible(relsResult.value, airingArg, episodeArg, seasonArg);
+  const timelineEvents = filterScopeToEligible(timelineResult.value, airingArg, episodeArg, seasonArg);
+  const glossary = filterScopeToEligible(glossaryResult.value, airingArg, episodeArg, seasonArg);
+
+  yield { kind: "step", step: "facts", status: "done", count: facts.length };
+  yield { kind: "step", step: "relationships", status: "done", count: relationships.length };
+  yield { kind: "step", step: "timeline", status: "done", count: timelineEvents.length };
   yield { kind: "step", step: "glossary", status: "done", count: glossary.length };
 
   // 7. Recap. Two prose blocks per installment — an INSTALLMENT recap
