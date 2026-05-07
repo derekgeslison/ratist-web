@@ -4,25 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
-import { Ticket, Check, X, Gift, Star, BarChart3, MonitorPlay, Palette, Shield, Sparkles, ArrowRight, Trophy } from "lucide-react";
-
-const FEATURES = [
-  { name: "Rate & review movies and TV shows", free: true, pass: true },
-  { name: "Personal watchlists & rankings", free: true, pass: true },
-  { name: "Community features (Hot Takes, Recast, Pitches, etc.)", free: true, pass: true },
-  { name: "For You personalized recommendations", free: true, pass: true },
-  { name: "Cine-Q daily trivia", free: true, pass: true },
-  { name: "Cinephile tools (What Should I Watch?, Shared Cast & Crew, The Matchup, and more)", free: true, pass: true },
-  { name: "Join Screening Room sessions", free: true, pass: true },
-  { name: "Host Screening Room sessions", free: false, pass: true, icon: MonitorPlay, href: "/backstage-pass/screening-room" },
-  { name: "Movie Club", free: false, pass: true, icon: Star, href: "/backstage-pass/movie-club" },
-  { name: "My Analytics (detailed viewing stats)", free: false, pass: true, icon: BarChart3, href: "/backstage-pass/analytics" },
-  { name: "Collections (curated recommendations)", free: false, pass: true, icon: Sparkles, href: "/backstage-pass/collections" },
-  { name: "Critics Mode (250+ reviews required)", free: false, pass: true, icon: Star, href: "/backstage-pass/critics-mode" },
-  { name: "Live Review feature", free: false, pass: true, icon: Star, href: "/backstage-pass/critics-mode" },
-  { name: "Custom profile themes & colors", free: false, pass: true, icon: Palette, href: "/backstage-pass/custom-themes" },
-  { name: "Ad-free experience", free: false, pass: true, icon: Shield },
-];
+import { Ticket, Check, X, Gift, ArrowRight, Trophy } from "lucide-react";
+import { BACKSTAGE_FEATURES as FEATURES } from "@/lib/backstage-features";
 
 const QUALIFYING_RULES_6MO = [
   "You must be one of the first 1,000 users to complete the challenge.",
@@ -194,19 +177,31 @@ export default function First1000PromoPage() {
         </div>
         {FEATURES.map((f, i) => {
           const row = (
-            <div key={i} className={`grid grid-cols-[1fr_80px_80px] px-5 py-3 ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""} ${"href" in f && f.href ? "hover:bg-[var(--surface-2)] cursor-pointer" : ""}`}>
-              <span className={`text-sm text-white ${"href" in f && f.href ? "hover:text-amber-400 transition-colors" : ""}`}>
-                {f.name} {"href" in f && f.href && <span className="text-[10px] text-[var(--foreground-muted)]">→</span>}
+            <div key={i} className={`grid grid-cols-[1fr_80px_80px] px-5 py-3 items-center ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""} ${f.href ? "hover:bg-[var(--surface-2)] cursor-pointer" : ""}`}>
+              <span className={`text-sm text-white ${f.href ? "hover:text-amber-400 transition-colors" : ""}`}>
+                {f.name} {f.href && <span className="text-[10px] text-[var(--foreground-muted)]">→</span>}
               </span>
               <div className="flex justify-center">
-                {f.free ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />}
+                {typeof f.free === "string" ? (
+                  <span className="text-[11px] font-semibold text-emerald-400 whitespace-nowrap">{f.free}</span>
+                ) : f.free ? (
+                  <Check className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />
+                )}
               </div>
               <div className="flex justify-center">
-                <Check className="w-4 h-4 text-amber-400" />
+                {typeof f.pass === "string" ? (
+                  <span className="text-[11px] font-semibold text-amber-400 whitespace-nowrap">{f.pass}</span>
+                ) : f.pass ? (
+                  <Check className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <X className="w-4 h-4 text-[var(--foreground-muted)] opacity-30" />
+                )}
               </div>
             </div>
           );
-          return "href" in f && f.href ? <Link key={i} href={f.href}>{row}</Link> : row;
+          return f.href ? <Link key={i} href={f.href}>{row}</Link> : row;
         })}
       </div>
 
