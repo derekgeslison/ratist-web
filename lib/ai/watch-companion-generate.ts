@@ -8,6 +8,7 @@ import { draftFacts } from "./watch-companion-chunks/facts";
 import { draftRelationships } from "./watch-companion-chunks/relationships";
 import { draftTimeline } from "./watch-companion-chunks/timeline";
 import { draftGlossary } from "./watch-companion-chunks/glossary";
+import { correctActorIds } from "./watch-companion-correct-ids";
 import { draftRecap, type PriorRecapEntry, type PriorMissingEntry, type RecapResult } from "./watch-companion-chunks/recap";
 import type {
   CompanionDraft,
@@ -335,6 +336,7 @@ export async function* generateCompanionStream(input: GenerateInput): AsyncGener
       draft,
       recap,
       generatedByUserId,
+      cast: grounding.cast.map((c) => ({ tmdbId: c.tmdbId, name: c.name })),
     });
     yield { kind: "step", step: "persist", status: "done" };
     yield { kind: "complete", result };
@@ -388,10 +390,27 @@ interface PersistInput {
   draft: CompanionDraft;
   recap: RecapResult | null;
   generatedByUserId: string;
+  /** Cast list pulled by the grounding helper. Used to fix any actor
+   *  tmdbId mismatches the AI introduced before the draft hits disk —
+   *  see correctActorIds(). */
+  cast: Array<{ tmdbId: number; name: string }>;
 }
 
 async function persistDraft(input: PersistInput): Promise<GenerateResult> {
-  const { tmdbId, mediaType, season, episode, airingMode, title, year, runtimeSeconds, draft, recap, generatedByUserId } = input;
+  const { tmdbId, mediaType, season, episode, airingMode, title, year, runtimeSeconds, recap, generatedByUserId, cast } = input;
+  // AI sometimes mismatches actorTmdbId vs actorName even though the
+  // prompt asks for verbatim cast-list copies. Fix tmdbIds against
+  // the cast index before write — both the link and the avatar image
+  // on a character card key off actorTmdbId, so a wrong id sends
+  // viewers to the wrong celebrity.
+  const correctionResult = correctActorIds(input.draft, cast);
+  if (correctionResult.corrections.length > 0) {
+    console.log(
+      `Watch companion persist: corrected ${correctionResult.corrections.length} actor tmdbId mismatch(es):`,
+      correctionResult.corrections.map((c) => `${c.characterName} → ${c.name} (was ${c.from}, now ${c.to})`).join("; "),
+    );
+  }
+  const draft = correctionResult.draft;
   const isEpisodeMode = episode !== null && season !== null && mediaType === "tv";
   const isInitialAiring = airingMode !== undefined && season !== null && mediaType === "tv";
 
