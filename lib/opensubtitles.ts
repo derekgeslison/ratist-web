@@ -42,7 +42,12 @@ async function getAuthToken(): Promise<string | null> {
   if (cachedToken && cachedToken.expires > Date.now()) return cachedToken.token;
   const username = process.env.OPENSUBTITLES_USERNAME;
   const password = process.env.OPENSUBTITLES_PASSWORD;
-  if (!username || !password) return null;
+  if (!username || !password) {
+    // Visible signal so a missed env var setting doesn't manifest as a
+    // mysterious anonymous-tier quota cap downstream.
+    console.warn("OpenSubtitles: USERNAME/PASSWORD env vars missing — falling back to anonymous downloads (5/day shared bucket).");
+    return null;
+  }
 
   try {
     const res = await fetch(`${BASE}/login`, {
@@ -50,13 +55,33 @@ async function getAuthToken(): Promise<string | null> {
       headers: { ...headers(), "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
-    if (!res.ok) return null;
-    const data = await res.json() as { token?: string };
-    if (!data.token) return null;
+    if (!res.ok) {
+      // Surface the body so we can tell credential errors (401) from
+      // upstream outages (5xx) from "wrong content type" (4xx). Without
+      // this, every login failure silently fell back to anonymous and
+      // looked indistinguishable from "USERNAME not set".
+      const body = await res.text().catch(() => "");
+      console.error(`OpenSubtitles login failed (HTTP ${res.status}, user=${username}): ${body.slice(0, 200)}`);
+      return null;
+    }
+    const data = await res.json() as { token?: string; user?: { allowed_downloads?: number; level?: string; vip?: boolean } };
+    if (!data.token) {
+      console.error(`OpenSubtitles login returned 200 but no token (user=${username}). Body: ${JSON.stringify(data).slice(0, 200)}`);
+      return null;
+    }
+    // Log the account's reported plan once per login. If this number is
+    // far off the paid plan's daily cap (e.g. shows 20 when the account
+    // should be 2000) the wrong user is configured in env vars or the
+    // paid plan landed on a different account than the one logging in.
+    const plan = data.user?.allowed_downloads ?? "?";
+    const level = data.user?.level ?? "?";
+    const vip = data.user?.vip === true ? " (VIP)" : "";
+    console.log(`OpenSubtitles: authenticated as ${username} — daily cap ${plan}, level ${level}${vip}.`);
     // OpenSubtitles tokens are valid ~24h; we cache for 12h to be safe.
     cachedToken = { token: data.token, expires: Date.now() + 12 * 60 * 60 * 1000 };
     return data.token;
-  } catch {
+  } catch (err) {
+    console.error("OpenSubtitles login threw (proceeding anonymously):", err);
     return null;
   }
 }
@@ -199,7 +224,15 @@ async function downloadSubtitle(fileId: number): Promise<
   if (!srtRes.ok) {
     return { ok: false, reason: "download_failed", message: `Subtitle CDN returned HTTP ${srtRes.status}.` };
   }
-  return { ok: true, srt: await srtRes.text(), remaining: typeof data.remaining === "number" ? data.remaining : null };
+  const remaining = typeof data.remaining === "number" ? data.remaining : null;
+  // Surface the running quota in Vercel logs so a slow leak (e.g. a
+  // bad backfill burning through downloads) is visible before it
+  // exhausts the cap. Logged at info-level only; we don't want to
+  // alert on every successful download.
+  if (remaining !== null) {
+    console.log(`OpenSubtitles: download ok (file=${fileId}), ${remaining} downloads remaining today.`);
+  }
+  return { ok: true, srt: await srtRes.text(), remaining };
 }
 
 // Pull the human-readable `message` field out of a JSON-shaped error body
