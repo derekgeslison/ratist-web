@@ -233,7 +233,28 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       if (aliases !== undefined) data.nameAliases = aliases;
       const groupHistory = normGroupHistory(payload.groupHistory);
       if (groupHistory !== undefined) data.groupHistory = groupHistory;
-      if (Object.keys(data).length > 0) await prisma.companionCharacter.update({ where: { id: targetId }, data });
+      if (Object.keys(data).length > 0) {
+        const updated = await prisma.companionCharacter.update({ where: { id: targetId }, data });
+        // Mirror the actor change into the lowest-sortOrder side-table
+        // row. Front-end reads currentActor from actors[] first; without
+        // this sync, an approved suggestion changes the primary fields
+        // but the public page still renders the old actor (the same
+        // failure we patched on the admin direct-PATCH route).
+        const actorChanged = "actorName" in data || "actorTmdbId" in data;
+        if (actorChanged && updated.actorName) {
+          const earliestRow = await prisma.companionCharacterActor.findFirst({
+            where: { characterId: targetId },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true },
+          });
+          if (earliestRow) {
+            await prisma.companionCharacterActor.update({
+              where: { id: earliestRow.id },
+              data: { actorName: updated.actorName, actorTmdbId: updated.actorTmdbId },
+            });
+          }
+        }
+      }
       return;
     }
 

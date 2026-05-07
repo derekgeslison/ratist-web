@@ -73,6 +73,40 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ type: str
         if (visibleAfter) data.visibleAfter = visibleAfter;
         if (Object.keys(data).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
         const updated = await prisma.companionCharacter.update({ where: { id }, data });
+
+        // Keep the companionCharacterActor side-table in sync with the
+        // primary actor change. The front-end viewer reads the
+        // displayed actor from actors[] FIRST and only falls back to
+        // the character row's primary fields when the side-table is
+        // empty (see WatchCompanionView.tsx). Without this sync, an
+        // admin fixes the actor here, sees the change in the editor,
+        // but viewers still see the old actor on the public page —
+        // exactly the "Sean Bean in admin / Musgrave on the page"
+        // failure mode.
+        //
+        // persistDraft always writes the primary as the lowest-
+        // sortOrder side-table row (sortOrder 0), so updating the
+        // lowest row preserves multi-actor characters' other entries
+        // (the "adult Murph" / "elderly Murph" rows stay intact).
+        if ("actorName" in body || "actorTmdbId" in body) {
+          const earliestRow = await prisma.companionCharacterActor.findFirst({
+            where: { characterId: id },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true },
+          });
+          if (earliestRow && updated.actorName) {
+            await prisma.companionCharacterActor.update({
+              where: { id: earliestRow.id },
+              data: {
+                actorName: updated.actorName,
+                actorTmdbId: updated.actorTmdbId,
+              },
+            });
+          }
+          // No earliestRow → legacy character with no side-table
+          // rows. The viewer's fallback path renders from primary
+          // fields directly, so we don't need to create one.
+        }
         return NextResponse.json({ item: updated });
       }
       case "fact": {
