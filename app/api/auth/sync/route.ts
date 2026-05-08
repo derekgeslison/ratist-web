@@ -77,7 +77,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Normal upsert — create or update
+    // Normal upsert — create or update.
+    //
+    // `name` and `avatarUrl` are ONLY set on creation. Once the user
+    // exists, we never overwrite them from the auth provider — the
+    // user owns those values via Settings. Without this, signing in
+    // through Google after customizing the name (or after originally
+    // signing up via email/password) would clobber the custom display
+    // name with the Google-account name on every login. Same for the
+    // avatar with the Google profile photo.
+    //
+    // Email is intentionally also untouched on update — the upsert
+    // key is firebaseUid, so the email captured at first sign-up is
+    // the canonical one. If the user changes their auth email later
+    // they'll need a separate flow to migrate.
     const user = await prisma.user.upsert({
       where: { firebaseUid: decoded.uid },
       create: {
@@ -88,10 +101,9 @@ export async function POST(req: NextRequest) {
         inviteCode: generateInviteCode(),
         profile: { create: {} },
       },
-      update: {
-        name: name ?? undefined,
-        avatarUrl: avatarUrl ?? undefined,
-      },
+      // Empty update — every login still hits this code path so the
+      // upsert returns the row, but no fields are overwritten.
+      update: {},
     });
 
     return NextResponse.json({ user, needsOnboarding: !user.onboardedAt });
