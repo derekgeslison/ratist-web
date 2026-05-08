@@ -19,6 +19,7 @@ import ScreeningTrivia from "@/components/screening/ScreeningTrivia";
 import ScreeningMovieSuggestions from "@/components/screening/ScreeningMovieSuggestions";
 import CompactChat from "@/components/screening/CompactChat";
 import ShareButton from "@/components/ShareButton";
+import ProviderLogos, { type ProviderInfo } from "@/components/ProviderLogos";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342";
 const TMDB_SM = "https://image.tmdb.org/t/p/w92";
@@ -96,6 +97,20 @@ export default function ScreeningSessionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Streaming / rent providers for the selected movie or show. Hits the
+  // shared /api/providers endpoint (same one used by /movies and the
+  // watchlist), so results are DB-cached for 7 days. Cleared when the
+  // host changes the pick so we don't show stale logos for the wrong
+  // title between selections.
+  const [providers, setProviders] = useState<{ flatrate: ProviderInfo[]; rent: ProviderInfo[] } | null>(null);
+
+  // "How it works" intro card — shown to first-time visitors of a
+  // session, persisted dismissal per browser session so power users
+  // don't see it every time. Separate keys for host vs guest because
+  // the body copy is different and dismissing one shouldn't suppress
+  // the other.
+  const [showHowItWorks, setShowHowItWorks] = useState(true);
 
   // Movie/show picker
   const [movieQuery, setMovieQuery] = useState("");
@@ -202,6 +217,44 @@ export default function ScreeningSessionPage() {
   }, [id, getToken]);
 
   useEffect(() => { if (user) fetchSession(); else setLoading(false); }, [user, fetchSession]);
+
+  // Fetch streaming + rent providers for the picked movie / show. Skipped
+  // when there's no tmdbId yet (no movie selected). Cleared back to null
+  // when the host changes the pick so the lobby doesn't briefly show the
+  // wrong title's logos before the new fetch completes.
+  useEffect(() => {
+    if (!session?.tmdbId) { setProviders(null); return; }
+    const tmdbId = session.tmdbId;
+    const mediaType = session.mediaType;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/providers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: [{ tmdbId, mediaType }] }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const key = `${mediaType}-${tmdbId}`;
+        const slot = data.providers?.[key];
+        if (!cancelled && slot) {
+          setProviders({ flatrate: slot.flatrate ?? [], rent: slot.rent ?? [] });
+        }
+      } catch { /* swallow — display just hides if fetch fails */ }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.tmdbId, session?.mediaType]);
+
+  // Restore "How it works" dismissal from sessionStorage on first paint.
+  // Dismissals are scoped per role (host vs guest) so dismissing as a
+  // guest doesn't auto-suppress a future host session's intro.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const role = isHost ? "host" : "guest";
+    const dismissed = sessionStorage.getItem(`screening-howitworks-${role}`);
+    if (dismissed === "1") setShowHowItWorks(false);
+  }, [isHost]);
 
   // Store chat messages in a ref so highlights can access them reliably
   const chatMessagesRef = useRef(chatMessages);
@@ -811,6 +864,14 @@ export default function ScreeningSessionPage() {
 
   const me = session.participants.find((p) => p.userId === myUserId);
   const amHost = session.host.id === myUserId;
+
+  function dismissHowItWorks() {
+    setShowHowItWorks(false);
+    if (typeof window !== "undefined") {
+      const role = amHost ? "host" : "guest";
+      sessionStorage.setItem(`screening-howitworks-${role}`, "1");
+    }
+  }
   const readyCount = Object.values(readyUsers).filter(Boolean).length;
   const allReady = readyCount === session.participants.length && session.participants.length > 0;
   const isEmptySession = amHost && session.participants.length <= 1 && (session.status === "WATCHING" || session.status === "POST_WATCH");
@@ -987,6 +1048,47 @@ export default function ScreeningSessionPage() {
       {/* ── LOBBY ── */}
       {session.status === "LOBBY" && (
         <div className="space-y-5">
+          {/* "How it works" intro — dismissible per session, role-aware
+             body so first-time hosts and first-time guests both get a
+             snapshot of the flow before they're staring at a UI they
+             haven't used before. Hidden once dismissed (the
+             sessionStorage key remembers across reloads) so power users
+             aren't seeing it every time. */}
+          {showHowItWorks && (
+            <section className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-4 sm:p-5 relative">
+              <button
+                onClick={dismissHowItWorks}
+                className="absolute top-3 right-3 text-[var(--foreground-muted)] hover:text-white transition-colors"
+                aria-label="Hide intro"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 mb-3">
+                <MonitorPlay className="w-4 h-4 text-[var(--ratist-red)]" />
+                <h2 className="text-sm font-semibold text-white">How it works</h2>
+                <span className="text-[10px] uppercase tracking-wider text-[var(--ratist-red)] font-bold">
+                  {amHost ? "Host" : "Guest"}
+                </span>
+              </div>
+              {amHost ? (
+                <ol className="space-y-1.5 text-xs text-[var(--foreground-muted)] list-decimal list-inside marker:text-[var(--ratist-red)]/70">
+                  <li>Pick a movie or show below, then share the invite link or code with your friends.</li>
+                  <li>Wait for everyone to mark themselves ready in the lobby.</li>
+                  <li>Hit <span className="text-white font-medium">Start</span> — a 5-second countdown plays so everyone hits play together.</li>
+                  <li>While watching: chat with timestamps, run polls, predict the ending, bookmark moments.</li>
+                  <li>When the credits roll, everyone rates — the verdict is revealed all at once, then logged to your diary.</li>
+                </ol>
+              ) : (
+                <ol className="space-y-1.5 text-xs text-[var(--foreground-muted)] list-decimal list-inside marker:text-[var(--ratist-red)]/70">
+                  <li>Hang tight while the host picks the movie or show — you&apos;ll see it appear above.</li>
+                  <li>Tap <span className="text-white font-medium">Ready</span> when you&apos;re set up to play. The host launches a 5-second countdown when everyone&apos;s in.</li>
+                  <li>Hit play with the countdown and stay synced. Use the chat, polls, and reactions while you watch.</li>
+                  <li>After the movie ends, drop your rating — everyone&apos;s scores are revealed together.</li>
+                </ol>
+              )}
+            </section>
+          )}
+
           {/* Movie selection */}
           <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
@@ -1000,15 +1102,45 @@ export default function ScreeningSessionPage() {
             </div>
 
             {session.movieTitle ? (
-              <div className="flex items-center gap-4">
+              <div className="flex items-start gap-4">
                 {session.posterPath && (
                   <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0">
                     <Image src={`${TMDB_IMG}${session.posterPath}`} alt={session.movieTitle} width={64} height={96} className="object-cover w-full h-full" />
                   </div>
                 )}
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold">{session.movieTitle}</p>
-                  {amHost && <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-1">Change {session.mediaType === "tv" ? "show" : "movie"}</button>}
+                  {/* Streaming + rent providers (when TMDB has them).
+                     Same ProviderLogos component the /movies grid uses,
+                     so logos and click-through behavior match the rest
+                     of the site. Hidden when neither list has entries
+                     so an unsupported title (or a transient 0-result
+                     fetch) doesn't render an empty row. */}
+                  {providers && (providers.flatrate.length > 0 || providers.rent.length > 0) && (
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      {providers.flatrate.length > 0 && (
+                        <ProviderLogos
+                          providers={providers.flatrate}
+                          label="Stream"
+                          contentTitle={session.movieTitle}
+                          contentType={session.mediaType}
+                          tmdbId={session.tmdbId ?? undefined}
+                          size={18}
+                        />
+                      )}
+                      {providers.rent.length > 0 && (
+                        <ProviderLogos
+                          providers={providers.rent}
+                          label="Rent"
+                          contentTitle={session.movieTitle}
+                          contentType={session.mediaType}
+                          tmdbId={session.tmdbId ?? undefined}
+                          size={18}
+                        />
+                      )}
+                    </div>
+                  )}
+                  {amHost && <button onClick={() => apiPatch({ movieId: null, tmdbId: null, movieTitle: null, posterPath: null })} className="text-xs text-[var(--ratist-red)] hover:underline mt-2">Change {session.mediaType === "tv" ? "show" : "movie"}</button>}
                 </div>
               </div>
             ) : suggestionsOpen ? (
