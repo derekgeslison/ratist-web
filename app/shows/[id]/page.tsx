@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { getTVShowAwards } from "@/lib/awards";
 import { syncTVShowAwards } from "@/lib/awards-sync";
 import PageShare from "@/components/PageShare";
+import ShareNudge from "@/components/ShareNudge";
 import ZoomableImage from "@/components/ZoomableImage";
 import SmartBackLink from "@/components/SmartBackLink";
 import NavEntryRegister from "@/components/NavEntryRegister";
@@ -567,6 +568,11 @@ export default async function ShowDetailPage({ params }: Props) {
             commentCount: r.commentCount,
           }))}
           seasonAggregates={seasonAggregates}
+        />
+
+        <ShareNudge
+          url={`https://www.theratist.com/shows/${show.id}`}
+          text={`${show.name} on The Ratist`}
         />
       </div>
     </div>

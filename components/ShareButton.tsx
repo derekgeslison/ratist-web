@@ -111,10 +111,17 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl, 
 
       {open && (
         <div
+          // Bottom padding combines the OS safe-area inset (iOS home
+          // indicator, modern Android nav bar) with a constant so the
+          // sheet never sits flush against the device's bottom edge or
+          // gets covered by browser nav chrome. At sm+ the modal is
+          // centered (items-center) so the same padding is harmless
+          // there — keeps a single style rule simple.
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-white">Share</h3>
               <button onClick={() => setOpen(false)} className="text-[var(--foreground-muted)] hover:text-white transition-colors">

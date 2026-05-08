@@ -62,9 +62,10 @@ export default function PageShare({ title, url }: Props) {
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl p-5">
+          <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-white">Share</h3>
               <button onClick={() => setOpen(false)} className="text-[var(--foreground-muted)] hover:text-white transition-colors">

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import PageShare from "@/components/PageShare";
+import ShareNudge from "@/components/ShareNudge";
 import ZoomableImage from "@/components/ZoomableImage";
 import SmartBackLink from "@/components/SmartBackLink";
 import NavEntryRegister from "@/components/NavEntryRegister";
@@ -461,6 +462,11 @@ export default async function CelebrityPage({ params }: Props) {
         awards={awards}
         photos={photos}
         discussions={discussions}
+      />
+
+      <ShareNudge
+        url={`https://www.theratist.com/celebrities/${person.id}`}
+        text={`${person.name} on The Ratist`}
       />
     </div>
   );

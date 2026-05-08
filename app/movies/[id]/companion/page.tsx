@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getMovieDetails, posterUrl } from "@/lib/tmdb";
 import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
 import ShareButton from "@/components/ShareButton";
+import ShareNudge from "@/components/ShareNudge";
 import CompanionNotAvailable from "@/components/watch-companion/CompanionNotAvailable";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.theratist.com";
@@ -181,6 +182,12 @@ export default async function MovieCompanionPage({ params }: Props) {
         </div>
       </header>
       <WatchCompanionView data={data} />
+
+      <ShareNudge
+        url={`${SITE_URL}/movies/${id}/companion`}
+        text={`Watch Companion for ${companion.title} — a spoiler-safe viewing guide on The Ratist.`}
+        cardImageUrl={`${SITE_URL}/api/og/watch-companion?id=${companion.id}`}
+      />
     </div>
   );
 }

@@ -32,6 +32,7 @@ import { getMovieAwards } from "@/lib/awards";
 import { syncMovieAwards } from "@/lib/awards-sync";
 import { prisma } from "@/lib/prisma";
 import PageShare from "@/components/PageShare";
+import ShareNudge from "@/components/ShareNudge";
 import AdUnit from "@/components/AdUnit";
 import PosterOverlay from "@/components/PosterOverlay";
 import MovieCard from "@/components/MovieCard";
@@ -543,6 +544,11 @@ export default async function MovieDetailPage({ params }: Props) {
           awards={awards}
           tmdbId={movie.id}
           boxOfficeRanks={boxOfficeRanks ?? undefined}
+        />
+
+        <ShareNudge
+          url={`https://www.theratist.com/movies/${movie.id}`}
+          text={`${movie.title} on The Ratist`}
         />
       </div>
     </div>
