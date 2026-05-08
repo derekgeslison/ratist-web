@@ -88,12 +88,29 @@ export default function CommunityCollectionsFeed() {
   // on Match (the headline differentiator); free + anonymous users land
   // on Featured (the only tab they can read).
   const defaultTab: Tab = isBackstage ? "match" : "admin";
-  const tab = (searchParams.get("subtab") as Tab) ?? defaultTab;
-  const activeTab: Tab = TABS.some((t) => t.id === tab) ? tab : defaultTab;
-  const isLocked = !isBackstage && !FREE_TABS.includes(activeTab);
+  const subtabParam = searchParams.get("subtab") as Tab | null;
   const tag = searchParams.get("tag") ?? "";
   const initialSearch = searchParams.get("search") ?? "";
   const themePromptId = searchParams.get("themePromptId") ?? "";
+
+  // Active tab is local state, NOT derived directly from searchParams
+  // on every render. The all-derived pattern was producing intermittent
+  // "click does nothing" tab failures: a click would call router.replace
+  // to update ?subtab, but the searchParams hook didn't always
+  // re-emit synchronously, so neither activeTab nor the dependent
+  // fetchPage callback would change identity, and the effect that
+  // refetches never fired. Local state updates synchronously on click;
+  // the useEffect below mirrors URL changes back into state for browser
+  // back / external link cases.
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    return subtabParam && TABS.some((t) => t.id === subtabParam) ? subtabParam : defaultTab;
+  });
+  useEffect(() => {
+    const next: Tab = subtabParam && TABS.some((t) => t.id === subtabParam) ? subtabParam : defaultTab;
+    setActiveTab((prev) => (prev === next ? prev : next));
+  }, [subtabParam, defaultTab]);
+
+  const isLocked = !isBackstage && !FREE_TABS.includes(activeTab);
 
   const [search, setSearch] = useState(initialSearch);
   // Sync the input with the URL when the URL changes externally (e.g.
@@ -207,6 +224,13 @@ export default function CommunityCollectionsFeed() {
   }, [user]);
 
   function setTab(next: Tab) {
+    // Update local state synchronously so the click feels responsive
+    // even if the URL replace's re-render is delayed by Next 16's
+    // transition scheduling. The URL push below keeps the URL in sync
+    // for shareable links + browser back, and the URL→state effect
+    // above won't fire a redundant setState (the equality guard
+    // short-circuits when state is already correct).
+    setActiveTab(next);
     // Clear themePromptId when leaving the Theme tab — its picker only
     // makes sense in that surface.
     updateUrl({ subtab: next, ...(next !== "theme" ? { themePromptId: null } : {}) });

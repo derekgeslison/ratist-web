@@ -52,9 +52,27 @@ function CollectionsPageInner() {
   // default, since "My Collections" is a Backstage feature. Backstage
   // users get the original My-default behavior.
   const myLocked = !user || !hasPass;
-  const activeTab: TopTab = tabParam === "community" ? "community" : (tabParam === "my" ? "my" : (myLocked ? "community" : "my"));
+
+  // Active tab is local state, not directly derived from
+  // searchParams every render. Same rationale as the sub-tab fix in
+  // CommunityCollectionsFeed: the URL-derivation pattern occasionally
+  // failed to emit a re-render after router.replace, so clicks
+  // appeared to "do nothing" until a hard refresh. Local state updates
+  // synchronously on click; the useEffect below mirrors URL changes
+  // back into state for browser back / direct-link arrivals.
+  function resolveTab(param: string | null, locked: boolean): TopTab {
+    if (param === "community") return "community";
+    if (param === "my") return "my";
+    return locked ? "community" : "my";
+  }
+  const [activeTab, setActiveTabState] = useState<TopTab>(() => resolveTab(tabParam, myLocked));
+  useEffect(() => {
+    const next = resolveTab(tabParam, myLocked);
+    setActiveTabState((prev) => (prev === next ? prev : next));
+  }, [tabParam, myLocked]);
 
   function setTab(next: TopTab) {
+    setActiveTabState(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === "my") {
       // Set tab=my explicitly. The lock-aware default below would
