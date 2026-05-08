@@ -53,18 +53,25 @@ async function searchAll(
   const tmdbShowPages = Math.ceil(perPage / 2 / 20);
   const tmdbPeoplePages = Math.ceil(perPage / 2 / 20);
 
+  // Each individual fetch catches independently — if /search/person
+  // rate-limits but /search/movie + /search/tv succeed, we still
+  // return what worked rather than zeroing the whole result set.
+  // r.json() can throw on truncated / non-JSON responses, so the
+  // .catch covers both transport and parse failures.
+  const safeFetch = (url: string): Promise<{ results?: unknown[] }> =>
+    fetch(url, { next: { revalidate: 60 } })
+      .then((r) => r.ok ? r.json() : { results: [] })
+      .catch(() => ({ results: [] }));
+
   const [moviePages, showPages, peoplePages] = await Promise.all([
     Promise.all(Array.from({ length: tmdbMoviePages }, (_, i) =>
-      fetch(`${BASE}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
-        .then((r) => r.json())
+      safeFetch(`${BASE}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`)
     )),
     Promise.all(Array.from({ length: tmdbShowPages }, (_, i) =>
-      fetch(`${BASE}/search/tv?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
-        .then((r) => r.json())
+      safeFetch(`${BASE}/search/tv?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`)
     )),
     Promise.all(Array.from({ length: tmdbPeoplePages }, (_, i) =>
-      fetch(`${BASE}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`, { next: { revalidate: 60 } })
-        .then((r) => r.json())
+      safeFetch(`${BASE}/search/person?api_key=${API_KEY}&query=${encodeURIComponent(query)}&include_adult=false&page=${i + 1}`)
     )),
   ]);
 
@@ -103,8 +110,13 @@ export default async function SearchPage({ searchParams }: Props) {
   // Fetch genres for the filter dropdown
   const genreList = await getGenres().catch(() => ({ genres: [] }));
 
+  // Catch on EVERY external promise so a TMDB hiccup, JSON parse blip,
+  // or rate limit on any one call falls back to empty results instead
+  // of crashing the whole Server Component render. Without these, a
+  // single fetch failure 500s the page with the generic "Something
+  // went wrong" digest error users have been seeing.
   const [{ movies: rawMovies, shows: rawShows, people: rawPeople }, keywordResults] = await Promise.all([
-    searchAll(q, perPage),
+    searchAll(q, perPage).catch(() => ({ movies: [], shows: [], people: [] })),
     q.trim() && typeFilter !== "people"
       ? searchKeywords(q).then(async (kw) => {
           const top = kw.results.slice(0, 3);
@@ -118,7 +130,7 @@ export default async function SearchPage({ searchParams }: Props) {
             ...kwMovies.results.slice(0, 10).map((m) => ({ type: "movie" as const, ...m })),
             ...kwShows.results.slice(0, 5).map((s) => ({ type: "tv" as const, ...s })),
           ];
-        })
+        }).catch(() => [])
       : Promise.resolve([]),
   ]);
 
@@ -130,7 +142,10 @@ export default async function SearchPage({ searchParams }: Props) {
   if (q.trim() && rawMovies.length + rawShows.length + rawPeople.length < 3) {
     const variants = generateFuzzyVariants(q);
     for (const variant of variants) {
-      const retryResult = await searchAll(variant, perPage);
+      // Same catch rationale as the primary searchAll above — a fuzzy
+      // retry that throws shouldn't kill the page that already has
+      // partial primary results to show.
+      const retryResult = await searchAll(variant, perPage).catch(() => ({ movies: [], shows: [], people: [] }));
       const retryTotal = retryResult.movies.length + retryResult.shows.length + retryResult.people.length;
       if (retryTotal > rawMovies.length + rawShows.length + rawPeople.length) {
         correctedQuery = variant;
