@@ -102,6 +102,7 @@ gtag('config', '${GA_ID}');`}
               <a href="/about" className="hover:text-white transition-colors">About</a>
               <a href="/contact" className="hover:text-white transition-colors">Contact</a>
               <a href="/feedback" className="hover:text-white transition-colors">Submit Feedback</a>
+              <a href="/welcome" className="hover:text-white transition-colors">Take the Tour</a>
             </div>
             <div className="flex items-center justify-center gap-3 mt-3">
               {/* TMDB attribution — required by their API Terms of Service */}

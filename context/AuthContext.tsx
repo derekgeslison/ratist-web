@@ -29,6 +29,11 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   needsOnboarding: boolean;
+  /** ISO string when the home tour banner was dismissed server-side
+   *  (or the user took the tour). Null = banner still active. Mirrored
+   *  here so client components can decide whether to render the banner
+   *  without an extra fetch. */
+  tourDismissedAt: string | null;
   accountStatus: AccountStatus | null;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
   signInWithFacebook: () => Promise<{ isNewUser: boolean }>;
@@ -41,6 +46,9 @@ interface AuthContextValue {
   startFresh: () => Promise<void>;
   clearAccountStatus: () => void;
   completeOnboarding: () => Promise<void>;
+  /** Optimistically marks the tour dismissed locally so the banner
+   *  hides immediately. Caller is responsible for the server write. */
+  markTourDismissed: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [tourDismissedAt, setTourDismissedAt] = useState<string | null>(null);
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
 
   const syncUser = useCallback(async (firebaseUser: User, restoreAction?: string) => {
@@ -75,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setAccountStatus(null);
       setNeedsOnboarding(data.needsOnboarding === true);
+      setTourDismissedAt(data.user?.tourDismissedAt ?? null);
       return true;
     }
     return true;
@@ -213,7 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, tourDismissedAt, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
       {children}
     </AuthContext.Provider>
   );

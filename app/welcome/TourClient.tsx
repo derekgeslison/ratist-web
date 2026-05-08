@@ -11,6 +11,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import RatingBadge from "@/components/RatingBadge";
+import { track } from "@/lib/analytics";
+import { useAuth } from "@/context/AuthContext";
 import type { TourImages } from "./page";
 
 const DISMISS_KEY = "ratist:tour-banner-dismissed";
@@ -35,31 +37,65 @@ const TOTAL_STEPS = STEP_TITLES.length;
 interface Props { images: TourImages }
 
 export default function TourClient({ images }: Props) {
+  const { user, markTourDismissed } = useAuth();
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [extended, setExtended] = useState(false);
 
+  // Mark the tour dismissed both locally (for anonymous users) and on
+  // the server (for signed-in users). Fire-and-forget; if either path
+  // fails the other still works.
   useEffect(() => {
     try { window.localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch { /* ignore */ }
-  }, []);
+    if (!user) return;
+    markTourDismissed();
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        await fetch("/api/me/tour-dismiss", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch { /* ignore */ }
+    })();
+  }, [user, markTourDismissed]);
 
   useEffect(() => {
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step, done]);
+
+  // GA4 step-view event. Fires on every step the user lands on (incl.
+  // back-nav). `extended` is read at fire time so the metric reflects
+  // whether the user has chosen the longer tour.
+  useEffect(() => {
+    if (done) return;
+    track("tour_step_viewed", { step: step + 1, extended });
+  }, [step, done, extended]);
 
   const total = extended ? TOTAL_STEPS : CORE_STEPS;
   const isForkStep = step === CORE_STEPS - 1;  // step 6 (index 5) shows the fork
   const isLastStep = step === total - 1;
 
   function next() {
-    if (step >= total - 1) setDone(true);
-    else setStep((s) => s + 1);
+    if (step >= total - 1) {
+      track("tour_finished", { at_step: step + 1, extended });
+      setDone(true);
+    } else {
+      setStep((s) => s + 1);
+    }
   }
   function back() { setStep((s) => Math.max(0, s - 1)); }
-  function finishHere() { setDone(true); }
+  function finishHere() {
+    track("tour_finished", { at_step: step + 1, extended });
+    setDone(true);
+  }
   function continueExtended() {
+    track("tour_extended_chosen", { from_step: step + 1 });
     if (!extended) setExtended(true);
     setStep(CORE_STEPS);  // jump to step 7
+  }
+  function trackSkip() {
+    track("tour_skipped", { at_step: step + 1, extended });
   }
 
   if (done) return <CompletionScreen extended={extended} />;
@@ -70,7 +106,7 @@ export default function TourClient({ images }: Props) {
         <p className="text-xs uppercase tracking-widest text-[var(--foreground-muted)]">
           Step {step + 1} of {total} — <span className="text-white">{STEP_TITLES[step]}</span>
         </p>
-        <Link href="/" className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">Skip tour</Link>
+        <Link href="/" onClick={trackSkip} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">Skip tour</Link>
       </div>
       <div className="flex gap-1.5 mb-7">
         {Array.from({ length: total }).map((_, i) => (
@@ -503,8 +539,8 @@ function ScreeningStep({ images }: Props) {
           <PosterThumb src={dunePoster} alt="Dune: Part Two" size="sm" />
           <div className="flex-1 min-w-0">
             <p className="text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">Now screening</p>
-            <p className="text-sm font-semibold text-white truncate">Dune: Part Two (2024)</p>
-            <p className="text-[10px] text-[var(--foreground-muted)]">5 watching &middot; private room</p>
+            <p className="text-sm font-semibold text-white break-words">Dune: Part Two (2024)</p>
+            <p className="text-[10px] text-[var(--foreground-muted)] break-words">5 watching &middot; private room</p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs font-mono text-[var(--ratist-red)]">1:14:32</p>
@@ -668,8 +704,8 @@ function DiaryStep({ images }: Props) {
               className={`flex items-center gap-3 px-3 py-2.5 text-sm border-b border-[var(--border)] last:border-b-0 ${e.isNew ? "bg-[var(--ratist-red)]/10" : ""}`}
             >
               <PosterThumb src={tmdbPoster(images.movies[e.movieKey], "w92")} alt={e.title} size="xs" />
-              <span className={`w-24 text-[11px] shrink-0 ${e.isNew ? "text-[var(--ratist-red)] font-semibold" : "text-[var(--foreground-muted)]"}`}>{e.date}</span>
-              <span className="flex-1 min-w-0 truncate text-white">
+              <span className={`w-20 sm:w-24 text-[11px] shrink-0 ${e.isNew ? "text-[var(--ratist-red)] font-semibold" : "text-[var(--foreground-muted)]"}`}>{e.date}</span>
+              <span className="flex-1 min-w-0 text-white break-words">
                 {e.title} <span className="text-[var(--foreground-muted)]">({e.year})</span>
               </span>
               <span className={`font-mono text-sm shrink-0 ${ratingColor(e.rating)}`}>{e.rating.toFixed(1)}</span>
@@ -691,7 +727,7 @@ function DiaryStep({ images }: Props) {
                   {isAdded && <Check className="w-3.5 h-3.5 text-white" />}
                 </div>
                 <PosterThumb src={tmdbPoster(images.movies[o.movieKey], "w92")} alt={o.title} size="xs" />
-                <span className="flex-1 text-sm text-white">{o.title} <span className="text-[var(--foreground-muted)]">({o.year})</span></span>
+                <span className="flex-1 min-w-0 text-sm text-white break-words">{o.title} <span className="text-[var(--foreground-muted)]">({o.year})</span></span>
                 <span className={`text-[10px] shrink-0 ${isAdded ? "text-[var(--ratist-red)] font-semibold" : "text-[var(--foreground-muted)]"}`}>{o.date}</span>
                 <span className={`font-mono text-xs ${isAdded ? ratingColor(o.rating) : "text-[var(--foreground-muted)]/50"}`}>{o.rating.toFixed(1)}</span>
               </button>
@@ -809,8 +845,8 @@ function ActorLookupStep({ images }: Props) {
               <div key={f.title} className="flex items-center gap-3 px-2.5 py-2 rounded-md bg-[var(--surface-2)] border border-[var(--border)]">
                 <PosterThumb src={tmdbPoster(images.movies[f.movieKey], "w92")} alt={f.title} size="xs" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{f.title} <span className="text-[var(--foreground-muted)]">({f.year})</span></p>
-                  <p className="text-[10px] text-[var(--foreground-muted)] truncate">as {f.role}</p>
+                  <p className="text-sm text-white break-words">{f.title} <span className="text-[var(--foreground-muted)]">({f.year})</span></p>
+                  <p className="text-[10px] text-[var(--foreground-muted)] break-words">as {f.role}</p>
                 </div>
                 <span className={`font-mono text-xs shrink-0 ${ratingColor(f.rating)}`}>{f.rating.toFixed(1)}</span>
               </div>
@@ -1074,8 +1110,8 @@ function WatchlistStep({ images }: Props) {
                 <span className="text-[10px] text-[var(--foreground-muted)] font-mono w-5 text-center shrink-0">{i + 1}</span>
                 <PosterThumb src={tmdbPoster(images.movies[it.movieKey], "w92")} alt={it.title} size="xs" />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold text-white truncate ${isSeen ? "line-through" : ""}`}>{it.title} <span className="text-[var(--foreground-muted)] font-normal">({it.year})</span></p>
-                  <p className={`text-[10px] text-[var(--foreground-muted)] ${isSeen ? "line-through" : ""}`}>{it.runtime} min &middot; <span className={it.providerColor}>{it.provider}</span></p>
+                  <p className={`text-sm font-semibold text-white break-words ${isSeen ? "line-through" : ""}`}>{it.title} <span className="text-[var(--foreground-muted)] font-normal">({it.year})</span></p>
+                  <p className={`text-[10px] text-[var(--foreground-muted)] break-words ${isSeen ? "line-through" : ""}`}>{it.runtime} min &middot; <span className={it.providerColor}>{it.provider}</span></p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => moveUp(i)} disabled={i === 0} aria-label="Move up"

@@ -3,31 +3,68 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Sparkles, X } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { track } from "@/lib/analytics";
 
 const DISMISS_KEY = "ratist:tour-banner-dismissed";
 
+// Best-effort server write of the dismiss state. Fire-and-forget — if
+// it fails (network blip, anonymous user, etc.) we still have the
+// localStorage flag, and the next syncUser will eventually surface
+// the server state on a future sign-in.
+async function writeServerDismiss() {
+  try {
+    const { auth } = await import("@/lib/firebase");
+    const fbUser = auth.currentUser;
+    if (!fbUser) return;
+    const token = await fbUser.getIdToken();
+    await fetch("/api/me/tour-dismiss", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch { /* ignore */ }
+}
+
 export default function TourBanner() {
-  // null until we've checked storage — prevents a flash of the banner
-  // on returning users who already dismissed it.
-  const [visible, setVisible] = useState<boolean | null>(null);
+  const { user, tourDismissedAt, markTourDismissed } = useAuth();
+  // null until storage check + auth state settles — prevents a flash
+  // of the banner on returning users who already dismissed it.
+  const [localDismissed, setLocalDismissed] = useState<boolean | null>(null);
 
   useEffect(() => {
     try {
-      const dismissed = window.localStorage.getItem(DISMISS_KEY);
-      setVisible(!dismissed);
+      setLocalDismissed(!!window.localStorage.getItem(DISMISS_KEY));
     } catch {
-      setVisible(true);
+      setLocalDismissed(false);
     }
   }, []);
 
-  function dismiss() {
+  // Lazy-backfill: if a signed-in user has localStorage-dismissed but
+  // the server doesn't know yet, push it to the server so the dismiss
+  // sticks across devices.
+  useEffect(() => {
+    if (user && localDismissed && !tourDismissedAt) {
+      void writeServerDismiss();
+    }
+  }, [user, localDismissed, tourDismissedAt]);
+
+  function dismiss(via: "x" | "take_tour") {
     try {
       window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
     } catch { /* ignore */ }
-    setVisible(false);
+    track(via === "take_tour" ? "tour_banner_taken" : "tour_banner_dismissed");
+    setLocalDismissed(true);
+    if (user) {
+      markTourDismissed();
+      void writeServerDismiss();
+    }
   }
 
-  if (!visible) return null;
+  // Hide if either storage path says dismissed. Wait for the storage
+  // check to settle before deciding (prevents flash on returning users).
+  if (localDismissed === null) return null;
+  if (tourDismissedAt) return null;
+  if (localDismissed) return null;
 
   return (
     <div className="bg-[var(--surface-2)] border-y border-[var(--border)]">
@@ -39,13 +76,13 @@ export default function TourBanner() {
         </p>
         <Link
           href="/welcome"
-          onClick={dismiss}
+          onClick={() => dismiss("take_tour")}
           className="text-xs sm:text-sm font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] px-3 py-1.5 rounded-lg transition-colors shrink-0"
         >
           Take the tour
         </Link>
         <button
-          onClick={dismiss}
+          onClick={() => dismiss("x")}
           aria-label="Dismiss tour banner"
           className="p-1 text-[var(--foreground-muted)] hover:text-white transition-colors shrink-0"
         >

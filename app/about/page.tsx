@@ -20,9 +20,16 @@ export default function AboutPage() {
         <h1 className="text-3xl sm:text-4xl font-black text-white mb-4">
           Movie &amp; TV ratings, done right.
         </h1>
-        <p className="text-lg text-[var(--foreground-muted)] max-w-2xl mx-auto leading-relaxed">
+        <p className="text-lg text-[var(--foreground-muted)] max-w-2xl mx-auto leading-relaxed mb-6">
           Traditional ratings are fundamentally broken. One number can&apos;t capture why a film or show works for one person and not another. The Ratist was built to fix that.
         </p>
+        <Link
+          href="/welcome"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] px-4 py-2 rounded-full transition-colors"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          New here? Take the 2-minute tour
+        </Link>
       </div>
 
       {/* The Problem */}

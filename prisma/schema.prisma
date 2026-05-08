@@ -35,6 +35,10 @@ model User {
   createdAt                        DateTime  @default(now()) @map("created_at")
   updatedAt                        DateTime  @updatedAt @map("updated_at")
   onboardedAt                      DateTime? @map("onboarded_at")
+  // Set when the user dismisses the home tour banner OR visits /welcome.
+  // Persisted server-side so the dismissal sticks across devices and
+  // through localStorage clears. Null = banner still active.
+  tourDismissedAt                  DateTime? @map("tour_dismissed_at")
 
   ratings                       MovieRating[]
   tvShowRatings                 TVShowRating[]
