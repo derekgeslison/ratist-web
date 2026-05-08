@@ -16,7 +16,7 @@ interface Props {
   chatMessages: (RTDBChatMessage & { key: string })[];
   maxHeight?: string;
   label?: string;
-  phase?: "lobby" | "postwatch";
+  phase?: "lobby" | "postwatch" | "paused";
   /** Wall-clock when the watch began. When provided alongside
    *  phase="postwatch", messages sent during the watch render with
    *  their elapsed-time stamp so the chat-highlights jump-to-point

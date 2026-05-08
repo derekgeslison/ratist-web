@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import Image from "next/image";
 import Link from "next/link";
-import { Library, Calendar, Eye, MessageCircle, Search, BookOpen, Map } from "lucide-react";
+import { Library, Calendar, Eye, MessageCircle, Heart, Search, BookOpen, Map } from "lucide-react";
 import { Suspense } from "react";
 import PostSortBar from "@/components/PostSortBar";
 import AdUnit from "@/components/AdUnit";
@@ -72,15 +72,31 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
   });
 
   const postIds = posts.map((p) => p.id);
-  const commentCounts = postIds.length > 0
-    ? await prisma.comment.groupBy({
-        by: ["targetId"],
-        where: { targetType: "blog", targetId: { in: postIds } },
-        _count: { id: true },
-      })
-    : [];
+  // Like + comment counts come from separate tables (PostLike +
+  // Comment), both keyed by targetType:"blog" + targetId. Two grouped
+  // counts run in parallel — way cheaper than per-row queries on the
+  // listing page.
+  const [commentCounts, likeCounts] = postIds.length > 0
+    ? await Promise.all([
+        prisma.comment.groupBy({
+          by: ["targetId"],
+          where: { targetType: "blog", targetId: { in: postIds } },
+          _count: { id: true },
+        }),
+        prisma.postLike.groupBy({
+          by: ["targetId"],
+          where: { targetType: "blog", targetId: { in: postIds } },
+          _count: { userId: true },
+        }),
+      ])
+    : [[], []];
   const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
-  const postsWithComments = posts.map((p) => ({ ...p, commentCount: commentMap[p.id] ?? 0 }));
+  const likeMap = Object.fromEntries(likeCounts.map((l) => [l.targetId, l._count.userId]));
+  const postsWithComments = posts.map((p) => ({
+    ...p,
+    commentCount: commentMap[p.id] ?? 0,
+    likeCount: likeMap[p.id] ?? 0,
+  }));
 
   // Helper: build a URL preserving current filter state, swapping a single param.
   function buildHref(overrides: { type?: string; q?: string; sort?: string }): string {
@@ -231,6 +247,12 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
                         <span className="flex items-center gap-1">
                           <Eye className="w-3 h-3" />
                           {post.viewCount.toLocaleString()}
+                        </span>
+                      )}
+                      {post.likeCount > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-3 h-3" />
+                          {post.likeCount.toLocaleString()}
                         </span>
                       )}
                       {post.commentCount > 0 && (

@@ -272,7 +272,7 @@ export default function ScreeningSessionPage() {
         // Only include messages from the watching phase (between startedAt and finishedAt)
         const startedAtMs = session?.startedAt ? new Date(session.startedAt).getTime() : 0;
         const finishedAtMs = session?.finishedAt ? new Date(session.finishedAt).getTime() : Infinity;
-        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs && m.timestamp <= finishedAtMs && (m as any).phase !== "lobby" && (m as any).phase !== "postwatch");
+        const watchingMsgs = msgs.filter((m) => m.timestamp >= startedAtMs && m.timestamp <= finishedAtMs && (m as any).phase !== "lobby" && (m as any).phase !== "postwatch" && (m as any).phase !== "paused");
         if (watchingMsgs.length === 0) {
           if (attempt < 3) setTimeout(() => generateHighlights(attempt + 1), 1000);
           return;
@@ -973,27 +973,52 @@ export default function ScreeningSessionPage() {
         </div>
       )}
 
-      {/* Paused overlay with resume ready-up */}
+      {/* Paused overlay with resume ready-up + chat. Chat lives inside
+         the modal so participants can keep communicating while waiting
+         for everyone to ready up — paused-phase messages are tagged
+         and excluded from highlights/superlatives downstream so a
+         "brb popcorn" exchange doesn't pollute the post-watch recap. */}
       {isPaused && resumeCountdown === null && (
-        <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 max-w-sm w-full mx-4 text-center">
-            <PauseCircle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
-            <h2 className="text-xl font-bold text-white mb-2">Paused</h2>
-            <p className="text-sm text-[var(--foreground-muted)] mb-2">Ready up when you&apos;re ready to resume</p>
-            <p className="text-[10px] text-[var(--foreground-muted)] mb-6">A 5-second countdown will begin when everyone is ready</p>
-            <p className="text-xs text-[var(--foreground-muted)] mb-3">
-              {Object.values(resumeReadyUsers).filter(Boolean).length}/{session?.participants.length ?? 0} ready to resume
-            </p>
-            <button onClick={toggleResumeReady}
-              className={`w-full text-sm font-semibold py-3 rounded-lg transition-colors ${resumeReadyUsers[myUserId] ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white"}`}>
-              {resumeReadyUsers[myUserId] ? "Ready to Resume ✓" : "Ready to Resume"}
-            </button>
-            {amHost && (
-              <button onClick={forceResume}
-                className="w-full mt-2 text-xs text-[var(--ratist-red)] hover:underline py-2">
-                Force Resume (Host)
+        <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-7 max-w-md w-full my-auto">
+            <div className="text-center">
+              <PauseCircle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
+              <h2 className="text-xl font-bold text-white mb-2">Paused</h2>
+              <p className="text-sm text-[var(--foreground-muted)] mb-2">Ready up when you&apos;re ready to resume</p>
+              <p className="text-[10px] text-[var(--foreground-muted)] mb-4">A 5-second countdown will begin when everyone is ready</p>
+              <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                {Object.values(resumeReadyUsers).filter(Boolean).length}/{session?.participants.length ?? 0} ready to resume
+              </p>
+              <button onClick={toggleResumeReady}
+                className={`w-full text-sm font-semibold py-3 rounded-lg transition-colors ${resumeReadyUsers[myUserId] ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white"}`}>
+                {resumeReadyUsers[myUserId] ? "Ready to Resume ✓" : "Ready to Resume"}
               </button>
-            )}
+              {amHost && (
+                <button onClick={forceResume}
+                  className="w-full mt-2 text-xs text-[var(--ratist-red)] hover:underline py-2">
+                  Force Resume (Host)
+                </button>
+              )}
+            </div>
+
+            {/* While-paused chat. phase="paused" tags every message
+               sent here so the highlight + superlative passes can
+               exclude them from post-watch recap. */}
+            <div className="mt-5 pt-5 border-t border-[var(--border)]">
+              <CompactChat
+                sessionId={id}
+                myUserId={myUserId}
+                myName={user?.displayName ?? "Anonymous"}
+                myPhotoURL={user?.photoURL ?? undefined}
+                chatMessages={chatMessages}
+                maxHeight="160px"
+                label="Chat while paused"
+                phase="paused"
+              />
+              <p className="text-[10px] text-[var(--foreground-muted)] mt-2 text-center italic">
+                Pause-time chat doesn&apos;t count toward chat highlights or superlatives.
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -1072,7 +1097,7 @@ export default function ScreeningSessionPage() {
               </div>
               {amHost ? (
                 <ol className="space-y-1.5 text-xs text-[var(--foreground-muted)] list-decimal list-inside marker:text-[var(--ratist-red)]/70">
-                  <li>Pick a movie or show below, then share the invite link or code with your friends.</li>
+                  <li>Pick a movie or show below — or open <span className="text-white font-medium">Suggestions</span> so guests can pitch options and vote on what to watch. Share the invite link or code with your friends.</li>
                   <li>Wait for everyone to mark themselves ready in the lobby.</li>
                   <li>Hit <span className="text-white font-medium">Start</span> — a 5-second countdown plays so everyone hits play together.</li>
                   <li>While watching: chat with timestamps, run polls, predict the ending, bookmark moments.</li>
@@ -1080,7 +1105,7 @@ export default function ScreeningSessionPage() {
                 </ol>
               ) : (
                 <ol className="space-y-1.5 text-xs text-[var(--foreground-muted)] list-decimal list-inside marker:text-[var(--ratist-red)]/70">
-                  <li>Hang tight while the host picks the movie or show — you&apos;ll see it appear above.</li>
+                  <li>If the host opened <span className="text-white font-medium">Suggestions</span>, pitch a movie or show and vote on the options. Otherwise hang tight while the host picks — you&apos;ll see it appear above.</li>
                   <li>Tap <span className="text-white font-medium">Ready</span> when you&apos;re set up to play. The host launches a 5-second countdown when everyone&apos;s in.</li>
                   <li>Hit play with the countdown and stay synced. Use the chat, polls, and reactions while you watch.</li>
                   <li>After the movie ends, drop your rating — everyone&apos;s scores are revealed together.</li>
@@ -1597,7 +1622,7 @@ export default function ScreeningSessionPage() {
                 const _finishedAtMs = session.finishedAt ? new Date(session.finishedAt).getTime() : Infinity;
                 const watchingChatMsgs = chatMessages.filter((m) => {
                   if (m.userId === "system") return false;
-                  if ((m as any).phase === "lobby" || (m as any).phase === "postwatch") return false;
+                  if ((m as any).phase === "lobby" || (m as any).phase === "postwatch" || (m as any).phase === "paused") return false;
                   if (m.timestamp < _startedAtMs) return false;
                   if (_finishedAtMs < Infinity && m.timestamp > _finishedAtMs) return false;
                   return true;

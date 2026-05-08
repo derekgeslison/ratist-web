@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Film, TrendingUp, Brain } from "lucide-react";
+import { Users, Sparkles, Film, TrendingUp, Brain, Eye, Heart, MessageCircle } from "lucide-react";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
@@ -102,6 +102,11 @@ export default async function HomePage() {
       const select = {
         id: true, slug: true, title: true, excerpt: true,
         coverImage: true, publishedAt: true, type: true,
+        // viewCount lives on the row directly. likes + comments are
+        // looked up by targetId after we have the final post list,
+        // since they're independent tables that need IN-clause queries
+        // rather than per-row joins.
+        viewCount: true,
       } as const;
       const baseWhere = { published: true, publishedAt: { lte: new Date() } } as const;
       const [recent, latestBlog, latestMovieMap, latestTwoThumbs] = await Promise.all([
@@ -151,7 +156,34 @@ export default async function HomePage() {
       }
       // Re-sort by publishedAt (desc) so insertions don't always sit at the end visually.
       result.sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0));
-      return result.slice(0, 6);
+      const finalPosts = result.slice(0, 6);
+
+      // Likes + comments live in separate tables (PostLike + Comment
+      // both keyed by targetType:"blog" + targetId). Two grouped count
+      // queries are cheaper than per-row counts and let us hand the
+      // home tile renderer the maps inline.
+      const finalIds = finalPosts.map((p) => p.id);
+      const [likeCounts, commentCounts] = finalIds.length > 0
+        ? await Promise.all([
+            prisma.postLike.groupBy({
+              by: ["targetId"],
+              where: { targetType: "blog", targetId: { in: finalIds } },
+              _count: { userId: true },
+            }).catch(() => [] as Array<{ targetId: string; _count: { userId: number } }>),
+            prisma.comment.groupBy({
+              by: ["targetId"],
+              where: { targetType: "blog", targetId: { in: finalIds } },
+              _count: { id: true },
+            }).catch(() => [] as Array<{ targetId: string; _count: { id: number } }>),
+          ])
+        : [[], []];
+      const likeMap = Object.fromEntries(likeCounts.map((l) => [l.targetId, l._count.userId]));
+      const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
+      return finalPosts.map((p) => ({
+        ...p,
+        likeCount: likeMap[p.id] ?? 0,
+        commentCount: commentMap[p.id] ?? 0,
+      }));
     })(),
     prisma.forumThread.findMany({
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
@@ -468,11 +500,38 @@ export default async function HomePage() {
                     <div className="p-3 flex-1 flex flex-col gap-1">
                       <p className="text-sm font-semibold text-white line-clamp-2 group-hover:text-[var(--ratist-red)] transition-colors">{p.title}</p>
                       {p.excerpt && <p className="text-xs text-[var(--foreground-muted)] line-clamp-2">{p.excerpt}</p>}
-                      {p.publishedAt && (
-                        <p className="text-[11px] text-[var(--foreground-muted)] mt-auto pt-1">
-                          {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </p>
-                      )}
+                      <div className="flex items-center justify-between mt-auto pt-1">
+                        {p.publishedAt ? (
+                          <p className="text-[11px] text-[var(--foreground-muted)]">
+                            {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        ) : <span />}
+                        {/* Engagement metrics — render only the non-zero
+                           ones so a freshly-published post doesn't show
+                           three "0"s before anyone's seen it. */}
+                        {(p.viewCount > 0 || p.likeCount > 0 || p.commentCount > 0) && (
+                          <div className="flex items-center gap-2.5 text-[11px] text-[var(--foreground-muted)]">
+                            {p.viewCount > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Eye className="w-3 h-3" />
+                                {p.viewCount.toLocaleString()}
+                              </span>
+                            )}
+                            {p.likeCount > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-3 h-3" />
+                                {p.likeCount.toLocaleString()}
+                              </span>
+                            )}
+                            {p.commentCount > 0 && (
+                              <span className="flex items-center gap-1">
+                                <MessageCircle className="w-3 h-3" />
+                                {p.commentCount.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 );
