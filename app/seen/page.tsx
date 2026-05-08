@@ -11,6 +11,7 @@ import RatingBadge from "@/components/RatingBadge";
 import DiaryRow from "@/components/DiaryRow";
 import DiaryEpisodeRow from "@/components/DiaryEpisodeRow";
 import ShareButton from "@/components/ShareButton";
+import FirstVisitHint from "@/components/FirstVisitHint";
 import { scoreColor } from "@/lib/ratings";
 
 interface SeenMovie {
@@ -421,11 +422,21 @@ export default function SeenPage() {
       ) : loading ? (
         <p className="text-[var(--foreground-muted)] text-center py-10">Loading…</p>
       ) : movies.length === 0 && episodeGroups.length === 0 ? (
-        <div className="text-center py-16 text-[var(--foreground-muted)]">
-          <Eye className="w-12 h-12 mx-auto mb-4 opacity-30" />
-          <p className="mb-2">Nothing here yet.</p>
-          <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
-        </div>
+        <>
+          <FirstVisitHint
+            storageKey="diary-empty"
+            icon={Eye}
+            title="Welcome to your Film Diary"
+            cta={{ label: "Browse movies", href: "/movies" }}
+          >
+            Mark Seen on any movie or show page to log it. Set the date you watched and a rating; it lands here forever, sortable by date, year, or score. Other users can browse your diary too — it&rsquo;s how taste-twins find each other.
+          </FirstVisitHint>
+          <div className="text-center py-16 text-[var(--foreground-muted)]">
+            <Eye className="w-12 h-12 mx-auto mb-4 opacity-30" />
+            <p className="mb-2">Nothing here yet.</p>
+            <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse movies →</Link>
+          </div>
+        </>
       ) : (
         <>
           {/* Year tabs (month + calendar only) */}

@@ -14,6 +14,7 @@ import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import SpotlightCards from "@/components/SpotlightCards";
 import AdUnit from "@/components/AdUnit";
+import FirstVisitHint from "@/components/FirstVisitHint";
 
 interface MediaItem {
   type: "movie" | "tv";
@@ -445,10 +446,20 @@ export default function ForYouPage() {
       <SpotlightCards placement="for_you" />
 
       {isEmpty && (
-        <div className="text-center py-16 text-[var(--foreground-muted)]">
-          <p className="mb-2">Your feed is empty right now.</p>
-          <p className="text-sm">Start rating movies, following users, and adding to your watchlist to see personalized content here.</p>
-        </div>
+        <>
+          <FirstVisitHint
+            storageKey="for-you-empty"
+            icon={Sparkles}
+            title="Your For You feed"
+            cta={{ label: "Rate movies", href: "/movies" }}
+          >
+            Personalized recommendations from people who rate the way you do — once we have enough rating history. Rate at least 10 movies (the full rubric works best) and we&rsquo;ll start surfacing taste-matched picks here.
+          </FirstVisitHint>
+          <div className="text-center py-16 text-[var(--foreground-muted)]">
+            <p className="mb-2">Your feed is empty right now.</p>
+            <p className="text-sm">Start rating movies, following users, and adding to your watchlist to see personalized content here.</p>
+          </div>
+        </>
       )}
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME ?? ""} format="auto" className="mb-8" />

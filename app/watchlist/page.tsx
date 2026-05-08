@@ -23,6 +23,7 @@ import WatchlistStats from "@/components/WatchlistStats";
 import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import { useTouchReveal } from "@/hooks/useTouchReveal";
 import TapHoldHint from "@/components/TapHoldHint";
+import FirstVisitHint from "@/components/FirstVisitHint";
 
 /* ── Types ── */
 interface WatchlistMeta {
@@ -1476,18 +1477,30 @@ export default function WatchlistPage() {
                 {reorderMode ? null : loadingMovies ? (
                   <p className="text-[var(--foreground-muted)] text-center py-10">Loading&hellip;</p>
                 ) : filtered.length === 0 ? (
-                  <div className="text-center py-16 text-[var(--foreground-muted)]">
-                    {movies.length === 0 ? (
-                      <>
-                        <Bookmark className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                        <p className="mb-2">Nothing in this list yet.</p>
-                        <p className="text-sm">Search above or browse to add movies &amp; shows.</p>
-                        <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse &rarr;</Link>
-                      </>
-                    ) : (
-                      <p>Nothing matches your filters.</p>
+                  <>
+                    {movies.length === 0 && (
+                      <FirstVisitHint
+                        storageKey="watchlist-empty"
+                        icon={Bookmark}
+                        title="Your Watchlist"
+                        cta={{ label: "Browse movies", href: "/movies" }}
+                      >
+                        Bookmark anything you want to come back to. We&rsquo;ll show where it&rsquo;s currently streaming so you don&rsquo;t have to google it. Reorder by priority, mark Seen when you watch, or build a second list (Rewatch shelf, Guys&rsquo; Night) and invite collaborators to fill it together.
+                      </FirstVisitHint>
                     )}
-                  </div>
+                    <div className="text-center py-16 text-[var(--foreground-muted)]">
+                      {movies.length === 0 ? (
+                        <>
+                          <Bookmark className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                          <p className="mb-2">Nothing in this list yet.</p>
+                          <p className="text-sm">Search above or browse to add movies &amp; shows.</p>
+                          <Link href="/movies" className="mt-4 inline-block text-sm text-[var(--ratist-red)] hover:underline">Browse &rarr;</Link>
+                        </>
+                      ) : (
+                        <p>Nothing matches your filters.</p>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <>
                   <TapHoldHint pageKey="watchlist" message="Tip: tap and hold a tile to reveal actions like checking it off or removing it." />
