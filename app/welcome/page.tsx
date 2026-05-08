@@ -10,9 +10,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/welcome" },
 };
 
-// 7-day revalidate. Poster and profile paths are stable in TMDB and
-// the tour content is fixed — no reason to refetch on every visit.
-export const revalidate = 60 * 60 * 24 * 7;
+// 7-day revalidate (604800s). Next.js 16 requires this to be a
+// literal number, not an expression — it gets statically read at
+// build time. Poster and profile paths are stable in TMDB and the
+// tour content is fixed, so refetching on every visit is wasteful.
+export const revalidate = 604800;
 
 const TMDB = "https://api.themoviedb.org/3";
 
