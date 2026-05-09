@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { notifyMovieClubTransition } from "@/lib/movie-club-notify";
 
 const API_KEY = process.env.TMDB_API_KEY;
 
@@ -98,7 +99,8 @@ export async function runStatusTransitions(): Promise<void> {
   });
 
   for (const week of activeWeeks) {
-    // Archive: discussion phase ended (past end date)
+    // Archive: discussion phase ended (past end date). No notification —
+    // archiving is bookkeeping, not a member-facing event.
     if (week.status === "discussion" && today > week.endDate) {
       await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "archived" } });
       continue;
@@ -109,6 +111,7 @@ export async function runStatusTransitions(): Promise<void> {
       if (week.pickMethod === "community_vote") {
         // Community vote: scheduled → voting
         await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "voting" } });
+        await notifyMovieClubTransition(week.id, week.status, week.movieTitle);
       } else {
         // Random/Admin: scheduled → watching (auto-pick random if needed)
         if (week.pickMethod === "random" && !week.movieId) {
@@ -118,6 +121,7 @@ export async function runStatusTransitions(): Promise<void> {
         const updated = await prisma.movieClubWeek.findUnique({ where: { id: week.id } });
         if (updated?.movieId) {
           await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "watching" } });
+          await notifyMovieClubTransition(week.id, week.status, week.movieTitle);
         }
       }
       continue;
@@ -126,12 +130,14 @@ export async function runStatusTransitions(): Promise<void> {
     // Community vote: voting → watching (Wed 2am ET or later — catches missed crons)
     if (week.status === "voting" && (dayOfWeek >= 3 || dayOfWeek === 0) && (dayOfWeek > 3 || dayOfWeek === 0 || hour >= 2)) {
       await resolveVoteAndStartWatching(week.id);
+      await notifyMovieClubTransition(week.id, week.status, week.movieTitle);
       continue;
     }
 
     // Watching → Discussion (Fri 8pm ET or later — catches missed crons)
     if (week.status === "watching" && (dayOfWeek > 5 || (dayOfWeek === 5 && hour >= 20) || dayOfWeek === 0)) {
       await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "discussion" } });
+      await notifyMovieClubTransition(week.id, week.status, week.movieTitle);
     }
   }
 }

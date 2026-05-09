@@ -45,7 +45,14 @@ export async function GET(req: NextRequest) {
 
   const items = await prisma.newsItem.findMany({
     where: type ? { type } : undefined,
-    orderBy: { createdAt: "desc" },
+    // Sort by content date (publishedAt) so trailers slot in by their
+    // YouTube upload date — not the moment the cron happened to pull
+    // them in. Drafts (publishedAt null) fall to the bottom and break
+    // ties on createdAt.
+    orderBy: [
+      { publishedAt: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
     select: {
       id: true, type: true, title: true, slug: true,
       published: true, publishedAt: true, createdAt: true, updatedAt: true,

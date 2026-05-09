@@ -198,11 +198,20 @@ function shouldInclude(item: TMDBListResult, recentReleaseLimit: Date): boolean 
   const popThreshold = ENGLISH_LANGS.has(item.original_language ?? "") ? MIN_POP_EN : MIN_POP_FOREIGN;
   if (item.popularity < popThreshold) return false;
 
-  // For movies with a release date: skip if released more than 2 weeks ago
-  const dateStr = item.release_date ?? item.first_air_date;
-  if (dateStr) {
-    const releaseDate = new Date(dateStr);
-    if (releaseDate < recentReleaseLimit) return false;
+  // Movies: gate strictly to upcoming-only. Once a film is past its
+  // primary release date, fresh teasers/trailers shouldn't be auto-
+  // pulled — the marketing window is over and it just clutters the
+  // news feed.
+  if (item.release_date) {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    if (item.release_date < todayISO) return false;
+  }
+  // TV shows: keep the rolling 2-week window on first_air_date. The
+  // field reflects series premiere (often years old for ongoing shows),
+  // so tighter gating would exclude every season-N trailer.
+  else if (item.first_air_date) {
+    const airDate = new Date(item.first_air_date);
+    if (airDate < recentReleaseLimit) return false;
   }
 
   return true;

@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 
 interface NotifyOpts {
   recipientId: string;       // who receives the notification
-  actorId: string;           // who triggered it
+  /** Who triggered it. Pass `null` for system-triggered events (cron
+   *  transitions, scheduled announcements) where there's no peer
+   *  actor to attribute the action to. */
+  actorId: string | null;
   type: string;              // "comment" | "reply" | "comment_like" | "post_like" | "milestone" | "invite_accepted"
   targetType: string;        // "review" | "blog" | "lookslike" | "recast" | "hottake" | "oscar_category" | "watchlist"
   targetId: string;
@@ -60,8 +63,9 @@ export async function notify(opts: NotifyOpts): Promise<void> {
   try {
     // Don't notify yourself, unless the caller explicitly opts in
     // (subscription-style notifications where the actor is a backend
-    // job, not a peer action).
-    if (opts.recipientId === opts.actorId && !opts.allowSelfNotify) return;
+    // job, not a peer action). System-triggered notifications (null
+    // actor) bypass the self-check entirely.
+    if (opts.actorId !== null && opts.recipientId === opts.actorId && !opts.allowSelfNotify) return;
 
     // Check recipient preferences
     const recipient = await prisma.user.findUnique({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { ensureUpcomingWeeks, pickRandomMovie, resolveVoteWinner, runStatusTransitions } from "@/lib/movie-club";
+import { notifyMovieClubTransition } from "@/lib/movie-club-notify";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,15 @@ export async function PATCH(req: NextRequest) {
   const { weekId, status, pickMethod, pickFilters, pickTeaser, movieTmdbId, movieTitle, moviePoster, revealEarly } = await req.json();
   if (!weekId) return NextResponse.json({ error: "weekId required" }, { status: 400 });
 
+  // Snapshot pre-update state so the notify helper can detect a
+  // status transition (e.g. admin manually moves scheduled → watching)
+  // and ping movie-club members. Helper filters to the four observable
+  // transitions, so PATCHes that don't change status are no-ops.
+  const beforeWeek = await prisma.movieClubWeek.findUnique({
+    where: { id: weekId },
+    select: { status: true, movieTitle: true },
+  });
+
   const data: Record<string, unknown> = {};
   if (status !== undefined) data.status = status;
   if (pickMethod !== undefined) data.pickMethod = pickMethod;
@@ -103,6 +113,7 @@ export async function PATCH(req: NextRequest) {
         // Merge status change with whatever resolveVoteWinner set
         await prisma.movieClubWeek.update({ where: { id: weekId }, data: { status: "watching" } });
         const final = await prisma.movieClubWeek.findUnique({ where: { id: weekId } });
+        if (beforeWeek) await notifyMovieClubTransition(weekId, beforeWeek.status, beforeWeek.movieTitle);
         return NextResponse.json({ week: final });
       }
     }
@@ -128,5 +139,6 @@ export async function PATCH(req: NextRequest) {
   }
 
   const week = await prisma.movieClubWeek.update({ where: { id: weekId }, data });
+  if (beforeWeek) await notifyMovieClubTransition(weekId, beforeWeek.status, beforeWeek.movieTitle);
   return NextResponse.json({ week });
 }

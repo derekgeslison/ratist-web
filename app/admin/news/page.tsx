@@ -29,6 +29,8 @@ interface RssHeadline {
   fetchedAt: string;
 }
 
+type TypeFilter = "all" | "EDITORIAL" | "TRAILER";
+
 export default function AdminNewsPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<"published" | "rss">("published");
@@ -38,8 +40,13 @@ export default function AdminNewsPage() {
   const [rssLoading, setRssLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [rssFilter, setRssFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [fetchingTrailers, setFetchingTrailers] = useState(false);
   const [trailerStatus, setTrailerStatus] = useState<string | null>(null);
+
+  const filteredItems = typeFilter === "all" ? items : items.filter((i) => i.type === typeFilter);
+  const editorialCount = items.filter((i) => i.type === "EDITORIAL").length;
+  const trailerCount = items.filter((i) => i.type === "TRAILER").length;
 
   async function fetchItems() {
     if (!user) return;
@@ -178,34 +185,76 @@ export default function AdminNewsPage() {
         ) : items.length === 0 ? (
           <p className="text-[var(--foreground-muted)] text-center py-10">No news articles yet. Create one or write about an RSS headline.</p>
         ) : (
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]">
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between px-5 py-3 gap-4">
-                <div className="min-w-0 flex-1">
-                  <Link href={`/admin/news/${item.id}/edit`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
-                    {item.title}
-                  </Link>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--foreground-muted)]">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.type === "EDITORIAL" ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400"}`}>
-                      {item.type}
-                    </span>
-                    {item.author && <span>by {item.author.name}</span>}
-                    {item.sourceName && <span>via {item.sourceName}</span>}
-                    <span>{item.viewCount} views</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {item.published ? (
-                    <span className="text-emerald-400"><Eye className="w-4 h-4" /></span>
-                  ) : (
-                    <span className="text-[var(--foreground-muted)]"><EyeOff className="w-4 h-4" /></span>
-                  )}
-                  <button onClick={() => deleteItem(item.id)} className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
-                    <Trash2 className="w-4 h-4" />
+          <div className="space-y-4">
+            {/* Type filter pills — All / Editorial / Trailers. Lets the
+                admin scan trailers alone for cleanup, or articles alone
+                for moderation. */}
+            <div className="flex items-center gap-1.5">
+              {(["all", "EDITORIAL", "TRAILER"] as const).map((f) => {
+                const active = typeFilter === f;
+                const label = f === "all" ? `All (${items.length})` : f === "EDITORIAL" ? `Articles (${editorialCount})` : `Trailers (${trailerCount})`;
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setTypeFilter(f)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      active
+                        ? "bg-[var(--ratist-red)]/10 text-white border border-[var(--ratist-red)]/40"
+                        : "bg-[var(--surface)] text-[var(--foreground-muted)] border border-[var(--border)] hover:text-white"
+                    }`}
+                  >
+                    {label}
                   </button>
-                </div>
+                );
+              })}
+            </div>
+
+            {filteredItems.length === 0 ? (
+              <p className="text-[var(--foreground-muted)] text-center py-10">No items match this filter.</p>
+            ) : (
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]">
+                {filteredItems.map((item) => {
+                  // Date displayed = the content's own publish date
+                  // (trailer YouTube upload, article go-live), so the
+                  // admin can spot stale trailers at a glance. Falls
+                  // back to created (drafts have null publishedAt).
+                  const dateValue = item.publishedAt ?? item.createdAt;
+                  const dateLabel = new Date(dateValue).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+                  const isDraft = !item.publishedAt;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between px-5 py-3 gap-4">
+                      <div className="min-w-0 flex-1">
+                        <Link href={`/admin/news/${item.id}/edit`} className="text-sm font-medium text-white hover:text-[var(--ratist-red)] transition-colors line-clamp-1">
+                          {item.title}
+                        </Link>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--foreground-muted)] flex-wrap">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.type === "EDITORIAL" ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400"}`}>
+                            {item.type}
+                          </span>
+                          <span className="font-medium text-[var(--foreground)]">
+                            {dateLabel}
+                            {isDraft && <span className="text-[var(--foreground-muted)] font-normal"> (draft, created)</span>}
+                          </span>
+                          {item.author && <span>by {item.author.name}</span>}
+                          {item.sourceName && <span>via {item.sourceName}</span>}
+                          <span>{item.viewCount} views</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {item.published ? (
+                          <span className="text-emerald-400"><Eye className="w-4 h-4" /></span>
+                        ) : (
+                          <span className="text-[var(--foreground-muted)]"><EyeOff className="w-4 h-4" /></span>
+                        )}
+                        <button onClick={() => deleteItem(item.id)} className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         )
       )}

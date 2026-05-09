@@ -5,7 +5,7 @@ import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, Check, Shield, Trophy, X, ArrowLeft } from "lucide-react";
+import { Bell, Check, Shield, Trophy, X, ArrowLeft, Clapperboard } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface NotificationItem {
@@ -203,6 +203,10 @@ export default function NotificationsPage() {
               ) : n.type === "badge" ? (
                 <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
                   <Trophy className="w-4 h-4 text-amber-400" />
+                </div>
+              ) : n.type.startsWith("movieclub_") ? (
+                <div className="w-8 h-8 rounded-full bg-[var(--ratist-red)]/20 flex items-center justify-center shrink-0">
+                  <Clapperboard className="w-4 h-4 text-[var(--ratist-red)]" />
                 </div>
               ) : n.actor?.avatarUrl ? (
                 <Image src={n.actor.avatarUrl} alt={n.actor.name} width={32} height={32} className="rounded-full shrink-0" />
