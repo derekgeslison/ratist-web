@@ -48,6 +48,26 @@ const nextConfig: NextConfig = {
       { source: "/blog", destination: "/posts?type=BLOG", permanent: true },
       { source: "/movie-maps", destination: "/posts?type=MOVIE_MAP", permanent: true },
       { source: "/two-thumbs", destination: "/posts?type=PUNCH_AND_JUDY", permanent: true },
+      // Film diary was renamed to "Seen" — the canonical surface lives
+      // at /seen now.
+      { source: "/diary", destination: "/seen", permanent: true },
+      // Bare-path shortcuts to /tools/* features. Users sometimes type
+      // the feature name without the /tools prefix.
+      { source: "/recommend", destination: "/tools/recommend", permanent: true },
+      { source: "/actor-lookup", destination: "/tools/actor-lookup", permanent: true },
+      { source: "/matchup", destination: "/tools/matchup", permanent: true },
+      { source: "/shared-cast", destination: "/tools/shared-cast", permanent: true },
+      { source: "/analytics", destination: "/tools/analytics", permanent: true },
+      { source: "/oscar-predictor", destination: "/tools/oscar-predictor", permanent: true },
+      { source: "/rankings", destination: "/tools/rankings", permanent: true },
+      // Bare-path shortcuts to /community/* features.
+      { source: "/cineq", destination: "/community/cineq", permanent: true },
+      { source: "/hot-takes", destination: "/community/hot-takes", permanent: true },
+      { source: "/looks-like", destination: "/community/looks-like", permanent: true },
+      { source: "/movie-club", destination: "/community/movie-club", permanent: true },
+      { source: "/pitches", destination: "/community/pitches", permanent: true },
+      { source: "/recast", destination: "/community/recast", permanent: true },
+      { source: "/oscar-picks", destination: "/community/oscar-picks", permanent: true },
     ];
   },
 };

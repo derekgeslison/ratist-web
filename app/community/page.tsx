@@ -4,7 +4,7 @@ export const metadata: Metadata = { title: "Community Hub", description: "Hot ta
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
-import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare } from "lucide-react";
+import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare, MonitorPlay, BookOpen } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 import SpotlightCards from "@/components/SpotlightCards";
@@ -243,6 +243,38 @@ export default async function CommunityPage() {
       )}
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_COMMUNITY ?? ""} format="auto" className="mb-8" />
+
+      {/* Looking for… ? — disambiguation for the two social tools that
+          live under /tools rather than /community. Users routinely
+          assume Screening Room and Collections are community surfaces. */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 mb-10">
+        <h2 className="text-sm font-semibold text-white mb-1">Looking for Screening Room or Collections?</h2>
+        <p className="text-xs text-[var(--foreground-muted)] mb-4">
+          Both live under <Link href="/tools" className="text-[var(--ratist-red)] hover:underline">Cinephile Tools</Link>, not the Community Hub.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Link
+            href="/screening-room"
+            className="flex items-start gap-3 p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg hover:border-purple-500 transition-colors group"
+          >
+            <MonitorPlay className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-white group-hover:text-purple-400 transition-colors">Screening Room</p>
+              <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">Watch a movie or show with friends remotely — chat, polls, and post-watch rating comparisons.</p>
+            </div>
+          </Link>
+          <Link
+            href="/tools/collections"
+            className="flex items-start gap-3 p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg hover:border-orange-400 transition-colors group"
+          >
+            <BookOpen className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-white group-hover:text-orange-400 transition-colors">Collections</p>
+              <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">Curated movie lists scored against your taste. Browse the community feed or build your own.</p>
+            </div>
+          </Link>
+        </div>
+      </div>
 
       {/* Members */}
       <div>
