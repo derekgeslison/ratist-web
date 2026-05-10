@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Sparkles, ListPlus, ChevronDown, ChevronUp, AlertCircle, Users, User as UserIcon, Loader2, Lock } from "lucide-react";
+import { Sparkles, ListPlus, ChevronDown, ChevronUp, AlertCircle, Users, User as UserIcon, Loader2, Lock, Layers } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
@@ -183,7 +183,7 @@ function CollectionsPageInner() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
-        <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
+        <Layers className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Collections</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-4">

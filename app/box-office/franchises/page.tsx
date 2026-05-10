@@ -49,10 +49,10 @@ export default async function BoxOfficeFranchisesPage() {
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
         <Info className="w-4 h-4 text-[var(--foreground-muted)] shrink-0 mt-0.5" />
         <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
-          Franchises are sourced from TMDB's <code className="text-white/80">belongs_to_collection</code> field
-          and exclude collections with only one tracked entry. Crossover entries
-          (e.g. Avengers films within the wider MCU collection) follow TMDB's
-          assignment, which may differ from your own grouping.
+          Franchises are sourced from third-party catalog metadata and exclude
+          collections with only one tracked entry. Crossover entries
+          (e.g. Avengers films within the wider MCU collection) follow that
+          source&apos;s assignment, which may differ from your own grouping.
         </p>
       </div>
 
@@ -60,7 +60,7 @@ export default async function BoxOfficeFranchisesPage() {
         <ol className="divide-y divide-[var(--border)]">
           {rows.length === 0 ? (
             <li className="px-4 py-12 text-center text-sm text-[var(--foreground-muted)]">
-              Not enough franchise data yet — TMDB collection metadata is still
+              Not enough franchise data yet — collection metadata is still
               syncing into the catalog.
             </li>
           ) : (

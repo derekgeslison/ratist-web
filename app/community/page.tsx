@@ -4,7 +4,7 @@ export const metadata: Metadata = { title: "Community Hub", description: "Hot ta
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
-import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare, MonitorPlay, BookOpen } from "lucide-react";
+import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboard, MessageSquare, MonitorPlay, Layers } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 import SpotlightCards from "@/components/SpotlightCards";
@@ -267,7 +267,7 @@ export default async function CommunityPage() {
             href="/tools/collections"
             className="flex items-start gap-3 p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg hover:border-orange-400 transition-colors group"
           >
-            <BookOpen className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+            <Layers className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-white group-hover:text-orange-400 transition-colors">Collections</p>
               <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">Curated movie lists scored against your taste. Browse the community feed or build your own.</p>

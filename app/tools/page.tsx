@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import path from "node:path";
 import fs from "node:fs";
-import { Wrench, Users, Film, Map, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp } from "lucide-react";
+import { Wrench, Users, Film, Map, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp, Layers } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 import { getTopGrossing } from "@/lib/box-office-queries";
@@ -150,9 +150,9 @@ export default async function ToolsPage() {
     },
     {
       href: "/tools/collections",
-      icon: Sparkles,
+      icon: Layers,
       title: "Collections",
-      desc: "Curated movie lists from admins, the community, and people you follow. Each one is scored against your personal taste so you spot what's actually worth your time. Build your own and share them.",
+      desc: "Personalized recommendations built just for you, plus admin-curated collections and community-submitted lists — all scored against your taste.",
       image: "/tools/collections.png",
       fallbackTint: "rgb(251 146 60 / 0.2)", // orange-400
       // Featured collections are publicly browsable now — Backstage Pass

@@ -401,7 +401,7 @@ export default async function CelebrityPage({ params }: Props) {
                 <>
                   <p className="text-lg font-bold text-white">{hybridCommunityRating.toFixed(1)}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">
-                    {communityRatistCount > 0 ? `${communityRatistCount} Ratist review${communityRatistCount !== 1 ? "s" : ""}` : "TMDB estimate"}
+                    {communityRatistCount > 0 ? `${communityRatistCount} Ratist review${communityRatistCount !== 1 ? "s" : ""}` : "Initial estimate"}
                   </p>
                 </>
               ) : (

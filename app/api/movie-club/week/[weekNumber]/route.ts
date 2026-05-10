@@ -147,7 +147,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
       : null;
     const userRewatchVote = user ? week.rewatchPolls.find((p) => p.user.firebaseUid === user.firebaseUid)?.vote ?? null : null;
 
-    // Trivia (from TMDB data)
+    // Trivia: production facts pulled from movie metadata, plus the
+    // Ratist site-wide Community Rating. The third-party rating field
+    // is intentionally not exposed — users care about what the Ratist
+    // community thinks, not an outside aggregator.
     const trivia: string[] = [];
     if (canSeeDiscussion && week.movieTmdbId) {
       try {
@@ -161,9 +164,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
           if (det.production_companies?.length) trivia.push(`Studio: ${det.production_companies.map((c: { name: string }) => c.name).slice(0, 2).join(", ")}`);
           if (det.production_countries?.length) trivia.push(`Filmed in: ${det.production_countries.map((c: { name: string }) => c.name).slice(0, 2).join(", ")}`);
           if (det.spoken_languages?.length > 1) trivia.push(`Languages: ${det.spoken_languages.map((l: { english_name: string }) => l.english_name).join(", ")}`);
-          if (det.vote_average) trivia.push(`TMDB Rating: ${det.vote_average.toFixed(1)}/10 (${det.vote_count?.toLocaleString()} votes)`);
         }
       } catch { /* ignore */ }
+      // Site-wide Ratist Community Rating (average of all ratistRating
+      // values across every reviewer, not just movie-club members).
+      if (week.movieId) {
+        try {
+          const agg = await prisma.movieRating.aggregate({
+            where: { movieId: week.movieId, ratistRating: { not: null } },
+            _avg: { ratistRating: true },
+            _count: { ratistRating: true },
+          });
+          if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
+            const reviews = agg._count.ratistRating;
+            trivia.push(`Community Rating: ${agg._avg.ratistRating.toFixed(1)}/10 (${reviews.toLocaleString()} review${reviews !== 1 ? "s" : ""})`);
+          }
+        } catch { /* ignore */ }
+      }
     }
 
     // Enrich ratings with reaction counts for the response

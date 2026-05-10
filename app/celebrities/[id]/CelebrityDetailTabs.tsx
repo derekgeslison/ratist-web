@@ -179,11 +179,35 @@ export default function CelebrityDetailTabs({
       {activeTab === "Discussions" && (
         <div className="pb-16">
           {discussions.length > 0 ? (
-            <div className="space-y-2">
-              {discussions.map((d) => (
-                <DiscussionRow key={d.id} d={d} />
-              ))}
-            </div>
+            (() => {
+              // Editorial first (articles, blog variants), forum
+              // threads below. Mirrors MovieDetailTabs / ShowDetailTabs.
+              const EDITORIAL_THREAD_TYPES = new Set(["news", "blog", "two-thumbs", "movie-map"]);
+              const editorial = discussions.filter((d) => EDITORIAL_THREAD_TYPES.has(d.threadType));
+              const forum = discussions.filter((d) => !EDITORIAL_THREAD_TYPES.has(d.threadType));
+              return (
+                <div className="space-y-6">
+                  {editorial.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Articles &amp; posts</p>
+                      {editorial.map((d) => (
+                        <DiscussionRow key={d.id} d={d} />
+                      ))}
+                    </div>
+                  )}
+                  {forum.length > 0 && (
+                    <div className="space-y-2">
+                      {editorial.length > 0 && (
+                        <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Forum threads</p>
+                      )}
+                      {forum.map((d) => (
+                        <DiscussionRow key={d.id} d={d} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           ) : (
             <p className="text-center py-16 text-[var(--foreground-muted)]">No discussions yet.</p>
           )}

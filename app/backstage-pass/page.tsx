@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import Image from "next/image";
 import Link from "next/link";
-import { Ticket, Check, X, Star, BarChart3, MonitorPlay, Palette, Sparkles, Clapperboard } from "lucide-react";
+import { Ticket, Check, X, Star, BarChart3, MonitorPlay, Palette, Sparkles, Clapperboard, Layers } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { BACKSTAGE_FEATURES as FEATURES } from "@/lib/backstage-features";
 import SubscriptionPanel from "./SubscriptionPanel";
@@ -52,9 +52,9 @@ const SHOWCASE: ShowcaseCard[] = [
     fallbackTint: "rgb(244 63 94 / 0.2)", // rose-400
   },
   {
-    icon: Sparkles,
+    icon: Layers,
     title: "Collections",
-    desc: "Curated movie lists from admins, the community, and people you follow — each scored against your personal taste. Browse, save, and build your own to share with the community.",
+    desc: "Personalized recommendations built just for you, plus admin-curated collections and community-submitted lists — all scored against your taste. Build your own to share, too.",
     href: "/backstage-pass/collections",
     image: "/tools/collections.png", // reuse from /tools
     fallbackTint: "rgb(251 146 60 / 0.2)", // orange-400

@@ -1099,23 +1099,49 @@ export default function ShowDetailTabs({
       {activeTab === "Discussions" && (
         <div className="pb-16">
           {discussions.length > 0 ? (
-            <div className="space-y-3">
-              {discussions.some((d) => d.threadType === "theory") && (
-                <>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-purple-400 bg-purple-500/20">Fan Theories</span>
-                    <span className="text-[10px] text-yellow-400">May contain spoilers</span>
-                  </div>
-                  {discussions.filter((d) => d.threadType === "theory").map((d) => (
-                    <DiscussionRow key={d.id} d={d} />
-                  ))}
-                  {discussions.some((d) => d.threadType !== "theory") && <hr className="border-[var(--border)] my-3" />}
-                </>
-              )}
-              {discussions.filter((d) => d.threadType !== "theory").map((d) => (
-                <DiscussionRow key={d.id} d={d} />
-              ))}
-            </div>
+            (() => {
+              // Editorial first (articles + blog variants), forum
+              // threads below. See MovieDetailTabs for the same shape.
+              const EDITORIAL_THREAD_TYPES = new Set(["news", "blog", "two-thumbs", "movie-map"]);
+              const editorial = discussions.filter((d) => EDITORIAL_THREAD_TYPES.has(d.threadType));
+              const forum = discussions.filter((d) => !EDITORIAL_THREAD_TYPES.has(d.threadType));
+              const forumTheories = forum.filter((d) => d.threadType === "theory");
+              const forumOther = forum.filter((d) => d.threadType !== "theory");
+              return (
+                <div className="space-y-6">
+                  {editorial.length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Articles &amp; posts</p>
+                      {editorial.map((d) => (
+                        <DiscussionRow key={d.id} d={d} />
+                      ))}
+                    </div>
+                  )}
+                  {forum.length > 0 && (
+                    <div className="space-y-3">
+                      {editorial.length > 0 && (
+                        <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">Forum threads</p>
+                      )}
+                      {forumTheories.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-purple-400 bg-purple-500/20">Fan Theories</span>
+                            <span className="text-[10px] text-yellow-400">May contain spoilers</span>
+                          </div>
+                          {forumTheories.map((d) => (
+                            <DiscussionRow key={d.id} d={d} />
+                          ))}
+                          {forumOther.length > 0 && <hr className="border-[var(--border)] my-3" />}
+                        </>
+                      )}
+                      {forumOther.map((d) => (
+                        <DiscussionRow key={d.id} d={d} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           ) : (
             <div className="text-center py-10">
               <p className="text-[var(--foreground-muted)] mb-3">No discussions yet for this show.</p>

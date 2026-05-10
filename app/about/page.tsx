@@ -103,10 +103,10 @@ export default function AboutPage() {
             When you rate a film, you don&apos;t just give it a star. You score it across the five categories, each broken down into specific sub-fields. Did the plot work? How was the acting quality? The dialogue, the cinematography, the score, the choreography of the action sequences? The deeper the rating, the more signal the algorithm has to work with.
           </p>
           <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-3">
-            From every rating you submit, we build a personal taste profile that captures which categories — and which sub-fields within them — actually matter to you. Some viewers care more about narrative; some care more about visual style. The profile reflects <span className="text-white font-medium">your</span> priorities, not a critic&apos;s, not the average viewer&apos;s.
+            From every rating you submit, we build a personal taste profile that captures which categories — and which sub-fields within them — actually matter to you. Some viewers care more about narrative; some care more about visual style. The profile reflects <span className="text-white font-medium">your</span>{" "}priorities, not a critic&apos;s, not the average viewer&apos;s.
           </p>
           <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mb-3">
-            For films and shows you haven&apos;t seen yet, the algorithm uses your profile to predict the score <span className="text-white font-semibold">you</span> would give. That&apos;s your personalized Ratist Rating — and it sharpens every time you rate something new.
+            For films and shows you haven&apos;t seen yet, the algorithm uses your profile to predict the score <span className="text-white font-semibold">you</span>{" "}would give. That&apos;s your personalized Ratist Rating — and it sharpens every time you rate something new.
           </p>
           <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
             Basic raters give a quick 1–10 score plus an optional comment. Fanatics raters fill out the full rubric and feed the algorithm richer signal. Either way, your ratings power recommendations and predictions tailored specifically to you.
@@ -125,7 +125,7 @@ export default function AboutPage() {
             Our algorithm makes recommendations based on your <span className="text-white font-semibold">actual ratings</span>, not just what you&apos;ve watched. The more detailed ratings you provide, the better it understands what you value — and the more accurate your personalized score estimates become.
           </p>
           <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-            We build a unique <span className="text-white font-medium">taste profile</span> for every user that captures which components of cinema matter most to them. This profile drives everything: your personalized score estimates, recommendations, and taste matching with other users.
+            We build a unique <span className="text-white font-medium">taste profile</span>{" "}for every user that captures which components of cinema matter most to them. This profile drives everything: your personalized score estimates, recommendations, and taste matching with other users.
           </p>
         </div>
       </section>
@@ -145,7 +145,7 @@ export default function AboutPage() {
             { icon: Tv, title: "TV show tracking", desc: "Mark individual episodes as seen, track seasons, and rate shows at the series or season level.", href: "/movies?type=tv" },
             { icon: TrendingUp, title: "Box Office Insights", desc: "All-time leaderboards, year-by-year top earners, franchise totals, studio rankings, and ROI champions across decades of film history.", href: "/box-office" },
             { icon: Calendar, title: "Release Calendar", desc: "Upcoming theatrical releases, digital launches, and streaming additions. Filterable by region, genre, MPA rating, and time horizon.", href: "/releases" },
-            { icon: Newspaper, title: "News & trailers", desc: "Editorial articles, fresh trailers auto-detected from TMDB, and headlines from Deadline, Variety, THR, Collider, and Screen Rant.", href: "/news" },
+            { icon: Newspaper, title: "News & trailers", desc: "Editorial articles, freshly-detected trailers, and headlines from Deadline, Variety, THR, Collider, and Screen Rant.", href: "/news" },
             { icon: Eye, title: "Watch Companion", desc: "Live, scene-aware annotations as you watch — explanations, trivia, and answers to common confusions, available on demand.", href: null },
             { icon: Users, title: "Taste matching", desc: "See how your taste compares to friends and other users. Follow people, build feeds, and find users who like the same things you do.", href: "/connections" },
             { icon: Award, title: "Badge system", desc: "43 badges across 12 categories — milestone, taste, community, and rare achievements. Auto-awarded as you rate, watch, and engage.", href: "/badges" },

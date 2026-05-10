@@ -186,17 +186,51 @@ export default async function HomePage() {
         commentCount: commentMap[p.id] ?? 0,
       }));
     })(),
+    // Pull a wider candidate pool than the final cap so the explicit-
+    // content filter and follower-weighted ranking have room to work.
+    // Pinned threads always come back, then we score the rest.
     prisma.forumThread.findMany({
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-      take: 5,
+      take: 30,
       select: {
         id: true, slug: true, title: true, threadType: true,
-        viewCount: true, hasSpoilers: true,
-        author: { select: { name: true } },
+        viewCount: true, hasSpoilers: true, isPinned: true, createdAt: true,
+        author: { select: { name: true, _count: { select: { followers: true } } } },
         _count: { select: { posts: true } },
       },
     }),
   ]);
+
+  // Forum threads: filter + rank for the home-page slot.
+  //
+  // Filter: drop threads whose title contains common profanity. This
+  // is a coarse first pass — a thread with explicit body content but a
+  // clean title still gets through. Tighten later if abuse warrants.
+  // Word-list is small on purpose; aggressive lists trigger the
+  // Scunthorpe problem and frustrate legitimate posts.
+  //
+  // Ranking: rough "social weight" score = log(followers + 2) ×
+  // recency factor (exp decay, ~10-day half-life). Pinned threads
+  // jump the queue. Pure follower count would freeze the slot for
+  // brand-new users; pure recency drowns out high-signal accounts.
+  // The blend lets a popular author's day-old thread beat a
+  // no-followers fresh post but not a 3-month-old one.
+  const PROFANITY_PATTERN = /\b(f+u+c+k+|s+h+i+t+|b+i+t+c+h+|a+s+s+h+o+l+e+|c+u+n+t+|n+i+g+g+e+r+|f+a+g+g+o+t+)\w*\b/i;
+  const now = Date.now();
+  const HALF_LIFE_DAYS = 10;
+  const cleanThreads = recentForumThreads.filter((t) => !PROFANITY_PATTERN.test(t.title));
+  const pinnedThreads = cleanThreads.filter((t) => t.isPinned);
+  const candidateThreads = cleanThreads.filter((t) => !t.isPinned);
+  const scoredThreads = candidateThreads
+    .map((t) => {
+      const ageDays = (now - new Date(t.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      const recencyFactor = Math.exp(-ageDays / HALF_LIFE_DAYS);
+      const followerWeight = Math.log((t.author?._count?.followers ?? 0) + 2);
+      return { t, score: followerWeight * recencyFactor };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((s) => s.t);
+  const homeForumThreads = [...pinnedThreads, ...scoredThreads].slice(0, 5);
 
   // Hero carousel: trending movies + shows, interleaved for a balanced mix
   type HeroItem = { id: number; title: string; overview: string; backdrop_path: string | null; vote_average: number; releaseDate: string; mediaType: "movie" | "tv" };
@@ -372,7 +406,7 @@ export default async function HomePage() {
               <div className="bg-black/20 rounded-lg p-4 border border-[var(--border)]/40">
                 <p className="text-sm font-bold text-white mb-1">Tuned to your taste.</p>
                 <p className="text-xs sm:text-sm text-[var(--foreground-muted)] leading-relaxed">
-                  Every rating you submit teaches the algorithm what <span className="text-white font-medium">you</span> care about — what makes a film a 9 for you instead of a 7. We then predict your scores for movies and shows you haven&apos;t seen yet, based on your taste, not the average viewer&apos;s.
+                  Every rating you submit teaches the algorithm what <span className="text-white font-medium">you</span>{" "}care about — what makes a film a 9 for you instead of a 7. We then predict your scores for movies and shows you haven&apos;t seen yet, based on your taste, not the average viewer&apos;s.
                 </p>
               </div>
             </div>
@@ -565,7 +599,7 @@ export default async function HomePage() {
         <FollowingFeed />
 
         {/* Recent Forum Discussions */}
-        {recentForumThreads.length > 0 && (
+        {homeForumThreads.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-white">Recent Forum Discussions</h2>
@@ -574,7 +608,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl divide-y divide-[var(--border)]/60 overflow-hidden">
-              {recentForumThreads.map((t) => {
+              {homeForumThreads.map((t) => {
                 const typeLabel = t.threadType.charAt(0).toUpperCase() + t.threadType.slice(1);
                 const typeColor =
                   t.threadType === "debate" ? "text-[var(--ratist-red)]" :
