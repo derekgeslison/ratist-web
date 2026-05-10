@@ -13,6 +13,7 @@ import NavEntryRegister from "@/components/NavEntryRegister";
 import PageShare from "@/components/PageShare";
 import AdUnit from "@/components/AdUnit";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
+import TwoThumbsVote from "@/components/TwoThumbsVote";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,11 @@ export default async function TwoThumbsPostPage({ params }: Props) {
       {post.people.length > 0 && <LinkedPeopleRow people={post.people} />}
 
       <RichTextRenderer content={post.content} />
+
+      {/* Reader poll — which side they agree with after reading. Sits
+          between the body and the ad so the prompt to vote lands while
+          the article is fresh, not after an ad context-switch. */}
+      <TwoThumbsVote slug={slug} />
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_BLOG_POST ?? ""} format="auto" className="my-8" />
 

@@ -6,7 +6,7 @@ import { Search, LayoutGrid, List } from "lucide-react";
 import { LANGUAGES } from "@/lib/tmdb";
 import Link from "next/link";
 
-type TypeFilter = "all" | "movies" | "shows" | "people";
+type TypeFilter = "all" | "movies" | "shows" | "people" | "editorial";
 type SortMode = "relevance" | "popular" | "rating" | "newest" | "oldest" | "az" | "za";
 
 interface Props {
@@ -52,6 +52,7 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
     { label: "Movies", value: "movies" },
     { label: "TV Shows", value: "shows" },
     { label: "People", value: "people" },
+    { label: "Blogs & Community", value: "editorial" },
   ];
 
   const sortOptions: { label: string; value: SortMode }[] = [
@@ -64,7 +65,9 @@ export default function SearchFilters({ currentType, currentSort, currentPerPage
     { label: "Title Z–A", value: "za" },
   ];
 
-  const showContentFilters = currentType !== "people";
+  // Genre / year / language filters apply to TMDB results only — they
+  // make no sense for People or Blogs & Community.
+  const showContentFilters = currentType !== "people" && currentType !== "editorial";
   const view = searchParams.get("view") ?? "list";
 
   return (

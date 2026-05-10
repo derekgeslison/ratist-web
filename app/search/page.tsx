@@ -82,7 +82,7 @@ async function searchAll(
   };
 }
 
-type TypeFilter = "all" | "movies" | "shows" | "people";
+type TypeFilter = "all" | "movies" | "shows" | "people" | "editorial";
 type SortMode = "relevance" | "popular" | "rating" | "newest" | "oldest" | "az" | "za";
 
 interface Props {
@@ -98,13 +98,18 @@ export default async function SearchPage({ searchParams }: Props) {
   const yearTo = yearToParam ?? "";
   const view = viewParam === "grid" ? "grid" : "list";
 
-  const typeFilter = (["all", "movies", "shows", "people"].includes(typeParam) ? typeParam : "all") as TypeFilter;
+  const typeFilter = (["all", "movies", "shows", "people", "editorial"].includes(typeParam) ? typeParam : "all") as TypeFilter;
   const sortMode = (["relevance", "popular", "rating", "newest", "oldest", "az", "za"].includes(sortParam) ? sortParam : "relevance") as SortMode;
   const perPage = [20, 50, 100].includes(Number(perPageParam)) ? Number(perPageParam) : 20;
 
-  const showMovies = typeFilter === "all" || typeFilter === "movies";
-  const showShows = typeFilter === "all" || typeFilter === "shows";
-  const showPeople = typeFilter === "all" || typeFilter === "people";
+  // "editorial" filter narrows the page to blog/two-thumbs/movie-maps/
+  // news/forum results — TMDB tiles (movies, shows, people, keyword
+  // matches) are hidden so users can find Ratist-authored content
+  // without it being buried beneath the catalog.
+  const editorialOnly = typeFilter === "editorial";
+  const showMovies = !editorialOnly && (typeFilter === "all" || typeFilter === "movies");
+  const showShows = !editorialOnly && (typeFilter === "all" || typeFilter === "shows");
+  const showPeople = !editorialOnly && (typeFilter === "all" || typeFilter === "people");
   const showContent = showMovies || showShows;
 
   // Fetch genres for the filter dropdown
@@ -280,7 +285,13 @@ export default async function SearchPage({ searchParams }: Props) {
     }
   } catch { /* DB not ready */ }
 
-  const total = contentItems.length + (showPeople ? people.length : 0) + uniqueKeywordResults.length;
+  const editorialCount =
+    editorial.news.length +
+    editorial.blogPosts.length +
+    editorial.twoThumbs.length +
+    editorial.movieMaps.length +
+    editorial.forumThreads.length;
+  const total = contentItems.length + (showPeople ? people.length : 0) + uniqueKeywordResults.length + (editorialOnly ? editorialCount : 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
