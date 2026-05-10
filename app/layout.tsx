@@ -10,6 +10,8 @@ import AnnouncementBanner from "@/components/AnnouncementBanner";
 import OnboardingGuard from "@/components/OnboardingGuard";
 import NavEntryAutoRegister from "@/components/NavEntryAutoRegister";
 import TouchHint from "@/components/TouchHint";
+import ConsentBanner from "@/components/ConsentBanner";
+import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -48,6 +50,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
       </head>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+        {/* Google Consent Mode v2 — runs BEFORE GA4/AdSense scripts so
+            their cookies are gated until the user grants consent. The
+            inline script also restores any prior choice from localStorage
+            so a returning user's earlier "Accept all" / "Reject all"
+            applies on the very first GA4/AdSense call rather than after
+            ConsentBanner finishes mounting. wait_for_update gives the
+            banner up to 500ms to push an update; without it, the
+            denied-default would lock cookies for the first impression. */}
+        <Script id="consent-default" strategy="beforeInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+window.gtag = gtag;
+gtag('consent', 'default', {
+  ad_storage: 'denied',
+  ad_user_data: 'denied',
+  ad_personalization: 'denied',
+  analytics_storage: 'denied',
+  functionality_storage: 'granted',
+  security_storage: 'granted',
+  wait_for_update: 500
+});
+try {
+  var raw = localStorage.getItem('ratist:consent-v1');
+  if (raw) {
+    var s = JSON.parse(raw);
+    if (s && s.v === 1) {
+      gtag('consent', 'update', {
+        analytics_storage: s.analytics ? 'granted' : 'denied',
+        ad_storage: s.advertising ? 'granted' : 'denied',
+        ad_user_data: s.advertising ? 'granted' : 'denied',
+        ad_personalization: s.advertising ? 'granted' : 'denied'
+      });
+    }
+  }
+} catch (e) { /* localStorage blocked — defaults stay denied */ }`}
+        </Script>
         {ADSENSE_ID && (
           <Script
             async
@@ -63,10 +101,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               strategy="afterInteractive"
             />
             <Script id="ga-init" strategy="afterInteractive">
-              {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', '${GA_ID}');`}
+              {/* dataLayer + gtag are already initialized by the
+                 consent-default script above; reusing them here keeps
+                 a single dataLayer queue so the consent state and
+                 GA4 init stay in sync. */}
+              {`window.gtag('js', new Date());
+window.gtag('config', '${GA_ID}');`}
             </Script>
           </>
         )}
@@ -94,11 +134,14 @@ gtag('config', '${GA_ID}');`}
             <main className="flex-1">{children}</main>
           </OnboardingGuard>
           <TouchHint />
+          <ConsentBanner />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
               <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
+              <a href="/cookie-policy" className="hover:text-white transition-colors">Cookie Policy</a>
+              <CookiePreferencesLink />
               <a href="/about" className="hover:text-white transition-colors">About</a>
               <a href="/contact" className="hover:text-white transition-colors">Contact</a>
               <a href="/feedback" className="hover:text-white transition-colors">Submit Feedback</a>
