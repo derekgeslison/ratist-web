@@ -288,10 +288,16 @@ function renderInline(s: string): string {
   // Apply on already-escaped text. Order matters: links before bold so
   // a bracketed phrase containing ** doesn't get partially formatted.
   let out = s;
-  // [text](url) — link. URL is also escaped above; we just whitelist
-  // http/https/relative paths to avoid javascript: scheme injection.
+  // [text](url) — link. URL is already HTML-escaped by the outer pass;
+  // we whitelist scheme to http/https/relative-path to avoid
+  // javascript: injection. Relative paths get expanded to SITE_URL —
+  // email clients can't resolve "/foo" against a base, so the link
+  // would otherwise dead-end at "http:///foo" in their browser.
   out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
-    const safeUrl = /^(https?:\/\/|\/)/.test(url) ? url : "#";
+    let safeUrl: string;
+    if (/^https?:\/\//.test(url)) safeUrl = url;
+    else if (url.startsWith("/")) safeUrl = `${SITE_URL}${url}`;
+    else safeUrl = "#";
     return `<a href="${safeUrl}" style="color:#cc0033;text-decoration:underline;">${text}</a>`;
   });
   // **bold**
