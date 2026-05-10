@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal, Wand2 } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, SkipForward, RefreshCw, ChevronDown, X, Clock, Bookmark, BookmarkCheck, ArrowUpDown, Film, Tv, SlidersHorizontal, Wand2, Users, UserPlus, AlertTriangle, Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl, STREAMING_PROVIDERS, IMAGE_BASE_URL } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -26,6 +26,13 @@ const STEPS = [
 
 interface ProviderInfo { name: string; logo: string; }
 
+interface PerMemberScore {
+  firebaseUid: string;
+  name: string;
+  avatarUrl: string | null;
+  score: number | null;
+}
+
 interface MovieResult {
   tmdbId: number; title: string; posterPath: string | null; year: string;
   overview: string; voteAverage: number; genres: string[];
@@ -33,7 +40,21 @@ interface MovieResult {
   streaming: ProviderInfo[]; rentBuy: ProviderInfo[];
   matchScore: number | null; requestedMatchCount?: number; reason: string;
   mediaType?: "movie" | "tv";
+  // Group-mode fields. Present only when the request included memberUids.
+  floor?: number | null;
+  groupScore?: number | null;
+  perMemberScores?: PerMemberScore[];
 }
+
+interface GroupMember {
+  firebaseUid: string;
+  name: string;
+  avatarUrl: string | null;
+  ratingCount: number;
+}
+
+const MAX_GROUP_OTHERS = 4; // 5 total including self
+const LOW_RATING_THRESHOLD = 10; // members below this get a warning chip
 
 type SortMode = "match" | "rating" | "newest" | "oldest";
 const STORAGE_KEY = "ratist-recommend-state";
@@ -97,6 +118,44 @@ export default function RecommendPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  // Group mode — top-level toggle that swaps the scoring path. Defaults
+  // to "solo" each visit so the surface stays unsurprising for solo use;
+  // ?mode=group in the URL is honored on mount for shareable links.
+  const [mode, setMode] = useState<"solo" | "group">("solo");
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  // OFF by default — most groups are fine watching something one or two
+  // members have already seen. Strict "only unseen-by-everyone" is opt-
+  // in because it narrows the candidate pool sharply with 4-5 members.
+  const [excludeAnySeen, setExcludeAnySeen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<"follows" | "code">("follows");
+  const [follows, setFollows] = useState<GroupMember[]>([]);
+  const [followsLoading, setFollowsLoading] = useState(false);
+  const [followsSearch, setFollowsSearch] = useState("");
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [codeLooking, setCodeLooking] = useState(false);
+
+  // Read ?mode=group on mount. Use window.location directly to avoid
+  // pulling useSearchParams into this client tree (would force a
+  // Suspense wrapper at the page boundary).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "group") setMode("group");
+  }, []);
+
+  // Mirror mode into the URL so a shared link reopens in the same mode.
+  // replaceState (not pushState) — toggling shouldn't pollute browser
+  // back history.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (mode === "group") url.searchParams.set("mode", "group");
+    else url.searchParams.delete("mode");
+    window.history.replaceState(null, "", url.toString());
+  }, [mode]);
+
   // Restore from sessionStorage on mount (avoids hydration mismatch)
   useEffect(() => {
     const saved = loadSaved();
@@ -137,6 +196,24 @@ export default function RecommendPage() {
         // Legacy session state from before the AI-hidden bundle.
         setAiHidden({ ...AI_HIDDEN_EMPTY, moods: saved.aiMoods });
       }
+      // Group-mode state — restore so navigating to a result detail
+      // page and back lands the user on results, not the questionnaire.
+      if (saved.mode === "group") setMode("group");
+      if (Array.isArray(saved.groupMembers)) {
+        setGroupMembers(
+          saved.groupMembers
+            .filter((m: unknown): m is Record<string, unknown> => !!m && typeof m === "object")
+            .map((m: Record<string, unknown>) => ({
+              firebaseUid: String(m.firebaseUid ?? ""),
+              name: String(m.name ?? ""),
+              avatarUrl: typeof m.avatarUrl === "string" ? m.avatarUrl : null,
+              ratingCount: typeof m.ratingCount === "number" ? m.ratingCount : 0,
+            }))
+            .filter((m: GroupMember) => m.firebaseUid && m.name)
+            .slice(0, MAX_GROUP_OTHERS)
+        );
+      }
+      if (saved.excludeAnySeen === true) setExcludeAnySeen(true);
     }
     setHydrated(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,9 +238,10 @@ export default function RecommendPage() {
         resultMediaFilter, tvRatingSelected: [...tvRatingSelected],
         selectedStreamingProviders: [...selectedStreamingProviders],
         aiHidden,
+        mode, groupMembers, excludeAnySeen,
       }));
     } catch {}
-  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders, aiHidden]);
+  }, [step, mediaType, selectedGenres, experience, runtime, era, excludeGenres, mpaaSelected, results, visibleCount, hasSearched, currentPage, totalPages, sortMode, watchlisted, resultMediaFilter, tvRatingSelected, selectedStreamingProviders, aiHidden, mode, groupMembers, excludeAnySeen]);
 
   const getToken = useCallback(async () => user ? user.getIdToken() : null, [user]);
 
@@ -180,6 +258,7 @@ export default function RecommendPage() {
       .map((short) => STREAMING_PROVIDERS.find((sp) => sp.short === short)?.id)
       .filter(Boolean) as number[];
 
+    const memberUids = mode === "group" ? groupMembers.map((m) => m.firebaseUid) : [];
     const res = await fetch("/api/tools/recommend", {
       method: "POST", headers,
       body: JSON.stringify({
@@ -201,6 +280,8 @@ export default function RecommendPage() {
         keywords: aiHidden.keywords,
         excludeKeywords: aiHidden.excludeKeywords,
         studios: aiHidden.studios,
+        memberUids,
+        excludeAnyMemberSeen: mode === "group" && excludeAnySeen,
       }),
     });
     if (res.ok) {
@@ -304,6 +385,7 @@ export default function RecommendPage() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       headers.Authorization = `Bearer ${token}`;
       setLoading(true);
+      const memberUids = mode === "group" ? groupMembers.map((m) => m.firebaseUid) : [];
       const rRes = await fetch("/api/tools/recommend", {
         method: "POST",
         headers,
@@ -338,6 +420,8 @@ export default function RecommendPage() {
           minLanguageSubstance: f.minLanguageSubstance,
           minScaryIntense: f.minScaryIntense,
           minSensitiveThemes: f.minSensitiveThemes,
+          memberUids,
+          excludeAnyMemberSeen: mode === "group" && excludeAnySeen,
         }),
       });
       if (rRes.ok) {
@@ -397,9 +481,16 @@ export default function RecommendPage() {
     const token = await getToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
+    const memberUids = mode === "group" ? groupMembers.map((m) => m.firebaseUid) : [];
     const res = await fetch("/api/tools/recommend", {
       method: "POST", headers,
-      body: JSON.stringify({ page: 1, sort: sortMode, mediaType: "any" }),
+      body: JSON.stringify({
+        page: 1,
+        sort: sortMode,
+        mediaType: "any",
+        memberUids,
+        excludeAnyMemberSeen: mode === "group" && excludeAnySeen,
+      }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -408,6 +499,96 @@ export default function RecommendPage() {
       setCurrentPage(data.page ?? 1);
     }
     setLoading(false);
+  }
+
+  // ─── Group-mode helpers ───────────────────────────────────────────
+  function addMember(m: GroupMember) {
+    setGroupMembers((prev) => {
+      if (prev.some((x) => x.firebaseUid === m.firebaseUid)) return prev;
+      if (prev.length >= MAX_GROUP_OTHERS) return prev;
+      return [...prev, m];
+    });
+    setCodeInput("");
+    setCodeError(null);
+  }
+
+  function removeMember(firebaseUid: string) {
+    setGroupMembers((prev) => prev.filter((m) => m.firebaseUid !== firebaseUid));
+  }
+
+  async function loadFollowsIfNeeded() {
+    if (!user || follows.length > 0 || followsLoading) return;
+    setFollowsLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/users/me/connections", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Following list is the natural fit — these are people you've
+        // chosen to keep tabs on. Followers are a different signal
+        // (they chose you, not the other way round).
+        const list: GroupMember[] = (data.following ?? []).map((f: { firebaseUid: string; name: string; avatarUrl: string | null; _count?: { ratings: number } }) => ({
+          firebaseUid: f.firebaseUid,
+          name: f.name,
+          avatarUrl: f.avatarUrl,
+          ratingCount: f._count?.ratings ?? 0,
+        }));
+        setFollows(list);
+      }
+    } finally {
+      setFollowsLoading(false);
+    }
+  }
+
+  async function lookupByCode() {
+    const code = codeInput.trim();
+    if (!user || code.length === 0) return;
+    setCodeLooking(true);
+    setCodeError(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/users/by-invite-code", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCodeError(data.error ?? "Lookup failed.");
+        return;
+      }
+      if (data.isSelf) {
+        setCodeError("That's your own invite code.");
+        return;
+      }
+      if (groupMembers.some((m) => m.firebaseUid === data.firebaseUid)) {
+        setCodeError("Already in your group.");
+        return;
+      }
+      if (groupMembers.length >= MAX_GROUP_OTHERS) {
+        setCodeError(`Group is full (max ${MAX_GROUP_OTHERS} others).`);
+        return;
+      }
+      addMember({
+        firebaseUid: data.firebaseUid,
+        name: data.name,
+        avatarUrl: data.avatarUrl,
+        ratingCount: data.ratingCount ?? 0,
+      });
+    } catch {
+      setCodeError("Network error — try again.");
+    } finally {
+      setCodeLooking(false);
+    }
+  }
+
+  function openPicker() {
+    setPickerOpen(true);
+    setCodeInput("");
+    setCodeError(null);
+    if (pickerTab === "follows") loadFollowsIfNeeded();
   }
 
   async function addToWatchlist(movie: MovieResult) {
@@ -476,7 +657,126 @@ export default function RecommendPage() {
         <Sparkles className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">What Should I Watch?</h1>
       </div>
-      <p className="text-[var(--foreground-muted)] mb-8">Answer a few quick questions and we&apos;ll find your next watch.</p>
+      <p className="text-[var(--foreground-muted)] mb-4">Answer a few quick questions and we&apos;ll find your next watch.</p>
+
+      {/* Mode toggle — Just me / With friends. URL-syncs as ?mode=group
+          for shareable links. Toggling preserves questionnaire answers;
+          only the scoring and seen-exclusion path changes on submit. */}
+      {user && (
+        <div className="mb-8">
+          <div className="inline-flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-full p-1">
+            <button
+              onClick={() => setMode("solo")}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                mode === "solo"
+                  ? "bg-[var(--ratist-red)] text-white"
+                  : "text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              Just me
+            </button>
+            <button
+              onClick={() => setMode("group")}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                mode === "group"
+                  ? "bg-[var(--ratist-red)] text-white"
+                  : "text-[var(--foreground-muted)] hover:text-white"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              With friends
+            </button>
+          </div>
+
+          {mode === "group" && (
+            <div className="mt-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+              <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                {`Add up to ${MAX_GROUP_OTHERS} people. We'll find titles nobody's seen and rank them by what works best for everyone.`}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Self chip — anchor of the group */}
+                <div className="flex items-center gap-1.5 pl-1 pr-2 py-1 bg-[var(--surface-2)] border border-[var(--ratist-red)]/40 rounded-full">
+                  <div className="w-5 h-5 rounded-full overflow-hidden bg-[var(--ratist-red)] flex items-center justify-center shrink-0">
+                    {user.photoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] font-bold text-white">{(user.displayName ?? "Y")[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-white">You</span>
+                </div>
+
+                {groupMembers.map((m) => (
+                  <div
+                    key={m.firebaseUid}
+                    className={`flex items-center gap-1.5 pl-1 pr-1 py-1 rounded-full border ${
+                      m.ratingCount < LOW_RATING_THRESHOLD
+                        ? "bg-amber-500/5 border-amber-500/30"
+                        : "bg-[var(--surface-2)] border-[var(--border)]"
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full overflow-hidden bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+                      {m.avatarUrl ? (
+                        <Image src={m.avatarUrl} alt="" width={20} height={20} className="object-cover" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-white">{(m.name || "?")[0].toUpperCase()}</span>
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-white">{m.name}</span>
+                    {m.ratingCount < LOW_RATING_THRESHOLD && (
+                      <span title="Limited taste data — predictions may be rougher for them.">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                      </span>
+                    )}
+                    <button
+                      onClick={() => removeMember(m.firebaseUid)}
+                      className="text-[var(--foreground-muted)] hover:text-red-400 transition-colors"
+                      title="Remove"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+
+                {groupMembers.length < MAX_GROUP_OTHERS && (
+                  <button
+                    onClick={openPicker}
+                    className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border border-dashed border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors"
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    Add
+                  </button>
+                )}
+              </div>
+
+              {/* Strict-unseen toggle. OFF by default — many group picks
+                  are fine if one or two members have already seen it. ON
+                  when nobody should be re-watching. */}
+              <label className="flex items-center gap-2 mt-3 text-xs text-[var(--foreground-muted)] cursor-pointer select-none">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={excludeAnySeen}
+                  onClick={() => setExcludeAnySeen((v) => !v)}
+                  className={`relative w-8 h-4 rounded-full transition-colors ${
+                    excludeAnySeen ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${
+                      excludeAnySeen ? "left-4" : "left-0.5"
+                    }`}
+                  />
+                </button>
+                <span onClick={() => setExcludeAnySeen((v) => !v)}>
+                  Only suggest titles nobody&apos;s seen
+                </span>
+              </label>
+            </div>
+          )}
+        </div>
+      )}
 
       {!hasSearched ? (
         <>
@@ -989,7 +1289,11 @@ export default function RecommendPage() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {movie.matchScore != null && movie.matchScore > 0 && (
-                              <span className="text-[10px] font-bold bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full">{Math.min(movie.matchScore * 10, 100)}% match</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                movie.perMemberScores ? "bg-purple-500/15 text-purple-300" : "bg-green-500/15 text-green-400"
+                              }`}>
+                                {Math.min(movie.matchScore * 10, 100)}% {movie.perMemberScores ? "floor" : "match"}
+                              </span>
                             )}
                             <RatingBadge type="community" score={movie.voteAverage} size="sm" />
                           </div>
@@ -1003,6 +1307,42 @@ export default function RecommendPage() {
                             <span key={g} className="text-[10px] bg-[var(--surface-2)] text-[var(--foreground-muted)] px-1.5 py-0.5 rounded">{g}</span>
                           ))}
                         </div>
+
+                        {/* Group consensus row — per-member chips and the
+                            blended group score. Only renders when the
+                            request was made in group mode (perMemberScores
+                            is the discriminator). */}
+                        {movie.perMemberScores && movie.perMemberScores.length > 0 && (
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            {movie.groupScore != null && (
+                              <span className="text-[10px] text-[var(--foreground-muted)]">
+                                Group avg: <strong className="text-white">{movie.groupScore * 10}%</strong>
+                              </span>
+                            )}
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {movie.perMemberScores.map((m) => (
+                                <div
+                                  key={m.firebaseUid}
+                                  title={`${m.name}: ${m.score != null ? `${m.score}/10` : "limited taste data"}`}
+                                  className={`flex items-center gap-1 pl-0.5 pr-1.5 py-0.5 rounded-full border text-[10px] ${
+                                    m.score == null
+                                      ? "bg-amber-500/5 border-amber-500/20 text-[var(--foreground-muted)]"
+                                      : "bg-[var(--surface-2)] border-[var(--border)] text-white"
+                                  }`}
+                                >
+                                  <div className="w-3.5 h-3.5 rounded-full overflow-hidden bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+                                    {m.avatarUrl ? (
+                                      <Image src={m.avatarUrl} alt="" width={14} height={14} className="object-cover" />
+                                    ) : (
+                                      <span className="text-[8px] font-bold">{(m.name || "?")[0].toUpperCase()}</span>
+                                    )}
+                                  </div>
+                                  <span className="font-medium">{m.score != null ? m.score : "—"}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Streaming + actions row */}
                         <div className="flex items-center justify-between mt-2">
@@ -1042,6 +1382,154 @@ export default function RecommendPage() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Friend picker modal — opened from the group strip's "+ Add"
+          button. Two tabs: pick from your follows, or paste an invite
+          code. Closes on outside-click or X. */}
+      {pickerOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <h3 className="text-base font-semibold text-white">Add to group</h3>
+              <button onClick={() => setPickerOpen(false)} className="text-[var(--foreground-muted)] hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex border-b border-[var(--border)]">
+              <button
+                onClick={() => { setPickerTab("follows"); loadFollowsIfNeeded(); }}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  pickerTab === "follows"
+                    ? "border-[var(--ratist-red)] text-white"
+                    : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                Follows
+              </button>
+              <button
+                onClick={() => setPickerTab("code")}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  pickerTab === "code"
+                    ? "border-[var(--ratist-red)] text-white"
+                    : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+                }`}
+              >
+                Invite code
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {pickerTab === "follows" ? (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]" />
+                    <input
+                      value={followsSearch}
+                      onChange={(e) => setFollowsSearch(e.target.value)}
+                      placeholder="Search your follows…"
+                      className="w-full pl-9 pr-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+                    />
+                  </div>
+
+                  {followsLoading ? (
+                    <p className="text-xs text-[var(--foreground-muted)] text-center py-6">Loading…</p>
+                  ) : follows.length === 0 ? (
+                    <p className="text-xs text-[var(--foreground-muted)] text-center py-6">
+                      You&apos;re not following anyone yet. Switch to the Invite code tab to add someone by code.
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {follows
+                        .filter((f) => followsSearch.trim().length === 0 || f.name.toLowerCase().includes(followsSearch.toLowerCase()))
+                        .map((f) => {
+                          const alreadyAdded = groupMembers.some((m) => m.firebaseUid === f.firebaseUid);
+                          const groupFull = groupMembers.length >= MAX_GROUP_OTHERS;
+                          const disabled = alreadyAdded || groupFull;
+                          return (
+                            <button
+                              key={f.firebaseUid}
+                              onClick={() => !disabled && addMember(f)}
+                              disabled={disabled}
+                              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
+                                disabled
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : "hover:bg-[var(--surface-2)]"
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-full overflow-hidden bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+                                {f.avatarUrl ? (
+                                  <Image src={f.avatarUrl} alt="" width={32} height={32} className="object-cover" />
+                                ) : (
+                                  <span className="text-xs font-bold text-white">{(f.name || "?")[0].toUpperCase()}</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{f.name}</p>
+                                <p className="text-xs text-[var(--foreground-muted)]">
+                                  {f.ratingCount} rated
+                                  {f.ratingCount < LOW_RATING_THRESHOLD && (
+                                    <span className="text-amber-400"> · limited taste data</span>
+                                  )}
+                                </p>
+                              </div>
+                              {alreadyAdded ? (
+                                <span className="text-[10px] text-[var(--foreground-muted)]">Added</span>
+                              ) : (
+                                <UserPlus className="w-4 h-4 text-[var(--foreground-muted)]" />
+                              )}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-[var(--foreground-muted)]">
+                    Paste a friend&apos;s invite code. They can find theirs on their profile page.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={codeInput}
+                      onChange={(e) => { setCodeInput(e.target.value); setCodeError(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !codeLooking) lookupByCode(); }}
+                      placeholder="ABC12345"
+                      className="flex-1 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] font-mono"
+                    />
+                    <button
+                      onClick={lookupByCode}
+                      disabled={codeLooking || codeInput.trim().length === 0}
+                      className="px-4 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {codeLooking ? "…" : "Add"}
+                    </button>
+                  </div>
+                  {codeError && <p className="text-xs text-red-400">{codeError}</p>}
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-[var(--border)] flex items-center justify-between">
+              <p className="text-[10px] text-[var(--foreground-muted)]">
+                {`${groupMembers.length}/${MAX_GROUP_OTHERS} added`}
+              </p>
+              <button
+                onClick={() => setPickerOpen(false)}
+                className="text-xs text-[var(--foreground-muted)] hover:text-white"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

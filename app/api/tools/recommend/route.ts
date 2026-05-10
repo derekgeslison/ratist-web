@@ -6,6 +6,7 @@ import { expandMoods } from "@/lib/ai/mood-expand";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
 import { resolveStudioNames } from "@/lib/studios";
+import { loadGroupMembers, loadGroupSeenSets, computeGroupScore, MAX_GROUP_SIZE, type MemberPrefs } from "@/lib/recommend-group";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,50 @@ export async function POST(req: NextRequest) {
     const userSort: string = body.sort ?? "match";
     const mediaType: string = body.mediaType ?? "any";
     const providerIds: number[] = body.providers ?? [];
+
+    // ── Group mode (memberUids = firebaseUids of friends to score with) ──
+    // When provided + the requester is signed in, swap the matchScore
+    // computation for floor + groupScore across all members and the
+    // unseen filter for the union of seen/rated across the group.
+    const memberFirebaseUids: string[] = Array.isArray(body.memberUids)
+      ? body.memberUids.filter((u: unknown): u is string => typeof u === "string")
+      : [];
+    // Default OFF — most group sessions are fine letting one or two
+    // members rewatch. Strict mode is the opt-in for "must be unseen
+    // for everyone."
+    const excludeAnyMemberSeen: boolean = body.excludeAnyMemberSeen === true;
+    const isGroupMode = !!user && memberFirebaseUids.length > 0;
+    let groupMembers: MemberPrefs[] = [];
+    let groupSeen: { movieTmdbIds: Set<number>; tvTmdbIds: Set<number> } = { movieTmdbIds: new Set(), tvTmdbIds: new Set() };
+    if (isGroupMode && user) {
+      if (memberFirebaseUids.length > MAX_GROUP_SIZE - 1) {
+        return NextResponse.json(
+          { error: `Group is capped at ${MAX_GROUP_SIZE} members (you plus ${MAX_GROUP_SIZE - 1} others).` },
+          { status: 400 },
+        );
+      }
+      // firebaseUid → internal id, excluding self if accidentally passed,
+      // soft-deleted, and banned users.
+      const others = await prisma.user.findMany({
+        where: {
+          firebaseUid: { in: memberFirebaseUids },
+          deletedAt: null,
+          bannedAt: null,
+          id: { not: user.id },
+        },
+        select: { id: true },
+      });
+      const allMemberIds = [user.id, ...others.map((u) => u.id)];
+      // Only fetch the union seen set when the strict flag is on. Loose
+      // mode reuses the solo per-user lookup further below, so there's
+      // no point doing the heavier multi-user query.
+      [groupMembers, groupSeen] = await Promise.all([
+        loadGroupMembers(allMemberIds),
+        excludeAnyMemberSeen
+          ? loadGroupSeenSets(allMemberIds)
+          : Promise.resolve({ movieTmdbIds: new Set<number>(), tvTmdbIds: new Set<number>() }),
+      ]);
+    }
 
     // Parents-guide severity caps (optional). Shape mirrors collection AI.
     const SEVERITY_VALUES = ["none", "mild", "mild-moderate", "moderate", "moderate-severe", "severe"];
@@ -535,9 +580,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // User's genre preferences for match scoring
+    // User's genre preferences for match scoring (solo mode only — group
+    // mode uses per-member prefs from loadGroupMembers above).
     const userGenrePrefs = new Map<string, number>();
-    if (user?.profile) {
+    if (!isGroupMode && user?.profile) {
       const p = user.profile as Record<string, unknown>;
       const genreKeys: Record<string, string> = {
         genreAction: "Action", genreHorror: "Horror", genreDrama: "Drama",
@@ -569,8 +615,23 @@ export async function POST(req: NextRequest) {
       const details = detailsMap.get(m.id as number);
       const providers = providersMap.get(m.id as number);
 
+      // matchScore semantics:
+      //   solo  → user's genre-affinity (0-10)
+      //   group → floor (worst per-member 0-10) so the existing client
+      //           sort by matchScore desc keeps "everyone tolerates this"
+      //           on top. Per-member detail rides along separately.
       let matchScore: number | null = null;
-      if (userGenrePrefs.size > 0 && itemGenres.length > 0) {
+      let floor: number | null = null;
+      let groupScore: number | null = null;
+      let perMemberScores: { firebaseUid: string; name: string; avatarUrl: string | null; score: number | null }[] | undefined;
+
+      if (isGroupMode && groupMembers.length > 0) {
+        const g = computeGroupScore(groupMembers, itemGenres);
+        floor = g.floor;
+        groupScore = g.groupScore;
+        perMemberScores = g.perMember;
+        matchScore = g.floor; // mirror floor for client sort + badge
+      } else if (userGenrePrefs.size > 0 && itemGenres.length > 0) {
         const scores = itemGenres.map((g) => userGenrePrefs.get(g) ?? 0).filter((s) => s > 0);
         if (scores.length > 0) matchScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
       }
@@ -594,6 +655,9 @@ export async function POST(req: NextRequest) {
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
+        floor,
+        groupScore,
+        perMemberScores,
         requestedMatchCount,
         reason: (m._experience as string)
           ? getReasonForExperience(m._experience as string)
@@ -601,8 +665,16 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Exclude seen/rated content
-    if (user) {
+    // Exclude seen/rated content. Three cases:
+    //   group + strict → union across all members (loadGroupSeenSets)
+    //   group + loose  → just the requesting user (parity with solo —
+    //                    skipping your own seen is uncontroversial)
+    //   solo           → just the requesting user
+    if (isGroupMode && excludeAnyMemberSeen) {
+      results = results.filter((r: { tmdbId: number; mediaType: string }) =>
+        r.mediaType === "tv" ? !groupSeen.tvTmdbIds.has(r.tmdbId) : !groupSeen.movieTmdbIds.has(r.tmdbId)
+      );
+    } else if (user) {
       const [seenMovies, ratedMovies, seenShows, ratedShows] = await Promise.all([
         (!isTV || isBoth) ? prisma.userFavoriteMovie.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }) : Promise.resolve([]),
         (!isTV || isBoth) ? prisma.movieRating.findMany({ where: { userId: user.id }, select: { movie: { select: { tmdbId: true } } } }) : Promise.resolve([]),
