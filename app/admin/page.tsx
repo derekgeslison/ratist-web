@@ -391,12 +391,15 @@ export default function AdminDashboard() {
               <textarea
                 value={policySummary}
                 onChange={(e) => setPolicySummary(e.target.value)}
-                placeholder="Briefly describe what changed and why (this appears in the email)..."
-                rows={3}
-                className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg p-3 focus:outline-none focus:border-[var(--ratist-red)] resize-none placeholder:text-[var(--foreground-muted)]"
+                placeholder={`What changed? (the email already includes a "Hi [Name], here's a summary..." intro and a "View" button at the bottom — write only the body)\n\nMarkdown supported:\n## Heading\n### Sub-heading\n**bold**\n- bullet item\n[link text](https://example.com)\nBlank line = new paragraph`}
+                rows={10}
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-sm text-white rounded-lg p-3 focus:outline-none focus:border-[var(--ratist-red)] resize-y placeholder:text-[var(--foreground-muted)] font-mono leading-relaxed"
               />
+              <p className="text-[10px] text-[var(--foreground-muted)] mt-1">
+                The email greets the recipient and provides a &quot;View&quot; button automatically — write only the summary body. Use blank lines between paragraphs, <code className="text-white">##</code> / <code className="text-white">###</code> for headings, <code className="text-white">**bold**</code>, and <code className="text-white">- item</code> for bullets.
+              </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={async () => {
                   if (!user || !policySummary.trim() || policySending) return;
@@ -422,6 +425,34 @@ export default function AdminDashboard() {
                 className="px-4 py-2 bg-[var(--ratist-red)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--ratist-red-hover)] transition-colors disabled:opacity-50"
               >
                 {policySending ? "Sending..." : "Send to All Users"}
+              </button>
+              <button
+                onClick={async () => {
+                  if (!user || !policySummary.trim() || policySending) return;
+                  setPolicySending(true);
+                  setPolicyResult(null);
+                  const token = await user.getIdToken();
+                  const res = await fetch("/api/admin/policy-notify", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ policyType, summary: policySummary.trim(), testOnly: true }),
+                  });
+                  const data = await res.json();
+                  if (res.ok) {
+                    setPolicyResult(
+                      data.sent
+                        ? `Test sent to ${data.to}. No banner created, no log entry.`
+                        : `Test failed (${data.to}). Check Resend dashboard.`,
+                    );
+                  } else {
+                    setPolicyResult(`Error: ${data.error}`);
+                  }
+                  setPolicySending(false);
+                }}
+                disabled={policySending || !policySummary.trim()}
+                className="px-4 py-2 bg-[var(--surface-2)] border border-[var(--border)] text-white text-sm font-semibold rounded-lg hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+              >
+                Send test to me
               </button>
               {policyResult && <span className="text-sm text-[var(--foreground-muted)]">{policyResult}</span>}
             </div>

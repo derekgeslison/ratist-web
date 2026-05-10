@@ -268,27 +268,117 @@ export async function sendUnbanNotification(email: string, name: string, userId:
   });
 }
 
+/**
+ * Tiny markdown-ish renderer for the policy-update summary. Admins
+ * paste plain text with simple markdown (## / ###, **bold**, - bullets,
+ * [text](url), blank-line paragraphs) and we convert to HTML so
+ * formatting survives the email render. NOT a general-purpose markdown
+ * library — this only covers what the policy summaries actually use.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderInline(s: string): string {
+  // Apply on already-escaped text. Order matters: links before bold so
+  // a bracketed phrase containing ** doesn't get partially formatted.
+  let out = s;
+  // [text](url) — link. URL is also escaped above; we just whitelist
+  // http/https/relative paths to avoid javascript: scheme injection.
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
+    const safeUrl = /^(https?:\/\/|\/)/.test(url) ? url : "#";
+    return `<a href="${safeUrl}" style="color:#cc0033;text-decoration:underline;">${text}</a>`;
+  });
+  // **bold**
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#fff;">$1</strong>');
+  return out;
+}
+
+function summaryToHtml(raw: string): string {
+  const escaped = escapeHtml(raw.trim());
+  const lines = escaped.split(/\r?\n/);
+  const blocks: string[] = [];
+  let bullets: string[] = [];
+  let paraLines: string[] = [];
+
+  function flushBullets() {
+    if (bullets.length === 0) return;
+    blocks.push(
+      `<ul style="margin:0 0 16px;padding-left:20px;font-size:14px;line-height:1.6;color:#ccc;">${
+        bullets.map((b) => `<li style="margin:0 0 6px;">${renderInline(b)}</li>`).join("")
+      }</ul>`,
+    );
+    bullets = [];
+  }
+  function flushPara() {
+    if (paraLines.length === 0) return;
+    blocks.push(
+      `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#ccc;">${
+        renderInline(paraLines.join("<br />"))
+      }</p>`,
+    );
+    paraLines = [];
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line === "") {
+      flushBullets();
+      flushPara();
+      continue;
+    }
+    const h3 = /^###\s+(.*)$/.exec(line);
+    const h2 = /^##\s+(.*)$/.exec(line);
+    const bullet = /^[-*]\s+(.*)$/.exec(line);
+    if (h3) {
+      flushBullets();
+      flushPara();
+      blocks.push(`<h3 style="margin:18px 0 8px;font-size:16px;color:#fff;">${renderInline(h3[1])}</h3>`);
+    } else if (h2) {
+      flushBullets();
+      flushPara();
+      blocks.push(`<h2 style="margin:20px 0 10px;font-size:18px;color:#fff;">${renderInline(h2[1])}</h2>`);
+    } else if (bullet) {
+      flushPara();
+      bullets.push(bullet[1]);
+    } else {
+      flushBullets();
+      paraLines.push(line);
+    }
+  }
+  flushBullets();
+  flushPara();
+  return blocks.join("");
+}
+
 export async function sendPolicyUpdate(
   email: string,
   name: string,
   userId: string,
   policyType: "privacy" | "terms" | "both",
   summary: string,
-): Promise<void> {
+): Promise<boolean> {
   const policyName = policyType === "both" ? "Privacy Policy and Terms of Service"
     : policyType === "privacy" ? "Privacy Policy" : "Terms of Service";
   const links = policyType === "both"
     ? `${btn("View Privacy Policy", `${SITE_URL}/privacy`)}${btn("View Terms of Service", `${SITE_URL}/terms`)}`
     : btn(`View ${policyName}`, `${SITE_URL}/${policyType === "privacy" ? "privacy" : "terms"}`);
 
-  await sendEmail({
+  const summaryHtml = summaryToHtml(summary);
+
+  return sendEmail({
     to: email,
     subject: `We've updated our ${policyName}`,
     html: wrap(`
       <h2 ${h2}>Hi ${name},</h2>
       <p ${p}>We've made changes to our <strong style="color:#fff;">${policyName}</strong>. Here's a summary of what changed:</p>
-      <div style="background:#1a1a1a;border-left:3px solid ${accent};padding:12px 16px;margin:0 0 16px;border-radius:0 6px 6px 0;">
-        <p style="margin:0;font-size:14px;line-height:1.6;color:#ccc;">${summary}</p>
+      <div style="background:#1a1a1a;border-left:3px solid ${accent};padding:14px 18px;margin:0 0 16px;border-radius:0 6px 6px 0;">
+        ${summaryHtml}
       </div>
       <p ${p}>These changes take effect immediately. By continuing to use The Ratist, you agree to the updated terms.</p>
       ${links}
