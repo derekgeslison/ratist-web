@@ -135,6 +135,20 @@ const PROVIDER_CONFIGS: Record<number, ProviderAffiliateConfig> = {
     fallbackUrl: (title) =>
       `https://www.plex.tv/search/?query=${title}`,
   },
+
+  // Fubo (257) — Impact affiliate network. Unlike Hulu/Disney's
+  // irclickid pattern, Fubo's Impact link uses fixed irad/irmp query
+  // params that don't change per click. The whole URL is the affiliate
+  // link, so the env var stores the full URL Impact gave you (e.g.
+  // https://www.fubo.tv/stream/tv/?irad=343747&irmp=7190936) and we
+  // just return it. Fubo doesn't expose a title-search URL anyway,
+  // so a single landing-page click attribution is the right shape.
+  257: {
+    name: "Fubo",
+    envKey: "NEXT_PUBLIC_FUBO_AFFILIATE_URL",
+    buildUrl: (_title, tag) => tag || `https://www.fubo.tv/welcome`,
+    fallbackUrl: () => `https://www.fubo.tv/welcome`,
+  },
 };
 
 // ─── Rent / Buy providers ───────────────────────────────────────────────────
@@ -275,6 +289,8 @@ const TRACKER_KEY_BY_PROVIDER_ID: Record<number, string> = {
   151: "shudder",
   287: "mubi",
   258: "criterion",
+  538: "plex",
+  257: "fubo",
   // Apple TV / iTunes rent-buy
   2: "apple_tv",
   // Amazon rent-buy variants
