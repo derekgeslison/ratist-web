@@ -265,7 +265,21 @@ export async function GET(req: NextRequest) {
     mediaType: "tv" as const,
   }));
 
-  const merged: SeenRow[] = [...movieRows, ...showRows];
+  // Defensive dedup by (mediaType, tmdbId). Prisma's findMany on the
+  // parent table shouldn't produce duplicates given Movie.tmdbId /
+  // TVShow.tmdbId are @unique, but real-world reports of doubled tiles
+  // on the seen grid suggest a row pair is sneaking through (likely
+  // legacy duplicate sync rows). The cheapest fix at this layer is a
+  // Set-based pass; the underlying data dup, if any, can be cleaned in
+  // a separate script.
+  const seenKeys = new Set<string>();
+  const merged: SeenRow[] = [];
+  for (const row of [...movieRows, ...showRows]) {
+    const key = `${row.mediaType}-${row.id}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    merged.push(row);
+  }
   const sorted = applySort(merged, sort);
   const total = sorted.length;
   const totalPages = Math.max(1, Math.ceil(total / perPage));

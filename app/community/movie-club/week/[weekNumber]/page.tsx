@@ -195,8 +195,11 @@ export default function MovieClubWeekPage() {
         </div>
       </div>
 
-      {/* Rate section — show if not submitted, or if watching phase (for editing) */}
-      {isOpen && isMember && (!submitted || (week.status === "watching" && editing)) && (
+      {/* Rate section — show if not submitted, or if the user is editing.
+          Editing was previously gated to the watching phase only, which
+          locked users out of fixing typos or refining their rating once
+          discussion opened. The API allows updates through both phases. */}
+      {isOpen && isMember && (!submitted || editing) && (
         <section className="mb-8">
           <h2 className="text-lg font-semibold text-white mb-4">{submitted ? "Edit Your Review" : "Submit Your Review"}</h2>
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
@@ -216,7 +219,7 @@ export default function MovieClubWeekPage() {
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm text-emerald-400">You rated this movie <span className="font-bold">{userRating.rating}/10</span></p>
-            {week.status === "watching" && (
+            {(week.status === "watching" || week.status === "discussion") && (
               <button onClick={() => setEditing(true)} className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
                 Edit review
               </button>
@@ -226,7 +229,7 @@ export default function MovieClubWeekPage() {
           {justMarkedSeen && (
             <p className="text-xs text-emerald-400/70 mb-2">This movie has been marked as seen on your profile.</p>
           )}
-          {(week.status === "discussion" || week.status === "archived") && week.movieTmdbId && (
+          {week.movieTmdbId && (
             <button
               onClick={() => {
                 // Pass the full form data (all rubric scores) for prefilling, matching Screening Room pattern

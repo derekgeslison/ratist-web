@@ -333,11 +333,20 @@ export default function OnboardingPage() {
     setSaving(false);
   }
 
-  // Save current preferences (genres + component weights) to the server
+  // Save current preferences (genres + component weights) to the server.
+  //
+  // Skip semantics: if the user advanced past the genre step without
+  // selecting any genres, treat that as "no signal yet" and write a
+  // neutral 5 across the board — NOT 2. The previous code wrote
+  // selected→8 / unselected→2, which dropped a non-engaging user into
+  // a profile that actively disliked every genre.
   async function savePrefs() {
     if (!user) return;
     const payload: Record<string, number> = {};
-    for (const g of GENRES) payload[g.key] = selectedGenres.has(g.key) ? 8 : 2;
+    const skipped = selectedGenres.size === 0;
+    for (const g of GENRES) {
+      payload[g.key] = skipped ? 5 : selectedGenres.has(g.key) ? 8 : 2;
+    }
     if (componentsTouched) {
       for (const c of COMPONENTS) payload[c.key] = componentScores[c.key];
     }

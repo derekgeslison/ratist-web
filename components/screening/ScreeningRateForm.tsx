@@ -155,7 +155,15 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
                       <div className="flex items-center gap-2">
                         <input type="range" min={1} max={10} step={0.5} value={values[f.key] ?? 5}
                           onChange={(e) => setField(f.key, parseFloat(e.target.value))}
-                          className="flex-1 accent-[var(--ratist-red)]" />
+                          // Register a value on plain click — without
+                          // this, a user who taps the slider track but
+                          // doesn't drag past the visual midpoint ends
+                          // up with no value persisted, then sees the
+                          // field "drop" when they carry their movie-
+                          // club / screening-room rating to the
+                          // official review.
+                          onPointerDown={() => { if (values[f.key] == null) setField(f.key, 5); }}
+                          className={`flex-1 ${values[f.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`} />
                         <span className="text-xs font-bold min-w-[30px] text-center" style={{ color: values[f.key] ? scoreColor(values[f.key]!) : "#666" }}>
                           {values[f.key]?.toFixed(1) ?? "—"}
                         </span>
