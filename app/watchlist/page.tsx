@@ -10,7 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
-  Film, Tv, Monitor, ListOrdered, GripVertical, Copy, BarChart3, Sparkles,
+  Film, Tv, Monitor, ListOrdered, GripVertical, Copy, BarChart3, Sparkles, Layers, HelpCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
@@ -322,6 +322,7 @@ export default function WatchlistPage() {
   // brand-new watchlist owned by the current user. Works on the default
   // list too, unlike Edit/Delete which are gated behind isDefault.
   const [showStats, setShowStats] = useState(false);
+  const [showIconKey, setShowIconKey] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [dupName, setDupName] = useState("");
   const [dupPrivate, setDupPrivate] = useState(false);
@@ -1155,14 +1156,37 @@ export default function WatchlistPage() {
                     </div>
                   </div>
                   {(movies.length > 0 || activeList.isOwner || !activeList.isDefault) && (
+                    // Action button row. Order: help, edit, collaborators,
+                    // duplicate, save as collection, export to rankings,
+                    // reorder, stats, delete. Trash is always last; stats
+                    // sits next to it. Icons gate on ownership and list
+                    // type — we keep the gating but render them in the
+                    // user-requested visual order regardless.
                     <div className="flex gap-2">
-                      {movies.length > 0 && (
+                      <button
+                        onClick={() => setShowIconKey(true)}
+                        className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
+                        title="What do these icons mean?"
+                        aria-label="Icon key"
+                      >
+                        <HelpCircle className="w-4 h-4" />
+                      </button>
+                      {activeList.isOwner && !activeList.isDefault && (
                         <button
-                          onClick={() => setShowStats(true)}
-                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
-                          title="Stats"
+                          onClick={() => { setEditingList(true); setEditName(activeList.name); setEditDesc(activeList.description ?? ""); setEditPrivate(activeList.isPrivate); }}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
+                          title="Edit list"
                         >
-                          <BarChart3 className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      {activeList.isOwner && !activeList.isDefault && (
+                        <button
+                          onClick={openCollaborators}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
+                          title="Manage collaborators"
+                        >
+                          <Users className="w-4 h-4" />
                         </button>
                       )}
                       {activeList.isOwner && (
@@ -1180,47 +1204,44 @@ export default function WatchlistPage() {
                           className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
                           title="Save as collection"
                         >
-                          <Sparkles className="w-4 h-4" />
+                          <Layers className="w-4 h-4" />
                         </Link>
                       )}
                       {activeList.isOwner && !activeList.isDefault && (
-                        <>
-                          <button
-                            onClick={() => { setEditingList(true); setEditName(activeList.name); setEditDesc(activeList.description ?? ""); setEditPrivate(activeList.isPrivate); }}
-                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
-                            title="Edit list"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={openCollaborators}
-                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface)] transition-colors"
-                            title="Manage collaborators"
-                          >
-                            <Users className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={exportToRankings}
-                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-purple-400 hover:bg-[var(--surface)] transition-colors"
-                            title="Export to Rankings"
-                          >
-                            <Star className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={enterReorder}
-                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
-                            title="Reorder items"
-                          >
-                            <ListOrdered className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
-                            title="Delete list"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
+                        <button
+                          onClick={exportToRankings}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-purple-400 hover:bg-[var(--surface)] transition-colors"
+                          title="Export to Rankings"
+                        >
+                          <Star className="w-4 h-4" />
+                        </button>
+                      )}
+                      {activeList.isOwner && !activeList.isDefault && (
+                        <button
+                          onClick={enterReorder}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
+                          title="Reorder items"
+                        >
+                          <ListOrdered className="w-4 h-4" />
+                        </button>
+                      )}
+                      {movies.length > 0 && (
+                        <button
+                          onClick={() => setShowStats(true)}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] hover:bg-[var(--surface)] transition-colors"
+                          title="Stats"
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {activeList.isOwner && !activeList.isDefault && (
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          className="p-2 rounded-lg text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
+                          title="Delete list"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
                       {!activeList.isOwner && !activeList.isDefault && (
                         <button
@@ -1824,6 +1845,45 @@ export default function WatchlistPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Icon key — explains what each watchlist action button does. */}
+      {showIconKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowIconKey(false); }}>
+          <div className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-2xl p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-white">Watchlist actions</h3>
+              <button onClick={() => setShowIconKey(false)} className="text-[var(--foreground-muted)] hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <ul className="space-y-3">
+              {[
+                { Icon: Pencil, label: "Edit list", desc: "Change the name, description, or privacy of this list." },
+                { Icon: Users, label: "Manage collaborators", desc: "Invite others as editors or viewers." },
+                { Icon: Copy, label: "Duplicate list", desc: "Create a brand-new list with a copy of every item." },
+                { Icon: Layers, label: "Save as collection", desc: "Publish a curated, taste-scored collection from this list." },
+                { Icon: Star, label: "Export to Rankings", desc: "Send this list to a personal ranking you can drag-to-order." },
+                { Icon: ListOrdered, label: "Reorder items", desc: "Drag items into your preferred watch order." },
+                { Icon: BarChart3, label: "Stats", desc: "Genres, year spread, runtime totals, and other quick metrics." },
+                { Icon: Trash2, label: "Delete list", desc: "Permanently remove this list and everything in it.", color: "text-red-400" },
+              ].map(({ Icon, label, desc, color }) => (
+                <li key={label} className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                    <Icon className={`w-4 h-4 ${color ?? "text-[var(--foreground-muted)]"}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">{label}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">{desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[10px] text-[var(--foreground-muted)] mt-4">
+              Some actions only appear on lists you own (and only on non-default lists for edit / collaborators / delete / reorder).
+            </p>
           </div>
         </div>
       )}

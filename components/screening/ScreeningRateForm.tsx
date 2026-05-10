@@ -76,6 +76,10 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     Object.fromEntries(Object.keys(CRITERIA).map((k) => [k, true]))
   );
+  // Mirror the official /rate page's "Required fields only" toggle —
+  // makes the standard-form path materially shorter for users who just
+  // want to fill the asterisked fields and ship.
+  const [requiredOnly, setRequiredOnly] = useState(false);
 
   function setField(key: string, val: number | null) {
     setValues((prev) => ({ ...prev, [key]: val }));
@@ -135,8 +139,21 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
         </div>
       </div>
 
-      {/* Standard mode: category fields */}
+      {/* Standard mode: required-only toggle + category fields */}
       {mode === "standard" && (
+        <>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <button
+              type="button"
+              onClick={() => setRequiredOnly((v) => !v)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${requiredOnly ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${requiredOnly ? "left-4" : "left-0.5"}`} />
+            </button>
+            <span className="text-xs text-[var(--foreground-muted)]" onClick={() => setRequiredOnly((v) => !v)}>
+              Required fields only
+            </span>
+          </label>
         <div className="space-y-3">
           {Object.entries(CRITERIA).map(([catName, cat]) => (
             <div key={catName} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
@@ -147,7 +164,7 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
               </button>
               {openSections[catName] && (
                 <div className="px-4 pb-3 space-y-3">
-                  {cat.fields.map((f) => (
+                  {cat.fields.filter((f) => !requiredOnly || f.required).map((f) => (
                     <div key={f.key}>
                       <label className="text-[10px] text-[var(--foreground-muted)] mb-1 block">
                         {f.label} {f.required && <span className="text-[var(--ratist-red)]">*</span>}
@@ -175,6 +192,7 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
             </div>
           ))}
         </div>
+        </>
       )}
 
       {/* Review text */}

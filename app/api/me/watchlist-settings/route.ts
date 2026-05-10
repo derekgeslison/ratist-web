@@ -15,6 +15,7 @@ interface SettingsShape {
   defaultWatchlistFilter: "all" | "unwatched";
   watchlistAddPosition: "top" | "bottom";
   pinCheckedToBottom: boolean;
+  watchlistStreamingNotifs: boolean;
 }
 
 function defaults(): SettingsShape {
@@ -25,6 +26,7 @@ function defaults(): SettingsShape {
     defaultWatchlistFilter: "all",
     watchlistAddPosition: "top",
     pinCheckedToBottom: false,
+    watchlistStreamingNotifs: false,
   };
 }
 
@@ -43,6 +45,7 @@ export async function GET(req: NextRequest) {
     defaultWatchlistFilter: user.defaultWatchlistFilter as SettingsShape["defaultWatchlistFilter"],
     watchlistAddPosition: user.watchlistAddPosition as SettingsShape["watchlistAddPosition"],
     pinCheckedToBottom: user.pinCheckedToBottom,
+    watchlistStreamingNotifs: user.watchlistStreamingNotifs,
   });
 }
 
@@ -69,6 +72,7 @@ export async function PATCH(req: NextRequest) {
     data.watchlistAddPosition = body.watchlistAddPosition;
   }
   if (typeof body.pinCheckedToBottom === "boolean") data.pinCheckedToBottom = body.pinCheckedToBottom;
+  if (typeof body.watchlistStreamingNotifs === "boolean") data.watchlistStreamingNotifs = body.watchlistStreamingNotifs;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });
@@ -84,6 +88,7 @@ export async function PATCH(req: NextRequest) {
       defaultWatchlistFilter: true,
       watchlistAddPosition: true,
       pinCheckedToBottom: true,
+      watchlistStreamingNotifs: true,
     },
   });
 

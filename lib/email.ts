@@ -379,7 +379,7 @@ export async function sendPolicyUpdate(
 
   return sendEmail({
     to: email,
-    subject: `We've updated our ${policyName}`,
+    subject: `The Ratist — We've updated our ${policyName}`,
     html: wrap(`
       <h2 ${h2}>Hi ${name},</h2>
       <p ${p}>We've made changes to our <strong style="color:#fff;">${policyName}</strong>. Here's a summary of what changed:</p>

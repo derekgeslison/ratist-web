@@ -77,6 +77,23 @@ body {
   user-select: none;
 }
 
+/* ─── iOS auto-zoom guard ───────────────────────────────────────────────────
+   iOS Safari force-zooms the page whenever a focused input has a
+   font-size below 16px. The viewport doesn't unzoom afterward, so a
+   user who taps the navbar search ends up looking at a zoomed-in
+   layout for the rest of their session until they pinch out manually.
+   Bumping form controls to 16px on touch devices stops the trigger
+   without altering desktop layout. (hover:none + pointer:coarse) is
+   the canonical touch-device match — phones report coarse pointers,
+   pointing devices report fine. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

@@ -12,6 +12,7 @@ export interface WatchlistSettingsValues {
   defaultWatchlistFilter: "all" | "unwatched";
   watchlistAddPosition: "top" | "bottom";
   pinCheckedToBottom: boolean;
+  watchlistStreamingNotifs: boolean;
 }
 
 interface Props {
@@ -39,6 +40,7 @@ export default function WatchlistSettings({ onChange }: Props) {
     defaultWatchlistFilter: "all",
     watchlistAddPosition: "top",
     pinCheckedToBottom: false,
+    watchlistStreamingNotifs: false,
   });
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -185,6 +187,14 @@ export default function WatchlistSettings({ onChange }: Props) {
               description="When you check an item off your watchlist, also mark it as seen in your diary."
               checked={values.autoSeenOnWatchlistCheck}
               onChange={(v) => update({ autoSeenOnWatchlistCheck: v })}
+              disabled={busy}
+            />
+
+            <ToggleRow
+              label="Notify me on streaming launches"
+              description="When a movie or show on any of your watchlists starts streaming on Netflix, Prime, Disney+, Hulu, Max, Apple TV+, Peacock, or Paramount+. Sent as a single daily digest if multiple items launch the same day."
+              checked={values.watchlistStreamingNotifs}
+              onChange={(v) => update({ watchlistStreamingNotifs: v })}
               disabled={busy}
             />
           </div>
