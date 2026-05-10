@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   onAuthStateChanged,
+  onIdTokenChanged,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
@@ -93,6 +94,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Handle redirect result (for Brave / popup-blocked browsers)
   useEffect(() => {
     getRedirectResult(auth).catch(() => { /* no redirect pending */ });
+  }, []);
+
+  // Mirror the Firebase ID token into a `__session` cookie so server
+  // components (e.g. /releases, year-in-review admin bypass) can
+  // identify the viewer. Firebase auto-refreshes the token roughly
+  // hourly via onIdTokenChanged; we re-write the cookie each refresh
+  // so it never lags behind the live token. Non-HTTPOnly because we
+  // also need it readable from the client; same trust boundary the
+  // existing fetch-with-Bearer pattern already operates under.
+  useEffect(() => {
+    const unsub = onIdTokenChanged(auth, async (firebaseUser) => {
+      if (typeof document === "undefined") return;
+      if (firebaseUser) {
+        try {
+          const token = await firebaseUser.getIdToken();
+          const secure = location.protocol === "https:" ? " secure;" : "";
+          document.cookie = `__session=${token}; path=/; max-age=3500; samesite=lax;${secure}`;
+        } catch { /* token fetch failed — leave cookie stale, next refresh retries */ }
+      } else {
+        document.cookie = "__session=; path=/; max-age=0; samesite=lax;";
+      }
+    });
+    return unsub;
   }, []);
 
   useEffect(() => {

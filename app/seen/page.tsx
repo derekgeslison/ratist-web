@@ -13,6 +13,7 @@ import DiaryEpisodeRow from "@/components/DiaryEpisodeRow";
 import ShareButton from "@/components/ShareButton";
 import FirstVisitHint from "@/components/FirstVisitHint";
 import { scoreColor } from "@/lib/ratings";
+import { isYearInReviewUnlocked, unlockTeaser } from "@/lib/year-in-review/lock";
 
 interface SeenMovie {
   id: string;
@@ -413,9 +414,15 @@ export default function SeenPage() {
           <h1 className="text-2xl font-bold text-white">Film Diary</h1>
         </div>
         {user && (
-          <Link href={`/profile/${user.uid}/year-in-review/${calYear}`} className="text-sm text-[var(--ratist-red)] hover:underline">
-            Year in Review →
-          </Link>
+          isYearInReviewUnlocked(calYear, false) ? (
+            <Link href={`/profile/${user.uid}/year-in-review/${calYear}`} className="text-sm text-[var(--ratist-red)] hover:underline">
+              Year in Review →
+            </Link>
+          ) : (
+            <span className="text-sm text-[var(--foreground-muted)]">
+              Year in Review unlocks {unlockTeaser(calYear)}
+            </span>
+          )
         )}
       </div>
 

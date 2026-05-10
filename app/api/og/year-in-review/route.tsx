@@ -1,149 +1,104 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/prisma";
 import { getLogoBase64, scoreHex } from "@/lib/og-helpers";
+import { getYearInReview } from "@/lib/year-in-review/data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId") ?? "";
-  const year = searchParams.get("year") ?? new Date().getFullYear().toString();
+  const userIdParam = searchParams.get("userId") ?? "";
+  const year = parseInt(searchParams.get("year") ?? new Date().getFullYear().toString(), 10);
 
   try {
     const logoSrc = getLogoBase64();
-
-    const user = await prisma.user.findFirst({
-      where: { OR: [{ id: userId }, { firebaseUid: userId }] },
+    const userRow = await prisma.user.findFirst({
+      where: { OR: [{ id: userIdParam }, { firebaseUid: userIdParam }] },
       select: { id: true, name: true, avatarUrl: true },
     });
-    if (!user) return new Response("Not found", { status: 404 });
+    if (!userRow) return new Response("Not found", { status: 404 });
 
-    const seenThisYear = await prisma.userFavoriteMovie.findMany({
-      where: {
-        userId: user.id,
-        watchedDate: { gte: new Date(`${year}-01-01`), lt: new Date(`${Number(year) + 1}-01-01`) },
-      },
-      include: {
-        movie: {
-          select: {
-            title: true,
-            genres: { include: { genre: true } },
-            ratings: { where: { userId: user.id }, select: { ratistRating: true }, take: 1 },
-          },
-        },
-      },
-    });
+    const data = await getYearInReview(userRow.id, year);
+    if (!data) return new Response("No data", { status: 404 });
 
-    if (seenThisYear.length === 0) return new Response("No data", { status: 404 });
-
-    const rated = seenThisYear.filter((m) => m.movie.ratings[0]?.ratistRating != null);
-    const ratings = rated.map((m) => m.movie.ratings[0]!.ratistRating!);
-    const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
-    const topMovies = [...rated]
-      .sort((a, b) => (b.movie.ratings[0]?.ratistRating ?? 0) - (a.movie.ratings[0]?.ratistRating ?? 0))
-      .slice(0, 5);
-
-    // Top genres by count
-    const genreCount = new Map<string, number>();
-    for (const s of seenThisYear) {
-      for (const mg of s.movie.genres) {
-        genreCount.set(mg.genre.name, (genreCount.get(mg.genre.name) ?? 0) + 1);
-      }
-    }
-    const topGenres = [...genreCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-
-    const avatarSrc = user.avatarUrl;
+    const archetype = data.cinephile.archetype;
+    const archetypeFontSize = archetype.length > 24 ? 56 : archetype.length > 18 ? 68 : 80;
 
     return new ImageResponse(
       (
-        <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0a0a0a", padding: 44 }}>
+        <div
+          style={{
+            display: "flex", flexDirection: "column", width: "100%", height: "100%",
+            backgroundColor: "#0a0a0a",
+            backgroundImage: "radial-gradient(ellipse at top, rgba(239, 59, 54, 0.25) 0%, rgba(10, 10, 10, 0) 60%)",
+            padding: 40,
+          }}
+        >
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <img src={logoSrc} width={32} height={32} style={{ borderRadius: 6 }} />
               <span style={{ color: "white", fontWeight: 800, fontSize: 16, letterSpacing: 1 }}>THE RATIST</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {avatarSrc ? (
-                <img src={avatarSrc} width={24} height={24} style={{ borderRadius: 12 }} />
-              ) : (
-                <div style={{ display: "flex", width: 24, height: 24, borderRadius: 12, backgroundColor: "#ef3b36", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "white", fontWeight: 800, fontSize: 12 }}>{user.name[0]?.toUpperCase()}</span>
-                </div>
-              )}
-              <span style={{ color: "#aaa", fontSize: 14, fontWeight: 600 }}>{user.name}</span>
-            </div>
+            <span style={{ color: "#aaa", fontSize: 16, fontWeight: 600 }}>{userRow.name}</span>
           </div>
 
-          {/* Year title */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
-            <span style={{ color: "#ef3b36", fontSize: 13, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase" as const, marginBottom: 2 }}>Year In Film</span>
-            <span style={{ color: "white", fontSize: 60, fontWeight: 900, lineHeight: 1 }}>{year}</span>
+          {/* Year + IN FILM */}
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 18, marginBottom: 4 }}>
+            <span style={{ color: "#ef3b36", fontSize: 22, fontWeight: 700, letterSpacing: 6, textTransform: "uppercase" as const }}>In Film</span>
+            <span style={{ color: "white", fontSize: 80, fontWeight: 900, lineHeight: 1, letterSpacing: -3 }}>{year}</span>
           </div>
 
-          {/* Stats row */}
-          <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 20 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px" }}>
-              <span style={{ color: "white", fontSize: 32, fontWeight: 900 }}>{seenThisYear.length}</span>
-              <span style={{ color: "#666", fontSize: 12 }}>Watched</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px" }}>
-              <span style={{ color: "white", fontSize: 32, fontWeight: 900 }}>{rated.length}</span>
-              <span style={{ color: "#666", fontSize: 12 }}>Rated</span>
-            </div>
-            {avgRating != null && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px" }}>
-                <span style={{ color: scoreHex(avgRating), fontSize: 32, fontWeight: 900 }}>{avgRating.toFixed(1)}</span>
-                <span style={{ color: "#666", fontSize: 12 }}>Avg Rating</span>
-              </div>
-            )}
-            {topGenres.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: "#141414", borderRadius: 10, padding: "12px 24px", minWidth: 100 }}>
-                <span style={{ color: "#eab308", fontSize: topGenres[0][0].length > 8 ? 16 : 20, fontWeight: 800, lineHeight: 1.6 }}>{topGenres[0][0]}</span>
-                <span style={{ color: "#666", fontSize: 12 }}>Top Genre</span>
-              </div>
+          {/* Archetype + tagline as the hook */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 24, paddingLeft: 30, paddingRight: 30 }}>
+            <span style={{ color: "#888", fontSize: 16, fontWeight: 700, letterSpacing: 6, textTransform: "uppercase" as const, marginBottom: 8 }}>You Were</span>
+            <span style={{ color: "white", fontSize: archetypeFontSize, fontWeight: 900, lineHeight: 1.02, textAlign: "center", letterSpacing: -1.5 }}>{archetype}</span>
+            <span style={{ color: "#bbb", fontSize: 24, lineHeight: 1.3, textAlign: "center", marginTop: 14, maxWidth: 980 }}>{data.cinephile.tagline}</span>
+          </div>
+
+          {/* Headline stats */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 14, marginBottom: 16 }}>
+            <StatTile value={data.movieCount} label="Movies" />
+            <StatTile value={data.showCount} label={data.showCount === 1 ? "Show" : "Shows"} />
+            <StatTile value={data.totalHours} label="Hours" />
+            {data.avgRating != null && (
+              <StatTile value={data.avgRating.toFixed(1)} label="Avg Rating" color={scoreHex(data.avgRating)} />
             )}
           </div>
 
-          {/* Top movies */}
-          {topMovies.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
-              <span style={{ color: "#555", fontSize: 11, letterSpacing: 2, textTransform: "uppercase" as const, marginBottom: 2 }}>Top Rated</span>
-              {topMovies.map((m, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ color: "#444", fontSize: 13, fontWeight: 800, width: 18 }}>{i + 1}</span>
-                  <span style={{ color: "#ccc", fontSize: 15, fontWeight: 600, flex: 1 }}>
-                    {m.movie.title.length > 42 ? m.movie.title.slice(0, 42) + "..." : m.movie.title}
-                  </span>
-                  <span style={{ color: scoreHex(m.movie.ratings[0]!.ratistRating!), fontSize: 15, fontWeight: 800 }}>
-                    {m.movie.ratings[0]!.ratistRating!.toFixed(1)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Top genres chips */}
-          {topGenres.length > 1 && (
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <span style={{ color: "#555", fontSize: 12 }}>Genres:</span>
-              {topGenres.map(([name, count]) => (
-                <span key={name} style={{ color: "#888", fontSize: 12, backgroundColor: "#141414", borderRadius: 6, padding: "2px 8px" }}>
-                  {name} ({count})
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-            <span style={{ color: "#333", fontSize: 13 }}>theratist.com</span>
+          {/* Pills row */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
+            {data.topGenres[0] && (
+              <Pill color="#eab308" text={`Top genre: ${data.topGenres[0].name}`} />
+            )}
+            {data.busiestMonth && (
+              <Pill color="#ccc" text={`Busiest: ${data.busiestMonth.name}`} />
+            )}
+            {data.episodeCount > 0 && (
+              <Pill color="#ccc" text={`${data.episodeCount} episodes`} />
+            )}
           </div>
         </div>
       ),
-      { width: 800, height: 520 }
+      { width: 1200, height: 630 },
     );
   } catch (err) {
-    console.error("OG year-in-review error:", err);
+    console.error("OG year-in-review cover error:", err);
     return new Response(`Error: ${err}`, { status: 500 });
   }
+}
+
+function StatTile({ value, label, color }: { value: number | string; label: string; color?: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "#141414", borderRadius: 14, padding: "16px 28px", minWidth: 130 }}>
+      <span style={{ color: color ?? "white", fontSize: 52, fontWeight: 900, lineHeight: 1 }}>{value}</span>
+      <span style={{ color: "#888", fontSize: 13, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" as const, marginTop: 8 }}>{label}</span>
+    </div>
+  );
+}
+
+function Pill({ color, text }: { color: string; text: string }) {
+  return (
+    <span style={{ color, fontSize: 16, backgroundColor: "#141414", borderRadius: 999, padding: "8px 18px", fontWeight: 600 }}>{text}</span>
+  );
 }
