@@ -5,7 +5,7 @@ import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Bell, Check, Shield, Trophy, X, ArrowLeft, Clapperboard, Ticket } from "lucide-react";
+import { Bell, Check, Shield, Trophy, X, ArrowLeft, Clapperboard, Ticket, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface NotificationItem {
@@ -211,6 +211,10 @@ export default function NotificationsPage() {
               ) : n.type.startsWith("invite_code_") ? (
                 <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
                   <Ticket className="w-4 h-4 text-blue-400" />
+                </div>
+              ) : n.type === "watchlist_streaming" ? (
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <Tv className="w-4 h-4 text-emerald-400" />
                 </div>
               ) : n.actor?.avatarUrl ? (
                 <Image src={n.actor.avatarUrl} alt={n.actor.name} width={32} height={32} className="rounded-full shrink-0" />

@@ -7,6 +7,8 @@ import {
   getShowWatchProviders,
   STREAMING_PROVIDERS,
 } from "@/lib/tmdb";
+import { detectStreamingLaunches } from "@/lib/releases";
+import { notifyWatchlistLaunches } from "@/lib/watchlist-streaming-notify";
 
 export const dynamic = "force-dynamic";
 // Vercel Pro caps at 300s. We're snapshotting ~3000 items at ~25 in
@@ -158,12 +160,27 @@ export async function GET(req: NextRequest) {
       where: { snapshotDate: { lt: cutoff } },
     });
 
+    // --- 4. Notify watchlist subscribers of today's launches. ---
+    // Lookback of 2 means we have today + yesterday in scope, which
+    // is enough to diff one day. The notify helper filters to events
+    // with launchDate === today so a Tuesday backfill doesn't re-
+    // notify users about Monday's launches. Best-effort — a notify
+    // failure shouldn't fail the cron.
+    let notifyResult = { notified: 0, matchedItems: 0 };
+    try {
+      const events = await detectStreamingLaunches(REGION, 2);
+      notifyResult = await notifyWatchlistLaunches(events);
+    } catch (err) {
+      console.error("watchlist streaming-notify pass failed:", err);
+    }
+
     return NextResponse.json({
       ok: true,
       durationMs: Date.now() - startedAt,
       movies: stats.movies,
       shows: stats.shows,
       pruned: pruned.count,
+      watchlistNotify: notifyResult,
     });
   } catch (err) {
     console.error("snapshot-providers cron error:", err);
