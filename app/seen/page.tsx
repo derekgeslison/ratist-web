@@ -412,7 +412,11 @@ export default function SeenPage() {
           <Eye className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl font-bold text-white">Film Diary</h1>
         </div>
-        <Link href="/watchlist" className="text-sm text-[var(--ratist-red)] hover:underline">Watchlist →</Link>
+        {user && (
+          <Link href={`/profile/${user.uid}/year-in-review/${calYear}`} className="text-sm text-[var(--ratist-red)] hover:underline">
+            Year in Review →
+          </Link>
+        )}
       </div>
 
       {!user ? (

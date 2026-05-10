@@ -155,6 +155,7 @@ model User {
   contactsHandled                Contact[]                 @relation("contactHandled")
   inviteCodeRequests             InviteCodeRequest[]       @relation("inviteCodeRequester")
   inviteCodeRequestsResolved     InviteCodeRequest[]       @relation("inviteCodeResolver")
+  spotlightDismissals            SpotlightDismissal[]
   ideasSubmitted                 PostIdea[]                @relation("ideasSubmitted")
   ideasReviewed                  PostIdea[]                @relation("ideasReviewed")
   aiUsageLogs                    AiUsageLog[]
@@ -2110,7 +2111,27 @@ model SiteSpotlight {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  dismissals SpotlightDismissal[]
+
   @@map("site_spotlights")
+}
+
+// Per-user "I've already dismissed this banner" record. Lets the
+// dismissal persist across devices and sessions — a user who
+// dismissed the policy-update banner on desktop doesn't see it again
+// when they sign in on mobile. Anonymous visitors still fall back
+// to the older localStorage-only path on the client.
+model SpotlightDismissal {
+  userId      String   @map("user_id")
+  spotlightId String   @map("spotlight_id")
+  dismissedAt DateTime @default(now()) @map("dismissed_at")
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spotlight SiteSpotlight @relation(fields: [spotlightId], references: [id], onDelete: Cascade)
+
+  @@id([userId, spotlightId])
+  @@index([userId])
+  @@map("spotlight_dismissals")
 }
 
 model AdminLog {

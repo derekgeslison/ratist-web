@@ -61,11 +61,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 1. Create announcement banner
+  // 1. Create announcement banner — but first deactivate any older
+  //    policy-update banners. Without this, repeated policy notifies
+  //    accumulate multiple active spotlights, and a user who already
+  //    dismissed the previous one sees a fresh banner with a new id
+  //    (localStorage tracks ids per banner). Title-prefix match is the
+  //    discriminator — non-policy spotlights (regular announcements)
+  //    aren't affected.
+  await prisma.siteSpotlight.updateMany({
+    where: { type: "announcement", isActive: true, title: { startsWith: "We've updated our" } },
+    data: { isActive: false },
+  });
+
+  // The banner is intentionally lean — title + link only. The email is
+  // where the actual summary lives. Stuffing the description with the
+  // first 200 chars of the summary made the banner feel like a
+  // duplicate of the email; just the headline reads better.
   await prisma.siteSpotlight.create({
     data: {
       title: `We've updated our ${policyName}`,
-      description: summary.slice(0, 200),
+      description: null,
       linkUrl,
       linkLabel: `View ${policyName}`,
       type: "announcement",

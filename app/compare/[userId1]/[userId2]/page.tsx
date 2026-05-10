@@ -284,6 +284,16 @@ export default async function ComparePage({ params }: Props) {
         <section className="mb-6">
           <h2 className="text-base font-semibold text-white mb-4">You Both Agree On</h2>
           <div className="space-y-2">
+            {/* Column labels — mirror the per-row flex layout so "You" sits over rating1 and "Them" over rating2. */}
+            <div className="flex items-center gap-3 px-3 -mb-1">
+              <div className="w-8 shrink-0"></div>
+              <div className="flex-1"></div>
+              <div className="flex items-center gap-3 shrink-0 text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">
+                <span>You</span>
+                <span className="invisible">vs</span>
+                <span>Them</span>
+              </div>
+            </div>
             {mostAgreed.map((m) => (
               <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--surface)] transition-colors group">
                 <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">
@@ -306,6 +316,15 @@ export default async function ComparePage({ params }: Props) {
         <section className="mb-8">
           <h2 className="text-base font-semibold text-white mb-4">Where You Disagree Most</h2>
           <div className="space-y-2">
+            <div className="flex items-center gap-3 px-3 -mb-1">
+              <div className="w-8 shrink-0"></div>
+              <div className="flex-1"></div>
+              <div className="flex items-center gap-3 shrink-0 text-[10px] uppercase tracking-widest text-[var(--foreground-muted)]">
+                <span>You</span>
+                <span className="invisible">vs</span>
+                <span>Them</span>
+              </div>
+            </div>
             {mostDisagreed.filter((m) => m.diff > 1).map((m) => (
               <Link key={m.tmdbId} href={`/movies/${m.tmdbId}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--surface)] transition-colors group">
                 <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--surface-2)]">

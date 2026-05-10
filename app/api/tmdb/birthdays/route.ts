@@ -21,7 +21,10 @@ export async function GET() {
     try {
       const cached = await prisma.celebrity.findMany({
         where: { birthday: { endsWith: todayStr }, deathday: null, profilePath: { not: null } },
-        orderBy: { popularity: "desc" },
+        // nulls: "last" — popularity is nullable; without this, Postgres
+        // puts NULL-popularity celebrities first and the famous ones get
+        // truncated by the take() limit before they're ever sorted.
+        orderBy: { popularity: { sort: "desc", nulls: "last" } },
         take: 20,
       });
       for (const c of cached) {

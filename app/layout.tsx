@@ -12,6 +12,7 @@ import NavEntryAutoRegister from "@/components/NavEntryAutoRegister";
 import TouchHint from "@/components/TouchHint";
 import ConsentBanner from "@/components/ConsentBanner";
 import CookiePreferencesLink from "@/components/CookiePreferencesLink";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -134,6 +135,7 @@ window.gtag('config', '${GA_ID}');`}
             <main className="flex-1">{children}</main>
           </OnboardingGuard>
           <TouchHint />
+          <ScrollToTopButton />
           <ConsentBanner />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>

@@ -1107,21 +1107,12 @@ function WatchlistStep({ images }: Props) {
                 key={it.movieKey}
                 className={`flex items-center gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5 transition-opacity ${isSeen ? "opacity-50" : ""}`}
               >
-                <span className="text-[10px] text-[var(--foreground-muted)] font-mono w-5 text-center shrink-0">{i + 1}</span>
                 <PosterThumb src={tmdbPoster(images.movies[it.movieKey], "w92")} alt={it.title} size="xs" />
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-semibold text-white break-words ${isSeen ? "line-through" : ""}`}>{it.title} <span className="text-[var(--foreground-muted)] font-normal">({it.year})</span></p>
                   <p className={`text-[10px] text-[var(--foreground-muted)] break-words ${isSeen ? "line-through" : ""}`}>{it.runtime} min &middot; <span className={it.providerColor}>{it.provider}</span></p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => moveUp(i)} disabled={i === 0} aria-label="Move up"
-                    className="p-1.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                    <ArrowUp className="w-3 h-3 text-white" />
-                  </button>
-                  <button onClick={() => moveDown(i)} disabled={i === items.length - 1} aria-label="Move down"
-                    className="p-1.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                    <ArrowDown className="w-3 h-3 text-white" />
-                  </button>
+                <div className="flex flex-col items-end gap-1 shrink-0">
                   <button
                     onClick={() => toggleSeen(i)}
                     aria-label={isSeen ? "Mark unwatched" : "Mark seen"}
@@ -1129,6 +1120,16 @@ function WatchlistStep({ images }: Props) {
                   >
                     <Check className="w-3 h-3" /> {isSeen ? "Seen ✓" : "Seen"}
                   </button>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => moveUp(i)} disabled={i === 0} aria-label="Move up"
+                      className="p-1.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      <ArrowUp className="w-3 h-3 text-white" />
+                    </button>
+                    <button onClick={() => moveDown(i)} disabled={i === items.length - 1} aria-label="Move down"
+                      className="p-1.5 rounded-md bg-[var(--surface-2)] hover:bg-[var(--border)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      <ArrowDown className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -1481,7 +1482,7 @@ const SC_PEOPLE: Record<string, { peopleKey: string; name: string; role: string 
 };
 
 function SharedCastStep({ images }: Props) {
-  const [selected, setSelected] = useState<Set<string>>(new Set(["inception", "oppenheimer"]));
+  const [selected, setSelected] = useState<Set<string>>(new Set(["inception", "interstellar"]));
 
   function toggle(key: string) {
     setSelected((cur) => {

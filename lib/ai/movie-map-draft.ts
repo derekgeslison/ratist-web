@@ -202,7 +202,12 @@ export async function draftMovieMap(input: MovieMapInput): Promise<MovieMapDraft
   const client = getAnthropic();
   const userMessage = buildUserMessage(input);
   const response = await client.messages.create({
-    model: "claude-haiku-4-5",
+    // Sonnet 4.6 over Haiku — Haiku consistently produced overlapping
+    // layouts and chose wrong archetypes (e.g., timeline for Inception
+    // when nested_layers is the right shape). The marginal cost is
+    // worth it for an admin-only drafting tool that gets human-reviewed
+    // before publication anyway.
+    model: "claude-sonnet-4-6",
     max_tokens: 2048,
     system: [{ type: "text", text: getSystemPrompt(), cache_control: { type: "ephemeral" } }],
     tools: [DRAFT_TOOL],

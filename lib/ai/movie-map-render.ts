@@ -5,9 +5,15 @@ const H = 900;
 const TITLE_H = 70;
 const LEGEND_H = 60;
 const PAD = 60;
-const NODE_W = 160;
-const NODE_H = 60;
-const NODE_GAP = 30; // minimum gap between adjacent node rectangles
+// Node geometry — bumped from 160×60×30 to give labels more room.
+// Two- or three-line labels at 12px font + 14px line-height were
+// overflowing the 60px box on roughly half the renders, and the
+// 30px gap was tight enough that adjacent notes would collide on
+// dense rows. The new dimensions give a clean fit for up to 3 lines
+// of 24-char wrapped text and a comfortable horizontal beat.
+const NODE_W = 180;
+const NODE_H = 75;
+const NODE_GAP = 40;
 
 const PALETTE = ["#e53e3e", "#3182ce", "#38a169", "#d69e2e", "#805ad5", "#dd6b20", "#319795", "#d53f8c"];
 const BG = "#0b0b0f";
@@ -416,7 +422,11 @@ function renderNodes(nodes: MovieMapNode[], positions: Map<string, { x: number; 
     const color = colorFor(node, colors);
     const x = pos.x - NODE_W / 2;
     const y = pos.y - NODE_H / 2;
-    const label = wrapLabel(node.label, 22);
+    // Cap to 2 lines in-box. Three lines at 14px line-height will
+    // exceed the 75px node-height once vertical centering padding is
+    // added; truncating to 2 lines keeps the label visually inside
+    // the rectangle. Wider node (180 vs old 160) supports 24 chars.
+    const label = wrapLabel(node.label, 24, 2);
     const lineHeight = 14;
     const totalTextH = label.length * lineHeight;
     const firstLineY = pos.y - totalTextH / 2 + 10;

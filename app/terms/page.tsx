@@ -91,13 +91,89 @@ export default function TermsOfServicePage() {
 
         <section>
           <h2 className="text-lg font-semibold text-white mb-2">6. Intellectual Property</h2>
+
           <p>
-            The Ratist&apos;s rating algorithm, recommendation algorithm, design, branding (including the
-            &quot;Two Thumbs&quot; debate brand and badge artwork), and original editorial content are the
-            intellectual property of The Ratist. Movie and TV show metadata is provided by The Movie Database
-            (TMDB) and is used in accordance with their API terms; The Ratist is not endorsed or certified by
-            TMDB. Watch Companion grounding may incorporate publicly-available material from sources such as
-            Wikipedia (CC BY-SA) and OpenSubtitles, with appropriate attribution where required.
+            <strong className="text-white">6.1 Ownership.</strong> The Service — including its rating
+            algorithm, recommendation algorithm, personalization engine, user-interface design, source code,
+            copy, branding, badge artwork, original editorial content, compilations of data, and the
+            selection, arrangement, and presentation of third-party data — is owned by The Ratist and is
+            protected by copyright, trademark, trade-secret, and other intellectual-property laws.
+          </p>
+
+          <p className="mt-2">
+            <strong className="text-white">6.2 Trademarks.</strong> The Ratist&apos;s product names, logos,
+            and branding (including the Ratist &quot;R&quot; logo) are trademarks of The Ratist, claimed under
+            common law where not registered. You may not use these marks, or any confusingly similar marks,
+            without our prior written permission.
+          </p>
+
+          <p className="mt-2">
+            <strong className="text-white">6.3 License to you.</strong> Subject to your compliance with these
+            Terms, The Ratist grants you a limited, personal, non-exclusive, non-transferable,
+            non-sublicensable, revocable license to access and use the Service for your own personal,
+            non-commercial use. No other rights are granted, whether by implication, estoppel, or otherwise.
+            The Service is licensed to you, not sold.
+          </p>
+
+          <p className="mt-2">
+            <strong className="text-white">6.4 Prohibited uses.</strong> You agree not to, and not to permit
+            any third party to:
+          </p>
+          <ul className="list-disc pl-5 mt-2 space-y-1">
+            <li>
+              scrape, crawl, harvest, index, or otherwise access the Service by automated means, except for
+              public search-engine crawlers obeying our robots.txt;
+            </li>
+            <li>
+              copy, reproduce, distribute, publicly display, or create derivative works of any substantial
+              portion of the Service, its data, ratings, recommendations, AI outputs, or content — other than
+              your own user content;
+            </li>
+            <li>
+              reverse-engineer, decompile, disassemble, or otherwise attempt to derive the source code,
+              algorithms, models, or trade secrets underlying the Service, except to the extent such
+              restriction is prohibited by applicable law;
+            </li>
+            <li>
+              use the Service, its data, or its outputs to train, fine-tune, benchmark, or evaluate any
+              machine-learning model, or to build, market, or operate a product that competes with the
+              Service;
+            </li>
+            <li>
+              remove, obscure, or alter any proprietary notices, attribution, or watermarks contained in the
+              Service;
+            </li>
+            <li>
+              circumvent, disable, or interfere with any security, rate-limiting, access-control, or licensing
+              mechanism of the Service.
+            </li>
+          </ul>
+
+          <p className="mt-2">
+            <strong className="text-white">6.5 Trade secrets.</strong> The Ratist&apos;s rating formula and
+            category weights, recommendation logic, persona-matching algorithm, match-score computation, and
+            related proprietary methods are confidential trade secrets of The Ratist. You agree not to
+            attempt to derive, document, replicate, or publish these methods, whether by analysis of public
+            outputs, scraping, or reverse-engineering.
+          </p>
+
+          <p className="mt-2">
+            <strong className="text-white">6.6 Third-party content.</strong> Movie, TV, and cast metadata is
+            provided by The Movie Database (TMDB) and used in accordance with TMDB&apos;s API terms; The
+            Ratist is not endorsed or certified by TMDB. Watch Companion grounding may incorporate
+            publicly-available material from sources including Wikipedia (CC BY-SA) and OpenSubtitles, with
+            appropriate attribution where required. Third-party trademarks (e.g., streaming-provider names,
+            studio names) are the property of their respective owners and are used for identification only.
+          </p>
+
+          <p className="mt-2">
+            <strong className="text-white">6.7 User content.</strong> Your ownership of, and the license you
+            grant to us in, content you submit are governed by Section 4.
+          </p>
+
+          <p className="mt-2">
+            <strong className="text-white">6.8 Reservation of rights.</strong> All rights not expressly
+            granted in these Terms are reserved by The Ratist.
           </p>
         </section>
 

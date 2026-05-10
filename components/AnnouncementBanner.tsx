@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, Megaphone } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface Announcement {
   id: string;
@@ -13,30 +14,90 @@ interface Announcement {
   bgColor: string | null;
 }
 
+const LS_KEY = "ratist:dismissed-announcements";
+
+function readLocalDismissals(): string[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalDismissal(id: string) {
+  try {
+    const ids = readLocalDismissals();
+    if (!ids.includes(id)) ids.push(id);
+    localStorage.setItem(LS_KEY, JSON.stringify(ids));
+  } catch {
+    /* private mode — best effort */
+  }
+}
+
 export default function AnnouncementBanner() {
+  const { user } = useAuth();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    // Check localStorage for dismissed announcements
-    const dismissedIds = JSON.parse(localStorage.getItem("ratist:dismissed-announcements") ?? "[]");
+    let cancelled = false;
+    (async () => {
+      // localStorage is the always-on dismissal layer (works for
+      // anonymous visitors and as a same-device fast path before the
+      // server fetch resolves).
+      const localIds = new Set(readLocalDismissals());
 
-    fetch("/api/admin/spotlights")
-      .then((r) => r.json())
-      .then((data) => {
+      // For signed-in users, also pull the cross-device dismissal
+      // record so a desktop-dismissed banner doesn't reappear on
+      // mobile sign-in. Anonymous visitors get an empty server set.
+      let serverIds = new Set<string>();
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch("/api/me/spotlight-dismissals", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            serverIds = new Set(data.ids ?? []);
+          }
+        } catch { /* fall back to local */ }
+      }
+
+      const dismissedIds = new Set([...localIds, ...serverIds]);
+
+      try {
+        const res = await fetch("/api/admin/spotlights");
+        const data = await res.json();
+        if (cancelled) return;
         const announcements = (data.spotlights ?? []).filter(
-          (s: { type: string; id: string }) => s.type === "announcement" && !dismissedIds.includes(s.id)
+          (s: { type: string; id: string }) => s.type === "announcement" && !dismissedIds.has(s.id),
         );
         if (announcements.length > 0) setAnnouncement(announcements[0]);
-      })
-      .catch(() => {});
-  }, []);
+      } catch { /* silent — banner just won't render */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   function dismiss() {
     if (!announcement) return;
-    const dismissedIds = JSON.parse(localStorage.getItem("ratist:dismissed-announcements") ?? "[]");
-    dismissedIds.push(announcement.id);
-    localStorage.setItem("ratist:dismissed-announcements", JSON.stringify(dismissedIds));
+    // Always write localStorage — both anon and signed-in users get
+    // the same-device fast path on next visit.
+    writeLocalDismissal(announcement.id);
+
+    // Signed-in users also persist server-side. Fire-and-forget; the
+    // localStorage write is enough to hide the banner immediately.
+    if (user) {
+      user.getIdToken().then((token) =>
+        fetch("/api/me/spotlight-dismissals", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ spotlightId: announcement.id }),
+        }).catch(() => { /* localStorage already covers this device */ })
+      );
+    }
+
     setDismissed(true);
   }
 
