@@ -34,6 +34,7 @@ interface SiteStats {
     contact: number;
     fraud: number;
     aiFlagged: number;
+    inviteCodeRequests: number;
   };
   content: {
     publishedPosts: number;
@@ -207,6 +208,7 @@ export default function AdminDashboard() {
           { key: "ideas", label: "New idea submissions", count: stats.queues.ideas, href: "/admin/ideas", icon: Lightbulb, tone: "info" as const },
           { key: "feedback", label: "Open feedback", count: stats.queues.feedback, href: "/admin/feedback", icon: MessageCircle, tone: "info" as const },
           { key: "contact", label: "Contact inquiries", count: stats.queues.contact, href: "/admin/contact", icon: Mail, tone: "warn" as const },
+          { key: "inviteCodeRequests", label: "Invite code requests", count: stats.queues.inviteCodeRequests ?? 0, href: "/admin/invite-code-requests", icon: Ticket, tone: "info" as const },
         ] as Alert[]
       ).filter((a) => a.count > 0)
     : [];

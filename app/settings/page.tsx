@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { Check, Save, Upload, X, AlertTriangle, Download, Mail } from "lucide-react";
+import { Check, Save, Upload, X, AlertTriangle, Download, Mail, Ticket } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
 import AvatarCropModal from "@/components/AvatarCropModal";
@@ -94,6 +94,12 @@ export default function SettingsPage() {
   const [emailPrefs, setEmailPrefs] = useState({ promotional: true, subscription: true, activity: true });
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  // Invite code regeneration request state. Loaded once on mount, then
+  // refreshed after a successful submit so the UI flips to "pending".
+  const [inviteRequest, setInviteRequest] = useState<{ id: string; status: string; createdAt: string; resolvedAt?: string | null; newCode?: string | null } | null>(null);
+  const [inviteReason, setInviteReason] = useState("");
+  const [submittingInvite, setSubmittingInvite] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -168,6 +174,15 @@ export default function SettingsPage() {
       }
       setLoading(false);
     }).catch(() => { showError("Failed to load settings"); setLoading(false); });
+
+    // Load most recent invite-code request so the UI can show
+    // pending / approved / denied state.
+    user.getIdToken().then((token) =>
+      fetch("/api/users/me/invite-code/request", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((d) => setInviteRequest(d.request ?? null))
+        .catch(() => { /* non-critical */ })
+    );
   }, [user]);
 
   const currentSnapshot = useMemo(
@@ -543,6 +558,18 @@ export default function SettingsPage() {
             </button>
           </div>
 
+          {/* Pointer to /watchlist — list-specific settings (privacy
+              per list, collaborators, default-list selection) live with
+              the lists they affect. This avoids duplicating list state
+              into the global settings surface. */}
+          <p className="text-xs text-[var(--foreground-muted)] pt-2">
+            For Watchlist settings, visit the{" "}
+            <Link href="/watchlist" className="text-[var(--ratist-red)] hover:underline">
+              Watchlists page
+            </Link>
+            .
+          </p>
+
 
         {accountError && <p className="text-sm text-red-400 mt-3">{accountError}</p>}
 
@@ -784,6 +811,72 @@ export default function SettingsPage() {
             >
               Re-enable all emails
             </button>
+          )}
+        </div>
+
+        {/* Request a new invite code. Goes to the admin queue — admin
+            approves and the code rotates server-side. The user gets an
+            in-app notification with the new code. */}
+        <div className="mb-6 pb-6 border-b border-[var(--border)]">
+          <p className="text-sm font-medium text-white flex items-center gap-1.5 mb-1"><Ticket className="w-4 h-4" /> Invite code</p>
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">
+            Want a fresh code? An admin will review your request before the rotation happens.
+          </p>
+          {inviteRequest?.status === "pending" ? (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2.5">
+              <p className="text-sm text-blue-400 font-medium">Request pending review</p>
+              <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                Submitted {new Date(inviteRequest.createdAt).toLocaleDateString()}. We&apos;ll notify you when an admin gets to it.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {inviteRequest?.status === "approved" && inviteRequest.newCode && (
+                <p className="text-xs text-emerald-400">
+                  Your last request was approved on {new Date(inviteRequest.resolvedAt ?? inviteRequest.createdAt).toLocaleDateString()}.
+                </p>
+              )}
+              {inviteRequest?.status === "denied" && (
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Your last request was denied on {new Date(inviteRequest.resolvedAt ?? inviteRequest.createdAt).toLocaleDateString()}. You can submit a new one.
+                </p>
+              )}
+              <textarea
+                value={inviteReason}
+                onChange={(e) => setInviteReason(e.target.value)}
+                rows={2}
+                maxLength={500}
+                placeholder="Optional: why do you want a new code? (e.g. shared with the wrong person)"
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] resize-y"
+              />
+              {inviteError && <p className="text-xs text-red-400">{inviteError}</p>}
+              <button
+                onClick={async () => {
+                  if (!user || submittingInvite) return;
+                  setSubmittingInvite(true);
+                  setInviteError(null);
+                  const token = await user.getIdToken();
+                  const res = await fetch("/api/users/me/invite-code/request", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason: inviteReason.trim() || undefined }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (res.ok) {
+                    setInviteRequest(data.request);
+                    setInviteReason("");
+                  } else {
+                    setInviteError(data.error ?? "Couldn't submit request. Try again.");
+                  }
+                  setSubmittingInvite(false);
+                }}
+                disabled={submittingInvite}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-lg hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+              >
+                <Ticket className="w-4 h-4" />
+                {submittingInvite ? "Submitting…" : "Request new invite code"}
+              </button>
+            </div>
           )}
         </div>
 

@@ -41,6 +41,34 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: rateLimitError, rateLimited: true }), { status: 429 });
   }
 
+  // Per-user concurrency lock — at most one in-flight Watch Companion
+  // generation per user. Conditional updateMany is atomic at the row
+  // level, so two parallel requests racing for the lock can't both win.
+  // Stale locks older than 10 min are eligible for re-acquisition
+  // (covers crashed gens, browser-closed mid-stream — gens have a
+  // 5-min Vercel ceiling, so 10 min is a safe TTL).
+  const LOCK_TTL_MS = 10 * 60 * 1000;
+  const lockCutoff = new Date(Date.now() - LOCK_TTL_MS);
+  const acquired = await prisma.user.updateMany({
+    where: {
+      id: userRecord.id,
+      OR: [
+        { companionGenStartedAt: null },
+        { companionGenStartedAt: { lt: lockCutoff } },
+      ],
+    },
+    data: { companionGenStartedAt: new Date() },
+  });
+  if (acquired.count === 0) {
+    return new Response(
+      JSON.stringify({
+        error: "You already have a Watch Companion generation in progress. Wait for it to finish before starting another.",
+        inFlight: true,
+      }),
+      { status: 429 },
+    );
+  }
+
   const body = await req.json().catch(() => null) as { tmdbId?: unknown; mediaType?: unknown; season?: unknown } | null;
   const tmdbId = typeof body?.tmdbId === "number" && body.tmdbId > 0 ? body.tmdbId : null;
   const mediaType = body?.mediaType === "movie" || body?.mediaType === "tv" ? body.mediaType : null;
@@ -79,6 +107,19 @@ export async function POST(req: NextRequest) {
 
   const userId = userRecord.id;
 
+  // Release the per-user concurrency lock. Called from every exit path
+  // — success, error event from generator, exception, browser disconnect.
+  // Best-effort: a failed release leaves the lock to expire via the
+  // 10-min TTL, which still beats holding it forever.
+  const releaseLock = async () => {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { companionGenStartedAt: null },
+      });
+    } catch { /* non-fatal — TTL will reclaim */ }
+  };
+
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -101,6 +142,7 @@ export async function POST(req: NextRequest) {
           if (evt.kind === "warning") continue;
           send(evt);
           if (evt.kind === "error") {
+            await releaseLock();
             controller.close();
             return;
           }
@@ -125,10 +167,12 @@ export async function POST(req: NextRequest) {
                 await notifyCompanionRequesters(evt.result.companionId, userId);
               }
             } catch { /* non-fatal — admin can publish later */ }
+            await releaseLock();
             controller.close();
             return;
           }
         }
+        await releaseLock();
         controller.close();
       } catch (err) {
         const message = err instanceof Anthropic.APIError
@@ -138,8 +182,14 @@ export async function POST(req: NextRequest) {
           : String(err);
         console.error("Watch Companion (user) — generation stream error:", err);
         try { send({ kind: "error", message }); } catch { /* already closed */ }
+        await releaseLock();
         try { controller.close(); } catch { /* already closed */ }
       }
+    },
+    async cancel() {
+      // Browser disconnected mid-stream — release the lock so the user
+      // isn't stuck waiting for the 10-min TTL before trying again.
+      await releaseLock();
     },
   });
 

@@ -40,6 +40,13 @@ model User {
   // through localStorage clears. Null = banner still active.
   tourDismissedAt                  DateTime? @map("tour_dismissed_at")
 
+  // Per-user concurrency lock for Watch Companion generation. Set
+  // when a gen request starts, cleared when it finishes (or after a
+  // 10-minute TTL fallback so an interrupted gen doesn't lock the
+  // user out forever). One in-flight gen per user prevents a single
+  // user from fanning out parallel requests.
+  companionGenStartedAt            DateTime? @map("companion_gen_started_at")
+
   ratings                       MovieRating[]
   tvShowRatings                 TVShowRating[]
   profile                       UserProfile?
@@ -63,6 +70,7 @@ model User {
   forumReactions                ForumReaction[]
   forumPollVotes                ForumPollVote[]
   forumDebateVotes              ForumDebateVote[]
+  twoThumbsVotes                TwoThumbsVote[]
   forumDebateOpponent           ForumThread[]             @relation("forumDebateOpponent")
   forumThreadFollows            ForumThreadFollow[]
   forumThreadViews              ForumThreadView[]
@@ -141,6 +149,8 @@ model User {
   feedbackSubmitted              Feedback[]                @relation("feedbackSubmitted")
   feedbackReplied                Feedback[]                @relation("feedbackReplied")
   contactsHandled                Contact[]                 @relation("contactHandled")
+  inviteCodeRequests             InviteCodeRequest[]       @relation("inviteCodeRequester")
+  inviteCodeRequestsResolved     InviteCodeRequest[]       @relation("inviteCodeResolver")
   ideasSubmitted                 PostIdea[]                @relation("ideasSubmitted")
   ideasReviewed                  PostIdea[]                @relation("ideasReviewed")
   aiUsageLogs                    AiUsageLog[]
@@ -930,11 +940,30 @@ model BlogPost {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  author User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  media  BlogPostMedia[]
-  people BlogPostPerson[]
+  author         User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media          BlogPostMedia[]
+  people         BlogPostPerson[]
+  twoThumbsVotes TwoThumbsVote[]
 
   @@map("blog_posts")
+}
+
+// User votes on Two Thumbs (PUNCH_AND_JUDY) blog posts — which side
+// (thumbs up = positive take, thumbs down = negative take) the reader
+// agrees with after reading. Mirrors the forum debate vote shape but
+// scoped to BlogPost rows since Two Thumbs lives in the blog system.
+model TwoThumbsVote {
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  vote      String // "up" | "down"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("two_thumbs_votes")
 }
 
 model BlogPostMedia {
@@ -1795,6 +1824,31 @@ model Contact {
   @@index([status])
   @@index([createdAt])
   @@map("contacts")
+}
+
+// User-submitted requests to regenerate their invite code (the share
+// code on their profile used by the recommend tool's group mode).
+// Admin-approved: the request lands in /admin/invite-codes, an admin
+// approves or denies, and approval auto-rotates the user's
+// User.inviteCode. Pattern mirrors Feedback / Contact queues.
+model InviteCodeRequest {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  status     String    @default("pending") // "pending" | "approved" | "denied"
+  reason     String?   @db.Text
+  oldCode    String?   @map("old_code") // snapshot for audit
+  newCode    String?   @map("new_code") // populated on approval
+  adminNotes String?   @map("admin_notes") @db.Text
+  resolvedBy String?   @map("resolved_by") // admin user.id
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user     User  @relation("inviteCodeRequester", fields: [userId], references: [id], onDelete: Cascade)
+  resolver User? @relation("inviteCodeResolver", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId, status])
+  @@map("invite_code_requests")
 }
 
 model PostIdea {

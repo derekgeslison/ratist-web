@@ -36,6 +36,7 @@ interface StatsQueues {
   contact?: number;
   fraud?: number;
   aiFlagged?: number;
+  inviteCodeRequests?: number;
 }
 
 const TOP_TABS: TopTab[] = [
@@ -62,6 +63,7 @@ const SUB_TABS: Record<string, SubTab[]> = {
     { label: "Feedback", icon: MessageCircle, href: "/admin/feedback", pathPrefix: "/admin/feedback", countKey: "feedback" },
     { label: "Contact", icon: Mail, href: "/admin/contact", pathPrefix: "/admin/contact", countKey: "contact" },
     { label: "Fraud", icon: ShieldAlert, href: "/admin/fraud", pathPrefix: "/admin/fraud", countKey: "fraud" },
+    { label: "Invite Codes", icon: Ticket, href: "/admin/invite-code-requests", pathPrefix: "/admin/invite-code-requests", countKey: "inviteCodeRequests" },
   ],
   programs: [
     { label: "Oscar Picks", icon: Trophy, href: "/admin/oscar-picks", pathPrefix: "/admin/oscar-picks" },
@@ -81,7 +83,7 @@ function activeGroup(pathname: string): string {
   if (pathname === "/admin") return "dashboard";
   if (pathname.startsWith("/admin/posts") || pathname.startsWith("/admin/news") || pathname.startsWith("/admin/ideas")) return "posts";
   if (pathname.startsWith("/admin/spotlights")) return "spotlights";
-  if (pathname.startsWith("/admin/moderation") || pathname.startsWith("/admin/feedback") || pathname.startsWith("/admin/contact") || pathname.startsWith("/admin/fraud")) return "community";
+  if (pathname.startsWith("/admin/moderation") || pathname.startsWith("/admin/feedback") || pathname.startsWith("/admin/contact") || pathname.startsWith("/admin/fraud") || pathname.startsWith("/admin/invite-code-requests")) return "community";
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/subscriptions")) return "subscriptions";
   if (pathname.startsWith("/admin/oscar-picks") || pathname.startsWith("/admin/movie-club") || pathname.startsWith("/admin/watch-companions") || pathname.startsWith("/admin/collection-prompts") || pathname.startsWith("/admin/collections")) return "programs";

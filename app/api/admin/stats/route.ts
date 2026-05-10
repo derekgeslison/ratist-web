@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     totalRatings, newRatingsDay, newRatingsWeek, totalReviews,
     totalMovies, totalSeenEntries,
     activeSubscribers, newSubscribersWeek, newSubscribersMonth,
-    pendingIdeas, pendingReports, openFeedback, openContact, openFraud,
+    pendingIdeas, pendingReports, openFeedback, openContact, openFraud, pendingInviteCodeRequests,
     // content
     publishedPosts, publishedArticles,
     postViewAgg, articleViewAgg, blogLikes, blogComments,
@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
     prisma.feedback.count({ where: { status: { in: ["open", "in_progress"] } } }),
     prisma.contact.count({ where: { status: { in: ["open", "in_progress"] } } }),
     prisma.fraudFlag.count({ where: { status: "open" } }),
+    prisma.inviteCodeRequest.count({ where: { status: "pending" } }),
     // content
     prisma.blogPost.count({ where: { published: true } }),
     prisma.newsItem.count({ where: { type: "EDITORIAL" } }),
@@ -158,6 +159,7 @@ export async function GET(req: NextRequest) {
       feedback: openFeedback,
       contact: openContact,
       fraud: openFraud,
+      inviteCodeRequests: pendingInviteCodeRequests,
       aiFlagged: aiFlaggedUsers,
     },
     content: {

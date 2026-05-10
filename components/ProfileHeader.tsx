@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Copy, Check, UserPlus, UserCheck, Settings, Film, Tv, MoreHorizontal, Ban, UserX } from "lucide-react";
+import { Copy, Check, UserPlus, UserCheck, Settings, Film, Tv, MoreHorizontal, Ban, UserX, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { scoreColor } from "@/lib/ratings";
 import CompareTasteButton from "./CompareTasteButton";
@@ -33,6 +33,11 @@ export default function ProfileHeader({
   const { user } = useAuth();
   const isOwnProfile = !!user && user.uid === profileFirebaseUid;
   const [copied, setCopied] = useState(false);
+  // Invite code stays hidden by default — useful when a streamer or
+  // someone else is showing their profile to an audience and doesn't
+  // want the share code captured on a screen recording. Click to
+  // reveal; auto-reveals when copied.
+  const [inviteRevealed, setInviteRevealed] = useState(false);
   // Four-state follow: "none" / "pending" / "accepted" / "blocked".
   // "blocked" means a block exists in either direction — the actual
   // block direction is exposed separately via blockedByMe so the UI
@@ -390,9 +395,23 @@ export default function ProfileHeader({
         {isOwnProfile && inviteCode && (
           <div className="flex items-center gap-2 ml-1">
             <span className="text-xs text-[var(--foreground-muted)]">Invite:</span>
-            <code className="text-xs font-mono bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-0.5 text-[var(--foreground)]">{inviteCode}</code>
+            <code className="text-xs font-mono bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-0.5 text-[var(--foreground)] tabular-nums">
+              {inviteRevealed ? inviteCode : "•".repeat(inviteCode.length)}
+            </code>
             <button
-              onClick={() => { navigator.clipboard.writeText(inviteCode); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              onClick={() => setInviteRevealed((v) => !v)}
+              className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+              title={inviteRevealed ? "Hide invite code" : "Reveal invite code"}
+            >
+              {inviteRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(inviteCode);
+                setCopied(true);
+                setInviteRevealed(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
               className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
               title="Copy invite code"
             >
