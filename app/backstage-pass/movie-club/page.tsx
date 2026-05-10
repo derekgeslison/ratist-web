@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
 import { getSuperlatives, type Superlative } from "@/lib/movie-club";
+import { activeBackstageUserWhere } from "@/lib/subscription";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -127,7 +128,7 @@ export default async function MovieClubFeaturePage() {
         movieTitle: true, moviePoster: true, movieTmdbId: true,
       },
     }).catch(() => []),
-    prisma.movieClubMember.count().catch(() => 0),
+    prisma.movieClubMember.count({ where: { user: activeBackstageUserWhere() } }).catch(() => 0),
     prisma.movieClubWeek.count({ where: { status: "archived" } }).catch(() => 0),
     prisma.movieClubRating.count({ where: { createdAt: { gte: fourWeeksAgo } } }).catch(() => 0),
   ]);

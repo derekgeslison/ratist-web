@@ -7,6 +7,7 @@ import ProfileHeader from "@/components/ProfileHeader";
 import { getRatingStatus } from "@/lib/rating-status";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
+import { isSubscriptionActive } from "@/lib/subscription";
 import ProfileTabs from "@/components/ProfileTabs";
 import ProfileThemeWrapper from "@/components/ProfileThemeWrapper";
 import ProfileThemeButton from "@/components/ProfileThemeButton";
@@ -275,9 +276,15 @@ export default async function ProfilePage({ params }: Props) {
     bestScore: Math.round(Math.max(...cineqAttempts.map((a) => a.rawScore)) * 10) / 10,
   } : null;
 
-  // Movie Club membership
-  const movieClubMember = await prisma.movieClubMember.findUnique({ where: { userId: user.id } });
-  const movieClubWeeksParticipated = movieClubMember
+  // Movie Club membership — only render the "member" badge when the
+  // user's Backstage Pass is currently active. We keep the
+  // MovieClubMember row past expiry so re-subscribers don't have to
+  // rejoin, but a lapsed account shouldn't display as an active
+  // member on its profile. Weeks-participated stays based on the row
+  // (historical participation count is meaningful regardless).
+  const movieClubMemberRow = await prisma.movieClubMember.findUnique({ where: { userId: user.id } });
+  const movieClubMember = !!movieClubMemberRow && isSubscriptionActive(user);
+  const movieClubWeeksParticipated = movieClubMemberRow
     ? await prisma.movieClubRating.count({ where: { userId: user.id } })
     : 0;
 
@@ -642,7 +649,7 @@ export default async function ProfilePage({ params }: Props) {
         })()}
         rankingsYear={currentYear}
         cineqStats={cineqStats}
-        movieClubMember={!!movieClubMember}
+        movieClubMember={movieClubMember}
         movieClubWeeksParticipated={movieClubWeeksParticipated}
       />
       </div>

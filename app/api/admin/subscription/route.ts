@@ -79,8 +79,25 @@ export async function POST(req: NextRequest) {
     const expiry = expiryDate ? new Date(expiryDate) : null;
     await grantBackstagePass(userId, admin.id, expiry);
 
-    // Send email notification
     const grantedUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+
+    // In-app notification — fires regardless of email delivery so the
+    // user sees it even when Resend silently rate-limits or the email
+    // address bounces. Bulk-promo and raffle paths already do this;
+    // the single-grant path was missing it, which is why some grants
+    // appeared to "not notify" the recipient.
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: "admin",
+        message: expiry
+          ? `🎉 You've been granted a Backstage Pass through ${expiry.toLocaleDateString()}! Enjoy Movie Club, ad-free browsing, and all premium features.`
+          : "🎉 You've been granted a lifetime Backstage Pass! Enjoy Movie Club, ad-free browsing, and all premium features.",
+        link: "/backstage-pass",
+      },
+    }).catch(() => { /* non-critical — admin still saw success */ });
+
+    // Send email notification
     if (grantedUser?.email) {
       sendAdminGranted(grantedUser.email, grantedUser.name, expiry, userId).catch(() => {});
     }

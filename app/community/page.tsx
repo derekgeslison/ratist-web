@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { activeBackstageUserWhere } from "@/lib/subscription";
 export const metadata: Metadata = { title: "Community Hub", description: "Hot takes, fantasy recasts, celebrity lookalikes, movie pitches, Cine-Q trivia, and a forum for cinephiles. Join the most opinionated movie community on the internet.", alternates: { canonical: "/community" } };
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
@@ -125,7 +126,11 @@ export default async function CommunityPage() {
       prisma.oscarVote.count(),
       prisma.forumThread.count(),
       prisma.comment.count({ where: { targetType: "forumThread" } }),
-      prisma.movieClubMember.count(),
+      // Only count members whose Backstage Pass is currently active —
+      // membership rows persist past expiry so re-subscribers don't
+      // have to rejoin, but the public count should reflect present
+      // members.
+      prisma.movieClubMember.count({ where: { user: activeBackstageUserWhere() } }),
       prisma.movieClubWeek.findFirst({
         where: { status: { in: ["voting", "watching", "discussion"] } },
         orderBy: { weekNumber: "desc" },

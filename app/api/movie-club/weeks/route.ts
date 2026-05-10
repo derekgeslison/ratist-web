@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
 import { ensureUpcomingWeeks, runStatusTransitions, getSuperlatives } from "@/lib/movie-club";
+import { activeBackstageUserWhere } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -59,13 +60,22 @@ export async function GET(req: NextRequest) {
       select: { id: true, weekNumber: true, startDate: true, pickMethod: true, pickTeaser: true, revealEarly: true, movieTitle: true, moviePoster: true, movieTmdbId: true, movie: { select: { releaseDate: true } } },
     });
 
-    // Membership
+    // Membership — only counts when the user's Backstage Pass is
+    // currently active. We keep MovieClubMember rows around past
+    // expiry so re-subscribers don't have to rejoin, but the public
+    // count and the user's "isMember" flag should both reflect
+    // present-tense membership.
     let isMember = false;
     if (user) {
-      const membership = await prisma.movieClubMember.findUnique({ where: { userId: user.id } });
+      const membership = await prisma.movieClubMember.findFirst({
+        where: { userId: user.id, user: activeBackstageUserWhere() },
+        select: { id: true },
+      });
       isMember = !!membership;
     }
-    const memberCount = await prisma.movieClubMember.count();
+    const memberCount = await prisma.movieClubMember.count({
+      where: { user: activeBackstageUserWhere() },
+    });
 
     // User's ratings
     const userRatings = user

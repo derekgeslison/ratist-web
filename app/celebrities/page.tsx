@@ -145,6 +145,10 @@ export default async function CelebritiesPage({ searchParams }: Props) {
   let total_results: number;
   let total_pages: number;
   let correctedQuery = "";
+  // Set when the !q branch already pre-filtered the full 200-person
+  // pool by age + community rating. Keeps the post-pagination filter
+  // pass from re-running the same expensive checks.
+  let prefiltered = false;
 
   const movieMediaType = params.movieMediaType ?? "movie";
   if (movie) {
@@ -162,6 +166,66 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     );
     let allPeople = pageResponses.flatMap((r) => r.results).filter(isNotableEnough);
     if (dept) allPeople = allPeople.filter((p) => p.known_for_department === dept);
+
+    // When the community-rating or age filter is active, apply it to
+    // the FULL pool BEFORE pagination — otherwise the filter only
+    // narrowed whatever 20 happened to land on the current page,
+    // which makes the filter feel broken across pagination. Detail
+    // lookups are TMDB-cached for 24h so the 200-person fan-out is
+    // bearable on a typical refresh.
+    if (needsDetailLookup) {
+      prefiltered = true;
+      const fullDetails = await Promise.all(allPeople.map((p) => fetchPersonDetails(p.id)));
+
+      let ratistByTmdbPre: Map<number, { sum: number; count: number }> | null = null;
+      if (hasCommunityRatingFilter) {
+        const allMovieTmdbIds = new Set<number>();
+        for (const detail of fullDetails) {
+          if (!detail?.movie_credits) continue;
+          for (const m of [...detail.movie_credits.cast, ...detail.movie_credits.crew]) {
+            if (m.vote_average > 0) allMovieTmdbIds.add(m.id);
+          }
+        }
+        ratistByTmdbPre = new Map();
+        if (allMovieTmdbIds.size > 0) {
+          const ratings = await prisma.movieRating.findMany({
+            where: {
+              movie: { tmdbId: { in: Array.from(allMovieTmdbIds) } },
+              ratistRating: { not: null },
+            },
+            include: { movie: { select: { tmdbId: true } } },
+          });
+          for (const r of ratings) {
+            if (r.movie.tmdbId && r.ratistRating) {
+              const existing = ratistByTmdbPre.get(r.movie.tmdbId) ?? { sum: 0, count: 0 };
+              existing.sum += r.ratistRating;
+              existing.count++;
+              ratistByTmdbPre.set(r.movie.tmdbId, existing);
+            }
+          }
+        }
+      }
+
+      allPeople = allPeople.filter((p, i) => {
+        const detail = fullDetails[i];
+        if (hasAgeFilter) {
+          if (!detail?.birthday) return false;
+          const age = calcAge(detail.birthday);
+          if (ageMin !== null && age < ageMin) return false;
+          if (ageMax !== null && age > ageMax) return false;
+        }
+        if (hasCommunityRatingFilter && ratistByTmdbPre) {
+          if (!detail?.movie_credits) return false;
+          const credits = [...(detail.movie_credits.cast ?? []), ...(detail.movie_credits.crew ?? [])];
+          const rating = computePersonCommunityRating(credits, ratistByTmdbPre);
+          if (rating === null) return false;
+          if (cratingGte !== null && rating < cratingGte) return false;
+          if (cratingLte !== null && rating > cratingLte) return false;
+        }
+        return true;
+      });
+    }
+
     // Manual pagination over filtered results
     const startIdx = (page - 1) * perPage;
     people = allPeople.slice(startIdx, startIdx + perPage);
@@ -219,8 +283,11 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     people = people.filter((p) => p.known_for_department === dept);
   }
 
-  // Fetch person details if age or community rating filter is active
-  if (needsDetailLookup && people.length > 0) {
+  // Fetch person details if age or community rating filter is active.
+  // Skip when the !q branch already pre-filtered the 200-person pool
+  // — re-running the same filter on the page slice is just wasted
+  // TMDB calls + DB reads.
+  if (needsDetailLookup && people.length > 0 && !prefiltered) {
     const details = await Promise.all(people.map((p) => fetchPersonDetails(p.id)));
 
     // If community rating filter active, build ratist ratings map from DB

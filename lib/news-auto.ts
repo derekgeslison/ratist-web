@@ -217,6 +217,16 @@ function shouldInclude(item: TMDBListResult, recentReleaseLimit: Date): boolean 
   return true;
 }
 
+// 7-day cooldown between auto-detected trailers for the same title.
+// TMDB sometimes carries multiple trailer videos for one film (e.g.
+// regional cuts, "Countdown" / artist-specific edits), and the cron
+// would happily ingest all of them in the same sweep — landing two
+// or three trailer cards for the same movie on the same day. This
+// window also prevents the next day's run from "catching up" on the
+// duplicates we just rejected. New trailers more than a week apart
+// (the typical gap between teaser → first → final) still flow through.
+const TRAILER_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
 async function processTitle(
   mediaType: "movie" | "tv",
   item: TMDBListResult,
@@ -229,6 +239,19 @@ async function processTitle(
     const key = `trailer:${mediaType}:${item.id}:${trailer.key}`;
     const existing = await prisma.newsItem.findUnique({ where: { externalKey: key } });
     if (existing) return { created: false };
+
+    // Per-title cooldown — drop any candidate trailer if we already
+    // ingested one for the same movie/show within the last 7 days.
+    const cooldownCutoff = new Date(Date.now() - TRAILER_COOLDOWN_MS);
+    const recentForTitle = await prisma.newsItem.findFirst({
+      where: {
+        type: "TRAILER",
+        createdAt: { gte: cooldownCutoff },
+        ...(mediaType === "movie" ? { movieTmdbId: item.id } : { showTmdbId: item.id }),
+      },
+      select: { id: true },
+    });
+    if (recentForTitle) return { created: false };
 
     const name = mediaType === "movie" ? item.title : item.name;
     const label = trailer.type === "Teaser" ? "Official Teaser" : "Official Trailer";

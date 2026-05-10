@@ -16,6 +16,22 @@ export async function hasBackstagePass(userId: string): Promise<boolean> {
   return isSubscriptionActive(user);
 }
 
+/**
+ * Prisma where clause matching users with a currently-active Backstage
+ * Pass. Use this when filtering counts / lists that should reflect
+ * present-tense subscribers (e.g., the Movie Club member count) — we
+ * keep MovieClubMember rows past expiry so re-subscribers don't have
+ * to rejoin, but the surfaces that publish "X members" or render a
+ * "member" badge should hide lapsed users.
+ */
+export function activeBackstageUserWhere(now: Date = new Date()) {
+  return {
+    subscriptionTier: "backstage_pass",
+    subscriptionStatus: { in: ["active", "trialing", "admin_granted"] },
+    OR: [{ subscriptionExpiry: null }, { subscriptionExpiry: { gte: now } }],
+  };
+}
+
 export function isSubscriptionActive(user: {
   subscriptionTier: string | null;
   subscriptionStatus: string | null;
