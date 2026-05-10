@@ -10,6 +10,7 @@ import { ArrowLeft, Clapperboard, Calendar, Lock, Trophy, MessageCircle, Users, 
 import { posterUrl } from "@/lib/tmdb";
 import ScreeningRateForm from "@/components/screening/ScreeningRateForm";
 import CommentSection from "@/components/CommentSection";
+import PageShare from "@/components/PageShare";
 
 interface WeekRating {
   id: string; rating: number; reviewText: string | null; reviewType: string;
@@ -169,11 +170,16 @@ export default function MovieClubWeekPage() {
               "text-[var(--foreground-muted)] bg-[var(--surface-2)]"
             }`}>{week.status === "watching" ? "Now Watching" : week.status === "discussion" ? "Discussion Open" : week.status}</span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">
-            <Link href={`/movies/${week.movieTmdbId}`} className="hover:text-[var(--ratist-red)] transition-colors">
-              {week.movieTitle ?? "TBA"}
-            </Link>
-          </h1>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h1 className="text-2xl font-bold text-white">
+              <Link href={`/movies/${week.movieTmdbId}`} className="hover:text-[var(--ratist-red)] transition-colors">
+                {week.movieTitle ?? "TBA"}
+              </Link>
+            </h1>
+            {week.movieTitle && (
+              <PageShare title={`Movie Club Week ${week.weekNumber}: ${week.movieTitle}`} />
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--foreground-muted)] mb-3">
             {week.movieYear && <span>{week.movieYear}</span>}
             {week.movieMpaRating && <span className="border border-[var(--border)] px-1.5 py-0.5 text-xs rounded font-semibold text-white">{week.movieMpaRating}</span>}

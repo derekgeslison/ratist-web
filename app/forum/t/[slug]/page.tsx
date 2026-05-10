@@ -23,6 +23,7 @@ import SpoilerGate from "@/components/forum/SpoilerGate";
 import PollDisplay from "@/components/forum/PollDisplay";
 import DebateView from "@/components/forum/DebateView";
 import LinkedText from "@/components/forum/LinkedText";
+import PageShare from "@/components/PageShare";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Thread = any;
@@ -223,6 +224,7 @@ export default function ThreadPage({ params }: Props) {
             {thread.isLocked && <span className="ml-2 text-yellow-600">· Thread locked</span>}
           </p>
           <div className="flex items-center gap-3">
+            <PageShare title={thread.title} />
             {user && (
               <button onClick={toggleFollow} className={`flex items-center gap-1 text-xs transition-colors ${following ? "text-[var(--ratist-red)]" : "text-[var(--foreground-muted)] hover:text-white"}`}>
                 {following ? <><BellOff className="w-3 h-3" /> Following</> : <><Bell className="w-3 h-3" /> Follow</>}

@@ -13,6 +13,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import CommentSection from "@/components/CommentSection";
+import PageShare from "@/components/PageShare";
 
 interface CollectionItem {
   id: string;
@@ -343,7 +344,10 @@ export default function CollectionDetailClient({ initialData, uid, slug }: Props
             </Link>
           )}
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white">{collection.name}</h1>
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-white">{collection.name}</h1>
+              <PageShare title={`${collection.name} — a Ratist collection`} />
+            </div>
             <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)] mt-1">
               {collection.isOfficial ? (
                 <span className="text-[var(--ratist-red)] font-semibold tracking-wide">Curated by The Ratist</span>
