@@ -21,6 +21,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
+import { activeBackstageUserWhere } from "@/lib/subscription";
 
 interface WeekSnapshot {
   id: string;
@@ -89,7 +90,16 @@ export async function notifyMovieClubTransition(
     const event = resolveTransition(before, after);
     if (!event) return;
 
-    const members = await prisma.movieClubMember.findMany({ select: { userId: true } });
+    // MovieClubMember rows are intentionally retained past Pass expiry
+    // (so re-subscribers don't have to rejoin), but Movie Club is a
+    // Pass-only feature — only currently-active subscribers should get
+    // its pings. Gate via the shared `activeBackstageUserWhere()`
+    // (matches the same surfaces that decide who's a "real" member —
+    // /backstage-pass/movie-club, /community page count, profile badge).
+    const members = await prisma.movieClubMember.findMany({
+      where: { user: activeBackstageUserWhere() },
+      select: { userId: true },
+    });
     if (members.length === 0) return;
 
     await Promise.all(
