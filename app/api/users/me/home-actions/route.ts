@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
     prisma.customCollection.count({ where: { userId: user.id } }),
     prisma.screeningSession.count({ where: { hostId: user.id } }),
     prisma.screeningParticipant.count({ where: { userId: user.id } }),
+    prisma.cineQAttempt.count({ where: { userId: user.id } }),
     hasPass ? prisma.movieClubRating.count({ where: { userId: user.id } }) : Promise.resolve(0),
   ]);
 
@@ -92,7 +93,7 @@ export async function GET(req: NextRequest) {
     // brand-new subscribers so the paid surface is visible to them.
     pickIds = COLD_START.filter((id) => pool.some((c) => c.id === id));
     if (hasPass && !pickIds.includes("movieClub")) {
-      pickIds = ["movieClub", ...pickIds].slice(0, 3);
+      pickIds = (["movieClub", ...pickIds] as CandidateId[]).slice(0, 3);
     } else {
       pickIds = pickIds.slice(0, 3);
     }
