@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
 import { checkCommunityRateLimit } from "@/lib/rate-limit";
 import { checkBadges } from "@/lib/badges";
+import { getCriticUserIds } from "@/lib/critics";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +34,18 @@ export async function GET() {
     });
     const commentMap = Object.fromEntries(commentCounts.map((c) => [c.targetId, c._count.id]));
 
+    const criticIds = await getCriticUserIds(items.map((i) => i.author.id));
+
     const result = items.map((item) => {
       const score = item.votes.reduce((sum, v) => sum + v.value, 0);
-      const { votes, ...rest } = item;
-      return { ...rest, score, voterIds: votes.map((v) => ({ userId: v.user.firebaseUid, value: v.value })), commentCount: commentMap[item.id] ?? 0 };
+      const { votes, author, ...rest } = item;
+      return {
+        ...rest,
+        author: { ...author, isCritic: criticIds.has(author.id) },
+        score,
+        voterIds: votes.map((v) => ({ userId: v.user.firebaseUid, value: v.value })),
+        commentCount: commentMap[item.id] ?? 0,
+      };
     }).sort((a, b) => b.score - a.score);
 
     return NextResponse.json({ items: result });

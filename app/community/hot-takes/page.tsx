@@ -5,11 +5,12 @@ import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
-import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2, Search } from "lucide-react";
+import { ArrowLeft, Flame, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2, Search, Users, Award, Zap } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
 import AdUnit from "@/components/AdUnit";
 import TextareaWithEmoji from "@/components/TextareaWithEmoji";
+import { useFollowingIds } from "@/hooks/useFollowingIds";
 
 interface HotTakeItem {
   id: string;
@@ -18,10 +19,10 @@ interface HotTakeItem {
   score: number;
   commentCount: number;
   voterIds: { userId: string; value: number }[];
-  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
+  author: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; isCritic?: boolean };
 }
 
-type SortMode = "newest" | "score";
+type SortMode = "newest" | "score" | "following" | "critics" | "commented" | "controversial";
 
 export default function HotTakesPage() {
   const { user } = useAuth();
@@ -39,6 +40,7 @@ export default function HotTakesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const followingIds = useFollowingIds();
 
   const fetchItems = useCallback(async () => {
     setFetchError(false);
@@ -65,12 +67,25 @@ export default function HotTakesPage() {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  const filtered = searchQuery.trim()
+  const searchFiltered = searchQuery.trim()
     ? items.filter((i) => i.content.toLowerCase().includes(searchQuery.toLowerCase()) || i.author.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : items;
 
-  const sorted = [...filtered].sort((a, b) => {
+  const modeFiltered = sort === "following"
+    ? searchFiltered.filter((i) => followingIds.has(i.author.firebaseUid))
+    : sort === "critics"
+    ? searchFiltered.filter((i) => i.author.isCritic)
+    : searchFiltered;
+
+  const sorted = [...modeFiltered].sort((a, b) => {
     if (sort === "score") return b.score - a.score;
+    if (sort === "commented") return b.commentCount - a.commentCount;
+    if (sort === "controversial") {
+      // High vote count × proximity to 50/50 split, requires 5+ votes to qualify
+      const ca = a.voterIds.length >= 5 ? a.voterIds.length * (1 - Math.abs(a.score) / a.voterIds.length) : -1;
+      const cb = b.voterIds.length >= 5 ? b.voterIds.length * (1 - Math.abs(b.score) / b.voterIds.length) : -1;
+      return cb - ca;
+    }
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
@@ -200,8 +215,8 @@ export default function HotTakesPage() {
 
       {/* Search & Sort controls */}
       {!loading && items.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
-          <div className="relative flex-1 w-full sm:w-auto sm:max-w-xs">
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
             <input
               type="text"
@@ -211,20 +226,24 @@ export default function HotTakesPage() {
               className="w-full pl-9 pr-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-orange-400"
             />
           </div>
-          <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--foreground-muted)]">Sort:</span>
-          <button
-            onClick={() => setSort("newest")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "newest" ? "bg-orange-500 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
-          >
-            <Clock className="w-3 h-3" /> Newest
-          </button>
-          <button
-            onClick={() => setSort("score")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === "score" ? "bg-orange-500 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
-          >
-            <TrendingUp className="w-3 h-3" /> Hottest
-          </button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-[var(--foreground-muted)] mr-1">Sort:</span>
+            {([
+              { mode: "newest", label: "Newest", icon: Clock, gated: false },
+              { mode: "score", label: "Hottest", icon: TrendingUp, gated: false },
+              { mode: "commented", label: "Most Commented", icon: MessageCircle, gated: false },
+              { mode: "controversial", label: "Controversial", icon: Zap, gated: false },
+              { mode: "following", label: "Following", icon: Users, gated: true },
+              { mode: "critics", label: "Critics", icon: Award, gated: true },
+            ] as const).filter((b) => !b.gated || !!user).map(({ mode, label, icon: Icon }) => (
+              <button
+                key={mode}
+                onClick={() => setSort(mode)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === mode ? "bg-orange-500 text-white" : "bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
+              >
+                <Icon className="w-3 h-3" /> {label}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -238,6 +257,13 @@ export default function HotTakesPage() {
         </div>
       ) : items.length === 0 ? (
         <p className="text-[var(--foreground-muted)] text-center py-20">No hot takes yet. Be the first to start the fire!</p>
+      ) : sorted.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-[var(--foreground-muted)] mb-3">
+            No takes match{sort === "following" ? " from anyone you follow" : sort === "critics" ? " from critics" : sort === "controversial" ? " (need 5+ votes to qualify)" : ""}.
+          </p>
+          <button onClick={() => setSort("newest")} className="text-sm text-orange-400 hover:underline">Show all</button>
+        </div>
       ) : (
         <div className="space-y-3">
           {sorted.map((item) => {

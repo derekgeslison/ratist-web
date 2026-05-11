@@ -8,6 +8,7 @@ import { resolveCast } from "@/lib/tmdb-cast";
 import { resolveStudioNames } from "@/lib/studios";
 import { loadGroupMembers, loadGroupSeenSets, computeGroupScore, MAX_GROUP_SIZE, type MemberPrefs } from "@/lib/recommend-group";
 import { predictRatingsBatch } from "@/lib/collection-match";
+import { genrePrefsScore, getBatchScoreEstimates, getBatchScoreEstimatesTv } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -290,6 +291,37 @@ export async function POST(req: NextRequest) {
     const excludeIds = excludeGenres.map((g: string) => nameToId.get(g)).filter(Boolean).map(String);
     const isTV = mediaType === "tv";
     const isBoth = mediaType === "any";
+
+    // ── Taste-only mode: DB-backed path ──
+    // When the user picks "Based on your taste" as the SOLE experience,
+    // we bypass TMDB Discover entirely and query our own Movie/TVShow
+    // tables. The prior flow (TMDB → predict → filter) only ever scored
+    // popular-by-TMDB titles, so high-match items from our database that
+    // weren't currently trending on TMDB never surfaced. Taste mode is
+    // explicitly an "of everything I haven't seen, what's the best fit
+    // for me?" question — which is a DB-side problem.
+    //
+    // Restricted to single-experience taste because the other
+    // experiences (classic / hidden gem / popular) have meaningful
+    // intent baked into their TMDB query params and shouldn't be
+    // subsumed by this path.
+    const isTasteOnly = experienceArr.length === 1 && experienceArr[0] === "taste" && !isGroupMode && !!user;
+    if (isTasteOnly && user) {
+      const taste = await runTasteOnlyMode({
+        userId: user.id,
+        mediaType,
+        genreIdNums: genreIds.map(Number),
+        excludeGenreIdNums: excludeIds.map(Number),
+        yearFrom: yearFrom || null,
+        yearTo: yearTo || null,
+        runtimeArr,
+        minRatingNum,
+        originalLanguageArr,
+        excludeOriginalLanguagesArr,
+        page,
+      });
+      return NextResponse.json(taste);
+    }
     // Random page (1-10) when no experience is selected, so refreshing the
     // tool shuffles in fresh titles instead of always showing the same TMDB
     // page 1. EXCEPT when 2+ genres are selected — multi-genre AND-first
@@ -598,16 +630,26 @@ export async function POST(req: NextRequest) {
     // insufficient data. Skipped in group mode (which uses
     // computeGroupScore's per-member floor) and for unauthed visitors.
     let predictionMap = new Map<string, number | null>();
+    // The user's profile is also fetched so we can fall back to a
+    // genre-prefs-only score when the prediction engine returns null
+    // (movie not in our DB, no community ratings, or community ratings
+    // are all quick and have no sub-field data). Without this fallback
+    // the match-percent badge silently disappeared for ~all results.
+    let soloProfile: Record<string, unknown> | null = null;
     if (!isGroupMode && user) {
       const predItems = (discoverData.results ?? []).map((m: Record<string, unknown>) => ({
         tmdbId: m.id as number,
         mediaType: m._mediaType as "movie" | "tv",
       }));
-      try {
-        predictionMap = await predictRatingsBatch(user.id, predItems);
-      } catch (err) {
-        console.error("[recommend] predictRatingsBatch failed; falling back to no match score:", err);
-      }
+      const [predRes, profileRes] = await Promise.all([
+        predictRatingsBatch(user.id, predItems).catch((err) => {
+          console.error("[recommend] predictRatingsBatch failed; falling back to genre prefs:", err);
+          return new Map<string, number | null>();
+        }),
+        prisma.userProfile.findUnique({ where: { userId: user.id } }).catch(() => null),
+      ]);
+      predictionMap = predRes;
+      soloProfile = profileRes as Record<string, unknown> | null;
     }
 
     // Build results
@@ -638,7 +680,15 @@ export async function POST(req: NextRequest) {
         matchScore = g.floor; // mirror floor for client sort + badge
       } else if (user) {
         const pred = predictionMap.get(`${mt}-${m.id}`);
-        if (pred != null) matchScore = Math.round(pred * 10) / 10;
+        if (pred != null) {
+          matchScore = Math.round(pred * 10) / 10;
+        } else if (soloProfile) {
+          // Genre-prefs fallback. Keeps the badge meaningful when the
+          // prediction engine can't run (movie not in our DB / community
+          // ratings are all quick / etc).
+          const fallback = genrePrefsScore(soloProfile, itemGenreIds);
+          if (fallback != null) matchScore = Math.round(fallback * 10) / 10;
+        }
       }
 
       const requestedMatchCount = requestedGenreIdSet.size > 0
@@ -669,6 +719,25 @@ export async function POST(req: NextRequest) {
           : getReasonForResult(experienceArr, m.vote_average as number, m.vote_count as number, m.popularity as number, matchScore),
       };
     });
+
+    // "Based on your taste" — sort by match score desc, prefer items
+    // above a 50% floor, but never let the floor return zero results.
+    // Without this, the experience just adds a quality floor to the
+    // TMDB query (vote_count >= 50, vote_average >= 6) and surfaces
+    // whatever's popular regardless of taste fit — users were seeing
+    // 18% / 34% matches in a feature literally called "based on your
+    // taste". The 50% floor drops those; the top-5 safety net handles
+    // genre-narrow queries (e.g. Action+War for a viewer whose War
+    // prefs are mid-low) where strict filtering would leave nothing.
+    // Group mode is its own thing; unauthed visitors have no profile.
+    if (experienceArr.includes("taste") && !isGroupMode && user) {
+      const MATCH_FLOOR = 5.0;
+      results.sort((a: { matchScore: number | null }, b: { matchScore: number | null }) =>
+        (b.matchScore ?? -1) - (a.matchScore ?? -1),
+      );
+      const aboveFloor = results.filter((r: { matchScore: number | null }) => (r.matchScore ?? -1) >= MATCH_FLOOR);
+      results = aboveFloor.length >= 3 ? aboveFloor : results.slice(0, 5);
+    }
 
     // Exclude seen/rated content. Three cases:
     //   group + strict → union across all members (loadGroupSeenSets)
@@ -747,4 +816,281 @@ export async function POST(req: NextRequest) {
     console.error("Recommend error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Taste-only mode: query our own DB for unseen titles with community
+// data, predict scores, return top matches. Replaces the TMDB Discover
+// path entirely for single-experience "taste" requests.
+//
+// Returns up to 20 results in the same shape the client already
+// expects (matching MovieResult on the page). Genre/era/runtime/MPAA
+// filters apply via Prisma. Streaming-provider filtering is skipped in
+// this path — TMDB Discover does that natively but our cached
+// watchProviders is sparse; users can still see provider info on the
+// detail page. Severity caps + keyword filters are likewise skipped in
+// v1; if users miss them in taste mode we'll wire them up here.
+// ──────────────────────────────────────────────────────────────────────
+
+interface TasteParams {
+  userId: string;
+  mediaType: string;
+  genreIdNums: number[];
+  excludeGenreIdNums: number[];
+  yearFrom: string | null;
+  yearTo: string | null;
+  runtimeArr: string[];
+  minRatingNum: number | null;
+  originalLanguageArr: string[];
+  excludeOriginalLanguagesArr: string[];
+  page: number;
+}
+
+const TASTE_PAGE_SIZE = 20;
+const TASTE_CANDIDATE_POOL = 500; // per media type
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, any>;
+
+async function runTasteOnlyMode(p: TasteParams) {
+  const isTV = p.mediaType === "tv";
+  const isBoth = p.mediaType === "any";
+  const wantMovies = !isTV;
+  const wantShows = isTV || isBoth;
+
+  // Build runtime range — movies and TV episodes use different scales.
+  let movieRuntimeMin: number | undefined;
+  let movieRuntimeMax: number | undefined;
+  let tvRuntimeMin: number | undefined;
+  let tvRuntimeMax: number | undefined;
+  if (p.runtimeArr.length > 0 && !p.runtimeArr.includes("")) {
+    const hasShort = p.runtimeArr.includes("short");
+    const hasStandard = p.runtimeArr.includes("standard");
+    const hasLong = p.runtimeArr.includes("long");
+    if (hasShort && !hasStandard && !hasLong) movieRuntimeMax = 100;
+    else if (!hasShort && hasStandard && !hasLong) { movieRuntimeMin = 90; movieRuntimeMax = 140; }
+    else if (!hasShort && !hasStandard && hasLong) movieRuntimeMin = 150;
+    else if (hasShort && hasStandard && !hasLong) movieRuntimeMax = 140;
+    else if (!hasShort && hasStandard && hasLong) movieRuntimeMin = 90;
+    const hasShortEp = p.runtimeArr.includes("short_ep");
+    const hasStdEp = p.runtimeArr.includes("standard_ep");
+    const hasLongEp = p.runtimeArr.includes("long_ep");
+    if (hasShortEp && !hasStdEp && !hasLongEp) tvRuntimeMax = 35;
+    else if (!hasShortEp && hasStdEp && !hasLongEp) { tvRuntimeMin = 35; tvRuntimeMax = 65; }
+    else if (!hasShortEp && !hasStdEp && hasLongEp) tvRuntimeMin = 55;
+    else if (hasShortEp && hasStdEp && !hasLongEp) tvRuntimeMax = 65;
+    else if (!hasShortEp && hasStdEp && hasLongEp) tvRuntimeMin = 35;
+  }
+
+  // Exclude sets — seen + rated, per media type.
+  const [seenMovies, ratedMovies, seenShows, ratedShows] = await Promise.all([
+    wantMovies ? prisma.userFavoriteMovie.findMany({ where: { userId: p.userId }, select: { movieId: true } }) : Promise.resolve([]),
+    wantMovies ? prisma.movieRating.findMany({ where: { userId: p.userId }, select: { movieId: true } }) : Promise.resolve([]),
+    wantShows ? prisma.userFavoriteShow.findMany({ where: { userId: p.userId }, select: { tvShowId: true } }) : Promise.resolve([]),
+    wantShows ? prisma.tVShowRating.findMany({ where: { userId: p.userId }, select: { tvShowId: true } }) : Promise.resolve([]),
+  ]);
+  const excludeMovieIds = Array.from(new Set([
+    ...(seenMovies as { movieId: string }[]).map((x) => x.movieId),
+    ...(ratedMovies as { movieId: string }[]).map((x) => x.movieId),
+  ]));
+  const excludeShowIds = Array.from(new Set([
+    ...(seenShows as { tvShowId: string }[]).map((x) => x.tvShowId),
+    ...(ratedShows as { tvShowId: string }[]).map((x) => x.tvShowId),
+  ]));
+
+  const voteFloor = p.minRatingNum != null ? p.minRatingNum : 6;
+
+  // Build queries. Both share most filters; differences are
+  // releaseDate vs firstAirDate, runtime vs episodeRunTime, etc.
+  // Using AnyRecord for the where clause because Prisma's generated
+  // types here would balloon this file without adding safety.
+  const movieWhere: AnyRecord = {
+    voteAverage: { gte: voteFloor },
+    voteCount: { gte: 50 },
+    ratings: { some: { excluded: false, ratistRating: { not: null } } },
+  };
+  if (excludeMovieIds.length > 0) movieWhere.id = { notIn: excludeMovieIds };
+  if (p.genreIdNums.length > 0) movieWhere.genres = { some: { genreId: { in: p.genreIdNums } } };
+  if (p.excludeGenreIdNums.length > 0) movieWhere.NOT = { genres: { some: { genreId: { in: p.excludeGenreIdNums } } } };
+  const movieDateRange: AnyRecord = {};
+  if (p.yearFrom) movieDateRange.gte = `${p.yearFrom}-01-01`;
+  if (p.yearTo) movieDateRange.lte = `${p.yearTo}-12-31`;
+  if (Object.keys(movieDateRange).length > 0) movieWhere.releaseDate = movieDateRange;
+  const movieRuntimeRange: AnyRecord = {};
+  if (movieRuntimeMin != null) movieRuntimeRange.gte = movieRuntimeMin;
+  if (movieRuntimeMax != null) movieRuntimeRange.lte = movieRuntimeMax;
+  if (Object.keys(movieRuntimeRange).length > 0) movieWhere.runtime = movieRuntimeRange;
+  if (p.originalLanguageArr.length > 0) movieWhere.originalLanguage = { in: p.originalLanguageArr };
+  if (p.excludeOriginalLanguagesArr.length > 0) {
+    movieWhere.originalLanguage = movieWhere.originalLanguage
+      ? { ...movieWhere.originalLanguage, notIn: p.excludeOriginalLanguagesArr }
+      : { notIn: p.excludeOriginalLanguagesArr };
+  }
+
+  const showWhere: AnyRecord = {
+    voteAverage: { gte: voteFloor },
+    voteCount: { gte: 50 },
+    ratings: { some: { excluded: false, ratistRating: { not: null }, ratingScope: "series" } },
+  };
+  if (excludeShowIds.length > 0) showWhere.id = { notIn: excludeShowIds };
+  // Map movie genre IDs → TV genre IDs (same translation the TMDB path uses)
+  if (p.genreIdNums.length > 0) {
+    const tvIds = translateGenresForTV(p.genreIdNums.map(String)).map(Number);
+    if (tvIds.length > 0) showWhere.genres = { some: { genreId: { in: tvIds } } };
+  }
+  if (p.excludeGenreIdNums.length > 0) {
+    const tvExcludeIds = translateGenresForTV(p.excludeGenreIdNums.map(String)).map(Number);
+    if (tvExcludeIds.length > 0) showWhere.NOT = { genres: { some: { genreId: { in: tvExcludeIds } } } };
+  }
+  const showDateRange: AnyRecord = {};
+  if (p.yearFrom) showDateRange.gte = `${p.yearFrom}-01-01`;
+  if (p.yearTo) showDateRange.lte = `${p.yearTo}-12-31`;
+  if (Object.keys(showDateRange).length > 0) showWhere.firstAirDate = showDateRange;
+  const showRuntimeRange: AnyRecord = {};
+  if (tvRuntimeMin != null) showRuntimeRange.gte = tvRuntimeMin;
+  if (tvRuntimeMax != null) showRuntimeRange.lte = tvRuntimeMax;
+  if (Object.keys(showRuntimeRange).length > 0) showWhere.episodeRunTime = showRuntimeRange;
+
+  // Fat candidate pools — TASTE_CANDIDATE_POOL each — so the
+  // predict-then-rank pass has enough material to fill several pages,
+  // even for genre-narrow queries. Shuffle/load-more navigate pages.
+  const [candidateMovies, candidateShows, tasteProfile] = await Promise.all([
+    wantMovies
+      ? prisma.movie.findMany({
+          where: movieWhere,
+          take: TASTE_CANDIDATE_POOL,
+          orderBy: { popularity: "desc" },
+          include: { genres: { include: { genre: true } } },
+        })
+      : Promise.resolve([]),
+    wantShows
+      ? prisma.tVShow.findMany({
+          where: showWhere,
+          take: TASTE_CANDIDATE_POOL,
+          orderBy: { popularity: "desc" },
+          include: { genres: { include: { genre: true } } },
+        })
+      : Promise.resolve([]),
+    prisma.userProfile.findUnique({ where: { userId: p.userId } }),
+  ]);
+
+  const [moviePreds, showPreds] = await Promise.all([
+    candidateMovies.length > 0
+      ? getBatchScoreEstimates(p.userId, candidateMovies.map((m) => m.id))
+      : Promise.resolve(new Map<string, number | null>()),
+    candidateShows.length > 0
+      ? getBatchScoreEstimatesTv(p.userId, candidateShows.map((s) => s.id))
+      : Promise.resolve(new Map<string, number | null>()),
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const results: any[] = [];
+  for (const m of candidateMovies) {
+    let matchScore: number | null = null;
+    const pred = moviePreds.get(m.id);
+    if (pred != null) {
+      matchScore = Math.round(pred * 10) / 10;
+    } else if (tasteProfile) {
+      const tmdbGenreIds = m.genres.map((g) => g.genreId);
+      const fallback = genrePrefsScore(tasteProfile as unknown as Record<string, unknown>, tmdbGenreIds);
+      if (fallback != null) matchScore = Math.round(fallback * 10) / 10;
+    }
+    if (matchScore == null) continue;
+    // requestedMatchCount = 0 uniformly. The client's match-mode sort
+    // (page.tsx) tiers by requestedMatchCount first then matchScore —
+    // useful in TMDB mode where multi-genre matches earn priority, but
+    // in taste mode it creates a jarring 88 → 60s → 80+ order because
+    // 2-genre matches at 60% cluster above 1-genre matches at 80%.
+    // Forcing uniform 0 lets the client's sort fall through to
+    // matchScore desc, which mirrors our server-side ranking.
+    results.push({
+      tmdbId: m.tmdbId,
+      title: m.title,
+      posterPath: m.posterPath,
+      year: (m.releaseDate ?? "").slice(0, 4),
+      overview: m.overview ?? "",
+      voteAverage: m.voteAverage ?? 0,
+      popularity: m.popularity ?? 0,
+      genres: m.genres.map((g) => g.genre.name),
+      runtime: m.runtime,
+      mpaaRating: m.mpaaRating,
+      mediaType: "movie",
+      streaming: [],
+      rentBuy: [],
+      matchScore,
+      floor: null,
+      groupScore: null,
+      perMemberScores: undefined,
+      requestedMatchCount: 0,
+      reason: "Based on your taste",
+    });
+  }
+
+  for (const s of candidateShows) {
+    let matchScore: number | null = null;
+    const pred = showPreds.get(s.id);
+    if (pred != null) {
+      matchScore = Math.round(pred * 10) / 10;
+    } else if (tasteProfile) {
+      const tmdbGenreIds = s.genres.map((g) => g.genreId);
+      const fallback = genrePrefsScore(tasteProfile as unknown as Record<string, unknown>, tmdbGenreIds);
+      if (fallback != null) matchScore = Math.round(fallback * 10) / 10;
+    }
+    if (matchScore == null) continue;
+    results.push({
+      tmdbId: s.tmdbId,
+      title: s.name,
+      posterPath: s.posterPath,
+      year: (s.firstAirDate ?? "").slice(0, 4),
+      overview: s.overview ?? "",
+      voteAverage: s.voteAverage ?? 0,
+      popularity: s.popularity ?? 0,
+      genres: s.genres.map((g) => g.genre.name),
+      runtime: s.episodeRunTime,
+      mpaaRating: s.contentRating,
+      mediaType: "tv",
+      streaming: [],
+      rentBuy: [],
+      matchScore,
+      floor: null,
+      groupScore: null,
+      perMemberScores: undefined,
+      requestedMatchCount: 0,
+      reason: "Based on your taste",
+    });
+  }
+
+  // Sort by predicted score desc.
+  results.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
+
+  // Floor totalPages at 3 so the Shuffle button — which fetches
+  // Math.random() * min(totalPages, 20) — always has somewhere to land.
+  // Even when our scored pool only fills one page deterministically,
+  // shuffle pages exist as randomized re-samples (see below).
+  const totalPages = Math.max(3, Math.ceil(results.length / TASTE_PAGE_SIZE));
+  const page = Math.max(1, Math.min(p.page || 1, totalPages));
+
+  // Page 1: deterministic top N by score — the user always sees their
+  // best matches first when they run the query fresh.
+  if (page === 1) {
+    return {
+      results: results.slice(0, TASTE_PAGE_SIZE),
+      totalPages,
+      page,
+    };
+  }
+
+  // Page 2+: shuffle path. Pull a random sample of TASTE_PAGE_SIZE
+  // from the scored pool, then re-sort the sample by score so the
+  // user still sees its best entries first. Subsequent shuffles
+  // produce different random subsets — variety without lowering the
+  // overall quality bar.
+  const pool = [...results];
+  const sample: typeof pool = [];
+  for (let i = 0; i < TASTE_PAGE_SIZE && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    sample.push(pool.splice(idx, 1)[0]);
+  }
+  sample.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
+  return { results: sample, totalPages, page };
 }

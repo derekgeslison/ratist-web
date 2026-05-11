@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { upscaleProfile, dimensionSimilarity, matchScore } from "./ratings";
 
 /** Maps TMDB genre IDs to UserProfile genre preference keys */
-const TMDB_GENRE_TO_PROFILE: Record<number, string> = {
+export const TMDB_GENRE_TO_PROFILE: Record<number, string> = {
   28:    "genreAction",      // Action
   12:    "genreAction",      // Adventure
   35:    "genreComedy",      // Comedy
@@ -39,6 +39,34 @@ const GENRE_KEYS = [
   "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
   "genreCrime", "genreWestern", "genreMystery",
 ] as const;
+
+/**
+ * Genre-prefs-only score fallback. Averages the user's profile preferences
+ * across a movie/show's TMDB genre IDs. Returns null when the title has
+ * no recognizable genres or the user has no prefs in any of them.
+ *
+ * Used as a last-resort signal in /recommend when predictRatingsBatch
+ * can't predict — typically because the title isn't in our internal DB,
+ * has zero community ratings, or its community ratings are all quick
+ * (no sub-field data for the focused-category math to run on). Keeps
+ * the match-percent badge visible even when the prediction engine has
+ * nothing to work with.
+ */
+export function genrePrefsScore(
+  profile: Record<string, unknown>,
+  tmdbGenreIds: number[],
+): number | null {
+  const scores: number[] = [];
+  for (const id of tmdbGenreIds) {
+    const profileKey = TMDB_GENRE_TO_PROFILE[id];
+    if (!profileKey) continue;
+    const v = profile[profileKey];
+    if (typeof v === "number") scores.push(v);
+  }
+  if (scores.length === 0) return null;
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  return avg > 0 ? avg : null;
+}
 
 function subFieldAvg(obj: Record<string, number | null | undefined>, fields: readonly string[]): number | null {
   const vals = fields
