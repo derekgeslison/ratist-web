@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useIsTyping } from "@/context/TypingGuardContext";
 import Image from "next/image";
-import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2, ChevronDown, Tv } from "lucide-react";
+import { MonitorPlay, Copy, Check, Search, X, Send, Bookmark, PauseCircle, BarChart3, MessageCircle, Bell, BellOff, Link2, ChevronDown, Tv, BookOpen } from "lucide-react";
+import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
 import { useAuth } from "@/context/AuthContext";
 import { rtdb } from "@/lib/firebase-rtdb";
 import { ref, push, onChildAdded, onValue, set, off, remove } from "firebase/database";
@@ -180,6 +181,31 @@ export default function ScreeningSessionPage() {
 
   // Running timer
   const [elapsedDisplay, setElapsedDisplay] = useState("0:00");
+  // Numeric elapsed-seconds parallel to elapsedDisplay. Powers the
+  // Watch Companion auto-sync — see the activeRoomView toggle below.
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // ── Watch Companion integration ──
+  // Tab toggle between Chat and the Watch Companion view. The
+  // Companion's data is lazy-loaded the first time the user clicks
+  // its tab. Realtime listeners (chat / pause / poll / state-tick)
+  // stay alive regardless of which view is rendered — only the main
+  // content area swaps. The pause-request banner already overlays the
+  // full viewport, so it covers Companion the same way it covers Chat.
+  const [activeRoomView, setActiveRoomView] = useState<"chat" | "companion">("chat");
+  const activeRoomViewRef = useRef(activeRoomView);
+  useEffect(() => { activeRoomViewRef.current = activeRoomView; }, [activeRoomView]);
+  const [companionData, setCompanionData] = useState<WatchCompanionData | null>(null);
+  const [companionStatus, setCompanionStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
+  // Ref-mirrored status so the lazy-load effect can guard against
+  // re-triggering its fetch when status itself changes — including
+  // `companionStatus` in the effect's deps caused a tight cleanup/
+  // re-run loop where cancellation flipped before the fetch ever
+  // resolved (the "stuck on Loading companion" bug).
+  const companionStatusRef = useRef<"idle" | "loading" | "ready" | "unavailable">("idle");
+  useEffect(() => { companionStatusRef.current = companionStatus; }, [companionStatus]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [chatToast, setChatToast] = useState<{ id: number; userName: string; text: string } | null>(null);
 
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
   const myUserId = session?.participants.find((p) => p.user.firebaseUid === user?.uid)?.userId ?? "";
@@ -295,16 +321,75 @@ export default function ScreeningSessionPage() {
     return () => clearInterval(interval);
   }, [user, session?.status, fetchSession, isTyping]);
 
-  // Running elapsed timer during watching (freezes when paused)
+  // Watch Companion: clear unread chat count + dismiss any lingering
+  // toast when the user comes back to the Chat view.
   useEffect(() => {
-    if (!session?.startedAt || session.status !== "WATCHING") return;
-    if (isPaused) {
-      // Frozen — show the time when we paused
-      const currentPauseExtra = pauseStartedAt.current ? Date.now() - pauseStartedAt.current : 0;
-      setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMsRef.current + currentPauseExtra));
+    if (activeRoomView === "chat") {
+      setUnreadChatCount(0);
+      setChatToast(null);
+    }
+  }, [activeRoomView]);
+
+  // Watch Companion: auto-dismiss the chat toast a few seconds after
+  // it appears. Each new message overwrites with a fresh id so the
+  // timer reflects the most recent toast.
+  useEffect(() => {
+    if (!chatToast) return;
+    const t = setTimeout(() => {
+      setChatToast((current) => (current && current.id === chatToast.id ? null : current));
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [chatToast]);
+
+  // Watch Companion: lazy-load the companion payload the first time
+  // the user opens the tab. Only attempts for movie sessions — TV
+  // companion lookups aren't wired into this surface yet (the toggle
+  // is hidden for TV sessions further below).
+  // `companionStatusRef` is used instead of the state value in the
+  // dep array; see its declaration for the bug history.
+  useEffect(() => {
+    if (activeRoomView !== "companion") return;
+    if (companionStatusRef.current !== "idle") return;
+    const tmdbId = session?.tmdbId;
+    if (!tmdbId || session?.mediaType !== "movie") {
+      setCompanionStatus("unavailable");
       return;
     }
-    const update = () => setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMsRef.current));
+    let cancelled = false;
+    setCompanionStatus("loading");
+    fetch(`/api/watch-companion/by-tmdb/movie/${tmdbId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        if (payload?.data) {
+          setCompanionData(payload.data as WatchCompanionData);
+          setCompanionStatus("ready");
+        } else {
+          setCompanionStatus("unavailable");
+        }
+      })
+      .catch(() => { if (!cancelled) setCompanionStatus("unavailable"); });
+    return () => { cancelled = true; };
+  }, [activeRoomView, session?.tmdbId, session?.mediaType]);
+
+  // Running elapsed timer during watching (freezes when paused).
+  // Maintains both the display string and the numeric elapsedSeconds
+  // value used by the Watch Companion auto-sync.
+  useEffect(() => {
+    if (!session?.startedAt || session.status !== "WATCHING") return;
+    const startedAtMs = new Date(session.startedAt).getTime();
+    if (isPaused) {
+      const currentPauseExtra = pauseStartedAt.current ? Date.now() - pauseStartedAt.current : 0;
+      const frozenPausedMs = totalPausedMsRef.current + currentPauseExtra;
+      setElapsedDisplay(formatElapsed(session.startedAt, frozenPausedMs));
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAtMs - frozenPausedMs) / 1000)));
+      return;
+    }
+    const update = () => {
+      if (!session?.startedAt) return;
+      setElapsedDisplay(formatElapsed(session.startedAt, totalPausedMsRef.current));
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAtMs - totalPausedMsRef.current) / 1000)));
+    };
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
@@ -388,6 +473,22 @@ export default function ScreeningSessionPage() {
           }
         }
         justCreatedPollRef.current = false;
+        // Watch Companion integration: when the user is reading the
+        // companion view, surface incoming chat as an unread badge on
+        // the Chat tab + a brief toast. Skip own + system messages.
+        if (
+          activeRoomViewRef.current === "companion"
+          && msg.userId !== myUserIdRef.current
+          && msg.userId !== "system"
+          && !(msg as any).system
+        ) {
+          setUnreadChatCount((c) => c + 1);
+          setChatToast({
+            id: Date.now(),
+            userName: msg.userName ?? "Someone",
+            text: (msg.text ?? "").slice(0, 100),
+          });
+        }
       }
     });
     setTimeout(() => { isInitialLoad = false; }, 1000);
@@ -979,6 +1080,25 @@ export default function ScreeningSessionPage() {
         </div>
       )}
 
+      {/* Chat toast — visible only when reading the Watch Companion
+         tab. Bottom-center, z-40 so the pause/connection banners (z-50)
+         still win if they fire concurrently. Auto-dismisses after 4s
+         via the toast useEffect; tapping it jumps to Chat. */}
+      {chatToast && activeRoomView === "companion" && (
+        <button
+          onClick={() => setActiveRoomView("chat")}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-sm w-[calc(100%-2rem)] bg-[var(--surface)] border border-[var(--ratist-red)]/50 rounded-lg shadow-2xl px-4 py-3 text-left hover:border-[var(--ratist-red)] transition-colors"
+        >
+          <div className="flex items-start gap-2.5">
+            <MessageCircle className="w-4 h-4 text-[var(--ratist-red)] shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-white truncate">{chatToast.userName}</p>
+              <p className="text-xs text-[var(--foreground-muted)] line-clamp-2">{chatToast.text}</p>
+            </div>
+          </div>
+        </button>
+      )}
+
       {/* Pause accept/reject overlay. Visible to everyone in the
           session (including the requester, who auto-accepts on send)
           so all participants can see the expiration wipe and live
@@ -1475,8 +1595,70 @@ export default function ScreeningSessionPage() {
             </div>
           </div>
 
+          {/* Watch Companion tab toggle — only when the session is for
+             a movie AND TMDB knows the id. Hidden in TV sessions
+             (companion data not wired in yet) and during pre-watch
+             when there's no tmdbId. The Chat / Companion split swaps
+             the main content area below while every realtime listener
+             stays alive on the page (chat ping, pause request, polls,
+             state-tick) — see activeRoomViewRef plumbing above. */}
+          {session.mediaType === "movie" && session.tmdbId && (
+            <div className="flex items-center gap-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-1">
+              <button
+                onClick={() => setActiveRoomView("chat")}
+                className={`relative flex-1 flex items-center justify-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors ${activeRoomView === "chat" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+              >
+                <MessageCircle className="w-4 h-4" /> Chat
+                {unreadChatCount > 0 && activeRoomView !== "chat" && (
+                  <span className="absolute top-1 right-2 min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--ratist-red)] text-white text-[10px] font-bold flex items-center justify-center">
+                    {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveRoomView("companion")}
+                className={`flex-1 flex items-center justify-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors ${activeRoomView === "companion" ? "bg-[var(--ratist-red)] text-white" : "text-[var(--foreground-muted)] hover:text-white"}`}
+              >
+                <BookOpen className="w-4 h-4" /> Companion
+              </button>
+            </div>
+          )}
+
+          {/* Watch Companion view */}
+          {activeRoomView === "companion" && session.mediaType === "movie" && session.tmdbId && (
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ minHeight: "630px" }}>
+              {companionStatus === "loading" && (
+                <div className="flex items-center justify-center py-24 text-sm text-[var(--foreground-muted)]">Loading companion…</div>
+              )}
+              {companionStatus === "unavailable" && (
+                <div className="flex flex-col items-center justify-center py-24 text-center px-6">
+                  <BookOpen className="w-8 h-8 text-[var(--foreground-muted)] mb-3" />
+                  <p className="text-sm font-semibold text-white mb-1">No companion for this movie yet</p>
+                  <p className="text-xs text-[var(--foreground-muted)] max-w-md mb-4">
+                    Watch Companion content hasn&apos;t been generated for {session.movieTitle}. You can request one — it&apos;ll be ready for the next viewing.
+                  </p>
+                  <Link
+                    href={`/movies/${session.tmdbId}/companion`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] px-4 py-2 rounded-full transition-colors"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" /> Request a companion
+                  </Link>
+                </div>
+              )}
+              {companionStatus === "ready" && companionData && (
+                <WatchCompanionView
+                  data={companionData}
+                  externalSeconds={elapsedSeconds}
+                  hideSpoilerSlider
+                />
+              )}
+            </div>
+          )}
+
           {/* Chat */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col" style={{ height: "630px" }}>
+          <div className={`bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col ${activeRoomView === "chat" ? "" : "hidden"}`} style={{ height: "630px" }}>
             {/* Chat header with pause + create poll */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">

@@ -233,7 +233,22 @@ function Section({
   );
 }
 
-export default function WatchCompanionView({ data }: { data: WatchCompanionData }) {
+export default function WatchCompanionView({
+  data,
+  externalSeconds,
+  hideSpoilerSlider,
+}: {
+  data: WatchCompanionData;
+  /** When provided, drives the movie position instead of the internal
+   *  spoiler-slider state. Used by the Screening Room integration to
+   *  auto-sync the companion view to the room's elapsed playback time
+   *  so unlocked content tracks what everyone is actually watching. */
+  externalSeconds?: number | null;
+  /** Hide the spoiler-position slider entirely. Pairs with
+   *  externalSeconds in driven contexts (e.g. Screening Room) where
+   *  manual scrubbing would conflict with the auto-sync. */
+  hideSpoilerSlider?: boolean;
+}) {
   const { user } = useAuth();
   // Structured-suggestion modal state. Null when closed. Drives the shared
   // CompanionItemEditor in suggest-mode so users propose edits with the
@@ -335,6 +350,15 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
   // S1E1.
   const storageKey = `watchcompanion:${data.id}`;
   const [seconds, setSeconds] = useState<number>(0);
+  // External-drive sync: when the screening-room integration passes a
+  // running elapsed-seconds value, mirror it into the local `seconds`
+  // state so all the existing visibility/position logic (useMemo
+  // chains, scroll-into-view, etc.) flows through unchanged.
+  useEffect(() => {
+    if (typeof externalSeconds === "number" && Number.isFinite(externalSeconds)) {
+      setSeconds(Math.max(0, Math.floor(externalSeconds)));
+    }
+  }, [externalSeconds]);
   const [slotIndex, setSlotIndex] = useState<number>(0);
   const [episodeSeconds, setEpisodeSeconds] = useState<number>(0);
   const [selectedSeason, setSelectedSeason] = useState<number>(defaultSeason);
@@ -416,7 +440,11 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       const raw = localStorage.getItem(storageKey);
       if (raw) {
         const saved = JSON.parse(raw) as { seconds?: number; slotIndex?: number; episodeSeconds?: number; selectedSeason?: number };
-        if (typeof saved.seconds === "number") setSeconds(saved.seconds);
+        // Skip restoring movie `seconds` when an external driver is in
+        // play (Screening Room integration) — the room's elapsed time
+        // overrides this anyway, and restoring first causes a visible
+        // jump on first paint.
+        if (typeof saved.seconds === "number" && typeof externalSeconds !== "number") setSeconds(saved.seconds);
         if (typeof saved.slotIndex === "number") setSlotIndex(saved.slotIndex);
         if (typeof saved.episodeSeconds === "number") setEpisodeSeconds(saved.episodeSeconds);
         if (typeof saved.selectedSeason === "number" && sortedSeasons.includes(saved.selectedSeason)) {
@@ -450,13 +478,17 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
     setHydrated(true);
   }, [storageKey, sortedSeasons]);
 
-  // Persist on change (only after initial hydrate so we don't overwrite with defaults)
+  // Persist on change (only after initial hydrate so we don't overwrite
+  // with defaults). When externalSeconds is driving us (Screening Room
+  // integration), skip the write so the user's standalone-viewing
+  // position isn't clobbered every second by the running room clock.
   useEffect(() => {
     if (!hydrated) return;
+    if (typeof externalSeconds === "number") return;
     try {
       localStorage.setItem(storageKey, JSON.stringify({ seconds, slotIndex, episodeSeconds, selectedSeason }));
     } catch { /* storage full or disabled — ignore */ }
-  }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds, selectedSeason]);
+  }, [hydrated, storageKey, seconds, slotIndex, episodeSeconds, selectedSeason, externalSeconds]);
 
   // Sync selectedSeason to ?s= in the URL bar (TV only) so sharing the
   // page captures the season the user is currently looking at — without
@@ -862,9 +894,11 @@ export default function WatchCompanionView({ data }: { data: WatchCompanionData 
       )}
 
       {/* Sticky cluster: slider + tabs ride together just below the site
-         navbar (72px tall). Both panes stay visible when scrolling. */}
+         navbar (72px tall). Both panes stay visible when scrolling.
+         Slider is hidden when an external driver controls position
+         (e.g. Screening Room integration). */}
       <div className="sticky top-[72px] z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-2 pt-2 bg-[var(--background)]/95 backdrop-blur-sm border-b border-[var(--border)]/50">
-      {seasonIsGenerated && (
+      {seasonIsGenerated && !hideSpoilerSlider && (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 sm:p-4 shadow-lg">
         {mediaType === "movie" && runtimeSeconds ? (
           <>
