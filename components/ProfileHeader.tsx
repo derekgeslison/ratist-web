@@ -328,7 +328,7 @@ export default function ProfileHeader({
           {followerCount != null && (
             isOwnProfile ? (
               <span className="inline-flex items-center gap-1.5">
-                <Link href="/connections" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
+                <Link href="/connections?tab=followers" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors">
                   <strong className="text-[var(--foreground)]">{followerCount}</strong> follower{followerCount !== 1 ? "s" : ""}
                 </Link>
                 {pendingRequestCount > 0 && (

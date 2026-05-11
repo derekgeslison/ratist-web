@@ -71,16 +71,20 @@ export default function SeenPage() {
   const [episodeGroups, setEpisodeGroups] = useState<EpisodeGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Restore view preferences from sessionStorage
+  // Restore view + filter state from sessionStorage so back-nav from
+  // a movie/show detail preserves what the user had set. Was only
+  // persisting view prefs (view/sort/calendar) before — the filter
+  // bar's text/genre/rating/year/etc. settings would reset on every
+  // remount, losing intent.
   const restored = typeof window !== "undefined" ? (() => { try { return JSON.parse(sessionStorage.getItem(DIARY_KEY) ?? "{}"); } catch { return {}; } })() : {};
-  const [query, setQuery] = useState("");
-  const [genreFilter, setGenreFilter] = useState("");
-  const [ratingFilter, setRatingFilter] = useState<"" | "8+" | "6+" | "unrated">("");
-  const [releaseYearFrom, setReleaseYearFrom] = useState("");
-  const [releaseYearTo, setReleaseYearTo] = useState("");
-  const [watchDateFrom, setWatchDateFrom] = useState("");
-  const [watchDateTo, setWatchDateTo] = useState("");
-  const [rewatchFilter, setRewatchFilter] = useState<"all" | "first" | "rewatch">("all");
+  const [query, setQuery] = useState(restored.query ?? "");
+  const [genreFilter, setGenreFilter] = useState(restored.genreFilter ?? "");
+  const [ratingFilter, setRatingFilter] = useState<"" | "8+" | "6+" | "unrated">(restored.ratingFilter ?? "");
+  const [releaseYearFrom, setReleaseYearFrom] = useState(restored.releaseYearFrom ?? "");
+  const [releaseYearTo, setReleaseYearTo] = useState(restored.releaseYearTo ?? "");
+  const [watchDateFrom, setWatchDateFrom] = useState(restored.watchDateFrom ?? "");
+  const [watchDateTo, setWatchDateTo] = useState(restored.watchDateTo ?? "");
+  const [rewatchFilter, setRewatchFilter] = useState<"all" | "first" | "rewatch">(restored.rewatchFilter ?? "all");
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(restored.view ?? "all");
   const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">(restored.mediaFilter ?? "all");
@@ -91,10 +95,18 @@ export default function SeenPage() {
   const [calYear, setCalYear] = useState(restored.calYear ?? now.getFullYear());
   const [calMonth, setCalMonth] = useState(restored.calMonth ?? now.getMonth());
 
-  // Persist view preferences
+  // Persist everything that affects the rendered list. Includes filters
+  // (text + dropdown + date range + rewatch toggle) alongside the view-
+  // pref bundle so a single key round-trips the full UI snapshot.
   useEffect(() => {
-    try { sessionStorage.setItem(DIARY_KEY, JSON.stringify({ view, mediaFilter, sort, calYear, calMonth })); } catch { /* ignore */ }
-  }, [view, mediaFilter, sort, calYear, calMonth]);
+    try {
+      sessionStorage.setItem(DIARY_KEY, JSON.stringify({
+        view, mediaFilter, sort, calYear, calMonth,
+        query, genreFilter, ratingFilter,
+        releaseYearFrom, releaseYearTo, watchDateFrom, watchDateTo, rewatchFilter,
+      }));
+    } catch { /* ignore */ }
+  }, [view, mediaFilter, sort, calYear, calMonth, query, genreFilter, ratingFilter, releaseYearFrom, releaseYearTo, watchDateFrom, watchDateTo, rewatchFilter]);
 
   function refetchEpisodeGroups() {
     if (!user) return;

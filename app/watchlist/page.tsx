@@ -165,14 +165,35 @@ export default function WatchlistPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMovies, setLoadingMovies] = useState(false);
 
-  /* ── Filter / sort state ── */
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("custom");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [seenFilter, setSeenFilter] = useState<SeenFilter>("all");
-  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
-  const [genreFilter, setGenreFilter] = useState("");
+  /* ── Filter / sort state ──
+   *
+   * Persisted to sessionStorage so back-nav from a movie/show detail
+   * doesn't blow away whatever the user had set. The bundle's presence
+   * also tells us this isn't a fresh first-of-session visit, which
+   * gates the defaultWatchlistFilter override below (we don't want to
+   * yank a user-chosen "all" back to their saved "unwatched" default
+   * after they bounced into a movie).
+   */
+  const FILTERS_KEY = "ratist-watchlist-filters";
+  const restoredFilters: Record<string, unknown> = typeof window !== "undefined"
+    ? (() => { try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? "{}"); } catch { return {}; } })()
+    : {};
+  const hadRestoredFilters = Object.keys(restoredFilters).length > 0;
+  const [query, setQuery] = useState<string>(typeof restoredFilters.query === "string" ? restoredFilters.query : "");
+  const [sortKey, setSortKey] = useState<SortKey>((restoredFilters.sortKey as SortKey | undefined) ?? "custom");
+  const [sortAsc, setSortAsc] = useState<boolean>(typeof restoredFilters.sortAsc === "boolean" ? restoredFilters.sortAsc : true);
+  const [seenFilter, setSeenFilter] = useState<SeenFilter>((restoredFilters.seenFilter as SeenFilter | undefined) ?? "all");
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">((restoredFilters.mediaFilter as "all" | "movie" | "tv" | undefined) ?? "all");
+  const [genreFilter, setGenreFilter] = useState<string>(typeof restoredFilters.genreFilter === "string" ? restoredFilters.genreFilter : "");
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTERS_KEY, JSON.stringify({
+        query, sortKey, sortAsc, seenFilter, mediaFilter, genreFilter,
+      }));
+    } catch { /* ignore */ }
+  }, [query, sortKey, sortAsc, seenFilter, mediaFilter, genreFilter]);
 
   // pinCheckedToBottom is a live setting (settings panel can flip it
   // and we want the list to react). defaultWatchlistFilter is a
@@ -185,11 +206,15 @@ export default function WatchlistPage() {
     user.getIdToken().then((token) =>
       fetch("/api/me/watchlist-settings", { headers: { Authorization: `Bearer ${token}` } })
     ).then((r) => r.ok ? r.json() : null).then((d) => {
-      if (d?.defaultWatchlistFilter === "unwatched") setSeenFilter("unchecked");
+      // Only apply the saved default filter on a fresh session entry.
+      // If we restored a filter bundle from sessionStorage, the user
+      // already has an intentional in-session choice we shouldn't
+      // clobber.
+      if (!hadRestoredFilters && d?.defaultWatchlistFilter === "unwatched") setSeenFilter("unchecked");
       if (typeof d?.pinCheckedToBottom === "boolean") setPinCheckedToBottom(d.pinCheckedToBottom);
       setSettingsApplied(true);
     }).catch(() => setSettingsApplied(true));
-  }, [user, settingsApplied]);
+  }, [user, settingsApplied, hadRestoredFilters]);
 
   /* ── Reorder mode ── */
   // Open by default; lets users (especially on mobile, where the

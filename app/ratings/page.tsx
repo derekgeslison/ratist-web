@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import SignInLink from "@/components/SignInLink";
 import { Star, Search, ArrowUpDown, Filter, Film, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -46,8 +47,38 @@ type TabMode = "rated" | "needs-rating";
 type StatusFilter = "" | "complete" | "incomplete" | "imported";
 type SortBy = "rated" | "score" | "title" | "year";
 
-export default function RatingsPage() {
+// Helpers for narrowing URL params to known states. The page only
+// honours param values that match a defined enum — anything else silently
+// falls back to the default so a stale link can't put the page in an
+// undefined state.
+function pickTab(v: string | null): TabMode { return v === "needs-rating" ? "needs-rating" : "rated"; }
+function pickStatus(v: string | null): StatusFilter {
+  return v === "complete" || v === "incomplete" || v === "imported" ? v : "";
+}
+function pickRange(v: string | null): "" | "8+" | "6+" | "4-" {
+  return v === "8+" || v === "6+" || v === "4-" ? v : "";
+}
+function pickSort(v: string | null): SortBy {
+  return v === "score" || v === "title" || v === "year" ? v : "rated";
+}
+function pickMedia(v: string | null): "all" | "movie" | "tv" {
+  return v === "movie" || v === "tv" ? v : "all";
+}
+function pickUnratedSort(v: string | null): "recent" | "title" | "year" {
+  return v === "title" || v === "year" ? v : "recent";
+}
+
+function RatingsContent() {
   const { user } = useAuth();
+  // Initial filter state is sourced from the URL so back-nav from a
+  // movie/show detail restores whatever the user had set. After mount
+  // we keep the URL in sync via router.replace so the back-stack
+  // entry carries the latest filters too. URL is the durable source
+  // of truth; React state is the working copy.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [ratings, setRatings] = useState<UserRating[]>([]);
   const [unrated, setUnrated] = useState<UnratedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,18 +88,46 @@ export default function RatingsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [serverAvg, setServerAvg] = useState<number | null>(null);
-  const [tab, setTab] = useState<TabMode>("rated");
-  const [query, setQuery] = useState("");
-  const [genreFilter, setGenreFilter] = useState("");
-  const [yearFrom, setYearFrom] = useState("");
-  const [yearTo, setYearTo] = useState("");
-  const [directorFilter, setDirectorFilter] = useState("");
-  const [actorFilter, setActorFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
-  const [ratingRange, setRatingRange] = useState<"" | "8+" | "6+" | "4-">("");
-  const [sort, setSort] = useState<SortBy>("rated");
-  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
-  const [unratedSort, setUnratedSort] = useState<"recent" | "title" | "year">("recent");
+  const [tab, setTab] = useState<TabMode>(() => pickTab(searchParams.get("tab")));
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [genreFilter, setGenreFilter] = useState(() => searchParams.get("genre") ?? "");
+  const [yearFrom, setYearFrom] = useState(() => searchParams.get("yearFrom") ?? "");
+  const [yearTo, setYearTo] = useState(() => searchParams.get("yearTo") ?? "");
+  const [directorFilter, setDirectorFilter] = useState(() => searchParams.get("director") ?? "");
+  const [actorFilter, setActorFilter] = useState(() => searchParams.get("actor") ?? "");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => pickStatus(searchParams.get("status")));
+  const [ratingRange, setRatingRange] = useState<"" | "8+" | "6+" | "4-">(() => pickRange(searchParams.get("score")));
+  const [sort, setSort] = useState<SortBy>(() => pickSort(searchParams.get("sort")));
+  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">(() => pickMedia(searchParams.get("media")));
+  const [unratedSort, setUnratedSort] = useState<"recent" | "title" | "year">(() => pickUnratedSort(searchParams.get("unratedSort")));
+
+  // Sync filter state back to the URL whenever it changes. Debounced so
+  // typing in the search box doesn't fire one router.replace per
+  // keystroke. We use a ref to capture the latest snapshot of all
+  // filters at flush time without re-creating the timeout per change.
+  const filtersRef = useRef({ tab, query, genreFilter, yearFrom, yearTo, directorFilter, actorFilter, statusFilter, ratingRange, sort, mediaFilter, unratedSort });
+  filtersRef.current = { tab, query, genreFilter, yearFrom, yearTo, directorFilter, actorFilter, statusFilter, ratingRange, sort, mediaFilter, unratedSort };
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const f = filtersRef.current;
+      const params = new URLSearchParams();
+      if (f.tab !== "rated") params.set("tab", f.tab);
+      if (f.query) params.set("q", f.query);
+      if (f.genreFilter) params.set("genre", f.genreFilter);
+      if (f.yearFrom) params.set("yearFrom", f.yearFrom);
+      if (f.yearTo) params.set("yearTo", f.yearTo);
+      if (f.directorFilter) params.set("director", f.directorFilter);
+      if (f.actorFilter) params.set("actor", f.actorFilter);
+      if (f.statusFilter) params.set("status", f.statusFilter);
+      if (f.ratingRange) params.set("score", f.ratingRange);
+      if (f.sort !== "rated") params.set("sort", f.sort);
+      if (f.mediaFilter !== "all") params.set("media", f.mediaFilter);
+      if (f.unratedSort !== "recent") params.set("unratedSort", f.unratedSort);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [tab, query, genreFilter, yearFrom, yearTo, directorFilter, actorFilter, statusFilter, ratingRange, sort, mediaFilter, unratedSort, pathname, router]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -542,5 +601,23 @@ export default function RatingsPage() {
         </>
       )}
     </div>
+  );
+}
+
+// useSearchParams forces this page out of the prerender path; Next.js
+// 16 errors at build time unless a Suspense boundary surrounds the
+// consumer. The fallback mirrors the in-content "Loading…" state so
+// users don't see a layout jump on a slow initial render.
+export default function RatingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <p className="text-[var(--foreground-muted)] text-center py-10">Loading…</p>
+        </div>
+      }
+    >
+      <RatingsContent />
+    </Suspense>
   );
 }

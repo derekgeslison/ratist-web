@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Users, UserPlus, ArrowLeft, Check, X, UserX, Ban } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AdUnit from "@/components/AdUnit";
@@ -35,15 +36,20 @@ interface BlockEntry {
   blocked: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
 }
 
-export default function ConnectionsPage() {
+function ConnectionsContent() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<"following" | "followers" | "requests" | "blocked">(() => {
-    if (typeof window === "undefined") return "following";
-    const params = new URLSearchParams(window.location.search);
-    const t = params.get("tab");
-    if (t === "followers" || t === "requests" || t === "blocked") return t;
-    return "following";
-  });
+  // useSearchParams is reactive and reads the live URL; the earlier
+  // lazy useState initializer read `window.location.search`, but that
+  // ran on the server during SSR (where window is undefined) and the
+  // initializer doesn't re-run during client hydration — so `?tab=...`
+  // links from the profile silently fell back to "following".
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab: "following" | "followers" | "requests" | "blocked" =
+    tabParam === "followers" || tabParam === "requests" || tabParam === "blocked"
+      ? tabParam
+      : "following";
+  const [tab, setTab] = useState<"following" | "followers" | "requests" | "blocked">(initialTab);
   const [followers, setFollowers] = useState<UserItem[]>([]);
   const [following, setFollowing] = useState<UserItem[]>([]);
   const [requests, setRequests] = useState<FollowRequest[]>([]);
@@ -354,5 +360,23 @@ export default function ConnectionsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// useSearchParams forces the consumer out of the prerender path; Next
+// 16 errors at build unless a Suspense boundary surrounds it. The
+// fallback mirrors the in-content loading state so the page doesn't
+// jump on a slow initial render.
+export default function ConnectionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+          <p className="text-[var(--foreground-muted)] text-center py-10">Loading...</p>
+        </div>
+      }
+    >
+      <ConnectionsContent />
+    </Suspense>
   );
 }
