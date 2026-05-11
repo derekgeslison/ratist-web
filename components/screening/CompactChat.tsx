@@ -29,8 +29,14 @@ interface Props {
 }
 
 function formatElapsed(seconds: number): string {
+  // HH:MM:SS — matches the watch-phase elapsed display and the chat-
+  // highlights peak-moment range. MM:SS was confusing once movies
+  // crossed an hour (74:32 vs the more readable 1:14:32).
   const s = Math.max(0, Math.floor(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
 export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase, sessionStartedAt, totalPausedMs = 0 }: Props) {

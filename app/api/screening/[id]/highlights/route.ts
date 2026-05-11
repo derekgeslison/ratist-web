@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const session = await prisma.screeningSession.findUnique({
       where: { id },
-      select: { hostId: true },
+      select: { hostId: true, startedAt: true, finishedAt: true },
     });
     if (!session || session.hostId !== user.id) {
       return NextResponse.json({ error: "Host only" }, { status: 403 });
@@ -46,6 +46,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Filter out system messages
     const userMessages = messages.filter((m) => !m.system && m.userId !== "system");
     if (userMessages.length < 3) return NextResponse.json({ ok: true, message: "Not enough messages" });
+
+    // Persist a per-minute chat-count array on the session row. The OG
+    // card reads this so its reaction-timeline strip can match the
+    // in-app post-watch chart bucket-for-bucket. Stored at minute
+    // granularity so consumers can rebucket (3-min, 5-min, etc.) at
+    // render time without re-querying the original message stream.
+    if (session.startedAt && session.finishedAt) {
+      const startMs = new Date(session.startedAt).getTime();
+      const endMs = new Date(session.finishedAt).getTime();
+      const durationMin = Math.max(1, Math.ceil((endMs - startMs) / 60000));
+      const counts = new Array(durationMin).fill(0);
+      for (const m of userMessages) {
+        const minute = Math.floor((m.timestamp - startMs) / 60000);
+        if (minute >= 0 && minute < durationMin) counts[minute]++;
+      }
+      await prisma.screeningSession.update({
+        where: { id },
+        data: { chatBucketCounts: counts },
+      });
+    }
 
     const MAX_PER_WINDOW = 25;
     const GAP_THRESHOLD_MS = 60 * 1000; // 60 seconds of silence = new conversation

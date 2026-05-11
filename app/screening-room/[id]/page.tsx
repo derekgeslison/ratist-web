@@ -320,6 +320,30 @@ export default function ScreeningSessionPage() {
     return () => off(connRef, "value", unsub);
   }, []);
 
+  // RTDB "session changed" listener — paired with pushStateTick. Any
+  // client that mutates the session (status change, poll, rating,
+  // finish) writes to rtdbPaths.state(id), and every other client
+  // reacts here with an immediate fetchSession. Replaces the
+  // previous "wait for the 5s poll" gap that left throttled mobile
+  // browsers up to 20s behind on transitions.
+  const lastSeenTickRef = useRef<number>(0);
+  useEffect(() => {
+    if (!rtdb) return;
+    const stateRef = ref(rtdb, rtdbPaths.state(id));
+    const unsub = onValue(stateRef, (snap) => {
+      const val = snap.val();
+      if (!val?.ts) return;
+      if (val.ts <= lastSeenTickRef.current) return;
+      lastSeenTickRef.current = val.ts;
+      // Skip the initial snapshot delivered when this listener first
+      // subscribes — that ts predates our mount and refers to a
+      // change we already absorbed via the initial fetchSession.
+      if (val.ts < mountedAt.current) return;
+      fetchSession();
+    });
+    return () => off(stateRef, "value", unsub);
+  }, [id, fetchSession]);
+
   // RTDB listener for suggestions toggle
   useEffect(() => {
     if (!rtdb || !session || session.status !== "LOBBY") return;
@@ -581,6 +605,32 @@ export default function ScreeningSessionPage() {
 
   // ── Actions ──
 
+  /**
+   * Broadcast a "session changed" tick on RTDB so every other client
+   * refreshes their session payload immediately instead of waiting on
+   * the 5s HTTP poll. This is what plugged the 20-second gap a
+   * participant hit during live testing where they never saw the
+   * COUNTDOWN transition — status changes only propagated via polling,
+   * and a mobile browser whose JS interval got throttled (background
+   * tab, screen sleep, OS power management) could miss the COUNTDOWN
+   * window entirely. The tick also carries any status change so the
+   * receiver's listener can update locally without a round trip.
+   *
+   * State-changing actions (markFinished, submitRating, createPoll,
+   * votePoll, etc.) all call this. Tick noise is bounded because the
+   * listener only refetches when the broadcast ts is newer than the
+   * last one it saw AND newer than this client's mount time, so the
+   * initial-value snapshot at listener subscribe doesn't fire a
+   * spurious refetch.
+   */
+  function pushStateTick(extra?: { status?: string }) {
+    if (!rtdb) return;
+    set(ref(rtdb, rtdbPaths.state(id)), {
+      ts: Date.now(),
+      status: extra?.status ?? null,
+    }).catch(() => {});
+  }
+
   async function apiPatch(body: Record<string, unknown>) {
     const token = await getToken();
     if (!token) return;
@@ -589,6 +639,7 @@ export default function ScreeningSessionPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    pushStateTick({ status: typeof body.status === "string" ? body.status : undefined });
     fetchSession();
   }
 
@@ -742,6 +793,7 @@ export default function ScreeningSessionPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ forceAll }),
     });
+    pushStateTick();
     fetchSession();
   }
 
@@ -753,6 +805,7 @@ export default function ScreeningSessionPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ undo: true }),
     });
+    pushStateTick();
     fetchSession();
   }
 
@@ -766,6 +819,7 @@ export default function ScreeningSessionPage() {
       body: JSON.stringify(data),
     });
     setRatingSubmitting(false);
+    pushStateTick();
     fetchSession();
   }
 
@@ -820,6 +874,7 @@ export default function ScreeningSessionPage() {
     setPollQuestion("");
     setPollOptions(["", ""]);
     setShowPollForm(false);
+    pushStateTick();
     fetchSession();
   }
 
@@ -831,6 +886,7 @@ export default function ScreeningSessionPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ optionIndex }),
     });
+    pushStateTick();
     fetchSession();
   }
 
@@ -929,48 +985,83 @@ export default function ScreeningSessionPage() {
           accept count. The button slot swaps to a status line once
           the current user has accepted — keeping the requester and
           already-accepted recipients in the loop instead of dropping
-          the popup the moment they accept. */}
+          the popup the moment they accept.
+          *
+          * Layout: full-width banner pinned to the top of the viewport
+          * (and a sibling bottom banner on mobile) instead of the old
+          * narrow centered card at `top-20`. Mobile users scrolled deep
+          * in chat were missing the previous popup or only catching a
+          * sliver of it because they were looking at the bottom of the
+          * screen, not the top. The dual banner + scroll-locking
+          * backdrop means the request can't be missed wherever the
+          * user happens to be looking. */}
       {activePause && !isPaused && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/95 text-black px-6 py-4 rounded-xl shadow-2xl max-w-sm w-full mx-4">
-          <div className="flex items-center gap-3 mb-3">
-            {/* Circular countdown timer */}
-            <div className="relative w-8 h-8 flex-shrink-0">
-              <svg className="w-8 h-8 -rotate-90" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="3"
-                  strokeDasharray="94.2" strokeDashoffset="0" strokeLinecap="round"
-                  style={{ animation: "countdown-wipe 20s linear forwards" }} />
-              </svg>
-              <PauseCircle className="w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        <>
+          {/* Backdrop dims chat to draw the eye to the banner. Click-
+             through is preserved (pointer-events-none) so participants
+             can keep using the rest of the page if they want, but the
+             visual cue is unmissable. */}
+          <div className="fixed inset-0 z-40 bg-black/30 pointer-events-none" aria-hidden="true" />
+
+          {/* Top banner — primary anchor on desktop, also visible on
+             mobile when the user is scrolled near the top of the page. */}
+          <div className="fixed top-0 inset-x-0 z-50 bg-yellow-500/95 text-black shadow-2xl border-b-2 border-yellow-600">
+            <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+              <div className="relative w-8 h-8 flex-shrink-0">
+                <svg className="w-8 h-8 -rotate-90" viewBox="0 0 36 36">
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.6)" strokeWidth="3"
+                    strokeDasharray="94.2" strokeDashoffset="0" strokeLinecap="round"
+                    style={{ animation: "countdown-wipe 20s linear forwards" }} />
+                </svg>
+                <PauseCircle className="w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <span className="font-semibold flex-1 min-w-0 text-sm sm:text-base">
+                {activePause.requestedByUserId === myUserId
+                  ? "You requested a pause"
+                  : `${activePause.requestedBy} wants to pause!`}
+              </span>
+              <span className="text-[11px] text-black/60 flex-shrink-0">
+                {Object.values(activePause.accepted).filter(Boolean).length}/{session?.participants.length ?? 0} accepted
+              </span>
+              {activePause.accepted[myUserId] ? (
+                <span className="text-xs text-black/70 font-semibold flex-shrink-0">Waiting…</span>
+              ) : (
+                <button onClick={acceptPause}
+                  className="bg-black/20 hover:bg-black/30 text-black font-semibold px-4 py-1.5 rounded-lg transition-colors text-sm flex-shrink-0">
+                  Accept Pause
+                </button>
+              )}
             </div>
-            <span className="font-semibold">
-              {activePause.requestedByUserId === myUserId
-                ? "You requested a pause"
-                : `${activePause.requestedBy} wants to pause!`}
-            </span>
           </div>
-          {activePause.accepted[myUserId] ? (
-            <p className="text-center text-xs text-black/70 font-semibold py-2">
-              Waiting for everyone to accept…
-            </p>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={acceptPause}
-                className="flex-1 bg-black/20 hover:bg-black/30 text-black font-semibold py-2 rounded-lg transition-colors">
-                Accept Pause
-              </button>
+
+          {/* Bottom mirror — catches users scrolled to the bottom of
+             chat on mobile. Hidden on sm+ where the top banner is
+             obviously visible without scrolling. */}
+          <div className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-yellow-500/95 text-black shadow-2xl border-t-2 border-yellow-600">
+            <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+              <PauseCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="font-semibold flex-1 min-w-0 text-sm">
+                {activePause.requestedByUserId === myUserId
+                  ? "You requested a pause"
+                  : `${activePause.requestedBy} wants to pause!`}
+              </span>
+              {!activePause.accepted[myUserId] && (
+                <button onClick={acceptPause}
+                  className="bg-black/20 hover:bg-black/30 text-black font-semibold px-4 py-1.5 rounded-lg transition-colors text-sm flex-shrink-0">
+                  Accept
+                </button>
+              )}
             </div>
-          )}
-          <p className="text-[10px] text-black/60 mt-2 text-center">
-            {Object.values(activePause.accepted).filter(Boolean).length}/{session?.participants.length ?? 0} accepted
-          </p>
+          </div>
+
           <style jsx>{`
             @keyframes countdown-wipe {
               from { stroke-dashoffset: 0; }
               to { stroke-dashoffset: 94.2; }
             }
           `}</style>
-        </div>
+        </>
       )}
 
       {/* Paused overlay with resume ready-up + chat. Chat lives inside
@@ -1340,38 +1431,52 @@ export default function ScreeningSessionPage() {
             <div className="text-lg font-mono text-[var(--ratist-red)] font-bold flex-shrink-0">{elapsedDisplay}</div>
           </div>
 
-          {/* Row 2: Actions — responsive wrap */}
+          {/* Row 2: Actions — responsive wrap.
+             *
+             * Bookmark group and Done group are each wrapped so they
+             * stay together when the row wraps on narrow viewports.
+             * Previously the bare `flex-wrap` would pop the "n/n done"
+             * text onto the bookmark row while pushing Done Watching to
+             * a fresh row, which made it look like the count belonged
+             * to the bookmark button rather than to the finish flow.
+             */}
           <div className="flex flex-wrap items-center gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3">
-            {/* Bookmark */}
-            <input type="text" value={bookmarkNote} onChange={(e) => setBookmarkNote(e.target.value)}
-              placeholder="Bookmark note..."
-              className="flex-1 min-w-[120px] bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
-            <button onClick={saveBookmark}
-              className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 ${bookmarkSaved ? "bg-green-500/20 text-green-400" : "bg-[var(--surface-2)] border border-[var(--border)] text-white hover:border-[var(--ratist-red)]"}`}>
-              <Bookmark className="w-3 h-3" /> {bookmarkSaved ? "Saved!" : "Bookmark"}
-            </button>
+            {/* Bookmark group */}
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <input type="text" value={bookmarkNote} onChange={(e) => setBookmarkNote(e.target.value)}
+                placeholder="Bookmark note..."
+                className="flex-1 min-w-0 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-white placeholder:text-[var(--foreground-muted)] focus:outline-none" />
+              <button onClick={saveBookmark}
+                className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 ${bookmarkSaved ? "bg-green-500/20 text-green-400" : "bg-[var(--surface-2)] border border-[var(--border)] text-white hover:border-[var(--ratist-red)]"}`}>
+                <Bookmark className="w-3 h-3" /> {bookmarkSaved ? "Saved!" : "Bookmark"}
+              </button>
+            </div>
 
             <div className="w-px h-5 bg-[var(--border)] hidden sm:block" />
 
-            {/* Done status + buttons */}
-            <span className="text-xs text-[var(--foreground-muted)] flex-shrink-0">{session.participants.filter((p) => p.hasFinished).length}/{session.participants.length} done</span>
-            {!me?.hasFinished ? (
-              <button onClick={() => markFinished()} className="text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-white hover:border-[var(--ratist-red)] flex-shrink-0">
-                Done Watching
-              </button>
-            ) : (
-              <button onClick={undoFinished} className="text-xs text-green-400 hover:text-yellow-400 flex-shrink-0 transition-colors" title="Undo">Done ✓ (undo)</button>
-            )}
-            {amHost && (
-              <button onClick={() => { if (confirm("End for everyone? This will move all participants to the post-watch phase.")) markFinished(true); }}
-                className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30 flex-shrink-0">
-                Force End
-              </button>
-            )}
+            {/* Done group — count sits next to Done Watching so the
+               relationship between the n/n indicator and the finish
+               action is obvious. */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-[var(--foreground-muted)] flex-shrink-0">{session.participants.filter((p) => p.hasFinished).length}/{session.participants.length} done</span>
+              {!me?.hasFinished ? (
+                <button onClick={() => markFinished()} className="text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-white hover:border-[var(--ratist-red)] flex-shrink-0">
+                  Done Watching
+                </button>
+              ) : (
+                <button onClick={undoFinished} className="text-xs text-green-400 hover:text-yellow-400 flex-shrink-0 transition-colors" title="Undo">Done ✓ (undo)</button>
+              )}
+              {amHost && (
+                <button onClick={() => { if (confirm("End for everyone? This will move all participants to the post-watch phase.")) markFinished(true); }}
+                  className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] rounded-lg px-3 py-1.5 hover:bg-[var(--ratist-red)]/30 flex-shrink-0">
+                  Force End
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Chat */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col" style={{ height: "420px" }}>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col" style={{ height: "630px" }}>
             {/* Chat header with pause + create poll */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -1426,7 +1531,12 @@ export default function ScreeningSessionPage() {
                 const isSystem = msg.userId === "system" || (msg as any).system;
                 const isPreWatch = session?.startedAt ? msg.timestamp < new Date(session.startedAt).getTime() : true;
                 const elapsed = !isPreWatch && session?.startedAt ? Math.max(0, Math.floor((msg.timestamp - new Date(session.startedAt).getTime() - totalPausedMsRef.current) / 1000)) : 0;
-                const elapsedStr = !isPreWatch && elapsed > 0 ? `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : "";
+                // HH:MM:SS — see CompactChat#formatElapsed for the
+                // same rationale (MM:SS was confusing once movies
+                // crossed an hour).
+                const elapsedStr = !isPreWatch && elapsed > 0
+                  ? `${Math.floor(elapsed / 3600)}:${String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
+                  : "";
 
                 if (isSystem) {
                   return (
@@ -1740,7 +1850,15 @@ export default function ScreeningSessionPage() {
                         const sessionStart = session.startedAt ? new Date(session.startedAt).getTime() : 0;
                         const startElapsed = Math.max(0, Math.floor((new Date(msgs[0].timestamp).getTime() - sessionStart) / 1000));
                         const endElapsed = Math.max(0, Math.floor((new Date(msgs[msgs.length - 1].timestamp).getTime() - sessionStart) / 1000));
-                        const fmtElapsed = (s: number) => { const m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, "0")}`; };
+                        // HH:MM:SS for peak-moment ranges so the
+                        // labels read consistently with the chat
+                        // timestamps above the highlights.
+                        const fmtElapsed = (s: number) => {
+                          const h = Math.floor(s / 3600);
+                          const m = Math.floor((s % 3600) / 60);
+                          const ss = s % 60;
+                          return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+                        };
                         return (
                           <div key={groupIdx} className="bg-[var(--surface-2)] rounded-lg overflow-hidden">
                             <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)]">

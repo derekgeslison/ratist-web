@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +118,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data,
       include: sessionInclude,
     });
+
+    // Screening badges (social-butterfly / screening-host / pack-leader)
+    // all key on status === 'COMPLETE'. The badge check was firing in
+    // /finish at the POST_WATCH transition, but the SQL filter
+    // requires COMPLETE so that pass always returned zero hits. Re-run
+    // the check here when the session actually flips to COMPLETE so
+    // every participant gets evaluated against the now-completed
+    // session row.
+    if (data.status === "COMPLETE") {
+      for (const p of updated.participants) {
+        checkBadges(p.userId, "screening_end").catch(() => {});
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (err) {

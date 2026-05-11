@@ -1614,6 +1614,13 @@ model ScreeningSession {
   inviteCode String                 @unique @map("invite_code")
   startedAt  DateTime?              @map("started_at")
   finishedAt DateTime?              @map("finished_at")
+  // Per-minute chat-message counts captured when the host generates
+  // highlights. ChatHighlight rows only persist the top-3 burst windows
+  // (max 25 msgs each), which made the OG-card reaction timeline read
+  // as sparse compared to the in-app heatmap. This array carries one
+  // count per minute of the watch so the OG strip can rebucket at any
+  // granularity and exactly mirror the post-watch chart.
+  chatBucketCounts Json?            @map("chat_bucket_counts")
   createdAt  DateTime               @default(now()) @map("created_at")
   updatedAt  DateTime               @updatedAt @map("updated_at")
 
