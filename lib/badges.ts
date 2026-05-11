@@ -481,7 +481,7 @@ async function checkValedictorian(userId: string): Promise<boolean> {
       AND status = 'completed'
       AND mode = 'daily'
   `;
-  return Number(result[0]?.total ?? 0) >= 20000;
+  return Number(result[0]?.total ?? 0) >= 50000;
 }
 
 async function checkFirstFollow(userId: string): Promise<boolean> {
@@ -581,7 +581,7 @@ export const BADGE_REGISTRY: BadgeDef[] = [
   // ── Cine-Q ──
   { slug: "honor-student", name: "Honor Student", description: "Complete every Cine-Q quiz type on every difficulty", category: "cineq", icon: "Brain", permanent: true, check: checkHonorStudent },
   { slug: "cram-session", name: "Cram Session", description: "Score 2,000+ Cine-Q points in one day", category: "cineq", icon: "BrainCircuit", permanent: true, check: checkCramSession },
-  { slug: "valedictorian", name: "Valedictorian", description: "Score 20,000+ Cine-Q points all time", category: "cineq", icon: "GraduationCap", permanent: true, check: checkValedictorian },
+  { slug: "valedictorian", name: "Valedictorian", description: "Score 50,000+ Cine-Q points all time", category: "cineq", icon: "GraduationCap", permanent: true, check: checkValedictorian },
 
   // ── Social ──
   { slug: "first-follow", name: "First Follow", description: "Follow your first user", category: "social", icon: "UserPlus", permanent: true, check: checkFirstFollow },

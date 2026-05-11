@@ -68,27 +68,6 @@ const CRITERIA = {
   },
 };
 
-const GENRE_FIELDS = [
-  { key: "genreAction", label: "Action / Adventure" },
-  { key: "genreHorror", label: "Horror" },
-  { key: "genreDrama", label: "Drama" },
-  { key: "genreHistorical", label: "Historical" },
-  { key: "genreScifi", label: "Science Fiction" },
-  { key: "genreThriller", label: "Thriller" },
-  { key: "genreComedy", label: "Comedy" },
-  { key: "genreBookAdapt", label: "Book Adaptation" },
-  { key: "genreFantasy", label: "Fantasy" },
-  { key: "genreRomance", label: "Romance" },
-  { key: "genreDocumentary", label: "Documentary" },
-  { key: "genreFamily", label: "Family" },
-  { key: "genreFilmNoir", label: "Film-Noir" },
-  { key: "genreMusical", label: "Musical" },
-  { key: "genreBiopic", label: "Biopic" },
-  { key: "genreCrime", label: "Crime" },
-  { key: "genreWestern", label: "Western" },
-  { key: "genreMystery", label: "Mystery" },
-];
-
 interface MovieInfo { title: string; poster_path: string | null; release_date: string }
 
 export default function RateMoviePage() {
@@ -170,7 +149,6 @@ export default function RateMoviePage() {
                 loaded[field.key] = rating[field.key] ?? null;
               }
             }
-            for (const g of GENRE_FIELDS) loaded[g.key] = rating[g.key] ?? null;
             setValues(loaded);
             setOverallRating(rating.overallRating ?? null);
             setReviewText(rating.reviewText ?? "");
@@ -534,41 +512,6 @@ export default function RateMoviePage() {
               </div>
             ))}
 
-            {/* Genre accuracy */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setOpenSections((s) => ({ ...s, genres: !s.genres }))}
-                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--surface-2)] transition-colors"
-              >
-                <div>
-                  <span className="font-semibold text-white">Genre Accuracy</span>
-                  <span className="ml-2 text-xs text-[var(--foreground-muted)]">Optional — rate how well the movie represents each genre</span>
-                </div>
-                <span className="text-[var(--foreground-muted)] text-sm">{openSections.genres ? "▲" : "▼"}</span>
-              </button>
-              {openSections.genres && (
-                <div className="px-5 pb-5 border-t border-[var(--border)] grid sm:grid-cols-2 gap-4 pt-4">
-                  {GENRE_FIELDS.map((g) => (
-                    <div key={g.key}>
-                      <label className="text-sm text-[var(--foreground-muted)] mb-2 block">{g.label}</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="range"
-                          min={1}
-                          max={10}
-                          step={0.5}
-                          value={values[g.key] ?? 5}
-                          onChange={(e) => setValue(g.key, parseFloat(e.target.value))}
-                          className={`flex-1 ${values[g.key] != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`}
-                        />
-                        <span className={`text-sm font-bold w-8 text-right ${values[g.key] != null ? "text-white" : "text-[var(--foreground-muted)]"}`}>{values[g.key] ?? "—"}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </>
         )}
 

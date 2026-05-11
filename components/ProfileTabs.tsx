@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Image from "next/image";
 import Link from "next/link";
@@ -291,13 +291,25 @@ export default function ProfileTabs({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Scroll to top when navigating to a different profile (soft-nav
-  // between profile pages doesn't always reset scroll on its own).
-  // Effect is keyed on profileFirebaseUid so it only fires when the
-  // user navigates to a *different* user's profile, not on tab
-  // changes or back-nav that returns to the same profile.
-  useEffect(() => {
-    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  // Scroll to top whenever this component mounts on a profile or the
+  // profile UID changes.
+  //
+  // Why this is more aggressive than a plain useEffect:
+  //   1. useLayoutEffect fires synchronously before paint, so the user
+  //      doesn't see a flash of mid-page scroll from the source page.
+  //   2. A trailing requestAnimationFrame call catches the case where
+  //      the router/browser restores scroll AFTER React commits.
+  //
+  // Tradeoff: back-nav to a previously-visited profile will scroll to
+  // top instead of restoring the prior scroll position. That's the
+  // lesser evil compared to the user landing mid-page on a fresh
+  // profile visit (which happened reliably when navigating from
+  // long-scrolling source pages like /community).
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo(0, 0);
+    const raf = requestAnimationFrame(() => window.scrollTo(0, 0));
+    return () => cancelAnimationFrame(raf);
   }, [profileFirebaseUid]);
 
   function setActiveTab(tab: Tab) {

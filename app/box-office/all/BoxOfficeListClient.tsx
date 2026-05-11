@@ -530,14 +530,24 @@ export default function BoxOfficeListClient({ genres }: Props) {
           column labels remain visible while scrolling long lists. On
           mobile, a compact sticky strip shows what the inline meta
           line means (year · revenue · profit/ROI) since the row
-          layout doesn't have visible column headers of its own. */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-        {/* Mobile sticky label strip */}
-        <div className="md:hidden sticky top-0 z-10 bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
-          # · Title · Year · Revenue · {sort.startsWith("roi") ? "ROI" : "Profit"}
-        </div>
-        {/* Desktop sticky column header — adapts to the active sort. */}
-        <div className="hidden md:grid sticky top-0 z-10 bg-[var(--surface)] grid-cols-[2.5rem_3rem_1fr_8rem_8rem_7rem] gap-3 px-4 py-2 border-b border-[var(--border)] text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
+          layout doesn't have visible column headers of its own.
+
+          Structure note: the outer container intentionally has NO
+          overflow-hidden — that breaks position: sticky on the header
+          (overflow-hidden creates a scroll context that sticky
+          positions against, and since that context never scrolls,
+          sticky becomes effectively static). The list body has its
+          own rounded-b + overflow-hidden so row hover backgrounds
+          still clip to the bottom corners. */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl">
+        {/* Desktop sticky column header — adapts to the active sort.
+            `top: 72` offset clears the site-wide sticky navbar.
+            Mobile rows label each number inline (REV / BUD / Profit-or-ROI)
+            so no mobile sticky strip is needed. */}
+        <div
+          style={{ position: "sticky", top: 72, zIndex: 10 }}
+          className="hidden md:grid bg-[var(--surface)] rounded-t-xl grid-cols-[2.5rem_3rem_1fr_8rem_8rem_7rem] gap-3 px-4 py-2 border-b border-[var(--border)] text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]"
+        >
           <span className="text-right">#</span>
           <span></span>
           <span>Title</span>
@@ -547,22 +557,24 @@ export default function BoxOfficeListClient({ genres }: Props) {
             {sort.startsWith("roi") ? "ROI" : "Profit"}
           </span>
         </div>
-        {loading && results.length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-[var(--foreground-muted)]">
-            <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-            Loading…
-          </div>
-        ) : results.length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-[var(--foreground-muted)]">
-            No movies match these filters.
-          </div>
-        ) : (
-          <ul className="divide-y divide-[var(--border)]">
-            {results.map((row, idx) => (
-              <ResultRow key={row.tmdbId} row={row} rank={idx + 1} sort={sort} />
-            ))}
-          </ul>
-        )}
+        <div className="overflow-hidden rounded-b-xl">
+          {loading && results.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-[var(--foreground-muted)]">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+              Loading…
+            </div>
+          ) : results.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-[var(--foreground-muted)]">
+              No movies match these filters.
+            </div>
+          ) : (
+            <ul className="divide-y divide-[var(--border)]">
+              {results.map((row, idx) => (
+                <ResultRow key={row.tmdbId} row={row} rank={idx + 1} sort={sort} />
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {hasMore && (
@@ -582,6 +594,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
 
 function ResultRow({ row, rank, sort }: { row: BoxOfficeRow; rank: number; sort: string }) {
   const showROI = sort.startsWith("roi");
+  const rightLabel = showROI ? "ROI" : "Profit";
   const rightValue = showROI
     ? formatROI(row.roi)
     : row.profit != null
@@ -591,6 +604,8 @@ function ResultRow({ row, rank, sort }: { row: BoxOfficeRow; rank: number; sort:
       : null;
 
   const year = row.releaseDate?.slice(0, 4) ?? "—";
+  const revenueValue = formatBoxOffice(row.revenue) ?? "—";
+  const budgetValue = formatBoxOffice(row.budget) ?? "—";
 
   return (
     <li>
@@ -598,11 +613,18 @@ function ResultRow({ row, rank, sort }: { row: BoxOfficeRow; rank: number; sort:
         href={`/movies/${row.tmdbId}`}
         className="block hover:bg-white/[0.03] transition-colors"
       >
-        <div className="md:grid md:grid-cols-[2.5rem_3rem_1fr_8rem_8rem_7rem] gap-3 px-4 py-3 flex items-center">
-          <span className="text-sm font-semibold text-[var(--foreground-muted)] tabular-nums w-10 md:w-auto md:text-right shrink-0">
+        {/* Mobile: 4-col grid (rank, poster, title+year, stacked-numbers).
+            Desktop: 6-col grid (rank, poster, title+year, revenue, budget,
+            profit/ROI) — same as before. The mobile-only stacked-numbers
+            cell renders all three values right-aligned with small inline
+            labels so the user always knows which number is which. */}
+        <div className="grid grid-cols-[2rem_3rem_1fr_auto] md:grid-cols-[2.5rem_3rem_1fr_8rem_8rem_7rem] gap-3 px-4 py-3 items-center">
+          {/* Rank */}
+          <span className="text-sm font-semibold text-[var(--foreground-muted)] tabular-nums text-right shrink-0">
             {rank}
           </span>
-          <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--background)] mx-2 md:mx-0">
+          {/* Poster */}
+          <div className="relative w-8 h-12 shrink-0 rounded overflow-hidden bg-[var(--background)]">
             {row.posterPath ? (
               <Image
                 src={`https://image.tmdb.org/t/p/w92${row.posterPath}`}
@@ -613,19 +635,34 @@ function ResultRow({ row, rank, sort }: { row: BoxOfficeRow; rank: number; sort:
               />
             ) : null}
           </div>
-          <div className="flex-1 min-w-0">
+          {/* Title + year — always left-aligned */}
+          <div className="min-w-0">
             <p className="text-sm text-white truncate">{row.title}</p>
-            <p className="text-[11px] text-[var(--foreground-muted)] md:hidden">
-              {year} · {formatBoxOffice(row.revenue) ?? "—"}
-              {rightValue ? ` · ${rightValue}` : ""}
-            </p>
-            <p className="text-[11px] text-[var(--foreground-muted)] hidden md:block">{year}</p>
+            <p className="text-[11px] text-[var(--foreground-muted)]">{year}</p>
           </div>
+
+          {/* Mobile: stacked 3 numbers, right-aligned with inline labels */}
+          <div className="md:hidden flex flex-col items-end gap-0.5 tabular-nums">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]">Rev</span>
+              <span className="text-xs text-white font-medium w-[3.75rem] text-right">{revenueValue}</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]">Bud</span>
+              <span className="text-xs text-white font-medium w-[3.75rem] text-right">{budgetValue}</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[9px] uppercase tracking-wider text-[var(--foreground-muted)]">{rightLabel}</span>
+              <span className="text-xs text-white font-medium w-[3.75rem] text-right">{rightValue ?? "—"}</span>
+            </div>
+          </div>
+
+          {/* Desktop columns */}
           <span className="hidden md:block text-sm text-white tabular-nums text-right">
-            {formatBoxOffice(row.revenue) ?? "—"}
+            {revenueValue}
           </span>
           <span className="hidden md:block text-sm text-white tabular-nums text-right">
-            {formatBoxOffice(row.budget) ?? "—"}
+            {budgetValue}
           </span>
           <span className="hidden md:block text-sm text-white tabular-nums text-right">
             {rightValue ?? "—"}
