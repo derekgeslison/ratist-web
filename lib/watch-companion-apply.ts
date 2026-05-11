@@ -277,7 +277,18 @@ async function editTarget(targetType: string, targetId: string, payload: Record<
       if (visibleAfter) data.visibleAfter = visibleAfter;
       const season = normSeasonNumber(payload.seasonNumber);
       if (season !== undefined) data.seasonNumber = season;
-      if (Object.keys(data).length > 0) await prisma.companionRelationship.update({ where: { id: targetId }, data });
+      if (Object.keys(data).length > 0) {
+        await prisma.companionRelationship.update({ where: { id: targetId }, data });
+        // Re-sweep so a visibleAfter update propagates to the
+        // endpoint characters (same invariant the admin item route
+        // enforces).
+        if (visibleAfter) {
+          try {
+            const { promoteCharactersForRelationship } = await import("@/lib/watch-companion-promote");
+            await promoteCharactersForRelationship(targetId);
+          } catch { /* non-critical */ }
+        }
+      }
       return;
     }
 
@@ -383,6 +394,13 @@ async function addTarget(targetType: string, companionId: string, payload: Recor
           visibleAfter,
         },
       });
+      // Promote characters whose visibleAfter is now later than this
+      // relationship's. Same invariant enforced by the admin item
+      // routes and the AI generation sweep.
+      try {
+        const { promoteCharactersForRelationship } = await import("@/lib/watch-companion-promote");
+        await promoteCharactersForRelationship(created.id);
+      } catch { /* non-critical */ }
       return created.id;
     }
 

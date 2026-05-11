@@ -791,6 +791,19 @@ async function persistDraft(input: PersistInput): Promise<GenerateResult> {
   );
   const { companion, charactersAdded, factsAdded, relationshipsAdded, timelineAdded, glossaryAdded } = txResult;
 
+  // Auto-promote characters whose visibleAfter sits later than any
+  // relationship they're in. The AI sometimes hands us a relationship
+  // timed to (say) 8:15 while one of its endpoint characters is timed
+  // to 15:00 — the relationship then silently doesn't surface until
+  // 15:00 in the viewer (character-gating in WatchCompanionView).
+  // Sweeping post-persist enforces the invariant for every save path.
+  try {
+    const { promoteCharactersForCompanion } = await import("@/lib/watch-companion-promote");
+    await promoteCharactersForCompanion(companion.id);
+  } catch (err) {
+    console.error("[watch-companion-generate] character promotion sweep failed:", err);
+  }
+
   // Upsert the airing-season tracker. Initial airing gen seeds the row
   // with status='airing' and episodesGenerated set to the eligible-episodes
   // batch we just covered. Episode-mode appends the just-generated episode

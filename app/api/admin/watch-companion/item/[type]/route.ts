@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { promoteCharactersForRelationship } from "@/lib/watch-companion-promote";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ type: stri
         const created = await prisma.companionRelationship.create({
           data: { companionId, seasonNumber, fromCharacterId, toCharacterId, relationshipType, label, directed, visibleAfter },
         });
+        // Lower either endpoint character's visibleAfter to match the
+        // relationship's if currently later. Prevents the silent gate
+        // where a relationship is timed earlier than its characters
+        // and never actually surfaces at its declared time.
+        await promoteCharactersForRelationship(created.id).catch(() => { /* non-critical */ });
         return NextResponse.json({ item: created });
       }
       case "timeline": {

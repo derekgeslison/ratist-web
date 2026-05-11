@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { promoteCharactersForRelationship } from "@/lib/watch-companion-promote";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ type: str
         if (visibleAfter) data.visibleAfter = visibleAfter;
         if (Object.keys(data).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
         const updated = await prisma.companionRelationship.update({ where: { id }, data });
+        // Auto-promote characters when their visibleAfter is later
+        // than this relationship's (see lib/watch-companion-promote.ts).
+        await promoteCharactersForRelationship(updated.id).catch(() => { /* non-critical */ });
         return NextResponse.json({ item: updated });
       }
       case "timeline": {
