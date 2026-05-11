@@ -39,6 +39,33 @@ interface Props {
   movieId: string; // tmdb ID for localStorage key
 }
 
+// Initial cap on a Live Review session. Past 4 hours we assume the
+// user might have forgotten the timer is running. The cap is "soft"
+// in practice: a pre-cap warning at -15 min lets them extend by 1
+// hour proactively, and resuming after an auto-pause also adds 1
+// hour. So truly long sessions just require periodic confirmation
+// — no hard ceiling.
+const INITIAL_CAP_SEC = 4 * 3600;
+const CAP_EXTENSION_SEC = 1 * 3600;
+// Pre-cap warning fires this many seconds before the current cap.
+const CAP_WARNING_LEAD_SEC = 15 * 60;
+
+// Global-across-the-browser pointer to whichever movie currently has
+// a running (not paused) Live Review timer. Held in localStorage so
+// concurrent rate pages in other tabs can detect the conflict and
+// prompt before stepping on each other.
+const RUNNING_MOVIE_KEY = "live-review-running-movie-id";
+
+function readRunningMovieId(): string | null {
+  try { return localStorage.getItem(RUNNING_MOVIE_KEY); } catch { return null; }
+}
+function setRunningMovieId(movieId: string | null) {
+  try {
+    if (movieId) localStorage.setItem(RUNNING_MOVIE_KEY, movieId);
+    else localStorage.removeItem(RUNNING_MOVIE_KEY);
+  } catch { /* ignore */ }
+}
+
 export default function LiveReview({ movieId }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [running, setRunning] = useState(false);
@@ -50,27 +77,70 @@ export default function LiveReview({ movieId }: Props) {
   const [goToInput, setGoToInput] = useState("");
   const [useCountdown, setUseCountdown] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  // True when the cap auto-paused the timer. Surfaces a notice so
+  // the user knows the pause wasn't manual. Cleared on resume / reset.
+  const [autoPaused, setAutoPaused] = useState(false);
+  // Pre-cap warning visibility (true in the 15-min window leading
+  // up to the cap, while running).
+  const [showCapWarning, setShowCapWarning] = useState(false);
+  // Current session cap in seconds. Starts at 4h; each "Extend" or
+  // post-autopause "Resume" pushes it forward 1h. Refs because the
+  // tick reads it without needing to re-subscribe.
+  const capSecondsRef = useRef(INITIAL_CAP_SEC);
+  const [capSeconds, setCapSeconds] = useState(INITIAL_CAP_SEC);
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Wall-clock anchors. The previous setInterval-counts-by-1-each-tick
+  // approach silently fell behind real time when the tab/screen slept —
+  // mobile browsers throttle backgrounded intervals heavily (or stop
+  // them entirely on lock), so closing a laptop or locking a phone
+  // mid-movie left the elapsed counter stuck at the time of sleep.
+  // Now we just store when the session started, accumulate any
+  // pause durations, and compute elapsed = now - started - paused
+  // on every tick. The interval is purely a re-render trigger; truth
+  // is wall-clock math, so screen-off time is naturally accounted for.
+  const startedAtRef = useRef<number | null>(null);
+  const totalPausedMsRef = useRef(0);
+  const pauseStartedAtRef = useRef<number | null>(null);
   const storageKey = `live-review-${movieId}`;
 
-  // Load saved state from localStorage
+  const computeElapsedSec = useCallback((): number => {
+    if (startedAtRef.current === null) return 0;
+    const now = Date.now();
+    const currentPauseExtra = pauseStartedAtRef.current !== null ? (now - pauseStartedAtRef.current) : 0;
+    const elapsedMs = now - startedAtRef.current - totalPausedMsRef.current - currentPauseExtra;
+    return Math.max(0, Math.floor(elapsedMs / 1000));
+  }, []);
+
+  // Load saved state from localStorage. We always rehydrate in the
+  // paused state so a user re-opening days later doesn't accidentally
+  // resume a long-stale timer; if they were mid-movie they hit Resume.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const state: LiveReviewState = JSON.parse(saved);
-        setElapsedSeconds(state.elapsedSeconds ?? 0);
+        const seconds = state.elapsedSeconds ?? 0;
+        setElapsedSeconds(seconds);
         setBookmarks(state.bookmarks ?? []);
         setGeneralNotes(state.generalNotes ?? "");
         setIsPaused(true);
-        if (state.elapsedSeconds > 0) {
+        if (seconds > 0) {
+          // Reconstruct the anchors so Resume picks up cleanly from
+          // here without a visible jump or re-zeroing.
+          startedAtRef.current = Date.now() - seconds * 1000;
+          totalPausedMsRef.current = 0;
+          pauseStartedAtRef.current = Date.now();
           setRunning(true);
           setExpanded(true);
         }
       }
+      // We always rehydrate as paused, so this movie isn't actually
+      // running anymore. Clear the global-running pointer if it was
+      // stuck on this movie from a previous tab session — otherwise
+      // a stale tab would block all future starts indefinitely.
+      if (readRunningMovieId() === movieId) setRunningMovieId(null);
     } catch { /* ignore */ }
-  }, [storageKey]);
+  }, [storageKey, movieId]);
 
   // Auto-save to localStorage
   const saveState = useCallback(() => {
@@ -84,50 +154,162 @@ export default function LiveReview({ movieId }: Props) {
     if (running) saveState();
   }, [elapsedSeconds, bookmarks, generalNotes, saveState, running]);
 
-  // Timer logic
+  // Timer logic. The interval re-renders every second; the elapsed
+  // value comes from wall-clock math against startedAtRef. A
+  // visibilitychange handler re-ticks the moment the page becomes
+  // active again so the timer snaps to the correct value immediately
+  // on unlock instead of waiting for the next 1-second boundary.
   useEffect(() => {
-    if (running && !isPaused && countdown === null) {
-      intervalRef.current = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, isPaused, countdown]);
+    if (!running || isPaused || countdown !== null) return;
+    const tick = () => {
+      const elapsed = computeElapsedSec();
+      const cap = capSecondsRef.current;
+      if (elapsed >= cap) {
+        // Hit the cap → auto-pause. Mirrors a manual pause so Resume
+        // works the same way; the autoPaused flag drives the notice.
+        pauseStartedAtRef.current = Date.now();
+        setIsPaused(true);
+        setElapsedSeconds(elapsed);
+        setAutoPaused(true);
+        setShowCapWarning(false);
+        setRunningMovieId(null);
+        return;
+      }
+      // Pre-cap warning window: surface the upcoming auto-pause and
+      // offer to extend before it triggers.
+      setShowCapWarning(elapsed >= cap - CAP_WARNING_LEAD_SEC);
+      setElapsedSeconds(elapsed);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    const onVisibility = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [running, isPaused, countdown, computeElapsedSec]);
+
+  // Bump both the ref (read by tick) and the state (read by the UI).
+  function bumpCap(deltaSec: number) {
+    capSecondsRef.current += deltaSec;
+    setCapSeconds(capSecondsRef.current);
+  }
+  function resetCap() {
+    capSecondsRef.current = INITIAL_CAP_SEC;
+    setCapSeconds(INITIAL_CAP_SEC);
+  }
+
+  function extendCap() {
+    bumpCap(CAP_EXTENSION_SEC);
+    setShowCapWarning(false);
+  }
 
   // Countdown logic
   useEffect(() => {
     if (countdown === null) return;
     if (countdown <= 0) {
+      // Countdown hits zero — anchor the wall-clock timer and start.
+      // Running slot was already claimed when startTimer queued the
+      // countdown, so this transition doesn't need a fresh prompt.
+      startedAtRef.current = Date.now();
+      totalPausedMsRef.current = 0;
+      pauseStartedAtRef.current = null;
+      setElapsedSeconds(0);
       setCountdown(null);
       setRunning(true);
       setIsPaused(false);
+      setAutoPaused(false);
       return;
     }
     const timer = setTimeout(() => setCountdown((prev) => prev !== null ? prev - 1 : null), 1000);
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  // Returns true if it's OK to take over the global "running" slot.
+  // If another movie's Live Review is currently running, prompts the
+  // user; on confirm we steal the slot (the other tab will keep its
+  // own component state but stop being the canonical running session).
+  function claimRunningSlot(): boolean {
+    const existing = readRunningMovieId();
+    if (existing && existing !== movieId) {
+      const proceed = typeof window !== "undefined" && window.confirm(
+        "You already have a Live Review running for another movie. Stop it and start a fresh timer here?"
+      );
+      if (!proceed) return false;
+    }
+    setRunningMovieId(movieId);
+    return true;
+  }
+
   function startTimer() {
     if (useCountdown) {
+      if (!claimRunningSlot()) return;
       setCountdown(5);
     } else {
+      if (!claimRunningSlot()) return;
+      // Fresh start — anchor at now, no pauses, zero elapsed.
+      startedAtRef.current = Date.now();
+      totalPausedMsRef.current = 0;
+      pauseStartedAtRef.current = null;
+      setElapsedSeconds(0);
       setRunning(true);
       setIsPaused(false);
+      setAutoPaused(false);
     }
   }
 
   function togglePause() {
-    setIsPaused(!isPaused);
+    if (isPaused) {
+      // Resuming — re-acquire the global slot (claim handles conflict
+      // prompts and bails out cleanly if the user cancels).
+      if (!claimRunningSlot()) return;
+      if (pauseStartedAtRef.current !== null) {
+        totalPausedMsRef.current += Date.now() - pauseStartedAtRef.current;
+        pauseStartedAtRef.current = null;
+      }
+      // If the pause came from the auto-pause cap, push the cap
+      // forward another hour. Without this, the next tick would
+      // immediately re-trip the cap and re-pause — Resume would
+      // appear to do nothing.
+      if (autoPaused) {
+        bumpCap(CAP_EXTENSION_SEC);
+      }
+      setIsPaused(false);
+      setAutoPaused(false);
+      setShowCapWarning(false);
+    } else {
+      pauseStartedAtRef.current = Date.now();
+      setIsPaused(true);
+      // Pausing frees the global slot so another movie can start.
+      setRunningMovieId(null);
+    }
   }
 
   function resetTimer() {
+    startedAtRef.current = null;
+    totalPausedMsRef.current = 0;
+    pauseStartedAtRef.current = null;
     setRunning(false);
     setIsPaused(false);
+    setAutoPaused(false);
+    setShowCapWarning(false);
     setElapsedSeconds(0);
     setCountdown(null);
+    resetCap();
+    if (readRunningMovieId() === movieId) setRunningMovieId(null);
     saveState();
+  }
+
+  // Manually move the elapsed value to `seconds` (used by Jump-to and
+  // bookmark jumps). Re-anchor startedAt accordingly so subsequent
+  // wall-clock math produces the requested value and continues
+  // accruing from there. Preserves current pause state.
+  function setElapsedTo(seconds: number) {
+    startedAtRef.current = Date.now() - seconds * 1000;
+    totalPausedMsRef.current = 0;
+    pauseStartedAtRef.current = isPaused ? Date.now() : null;
+    setElapsedSeconds(seconds);
   }
 
   function clearAllNotes() {
@@ -155,14 +337,25 @@ export default function LiveReview({ movieId }: Props) {
   function goToTimestamp() {
     const seconds = parseTime(goToInput.trim());
     if (seconds === null || seconds < 0) return;
-    setElapsedSeconds(seconds);
+    if (!running) {
+      // Bringing the timer to life in paused state at the chosen
+      // position. Mark paused first so setElapsedTo sets the
+      // pause anchor correctly on the same render.
+      pauseStartedAtRef.current = Date.now();
+      setIsPaused(true);
+      setRunning(true);
+    }
+    setElapsedTo(seconds);
     setGoToInput("");
-    if (!running) { setRunning(true); setIsPaused(true); }
   }
 
   function jumpToBookmark(timestamp: number) {
-    setElapsedSeconds(timestamp);
-    if (!running) { setRunning(true); setIsPaused(true); }
+    if (!running) {
+      pauseStartedAtRef.current = Date.now();
+      setIsPaused(true);
+      setRunning(true);
+    }
+    setElapsedTo(timestamp);
   }
 
   function clearSavedState() {
@@ -203,6 +396,34 @@ export default function LiveReview({ movieId }: Props) {
       {/* Expanded content */}
       {expanded && countdown === null && (
         <div className="px-4 pb-4 space-y-4 border-t border-[var(--border)]">
+          {/* Cap notices. Two variants share the same slot:
+             - Pre-cap (running, within 15 min of cap): heads-up + Extend.
+             - Auto-pause (cap reached + paused): explains the pause,
+               clarifies that Resume will tack on another hour. */}
+          {showCapWarning && !isPaused && (
+            <div className="mt-3 flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/40 rounded-lg px-3 py-2 text-xs text-yellow-200 leading-relaxed">
+              <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-yellow-300" />
+              <span className="flex-1">
+                <span className="font-semibold text-yellow-100">Live Review will auto-pause at {Math.floor(capSeconds / 3600)} hours</span>
+                {" "}(in about {Math.max(1, Math.ceil((capSeconds - elapsedSeconds) / 60))} min). Still watching?
+              </span>
+              <button
+                onClick={extendCap}
+                className="shrink-0 text-[11px] font-semibold text-yellow-100 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/50 rounded-md px-2.5 py-1 transition-colors"
+              >
+                Extend 1 hour
+              </button>
+            </div>
+          )}
+          {autoPaused && isPaused && (
+            <div className="mt-3 flex items-start gap-2 bg-yellow-500/10 border border-yellow-500/40 rounded-lg px-3 py-2 text-xs text-yellow-200 leading-relaxed">
+              <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-yellow-300" />
+              <span>
+                <span className="font-semibold text-yellow-100">Auto-paused at the {Math.floor(capSeconds / 3600)}-hour mark.</span>{" "}
+                Hit Resume to extend by another hour, or Reset to clear the timer.
+              </span>
+            </div>
+          )}
           {/* Timer controls */}
           <div className="pt-4 space-y-3">
             {/* Row 1: Timer + controls */}
