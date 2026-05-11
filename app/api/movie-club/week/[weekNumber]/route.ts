@@ -108,14 +108,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
         }))
       : prompts.map(() => 0);
 
-    // Rating distribution (1-2, 3-4, 5-6, 7-8, 9-10)
-    const ratingDistribution = canSeeDiscussion ? [
-      { range: "1-2", count: week.ratings.filter((r) => r.rating >= 1 && r.rating < 3).length },
-      { range: "3-4", count: week.ratings.filter((r) => r.rating >= 3 && r.rating < 5).length },
-      { range: "5-6", count: week.ratings.filter((r) => r.rating >= 5 && r.rating < 7).length },
-      { range: "7-8", count: week.ratings.filter((r) => r.rating >= 7 && r.rating < 9).length },
-      { range: "9-10", count: week.ratings.filter((r) => r.rating >= 9).length },
-    ] : [];
+    // Rating distribution — 10 buckets matching the movie/show page
+    // RatingDistribution component. Each bucket holds "ratings that
+    // display with that leading digit" so 9.0 and 9.9 both fall in
+    // bucket "9" (display value rounded to 1 decimal, then floored).
+    // buckets[0] = displayed 1.0–1.9, ... buckets[9] = displayed 10.0
+    const ratingDistribution = canSeeDiscussion ? (() => {
+      const labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+      const buckets = Array(10).fill(0);
+      for (const r of week.ratings) {
+        const displayed = Math.round(r.rating * 10) / 10;
+        const idx = Math.max(0, Math.min(Math.floor(displayed) - 1, 9));
+        buckets[idx]++;
+      }
+      return labels.map((range, i) => ({ range, count: buckets[i] }));
+    })() : [];
 
     // Category breakdown (averages from standard reviews with formData)
     const standardReviews = canSeeDiscussion

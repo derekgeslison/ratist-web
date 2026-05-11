@@ -131,11 +131,17 @@ export default function ProfileThemeEditor() {
       {/* Custom colors */}
       <div className="mb-6">
         <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-3">Custom Colors</p>
+        <p className="text-[11px] text-[var(--foreground-muted)] mb-3">
+          Override any of the six color variables individually. Leave a swatch alone to inherit it from your selected preset.
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {([
-            { key: "accentColor" as const, label: "Accent", defaultVal: "#cc1034" },
-            { key: "surfaceColor" as const, label: "Background", defaultVal: "#1a1a1a" },
-            { key: "textColor" as const, label: "Text", defaultVal: "#f0f0f0" },
+            { key: "accentColor" as const,  label: "Accent",           defaultVal: "#cc1034" },
+            { key: "surfaceColor" as const, label: "Background",       defaultVal: "#1a1a1a" },
+            { key: "surfaceColor2" as const,label: "Secondary Surface",defaultVal: "#242424" },
+            { key: "textColor" as const,    label: "Text",             defaultVal: "#f0f0f0" },
+            { key: "mutedColor" as const,   label: "Muted Text",       defaultVal: "#a0a0a0" },
+            { key: "borderColor" as const,  label: "Border",           defaultVal: "#2e2e2e" },
           ]).map(({ key, label, defaultVal }) => (
             <div key={key} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3">
               <label className="text-xs text-[var(--foreground-muted)] mb-2 block">{label}</label>

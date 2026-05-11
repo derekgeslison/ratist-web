@@ -22,10 +22,15 @@ export async function GET(req: NextRequest) {
 
     const user = await getUser(req);
 
-    // Get active + recent weeks (watching, discussion, archived)
+    // Get active + recent weeks (watching, discussion, archived).
+    // Ordering by startDate desc rather than weekNumber — weekNumber
+    // is computed by separate logic that's been known to misalign with
+    // calendar weeks, so sorting by it produces non-chronological lists
+    // (e.g., archived: 04-06, 04-27, 04-20). startDate is the source of
+    // truth for "what week was this."
     const weeks = await prisma.movieClubWeek.findMany({
       where: { status: { in: ["watching", "discussion", "archived"] } },
-      orderBy: { weekNumber: "desc" },
+      orderBy: { startDate: "desc" },
       take: 12,
       include: {
         ratings: {

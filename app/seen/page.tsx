@@ -406,24 +406,47 @@ export default function SeenPage() {
     });
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com";
+  const seenInCalYear = useMemo(() => {
+    return movies.filter((m) => {
+      const d = m.watchedDate ?? m.seenAt;
+      return d && new Date(d).getFullYear() === calYear;
+    }).length;
+  }, [movies, calYear]);
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <Eye className="w-6 h-6 text-[var(--ratist-red)]" />
           <h1 className="text-2xl font-bold text-white">Film Diary</h1>
         </div>
-        {user && (
-          isYearInReviewUnlocked(calYear, false) ? (
-            <Link href={`/profile/${user.uid}/year-in-review/${calYear}`} className="text-sm text-[var(--ratist-red)] hover:underline">
-              Year in Review →
+        <div className="flex items-center gap-4 flex-wrap">
+          {user && seenInCalYear > 0 && (
+            <ShareButton
+              label="Share my diary"
+              text={`I've watched ${movies.length}+ films on The Ratist. Check out my film diary.`}
+              url={`${siteUrl}/profile/${user.uid}#diary`}
+              cardImageUrl={`/api/og/seen?userId=${encodeURIComponent(user.uid)}`}
+            />
+          )}
+          {user && (
+            isYearInReviewUnlocked(calYear, false) ? (
+              <Link href={`/profile/${user.uid}/year-in-review/${calYear}`} className="text-sm text-[var(--ratist-red)] hover:underline">
+                Year in Review →
+              </Link>
+            ) : (
+              <span className="text-sm text-[var(--foreground-muted)]">
+                Year in Review unlocks {unlockTeaser(calYear)}
+              </span>
+            )
+          )}
+          {user && (
+            <Link href="/profile/import" className="text-sm text-[var(--ratist-red)] hover:underline">
+              Import from Letterboxd / IMDb →
             </Link>
-          ) : (
-            <span className="text-sm text-[var(--foreground-muted)]">
-              Year in Review unlocks {unlockTeaser(calYear)}
-            </span>
-          )
-        )}
+          )}
+        </div>
       </div>
 
       {!user ? (

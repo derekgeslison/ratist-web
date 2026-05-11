@@ -7,6 +7,7 @@ import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
 import { resolveStudioNames } from "@/lib/studios";
 import { loadGroupMembers, loadGroupSeenSets, computeGroupScore, MAX_GROUP_SIZE, type MemberPrefs } from "@/lib/recommend-group";
+import { predictRatingsBatch } from "@/lib/collection-match";
 
 export const dynamic = "force-dynamic";
 
@@ -580,32 +581,34 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // User's genre preferences for match scoring (solo mode only — group
-    // mode uses per-member prefs from loadGroupMembers above).
-    const userGenrePrefs = new Map<string, number>();
-    if (!isGroupMode && user?.profile) {
-      const p = user.profile as Record<string, unknown>;
-      const genreKeys: Record<string, string> = {
-        genreAction: "Action", genreHorror: "Horror", genreDrama: "Drama",
-        genreScifi: "Science Fiction", genreThriller: "Thriller", genreComedy: "Comedy",
-        genreFantasy: "Fantasy", genreRomance: "Romance", genreDocumentary: "Documentary",
-        genreFamily: "Family", genreHistorical: "History", genreMusical: "Music",
-        genreCrime: "Crime", genreWestern: "Western", genreMystery: "Mystery",
-        genreBookAdapt: "Adventure", genreFilmNoir: "Thriller", genreBiopic: "Drama",
-      };
-      for (const [key, genre] of Object.entries(genreKeys)) {
-        const score = Number(p[key]) || 0;
-        if (score > 0) {
-          const existing = userGenrePrefs.get(genre) ?? 0;
-          if (score > existing) userGenrePrefs.set(genre, score);
-        }
-      }
-    }
+    // Solo-mode matching no longer uses raw genre prefs — replaced by
+    // predictRatingsBatch below (full-taste-profile prediction grounded
+    // in community ratings). Group mode still uses per-member genre
+    // prefs via loadGroupMembers / computeGroupScore.
 
     // How many of the user's requested genres match this title's genre tags.
     // Client sorts by this first so an explicit "sci-fi + romance" query keeps
     // hybrid titles on top regardless of the user's personal taste profile.
     const requestedGenreIdSet = new Set(genreIds.map(Number));
+
+    // Predicted ratings for solo mode. Uses the same engine as
+    // community-collections match — full taste profile (components +
+    // genres + your rating patterns) grounded in community ratings.
+    // Returns null per item when the title isn't in our DB or there's
+    // insufficient data. Skipped in group mode (which uses
+    // computeGroupScore's per-member floor) and for unauthed visitors.
+    let predictionMap = new Map<string, number | null>();
+    if (!isGroupMode && user) {
+      const predItems = (discoverData.results ?? []).map((m: Record<string, unknown>) => ({
+        tmdbId: m.id as number,
+        mediaType: m._mediaType as "movie" | "tv",
+      }));
+      try {
+        predictionMap = await predictRatingsBatch(user.id, predItems);
+      } catch (err) {
+        console.error("[recommend] predictRatingsBatch failed; falling back to no match score:", err);
+      }
+    }
 
     // Build results
     let results = (discoverData.results ?? []).map((m: Record<string, unknown>) => {
@@ -616,7 +619,9 @@ export async function POST(req: NextRequest) {
       const providers = providersMap.get(m.id as number);
 
       // matchScore semantics:
-      //   solo  → user's genre-affinity (0-10)
+      //   solo  → predicted 1-10 rating from full taste profile (null
+      //           when title isn't in our DB or there's not enough
+      //           community data to predict).
       //   group → floor (worst per-member 0-10) so the existing client
       //           sort by matchScore desc keeps "everyone tolerates this"
       //           on top. Per-member detail rides along separately.
@@ -631,9 +636,9 @@ export async function POST(req: NextRequest) {
         groupScore = g.groupScore;
         perMemberScores = g.perMember;
         matchScore = g.floor; // mirror floor for client sort + badge
-      } else if (userGenrePrefs.size > 0 && itemGenres.length > 0) {
-        const scores = itemGenres.map((g) => userGenrePrefs.get(g) ?? 0).filter((s) => s > 0);
-        if (scores.length > 0) matchScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      } else if (user) {
+        const pred = predictionMap.get(`${mt}-${m.id}`);
+        if (pred != null) matchScore = Math.round(pred * 10) / 10;
       }
 
       const requestedMatchCount = requestedGenreIdSet.size > 0

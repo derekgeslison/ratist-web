@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
-      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, autoSeenOnWatchlistCheck: true, publicTabs: true, notificationPrefs: true, profileTheme: true, emailOptOut: true, emailPrefs: true, watchlistStreamingNotifs: true },
+      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, autoSeenOnWatchlistCheck: true, publicTabs: true, notificationPrefs: true, profileTheme: true, emailOptOut: true, emailPrefs: true },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
     return NextResponse.json({ user });
@@ -49,12 +49,19 @@ export async function PATCH(req: NextRequest) {
     const updated = await prisma.user.update({
       where: { id: dbUser.id },
       data: update,
-      select: { id: true, name: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, autoSeenOnWatchlistCheck: true, publicTabs: true, notificationPrefs: true, profileTheme: true, watchlistStreamingNotifs: true },
+      select: { id: true, name: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, autoSeenOnWatchlistCheck: true, publicTabs: true, notificationPrefs: true, profileTheme: true },
     });
 
     return NextResponse.json({ user: updated });
   } catch (err) {
     console.error("Profile me PATCH error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    // Surface the underlying error in dev so the browser can show it
+    // — production keeps the generic message. Remove the `detail` once
+    // the bug is pinned.
+    const isDev = process.env.NODE_ENV !== "production";
+    return NextResponse.json({
+      error: "Server error",
+      detail: isDev ? (err instanceof Error ? err.message : String(err)) : undefined,
+    }, { status: 500 });
   }
 }

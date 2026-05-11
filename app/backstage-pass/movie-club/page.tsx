@@ -571,7 +571,7 @@ function UpcomingCard({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider">
-          Week {week.weekNumber} · {fmtShort(week.startDate)}
+          Starting {fmtShort(week.startDate)}
         </p>
         <p className="text-sm font-semibold text-white truncate">
           {showMovie ? week.movieTitle : `${pickMethodLabel(week.pickMethod)} — revealed Mon`}

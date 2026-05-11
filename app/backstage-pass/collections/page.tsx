@@ -271,7 +271,7 @@ function FeaturedCard({ c }: { c: FeaturedCollection }) {
       <div className="p-3 flex-1 flex flex-col">
         <p className="text-sm font-semibold text-white group-hover:text-amber-400 transition-colors line-clamp-2 leading-snug">{c.name}</p>
         <div className="flex items-center gap-1.5 mt-2 text-[10px] text-[var(--foreground-muted)] flex-wrap">
-          <span>Curated by Ratist</span>
+          <span>Curated by The Ratist</span>
           <span>·</span>
           <span>{c.itemCount} title{c.itemCount === 1 ? "" : "s"}</span>
           {c.saveCount > 0 && (

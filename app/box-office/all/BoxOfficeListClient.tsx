@@ -526,12 +526,18 @@ export default function BoxOfficeListClient({ genres }: Props) {
         {loading ? "Loading…" : error ? error : `${total.toLocaleString()} movies`}
       </p>
 
-      {/* Results list */}
+      {/* Results list. Column header is sticky on desktop so the
+          column labels remain visible while scrolling long lists. On
+          mobile, a compact sticky strip shows what the inline meta
+          line means (year · revenue · profit/ROI) since the row
+          layout doesn't have visible column headers of its own. */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-        {/* Column header — desktop only. The columns shown adapt to
-            the active sort: profit/ROI columns appear when one is the
-            active sort so the most relevant value shows on the right. */}
-        <div className="hidden md:grid grid-cols-[2.5rem_3rem_1fr_8rem_8rem_7rem] gap-3 px-4 py-2 border-b border-[var(--border)] text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
+        {/* Mobile sticky label strip */}
+        <div className="md:hidden sticky top-0 z-10 bg-[var(--surface)] border-b border-[var(--border)] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
+          # · Title · Year · Revenue · {sort.startsWith("roi") ? "ROI" : "Profit"}
+        </div>
+        {/* Desktop sticky column header — adapts to the active sort. */}
+        <div className="hidden md:grid sticky top-0 z-10 bg-[var(--surface)] grid-cols-[2.5rem_3rem_1fr_8rem_8rem_7rem] gap-3 px-4 py-2 border-b border-[var(--border)] text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">
           <span className="text-right">#</span>
           <span></span>
           <span>Title</span>

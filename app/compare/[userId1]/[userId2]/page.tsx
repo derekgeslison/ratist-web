@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
+import { adminAuth } from "@/lib/firebase-admin";
 import { scoreColor } from "@/lib/ratings";
 import { dimensionSimilarity, matchScore } from "@/lib/ratings";
 import ShareButton from "@/components/ShareButton";
@@ -55,6 +57,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ComparePage({ params }: Props) {
   const { userId1, userId2 } = await params;
+
+  // Resolve the current viewer from the auth cookie so we can hide the
+  // "Get your own match score" CTA from already-signed-in users.
+  let viewerIsAuthed = false;
+  try {
+    const token = (await cookies()).get("__session")?.value;
+    if (token) {
+      await adminAuth.verifyIdToken(token);
+      viewerIsAuthed = true;
+    }
+  } catch { /* invalid token = anonymous */ }
 
   const [user1, user2] = await Promise.all([
     prisma.user.findFirst({
@@ -237,9 +250,11 @@ export default async function ComparePage({ params }: Props) {
             url={shareUrl}
             cardImageUrl={`/api/og/compare?userId1=${encodeURIComponent(userId1)}&userId2=${encodeURIComponent(userId2)}`}
           />
-          <SignInLink className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
-            Get your own match score →
-          </SignInLink>
+          {!viewerIsAuthed && (
+            <SignInLink className="text-xs text-[var(--foreground-muted)] hover:text-white transition-colors">
+              Get your own match score →
+            </SignInLink>
+          )}
         </div>
       </div>
 

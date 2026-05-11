@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { posterUrl, STREAMING_PROVIDERS, IMAGE_BASE_URL } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
 import ProviderLogos from "@/components/ProviderLogos";
+import { useWatchlistFlow } from "@/components/WatchlistFlow";
 
 const GENRES = [
   "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
@@ -92,7 +93,6 @@ export default function RecommendPage() {
   const [resultMediaFilter, setResultMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [tvRatingSelected, setTvRatingSelected] = useState<Set<string>>(new Set(ALL_TV_RATINGS));
   const [selectedStreamingProviders, setSelectedStreamingProviders] = useState<Set<string>>(new Set());
-  const [watchlistingId, setWatchlistingId] = useState<number | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   // Hidden AI-extracted filters. The user sees a single generic "AI filter"
@@ -591,23 +591,9 @@ export default function RecommendPage() {
     if (pickerTab === "follows") loadFollowsIfNeeded();
   }
 
-  async function addToWatchlist(movie: MovieResult) {
-    if (!user || watchlistingId) return;
-    setWatchlistingId(movie.tmdbId);
-    const token = await getToken();
-    if (!token) { setWatchlistingId(null); return; }
-    const apiBase = movie.mediaType === "tv" ? `/api/shows/${movie.tmdbId}` : `/api/movies/${movie.tmdbId}`;
-    const bodyPayload = movie.mediaType === "tv"
-      ? { name: movie.title, poster_path: movie.posterPath }
-      : { title: movie.title, poster_path: movie.posterPath };
-    const res = await fetch(`${apiBase}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(bodyPayload),
-    });
-    if (res.ok) setWatchlisted((prev) => new Set(prev).add(movie.tmdbId));
-    setWatchlistingId(null);
-  }
+  // addToWatchlist replaced by RecommendWatchlistButton (uses
+  // useWatchlistFlow) — gives users the same list-picker modal as
+  // movie/show cards instead of force-adding to the default list.
 
   function toggleGenre(g: string) { setSelectedGenres((p) => { const s = new Set(p); s.has(g) ? s.delete(g) : s.add(g); return s; }); }
   function toggleExclude(g: string) { setExcludeGenres((p) => { const s = new Set(p); s.has(g) ? s.delete(g) : s.add(g); return s; }); }
@@ -1292,7 +1278,7 @@ export default function RecommendPage() {
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                                 movie.perMemberScores ? "bg-purple-500/15 text-purple-300" : "bg-green-500/15 text-green-400"
                               }`}>
-                                {Math.min(movie.matchScore * 10, 100)}% {movie.perMemberScores ? "floor" : "match"}
+                                {Math.round(Math.min(movie.matchScore * 10, 100))}% {movie.perMemberScores ? "floor" : "match"}
                               </span>
                             )}
                             <RatingBadge type="community" score={movie.voteAverage} size="sm" />
@@ -1356,14 +1342,21 @@ export default function RecommendPage() {
                             <span className="inline-block text-[10px] font-medium bg-[var(--ratist-red)]/10 text-[var(--ratist-red)] px-1.5 py-0.5 rounded-full">{movie.reason}</span>
                           </div>
                           {user && (
-                            <button
-                              onClick={() => addToWatchlist(movie)}
-                              disabled={watchlisted.has(movie.tmdbId) || watchlistingId === movie.tmdbId}
-                              className={`flex items-center gap-1 text-xs shrink-0 transition-colors ${watchlisted.has(movie.tmdbId) ? "text-blue-400 cursor-default" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
-                              title={watchlisted.has(movie.tmdbId) ? "In your watchlist" : "Add to watchlist"}
-                            >
-                              {watchlisted.has(movie.tmdbId) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
-                            </button>
+                            <RecommendWatchlistButton
+                              tmdbId={movie.tmdbId}
+                              mediaType={movie.mediaType === "tv" ? "tv" : "movie"}
+                              title={movie.title}
+                              posterPath={movie.posterPath}
+                              initialWatchlisted={watchlisted.has(movie.tmdbId)}
+                              onChange={(now) => {
+                                setWatchlisted((prev) => {
+                                  const next = new Set(prev);
+                                  if (now) next.add(movie.tmdbId);
+                                  else next.delete(movie.tmdbId);
+                                  return next;
+                                });
+                              }}
+                            />
                           )}
                         </div>
                       </div>
@@ -1533,5 +1526,48 @@ export default function RecommendPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Per-result watchlist button. Uses the shared useWatchlistFlow hook so
+ * users get the same list-picker modal here as on movie/show cards —
+ * with the full-width mobile bottom sheet and auto-add-to-default
+ * preference respected. `initialWatchlisted` keeps the parent-page
+ * cache of saved watchlist state in sync so the icon reflects status
+ * on first render; `onChange` callbacks back up to the parent when
+ * the user adds/removes via the picker.
+ */
+function RecommendWatchlistButton({
+  tmdbId, mediaType, title, posterPath, initialWatchlisted, onChange,
+}: {
+  tmdbId: number;
+  mediaType: "movie" | "tv";
+  title: string;
+  posterPath: string | null;
+  initialWatchlisted: boolean;
+  onChange: (watchlisted: boolean) => void;
+}) {
+  const [watchlisted, setWatchlisted] = useState(initialWatchlisted);
+  useEffect(() => { setWatchlisted(initialWatchlisted); }, [initialWatchlisted]);
+  const flow = useWatchlistFlow({
+    tmdbId, mediaType, title, posterPath,
+    onWatchlistedChange: (next) => {
+      setWatchlisted(next);
+      onChange(next);
+    },
+  });
+  return (
+    <>
+      <button
+        onClick={flow.handleClick}
+        disabled={flow.busy}
+        className={`flex items-center gap-1 text-xs shrink-0 transition-colors ${watchlisted ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
+        title={watchlisted ? "In your watchlist" : "Add to watchlist"}
+      >
+        {watchlisted ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+      </button>
+      {flow.picker}
+    </>
   );
 }

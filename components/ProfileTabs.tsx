@@ -291,6 +291,15 @@ export default function ProfileTabs({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Scroll to top when navigating to a different profile (soft-nav
+  // between profile pages doesn't always reset scroll on its own).
+  // Effect is keyed on profileFirebaseUid so it only fires when the
+  // user navigates to a *different* user's profile, not on tab
+  // changes or back-nav that returns to the same profile.
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, [profileFirebaseUid]);
+
   function setActiveTab(tab: Tab) {
     setActiveTabState(tab);
     const hash = tab === (visibleTabs[0] ?? "Overview") ? "" : `#${tab.toLowerCase()}`;
@@ -1093,14 +1102,9 @@ export default function ProfileTabs({
                       Reorder →
                     </Link>
                   )}
-                  {isOwnProfile && displayRankings.length >= 1 && (
-                    <ShareButton
-                      label={`Share ${listLabel.toLowerCase()}`}
-                      text={`Check out ${isOwnProfile ? "my" : `${profileUserName}'s`} ${listLabel.toLowerCase()} on The Ratist!\n\nTop picks: ${displayRankings.slice(0, 3).map((r) => r.title).join(", ")}${displayRankings.length > 3 ? "..." : ""}`}
-                      url={rankingsUrl}
-                      cardImageUrl={`/api/og/rankings?userId=${encodeURIComponent(profileFirebaseUid)}${listKey !== "all-time" ? `&year=${listKey}` : ""}`}
-                    />
-                  )}
+                  {/* Share button lives on the dedicated /tools/rankings
+                      page now — keeping it here duplicated the action and
+                      cluttered the tab header. */}
                 </div>
               </div>
               {displayRankings.map((r, index) => (

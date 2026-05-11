@@ -48,6 +48,13 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
         onClose();
         window.location.reload();
       }, 600);
+    } else {
+      try {
+        const errData = await res.json();
+        // String-concat (not object) so browser console doesn't
+        // truncate the Prisma error in the middle.
+        console.error("[ProfileThemeModal] save failed:\n" + (errData.detail ?? errData.error ?? "(no detail)"));
+      } catch { /* response wasn't JSON */ }
     }
     setSaving(false);
   }
@@ -162,15 +169,20 @@ export default function ProfileThemeModal({ currentTheme, onClose }: Props) {
             </div>
           </div>
 
-          {/* Custom colors */}
+          {/* Custom colors — all 6 theme vars individually editable. */}
           <div className="mb-5">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-medium mb-2">Custom Colors</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <p className="text-[11px] text-[var(--foreground-muted)] mb-2">
+              Override any of the six color variables. Untouched swatches inherit from your selected preset.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {([
-                { key: "accentColor" as const, label: "Accent", val: accent },
-                { key: "surfaceColor" as const, label: "Background", val: surface },
-                { key: "textColor" as const, label: "Text", val: text },
-                { key: "mutedColor" as const, label: "Secondary", val: muted },
+                { key: "accentColor" as const,   label: "Accent",            val: accent  },
+                { key: "surfaceColor" as const,  label: "Background",        val: surface },
+                { key: "surfaceColor2" as const, label: "Secondary Surface", val: surface2 },
+                { key: "textColor" as const,     label: "Text",              val: text    },
+                { key: "mutedColor" as const,    label: "Muted Text",        val: muted   },
+                { key: "borderColor" as const,   label: "Border",            val: border  },
               ]).map(({ key, label, val }) => (
                 <div key={key} className="bg-[var(--surface-2)] border border-[var(--border)] rounded-lg p-2.5">
                   <label className="text-[10px] text-[var(--foreground-muted)] mb-1.5 block">{label}</label>

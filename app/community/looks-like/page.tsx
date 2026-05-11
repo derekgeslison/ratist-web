@@ -380,8 +380,8 @@ export default function LooksLikePage() {
                   {/* People row */}
                   <div className="flex items-center gap-3 flex-1 min-w-0 mb-3 sm:mb-0">
                     {/* Person 1 */}
-                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                    <Link href={`/celebrities/${item.tmdbPersonId1}`} className="flex items-center gap-2.5 flex-1 min-w-0 group">
+                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)] group-hover:ring-2 group-hover:ring-[var(--ratist-red)] transition-all">
                         {item.profilePath1 ? (
                           <Image src={`${TMDB_IMG}${item.profilePath1}`} alt={item.name1} fill sizes="48px" className="object-cover" />
                         ) : (
@@ -389,26 +389,26 @@ export default function LooksLikePage() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-white">{item.name1}</p>
+                        <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors">{item.name1}</p>
                       </div>
-                    </div>
+                    </Link>
 
                     {/* VS badge */}
                     <span className="text-lg text-purple-400 font-bold shrink-0">≈</span>
 
                     {/* Person 2 */}
-                    <div className="flex items-center gap-2.5 flex-1 min-w-0 justify-end">
+                    <Link href={`/celebrities/${item.tmdbPersonId2}`} className="flex items-center gap-2.5 flex-1 min-w-0 justify-end group">
                       <div className="min-w-0 text-right">
-                        <p className="text-sm font-medium text-white">{item.name2}</p>
+                        <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors">{item.name2}</p>
                       </div>
-                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)]">
+                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden bg-[var(--surface-2)] group-hover:ring-2 group-hover:ring-[var(--ratist-red)] transition-all">
                         {item.profilePath2 ? (
                           <Image src={`${TMDB_IMG}${item.profilePath2}`} alt={item.name2} fill sizes="48px" className="object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[var(--foreground-muted)]">{item.name2[0]}</div>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   </div>
 
                   {/* Vote controls */}

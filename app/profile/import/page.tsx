@@ -208,14 +208,16 @@ export default function ImportPage() {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState("");
+  // Must be declared before the auth-gate early returns — moving a
+  // useState below those caused hook-order violation (React #310) when
+  // auth flipped from loading → resolved between renders.
+  const [resolving, setResolving] = useState(false);
 
   if (authLoading) return null;
   if (!user) {
     router.push(`/auth/signin?redirect=${encodeURIComponent(pathname)}`);
     return null;
   }
-
-  const [resolving, setResolving] = useState(false);
 
   async function resolveImdbTitles(parsed: ParsedRow[]): Promise<ParsedRow[]> {
     // Resolve IMDb IDs to real titles via TMDB find endpoint

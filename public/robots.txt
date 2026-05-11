@@ -1,4 +1,83 @@
+# The Ratist — theratist.com
+# Allow standard search engine crawlers to index public pages.
+# Disallow API and admin paths from indexing.
+# Block known AI/LLM training crawlers — content + ratings should not
+# be ingested into third-party model training corpora. Mirrors the
+# trade-secret + prohibited-use clauses in our Terms of Service.
+
+# ── Standard crawlers ───────────────────────────────────────────────
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /auth/
 
+# ── AI / LLM training crawlers — blocked ────────────────────────────
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Perplexity-User
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: Meta-ExternalFetcher
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: Omgili
+Disallow: /
+
+User-agent: omgilibot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Timpibot
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+# ── Sitemap ─────────────────────────────────────────────────────────
 Sitemap: https://www.theratist.com/sitemap.xml

@@ -20,7 +20,9 @@ interface RecastItem {
   posterPath: string | null;
   characterName: string;
   originalActorName: string;
+  originalActorTmdbId: number | null;
   suggestedActorName: string;
+  suggestedActorTmdbId: number | null;
   suggestedActorProfile: string | null;
   score: number;
   commentCount: number;
@@ -499,14 +501,29 @@ export default function RecastPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--foreground-muted)] mb-0.5">{item.movieTitle} · <span className="italic">{item.characterName}</span></p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-[var(--foreground-muted)] line-through">{item.originalActorName}</span>
+                      {item.originalActorTmdbId ? (
+                        <Link href={`/celebrities/${item.originalActorTmdbId}`} className="text-sm text-[var(--foreground-muted)] line-through hover:text-[var(--ratist-red)] hover:no-underline transition-colors">
+                          {item.originalActorName}
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-[var(--foreground-muted)] line-through">{item.originalActorName}</span>
+                      )}
                       <span className="text-blue-400 text-sm">→</span>
-                      <div className="flex items-center gap-1.5">
-                        {item.suggestedActorProfile && (
-                          <Image src={`${TMDB_IMG}${item.suggestedActorProfile}`} alt={item.suggestedActorName} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
-                        )}
-                        <span className="text-sm font-semibold text-white">{item.suggestedActorName}</span>
-                      </div>
+                      {item.suggestedActorTmdbId ? (
+                        <Link href={`/celebrities/${item.suggestedActorTmdbId}`} className="flex items-center gap-1.5 hover:text-[var(--ratist-red)] transition-colors">
+                          {item.suggestedActorProfile && (
+                            <Image src={`${TMDB_IMG}${item.suggestedActorProfile}`} alt={item.suggestedActorName} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                          )}
+                          <span className="text-sm font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">{item.suggestedActorName}</span>
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          {item.suggestedActorProfile && (
+                            <Image src={`${TMDB_IMG}${item.suggestedActorProfile}`} alt={item.suggestedActorName} width={20} height={20} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                          )}
+                          <span className="text-sm font-semibold text-white">{item.suggestedActorName}</span>
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-[var(--foreground-muted)] mt-1">by {item.creator.name}</p>
                   </div>

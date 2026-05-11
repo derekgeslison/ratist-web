@@ -317,24 +317,29 @@ export default function MovieClubWeekPage() {
                 <BarChart3 className="w-5 h-5 text-[var(--ratist-red)]" /> Rating Distribution
               </h2>
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
-                <div className="flex items-end gap-3" style={{ height: 120 }}>
-                  {week.ratingDistribution.map((d) => {
+                <div className="flex items-end gap-1 h-20">
+                  {week.ratingDistribution.map((d, i) => {
                     const maxCount = Math.max(...week.ratingDistribution!.map((x) => x.count), 1);
-                    const barHeight = d.count > 0 ? Math.max((d.count / maxCount) * 90, 8) : 4;
+                    const pct = (d.count / maxCount) * 100;
+                    const score = i + 1;
+                    const color = score <= 3 ? "bg-red-500" : score <= 5 ? "bg-orange-500" : score <= 7 ? "bg-yellow-500" : "bg-green-500";
                     return (
-                      <div key={d.range} className="flex-1 flex flex-col items-center justify-end h-full">
-                        <span className="text-xs text-white font-bold mb-1">{d.count > 0 ? d.count : ""}</span>
-                        <div className="w-full rounded-t-md" style={{ height: barHeight, backgroundColor: d.count > 0 ? "var(--ratist-red)" : "var(--surface-2)" }} />
+                      <div key={d.range} className="flex-1 flex flex-col items-center gap-1 group relative">
+                        <div className="w-full flex flex-col items-center justify-end h-16">
+                          <div
+                            className={`w-full rounded-t ${color} transition-all duration-300 min-h-[2px]`}
+                            style={{ height: `${Math.max(pct, 3)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-[var(--foreground-muted)]">{d.range}</span>
+                        {d.count > 0 && (
+                          <div className="absolute bottom-full mb-1 bg-[var(--surface)] border border-[var(--border)] text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            {d.count} rating{d.count !== 1 ? "s" : ""}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
-                </div>
-                <div className="flex gap-3 mt-2">
-                  {week.ratingDistribution.map((d) => (
-                    <div key={d.range} className="flex-1 text-center">
-                      <span className="text-[10px] text-[var(--foreground-muted)]">{d.range}</span>
-                    </div>
-                  ))}
                 </div>
               </div>
             </section>

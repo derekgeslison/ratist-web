@@ -1,10 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { scoreColor } from "@/lib/ratings";
-import ShareButton from "./ShareButton";
 import DiaryRow from "./DiaryRow";
 import DiaryEpisodeRow from "./DiaryEpisodeRow";
 
@@ -49,8 +46,10 @@ interface Props {
   updateWatchedDate: (tmdbId: number, dateStr: string | null) => void;
 }
 
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const DIARY_CAP = 100;
 
 function getWatchDate(m: { watchedDate: string | null }): Date | null {
   const str = m.watchedDate;
@@ -60,15 +59,14 @@ function getWatchDate(m: { watchedDate: string | null }): Date | null {
 }
 
 export default function ProfileDiaryTab({
-  seenMovies, episodeGroups = [], isOwnProfile, profileFirebaseUid, activeYear, seenThisYear,
-  siteUrl, watchedDates, updateWatchedDate,
+  seenMovies, episodeGroups = [], isOwnProfile, profileFirebaseUid,
 }: Props) {
-  const now = new Date();
-  const [viewMonth, setViewMonth] = useState(now.getMonth());
-  const [viewYear, setViewYear] = useState(parseInt(activeYear));
-
-  // Merge movies + episode groups into unified entries
-  const allEntries: DiaryEntry[] = useMemo(() => {
+  // Merge + dedupe to a single reverse-chronological list. We show the
+  // most recent DIARY_CAP entries here and link out to /seen for the
+  // full archive — for users with hundreds of entries, rendering all of
+  // them inline would be slow and the calendar nav we used to have was
+  // less useful than a flat recency list.
+  const entries = useMemo<DiaryEntry[]>(() => {
     const movieEntries: DiaryEntry[] = seenMovies.map((m) => ({
       ...m, _type: "movie" as const, id: `${m.mediaType ?? "movie"}-${m.tmdbId}`,
     }));
@@ -78,41 +76,28 @@ export default function ProfileDiaryTab({
       seenAt: eg.watchedDate ?? new Date().toISOString(),
       releaseDate: null,
     }));
-    return [...movieEntries, ...epEntries];
+    return [...movieEntries, ...epEntries]
+      .filter((m) => m.watchedDate != null)
+      .sort((a, b) => getWatchDate(b)!.getTime() - getWatchDate(a)!.getTime())
+      .slice(0, DIARY_CAP);
   }, [seenMovies, episodeGroups]);
 
-  // Only show entries with explicit watchedDate in the monthly view
-  const datedEntries = useMemo(() => allEntries.filter((m) => m.watchedDate != null), [allEntries]);
-
-  const monthEntries = useMemo(() => {
-    return datedEntries.filter((m) => {
-      const d = getWatchDate(m)!;
-      return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
-    }).sort((a, b) => getWatchDate(b)!.getTime() - getWatchDate(a)!.getTime());
-  }, [datedEntries, viewYear, viewMonth]);
-
-  const entriesByDay = useMemo(() => {
-    const map = new Map<number, DiaryEntry[]>();
-    for (const m of monthEntries) {
-      const day = getWatchDate(m)!.getDate();
-      const list = map.get(day) ?? [];
-      list.push(m);
-      map.set(day, list);
+  // Group by YYYY-MM-DD for day-headers between rows. Order preserved
+  // since `entries` is already sorted desc.
+  const dayGroups = useMemo(() => {
+    const groups: { key: string; date: Date; entries: DiaryEntry[] }[] = [];
+    for (const e of entries) {
+      const d = getWatchDate(e)!;
+      const key = d.toISOString().slice(0, 10);
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.entries.push(e);
+      else groups.push({ key, date: d, entries: [e] });
     }
-    return map;
-  }, [monthEntries]);
+    return groups;
+  }, [entries]);
 
-  const sortedDays = useMemo(() => [...entriesByDay.keys()].sort((a, b) => b - a), [entriesByDay]);
-
-  const prevMonth = useCallback(() => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
-    else setViewMonth((m) => m - 1);
-  }, [viewMonth]);
-
-  const nextMonth = useCallback(() => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); }
-    else setViewMonth((m) => m + 1);
-  }, [viewMonth]);
+  const totalEntryCount = seenMovies.length + episodeGroups.length;
+  const showingLess = totalEntryCount > entries.length;
 
   return (
     <div>
@@ -120,25 +105,14 @@ export default function ProfileDiaryTab({
         {isOwnProfile ? (
           <Link href="/seen" className="text-sm text-[var(--foreground)] hover:underline">View full diary →</Link>
         ) : <div />}
-        <div className="flex items-center gap-3">
-          {isOwnProfile && seenThisYear > 0 && (
-            <>
-              <Link href={`/profile/${profileFirebaseUid}/year-in-review/${activeYear}`}
-                className="text-xs text-[var(--foreground)] hover:underline shrink-0">
-                {activeYear} Year in Review →
-              </Link>
-              <ShareButton
-                label={`Share ${activeYear}`}
-                text={`I watched ${seenThisYear} movie${seenThisYear !== 1 ? "s" : ""} in ${activeYear}! Check out my year in film on The Ratist.`}
-                url={`${siteUrl}/profile/${profileFirebaseUid}/year-in-review/${activeYear}`}
-                cardImageUrl={`/api/og/year-in-review?userId=${encodeURIComponent(profileFirebaseUid)}&year=${activeYear}`}
-              />
-            </>
-          )}
-        </div>
+        {isOwnProfile && (
+          <Link href="/profile/import" className="text-xs text-[var(--foreground-muted)] hover:text-white hover:underline">
+            Import from Letterboxd / IMDb →
+          </Link>
+        )}
       </div>
 
-      {seenMovies.length === 0 && episodeGroups.length === 0 ? (
+      {totalEntryCount === 0 ? (
         <div className="text-center py-16">
           <p className="text-[var(--foreground-muted)] mb-3">
             {isOwnProfile ? "No movies marked as seen yet." : "No diary entries."}
@@ -147,75 +121,72 @@ export default function ProfileDiaryTab({
             <Link href="/movies" className="text-sm text-[var(--ratist-red)] hover:underline">Mark some movies as seen →</Link>
           )}
         </div>
+      ) : entries.length === 0 ? (
+        <p className="text-center text-sm text-[var(--foreground-muted)] py-8">
+          No dated diary entries yet. Mark something seen with a date to populate this list.
+        </p>
       ) : (
         <>
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="p-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <h3 className="text-base font-bold text-white">{MONTH_NAMES[viewMonth]} {viewYear}</h3>
-            <button onClick={nextMonth} className="p-1.5 text-[var(--foreground-muted)] hover:text-white transition-colors">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          <p className="text-xs text-[var(--foreground-muted)] mb-4">
-            {monthEntries.length} entr{monthEntries.length !== 1 ? "ies" : "y"} in {MONTH_NAMES[viewMonth]}
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">
+            {showingLess
+              ? `Showing ${entries.length} most recent of ${totalEntryCount} total. `
+              : `${entries.length} ${entries.length === 1 ? "entry" : "entries"}. `}
+            {isOwnProfile && showingLess && (
+              <Link href="/seen" className="text-[var(--ratist-red)] hover:underline">See all in your diary →</Link>
+            )}
           </p>
 
-          {monthEntries.length === 0 ? (
-            <p className="text-center text-sm text-[var(--foreground-muted)] py-8">No movies watched this month.</p>
-          ) : (
-            <div>
-              {sortedDays.map((day) => {
-                const dayEntries = entriesByDay.get(day) ?? [];
-                const dayOfWeek = DAY_NAMES[new Date(viewYear, viewMonth, day).getDay()];
-                return (
-                  <div key={day}>
-                    <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/20">
-                      <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
-                        {dayOfWeek}, {MONTH_NAMES[viewMonth].slice(0, 3)} {day}
-                      </span>
-                    </div>
-                    {dayEntries.map((m, idx) => {
-                      if (m._type === "episode") {
-                        return (
-                          <DiaryEpisodeRow
-                            key={m.id}
-                            showTmdbId={m.showTmdbId}
-                            title={m.title}
-                            posterPath={m.posterPath}
-                            year={m.year}
-                            dayNumber={idx === 0 ? day : null}
-                            watchedDate={m.watchedDate}
-                            seasonCount={m.seasonCount}
-                            episodeCount={m.episodeCount}
-                            seasons={m.seasons}
-                            episodes={m.episodes}
-                            ratistRating={m.ratistRating}
-                            editable={isOwnProfile}
-                          />
-                        );
-                      }
+          <div>
+            {dayGroups.map((group) => {
+              const dayOfWeek = DAY_NAMES[group.date.getDay()];
+              const dayNum = group.date.getDate();
+              const monthShort = MONTH_NAMES_SHORT[group.date.getMonth()];
+              const yearShort = group.date.getFullYear();
+              return (
+                <div key={group.key}>
+                  <div style={{ position: "sticky", top: 72, zIndex: 10 }} className="bg-[var(--background)] py-2 border-b border-[var(--border)]/20">
+                    <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
+                      {dayOfWeek}, {monthShort} {dayNum}, {yearShort}
+                    </span>
+                  </div>
+                  {group.entries.map((m, idx) => {
+                    if (m._type === "episode") {
                       return (
-                        <DiaryRow
+                        <DiaryEpisodeRow
                           key={m.id}
-                          tmdbId={m.tmdbId}
+                          showTmdbId={m.showTmdbId}
                           title={m.title}
                           posterPath={m.posterPath}
-                          year={m.releaseDate?.slice(0, 4) ?? ""}
+                          year={m.year}
+                          dayNumber={idx === 0 ? dayNum : null}
+                          watchedDate={m.watchedDate}
+                          seasonCount={m.seasonCount}
+                          episodeCount={m.episodeCount}
+                          seasons={m.seasons}
+                          episodes={m.episodes}
                           ratistRating={m.ratistRating}
-                          dayNumber={idx === 0 ? day : null}
-                          mediaType={m.mediaType}
                           editable={isOwnProfile}
                         />
                       );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    }
+                    return (
+                      <DiaryRow
+                        key={m.id}
+                        tmdbId={m.tmdbId}
+                        title={m.title}
+                        posterPath={m.posterPath}
+                        year={m.releaseDate?.slice(0, 4) ?? ""}
+                        ratistRating={m.ratistRating}
+                        dayNumber={idx === 0 ? dayNum : null}
+                        mediaType={m.mediaType}
+                        editable={isOwnProfile}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
     </div>
