@@ -39,6 +39,10 @@ export async function GET(req: NextRequest) {
     const rng = seededRng(seedParam ? parseInt(seedParam, 10) : Date.now());
 
     const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // Forum activity uses a tighter 7-day window — threads + replies
+    // age out fast as conversations move on; 30 days would surface a
+    // mix of stale and fresh that's harder to scan.
+    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     // --- 1. Following Activity ---
     // Pulls accepted follows minus mutual blocks. A user the viewer
@@ -98,6 +102,39 @@ export async function GET(req: NextRequest) {
           user: r.user, userRating: r.ratistRating != null ? Number(r.ratistRating) : r.overallRating != null ? Number(r.overallRating) : null,
         })),
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 15);
+    }
+
+    // Forum thread starts from followed users in the last 7 days.
+    // Sorted by most-recent, capped at 10. Replies/comments are
+    // intentionally excluded — this surface is for new conversations
+    // the user can join, not the running stream of in-thread chatter.
+    let followedForumActivity: Array<{
+      threadId: string;
+      threadSlug: string;
+      threadTitle: string;
+      threadType: string;
+      createdAt: string;
+      user: { firebaseUid: string; name: string; avatarUrl: string | null };
+    }> = [];
+    if (followingIds.length > 0) {
+      const recentThreads = await prisma.forumThread.findMany({
+        where: { authorId: { in: followingIds }, createdAt: { gte: since7d } },
+        select: {
+          id: true, slug: true, title: true, threadType: true, createdAt: true,
+          author: { select: { firebaseUid: true, name: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+
+      followedForumActivity = recentThreads.map((t) => ({
+        threadId: t.id,
+        threadSlug: t.slug,
+        threadTitle: t.title,
+        threadType: t.threadType,
+        createdAt: t.createdAt.toISOString(),
+        user: t.author,
+      }));
     }
 
     // --- 2. "Because you liked X" ---
@@ -428,6 +465,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       topPicks,
       followActivity,
+      followedForumActivity,
       becauseYouLiked,
       trendingInCluster,
       unwatchedWatchlist,

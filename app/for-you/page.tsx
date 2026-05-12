@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { useAuth } from "@/context/AuthContext";
-import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check, Settings, GripVertical, X, CalendarHeart } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, RefreshCw, Star, ChevronDown, Eye, EyeOff, Check, Settings, GripVertical, X, CalendarHeart, MessageSquare } from "lucide-react";
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
@@ -56,9 +56,19 @@ interface AnticipatedItem extends MediaItem {
   followingCount: number;
 }
 
+interface ForumActivityItem {
+  threadId: string;
+  threadSlug: string;
+  threadTitle: string;
+  threadType: string;
+  createdAt: string;
+  user: { firebaseUid: string; name: string; avatarUrl: string | null };
+}
+
 interface FeedData {
   topPicks: TopPick[];
   followActivity: MediaItem[];
+  followedForumActivity: ForumActivityItem[];
   becauseYouLiked: BecauseYouLikedSection[];
   trendingInCluster: MediaItem[];
   unwatchedWatchlist: MediaItem[];
@@ -173,6 +183,68 @@ function MediaGrid({ items, showUser }: { items: MediaItem[]; showUser?: boolean
       ))}
     </div>
   );
+}
+
+// Recent forum threads started by followed users in the last 7
+// days. Rendered as a compact list inside the "From People You
+// Follow" section, below the rating grid. Replies/comments are not
+// included — this surface is for surfacing new conversations to join,
+// not in-thread chatter.
+function FollowedForumActivity({ items, hasMediaGridAbove }: { items: ForumActivityItem[]; hasMediaGridAbove: boolean }) {
+  return (
+    <div className={hasMediaGridAbove ? "mt-6" : ""}>
+      <div className="flex items-center gap-2 mb-2">
+        <MessageSquare className="w-3.5 h-3.5 text-[var(--ratist-red)]" />
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--foreground-muted)]">Recent forum threads</p>
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((it) => (
+          <li
+            key={`${it.threadId}-${it.user.firebaseUid}`}
+            className="bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)]/50 rounded-lg px-3 py-2.5 transition-colors"
+          >
+            <div className="flex items-start gap-2.5">
+              <Link href={`/profile/${it.user.firebaseUid}`} className="shrink-0 mt-0.5">
+                {it.user.avatarUrl ? (
+                  <Image src={it.user.avatarUrl} alt="" width={24} height={24} className="rounded-full" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[10px] text-[var(--foreground-muted)]">
+                    {it.user.name[0]}
+                  </div>
+                )}
+              </Link>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-[var(--foreground-muted)] leading-snug">
+                  <Link href={`/profile/${it.user.firebaseUid}`} className="font-semibold text-white hover:text-[var(--ratist-red)] transition-colors">
+                    {it.user.name}
+                  </Link>
+                  {" "}posted{" "}
+                  <Link href={`/forum/t/${it.threadSlug}`} className="text-white hover:text-[var(--ratist-red)] transition-colors">
+                    &ldquo;{it.threadTitle}&rdquo;
+                  </Link>
+                  <span className="text-[10px] text-[var(--foreground-muted)] ml-1.5">· {timeAgo(it.createdAt)}</span>
+                </p>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Compact relative-time formatter for the forum activity list — no
+// dep on date-fns because the rest of the file doesn't pull it in
+// and this is the only spot using "Xh ago" style.
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diffMs / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
 }
 
 function TopPickRow({ pick, rank }: { pick: TopPick; rank: number }) {
@@ -311,12 +383,13 @@ export default function ForYouPage() {
 
   const hasTopPicks = (data.topPicks?.length ?? 0) > 0;
   const hasFollowActivity = data.followActivity.length > 0;
+  const hasFollowedForumActivity = data.followedForumActivity?.length > 0;
   const hasBecauseYouLiked = data.becauseYouLiked.length > 0;
   const hasTrending = data.trendingInCluster.length > 0;
   const hasWatchlist = data.unwatchedWatchlist.length > 0;
   const hasAnticipated = (data.anticipated?.length ?? 0) > 0;
   const hasIncomplete = data.completeTheRating.length > 0;
-  const isEmpty = !hasTopPicks && !hasFollowActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasAnticipated && !hasIncomplete;
+  const isEmpty = !hasTopPicks && !hasFollowActivity && !hasFollowedForumActivity && !hasBecauseYouLiked && !hasTrending && !hasWatchlist && !hasAnticipated && !hasIncomplete;
 
   // Merge saved order with default — when a new section is added to
   // DEFAULT_SECTION_ORDER, existing users' saved orders won't include
@@ -542,13 +615,19 @@ export default function ForYouPage() {
           </section>
         );
 
-        if (sectionKey === "following" && hasFollowActivity) return (
+        if (sectionKey === "following" && (hasFollowActivity || hasFollowedForumActivity)) return (
           <section key="following">
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-5 h-5 text-[var(--ratist-red)]" />
               <h2 className="text-lg font-semibold text-white">From People You Follow</h2>
             </div>
-            <MediaGrid items={data.followActivity} showUser />
+            {hasFollowActivity && <MediaGrid items={data.followActivity} showUser />}
+            {hasFollowedForumActivity && (
+              <FollowedForumActivity
+                items={data.followedForumActivity}
+                hasMediaGridAbove={hasFollowActivity}
+              />
+            )}
           </section>
         );
 
