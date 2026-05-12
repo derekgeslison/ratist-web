@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Plus, MonitorPlay, Eye, EyeOff, Film, Tv, MessageSquare, Hourglass } from "lucide-react";
+import { Plus, BookOpen, Eye, EyeOff, Film, Tv, MessageSquare, Hourglass } from "lucide-react";
 
 interface CompanionRow {
   id: string;
@@ -51,7 +51,7 @@ export default function CompanionsListPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <MonitorPlay className="w-5 h-5 text-[var(--ratist-red)]" />
+          <BookOpen className="w-5 h-5 text-[var(--ratist-red)]" />
           <h2 className="text-lg font-semibold text-white">Watch Companions</h2>
         </div>
         <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ export default function CompanionsListPage() {
 
       {rows.length === 0 ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-12 text-center">
-          <MonitorPlay className="w-8 h-8 text-[var(--foreground-muted)] mx-auto mb-3" />
+          <BookOpen className="w-8 h-8 text-[var(--foreground-muted)] mx-auto mb-3" />
           <p className="text-sm text-[var(--foreground-muted)] mb-4">No companions yet.</p>
           <Link
             href="/admin/watch-companions/new"

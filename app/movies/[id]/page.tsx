@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Clock, Calendar, Globe, Ticket, MonitorPlay, ArrowRight } from "lucide-react";
+import { Clock, Calendar, Globe, Ticket, BookOpen, ArrowRight } from "lucide-react";
 import { getFandangoUrl } from "@/lib/affiliates";
 import AffiliateLink from "@/components/AffiliateLink";
 import ZoomableImage from "@/components/ZoomableImage";
@@ -504,7 +504,7 @@ export default async function MovieDetailPage({ params }: Props) {
               href={`/movies/${movie.id}/companion`}
               className="flex items-center gap-3 bg-gradient-to-r from-[var(--ratist-red)]/20 to-transparent border border-[var(--ratist-red)]/40 hover:border-[var(--ratist-red)]/70 rounded-xl px-4 py-3 mb-4 transition-colors group"
             >
-              <MonitorPlay className="w-5 h-5 text-[var(--ratist-red)] shrink-0" />
+              <BookOpen className="w-5 h-5 text-[var(--ratist-red)] shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">Watch Companion</p>
                 <p className="text-xs text-[var(--foreground-muted)]">Spoiler-safe reference guide to pull up while you watch.</p>

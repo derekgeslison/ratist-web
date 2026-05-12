@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, ScrollText,
   Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb, Cpu,
-  MonitorPlay, ExternalLink, Mail, Sparkles, BookOpen,
+  ExternalLink, Mail, Sparkles, BookOpen,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -68,7 +68,7 @@ const SUB_TABS: Record<string, SubTab[]> = {
   programs: [
     { label: "Oscar Picks", icon: Trophy, href: "/admin/oscar-picks", pathPrefix: "/admin/oscar-picks" },
     { label: "Movie Club", icon: Clapperboard, href: "/admin/movie-club", pathPrefix: "/admin/movie-club" },
-    { label: "Companions", icon: MonitorPlay, href: "/admin/watch-companions", pathPrefix: "/admin/watch-companions" },
+    { label: "Companions", icon: BookOpen, href: "/admin/watch-companions", pathPrefix: "/admin/watch-companions" },
     { label: "Collection Prompts", icon: Sparkles, href: "/admin/collection-prompts", pathPrefix: "/admin/collection-prompts" },
     { label: "Ratist Collections", icon: BookOpen, href: "/admin/collections", pathPrefix: "/admin/collections" },
   ],

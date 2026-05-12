@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowLeft, MonitorPlay, Sparkles, RefreshCcw, Check, Loader2, Circle, AlertCircle, Clock, Hourglass } from "lucide-react";
+import { ArrowLeft, BookOpen, Sparkles, RefreshCcw, Check, Loader2, Circle, AlertCircle, Clock, Hourglass } from "lucide-react";
 import { track } from "@/lib/analytics";
 import FunFactsCarousel from "./FunFactsCarousel";
 
@@ -232,7 +232,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
     return (
       <div className="max-w-xl mx-auto px-4 sm:px-6 py-12">
         <div className="flex items-center gap-3 mb-6">
-          <MonitorPlay className="w-5 h-5 text-[var(--ratist-red)]" />
+          <BookOpen className="w-5 h-5 text-[var(--ratist-red)]" />
           <h1 className="text-lg font-bold text-white">Generating companion for {title}…</h1>
         </div>
         <p className="text-sm text-[var(--foreground-muted)] mb-4">
@@ -279,7 +279,7 @@ export default function CompanionNotAvailable({ tmdbId, mediaType, title, season
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-12">
       <div className="text-center mb-6">
-        <MonitorPlay className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
+        <BookOpen className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
         <h1 className="text-xl font-bold text-white mb-2">Watch Companion not generated yet</h1>
         <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
           {`No one has generated a spoiler-safe viewing guide for ${title} yet. Generate one now if you have credits, or request an admin-approved generation.`}

@@ -3,8 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Star, BarChart3, Users, Film, Brain, Tv, Sparkles, RefreshCw, Map,
-  TrendingUp, Calendar, Eye, Award, MessageSquare, Video, Newspaper, Ticket, HelpCircle,
-  Lightbulb, ListOrdered, Library, ArrowRight, Flame, Clapperboard,
+  TrendingUp, Calendar, Eye, Award, MessageSquare, MonitorPlay, Newspaper, Ticket,
+  Lightbulb, ListOrdered, Layers, ArrowRight, Flame, BookOpen,
   Compass, Bookmark, Crown, ChevronRight,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
@@ -525,10 +525,10 @@ const TOOLS = [
   { icon: BarChart3,    title: "Deep ratings",         desc: "Rate movies and TV shows across 20+ criteria. Quick mode for a fast score, Fanatics mode for detailed commentary.", href: null },
   { icon: Star,         title: "Score estimates",      desc: "See a predicted score for any movie or show before you watch it, based on your taste profile.", href: null },
   { icon: Sparkles,     title: "AI recommendations",   desc: "Three AI tools — natural-language recommendations, custom collections, and AI movie search.", href: "/tools/recommend" },
-  { icon: Eye,          title: "Watch Companion",     desc: "Live, scene-aware annotations as you watch — explanations, trivia, and answers to common confusions.", href: null },
-  { icon: Film,         title: "Film Diary",           desc: "Track every movie and episode you watch with calendar views, monthly lists, and shareable year-in-review stats.", href: "/seen" },
+  { icon: BookOpen,     title: "Watch Companion",     desc: "Live, scene-aware annotations as you watch — explanations, trivia, and answers to common confusions.", href: null },
+  { icon: Eye,          title: "Film Diary",           desc: "Track every movie and episode you watch with calendar views, monthly lists, and shareable year-in-review stats.", href: "/seen" },
   { icon: Bookmark,     title: "Watchlists",           desc: "Multiple lists, collaborative sharing, streaming-aware sorting. Mark things seen to clear the deck.", href: "/watchlist" },
-  { icon: Library,      title: "Collections",          desc: "Curated lists from The Ratist and the community. Match scores show which collections fit your taste.", href: "/collections" },
+  { icon: Layers,       title: "Collections",          desc: "Curated lists from The Ratist and the community. Match scores show which collections fit your taste.", href: "/collections" },
   { icon: ListOrdered,  title: "Personal Rankings",    desc: "Build head-to-head ranked lists by genre, decade, director — any cut of your seen films.", href: "/tools/rankings" },
   { icon: Tv,           title: "TV show tracking",     desc: "Mark individual episodes seen, track seasons, and rate shows at series or per-season level.", href: "/movies?type=tv" },
   { icon: TrendingUp,   title: "Box Office Insights", desc: "All-time leaderboards, year-by-year top earners, franchise totals, studio rankings, ROI champions.", href: "/box-office" },
@@ -586,9 +586,9 @@ const COMMUNITY = [
   { icon: MessageSquare, title: "Forum",          desc: "Long-form discussion, theory threads, polls, recommendation requests, and structured debates.", href: "/forum" },
   { icon: TwoThumbsIcon, title: "Two Thumbs",     desc: "Per-movie for/against debates. Read both sides, submit your own arguments, vote on the verdict.", href: "/posts?type=PUNCH_AND_JUDY" },
   { icon: Map,           title: "Movie Maps",     desc: "Visual guides for branching narratives, plus curated viewing lists and themed deep-dives.", href: "/posts?type=MOVIE_MAP" },
-  { icon: Video,         title: "Screening Room", desc: "Watch movies together. Sync up, chat live, run polls, rate together when the credits roll.", href: "/screening-room" },
-  { icon: Clapperboard,  title: "Movie Club",     desc: "A weekly curated pick the whole community watches and rates together. Backstage Pass perk.", href: "/backstage-pass/movie-club" },
-  { icon: HelpCircle,    title: "Cine-Q Trivia",  desc: "Daily movie trivia with weighted difficulty scoring. Climb the leaderboard, prove what you know.", href: "/community/cineq" },
+  { icon: MonitorPlay,   title: "Screening Room", desc: "Watch movies together. Sync up, chat live, run polls, rate together when the credits roll.", href: "/screening-room" },
+  { icon: Ticket,        title: "Movie Club",     desc: "A weekly curated pick the whole community watches and rates together. Backstage Pass perk.", href: "/backstage-pass/movie-club" },
+  { icon: Brain,         title: "Cine-Q Trivia",  desc: "Daily movie trivia with weighted difficulty scoring. Climb the leaderboard, prove what you know.", href: "/community/cineq" },
   { icon: RefreshCw,     title: "Recasts",        desc: "Suggest who should have played that role. The community votes on the best alternate casting.", href: "/community/recast" },
   { icon: Sparkles,      title: "Looks Like",     desc: "Celebrity lookalike pairs — vote on who really could be twins.", href: "/community/looks-like" },
   { icon: Flame,         title: "Hot Takes",      desc: "Your spiciest movie opinion, 280 characters. The community decides: hot or not.", href: "/community/hot-takes" },

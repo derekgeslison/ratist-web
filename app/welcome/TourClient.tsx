@@ -401,7 +401,7 @@ function CompanionStep({ images }: Props) {
 
   return (
     <div>
-      <StepHeader icon={MonitorPlay} title="Watch Companion" lead="The spoiler-safe reference, built scene by scene." />
+      <StepHeader icon={BookOpen} title="Watch Companion" lead="The spoiler-safe reference, built scene by scene." />
 
       <WhyBlock>
         <p>
@@ -474,7 +474,7 @@ function CompanionStep({ images }: Props) {
       </div>
 
       <WhereBlock
-        where={<>On any movie or show page, click the <span className="font-semibold text-[var(--ratist-red)]">Watch Companion</span> button (<MonitorPlay className="inline w-3 h-3" /> icon) below the title. Or go straight to <code className="text-[10px] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">/movies/[id]/companion</code>.</>}
+        where={<>On any movie or show page, click the <span className="font-semibold text-[var(--ratist-red)]">Watch Companion</span> button (<BookOpen className="inline w-3 h-3" /> icon) below the title. Or go straight to <code className="text-[10px] bg-[var(--surface-2)] px-1.5 py-0.5 rounded">/movies/[id]/companion</code>.</>}
         why={<>Pause less, follow more. Especially powerful for ensemble films, sequels, and shows you started a year ago.</>}
       />
 

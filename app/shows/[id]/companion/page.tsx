@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MonitorPlay } from "lucide-react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getShowDetails, posterUrl } from "@/lib/tmdb";
 import WatchCompanionView, { type WatchCompanionData } from "@/components/watch-companion/WatchCompanionView";
@@ -220,7 +220,7 @@ export default async function ShowCompanionPage({ params }: Props) {
           <Link href={`/shows/${id}`} className="text-[var(--foreground-muted)] hover:text-white transition-colors" aria-label="Back to show page">
             <ArrowLeft className="w-4 h-4" />
           </Link>
-          <MonitorPlay className="w-4 h-4 text-[var(--ratist-red)]" />
+          <BookOpen className="w-4 h-4 text-[var(--ratist-red)]" />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">Watch Companion</p>
             <p className="text-sm font-semibold text-white truncate">
