@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -144,10 +145,10 @@ export async function GET(req: NextRequest) {
           ...newMovies.map((m, idx) => ({ ...m, rank: movies.length + idx + 1 })),
         ];
 
-        return NextResponse.json({ movies: allMovies, hasSavedOrder: true });
+        return NextResponse.json(await maskBlockedInResponse({ movies: allMovies, hasSavedOrder: true }));
       }
 
-      return NextResponse.json({ movies, hasSavedOrder: true });
+      return NextResponse.json(await maskBlockedInResponse({ movies, hasSavedOrder: true }));
     }
 
     // No saved rankings — generate default order from ratings
@@ -191,7 +192,7 @@ export async function GET(req: NextRequest) {
     }
 
     const movies = filtered.map((m, idx) => ({ ...m, rank: idx + 1 }));
-    return NextResponse.json({ movies, hasSavedOrder: false });
+    return NextResponse.json(await maskBlockedInResponse({ movies, hasSavedOrder: false }));
   } catch (err) {
     console.error("Rankings error:", err);
     return NextResponse.json({ movies: [] });

@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getBatchScoreEstimates, genrePrefsScore } from "@/lib/profile";
 import { predictRatingsBatch } from "@/lib/collection-match";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -537,7 +538,7 @@ export async function GET(req: NextRequest) {
       where: { userId: user.id, plot: { not: null }, ratistRating: { not: null } },
     });
 
-    return NextResponse.json({
+    return NextResponse.json(await maskBlockedInResponse({
       topPicks,
       followActivity,
       followedForumActivity,
@@ -548,7 +549,7 @@ export async function GET(req: NextRequest) {
       completeTheRating,
       ratistReviewCount,
       sectionOrder: (user.forYouOrder as string[] | null) ?? null,
-    });
+    }));
   } catch (err) {
     console.error("For You feed error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

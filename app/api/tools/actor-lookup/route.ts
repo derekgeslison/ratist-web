@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 const API_KEY = process.env.TMDB_API_KEY;
 
@@ -119,7 +120,7 @@ export async function GET(req: NextRequest) {
     const seenS = new Set<number>();
     const dedupedShows = showResults.filter((s) => { if (seenS.has(s.tmdbId)) return false; seenS.add(s.tmdbId); return true; });
 
-    return NextResponse.json({ movies: dedupedMovies, shows: dedupedShows });
+    return NextResponse.json(await maskBlockedInResponse({ movies: dedupedMovies, shows: dedupedShows }));
   } catch (err) {
     console.error("Actor lookup error:", err);
     return NextResponse.json({ movies: [], shows: [] });

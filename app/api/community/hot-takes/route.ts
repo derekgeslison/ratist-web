@@ -5,6 +5,7 @@ import { checkCommunityRateLimit } from "@/lib/rate-limit";
 import { checkBadges } from "@/lib/badges";
 import { getCriticUserIds } from "@/lib/critics";
 import { postingBlockResponse } from "@/lib/posting-block";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export async function GET() {
       };
     }).sort((a, b) => b.score - a.score);
 
-    return NextResponse.json({ items: result });
+    return NextResponse.json(await maskBlockedInResponse({ items: result }));
   } catch (err) {
     console.error("GET hot-takes error:", err);
     return NextResponse.json({ error: "Server error", items: [] }, { status: 500 });

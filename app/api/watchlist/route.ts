@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getBatchScoreEstimates } from "@/lib/profile";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
         movies: {
           take: 4,
           orderBy: { addedAt: "desc" },
-          include: { movie: { select: { posterPath: true } } },
+          include: { movie: { select: { tmdbId: true, posterPath: true, posterBlocked: true } } },
         },
       },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
     });
     const showCountMap = new Map(showCounts.map((sc) => [sc.watchlistId, sc._count.id]));
 
-    return NextResponse.json({
+    const payload = {
       watchlists: watchlists.map((wl) => {
         const isOwner = wl.userId === user.id;
         const myCollab = wl.collaborators.find((c) => c.userId === user.id);
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
           isDefault: wl.isDefault,
           isPrivate: wl.isPrivate,
           movieCount: wl._count.movies + (showCountMap.get(wl.id) ?? 0),
-          previewPosters: wl.movies.map((m) => m.movie.posterPath).filter(Boolean),
+          previewPosters: wl.movies.map((m) => (m.movie.posterBlocked ? "__BLOCKED__" : m.movie.posterPath)).filter(Boolean),
           isOwner,
           ownerName: isOwner ? undefined : wl.user.name,
           ownerUid: isOwner ? undefined : wl.user.firebaseUid,
@@ -81,7 +82,8 @@ export async function GET(req: NextRequest) {
         };
       }),
       defaultMovies: [...defaultMovies, ...defaultShows],
-    });
+    };
+    return NextResponse.json(await maskBlockedInResponse(payload));
   } catch (err) {
     console.error("Watchlist list error:", err);
     return NextResponse.json({ watchlists: [], defaultMovies: [] });

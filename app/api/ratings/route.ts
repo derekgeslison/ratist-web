@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getRatingStatus } from "@/lib/rating-status";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -231,14 +232,14 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    return NextResponse.json({
+    return NextResponse.json(await maskBlockedInResponse({
       ratings,
       unrated,
       nextCursor,
       hasMore,
       totalCount,
       avgRating: avgAgg._avg.ratistRating ?? null,
-    });
+    }));
   } catch (err) {
     console.error("Ratings list error:", err);
     return NextResponse.json({ ratings: [], unrated: [] });

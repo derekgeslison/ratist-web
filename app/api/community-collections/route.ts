@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
 import { getOrComputeMatchScoresBatch, CollectionItemRef } from "@/lib/collection-match";
 import { getWatchedProgressBatch } from "@/lib/collection-watched";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -294,5 +295,5 @@ async function renderPage(
       sampleBlurb: sampleBlurbByCollection.get(c.id) ?? null,
     }));
 
-  return NextResponse.json({ page, hasMore, collections });
+  return NextResponse.json(await maskBlockedInResponse({ page, hasMore, collections }));
 }

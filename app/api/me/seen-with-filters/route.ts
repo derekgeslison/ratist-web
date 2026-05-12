@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -286,12 +287,12 @@ export async function GET(req: NextRequest) {
   const start = (page - 1) * perPage;
   const slice = sorted.slice(start, start + perPage);
 
-  return NextResponse.json({
+  return NextResponse.json(await maskBlockedInResponse({
     results: slice,
     total,
     totalMovies: movieRows.length,
     totalShows: showRows.length,
     page,
     totalPages,
-  });
+  }));
 }

@@ -146,6 +146,81 @@ export async function safeguardTMDBMovies<T extends MovieLike>(
   return result;
 }
 
+/**
+ * Mask posterPath strings on items already pulled from our DB. The
+ * caller's query just needs to also select `posterBlocked` per row;
+ * this helper then swaps the posterPath for the rendering sentinel
+ * on blocked rows. Cheaper than safeguardTMDBMovies because there's
+ * no extra DB round-trip.
+ *
+ * Use this for our DB-backed list surfaces — watchlist, /seen,
+ * /ratings, community feeds, custom collections, movie-club, etc.
+ * Any place where the caller queries `Movie` directly and forwards
+ * posterPath to the renderer.
+ */
+export function maskBlockedPosterPaths<T extends { posterPath: string | null; posterBlocked?: boolean }>(items: T[]): T[] {
+  return items.map((i) => i.posterBlocked ? { ...i, posterPath: POSTER_BLOCKED_SENTINEL } : i);
+}
+
+/**
+ * Recursively walk an API response payload and mask `posterPath` /
+ * `poster_path` on any nested object whose `tmdbId` matches a
+ * currently-blocked movie or TV show. Used for feed-shaped routes
+ * (/api/feed/for-you, /api/community/*, /api/feed/following, …)
+ * that return arbitrarily-nested structures with many movie/show
+ * references. ONE wrapping call per route — the walker collects
+ * tmdbIds, does a single union DB lookup for both tables, and
+ * stamps the rendering sentinel on every reference to a blocked
+ * title. No-ops fast when no tmdbIds are present in the payload.
+ */
+export async function maskBlockedInResponse<T>(payload: T): Promise<T> {
+  const tmdbIds = new Set<number>();
+  function collect(o: unknown): void {
+    if (!o || typeof o !== "object") return;
+    if (Array.isArray(o)) { o.forEach(collect); return; }
+    const r = o as Record<string, unknown>;
+    if (typeof r.tmdbId === "number") tmdbIds.add(r.tmdbId);
+    // TMDB-shape feeds sometimes use `id` for the movie/show id
+    // directly. Limit that to objects that also carry a poster path
+    // so we don't accidentally collect unrelated `id` fields (user
+    // ids, comment ids, etc.).
+    if (typeof r.id === "number" && (typeof r.poster_path === "string" || typeof r.posterPath === "string" || r.poster_path === null || r.posterPath === null)) {
+      tmdbIds.add(r.id);
+    }
+    for (const v of Object.values(r)) collect(v);
+  }
+  collect(payload);
+  if (tmdbIds.size === 0) return payload;
+
+  const ids = [...tmdbIds];
+  const [blockedMovies, blockedShows] = await Promise.all([
+    prisma.movie.findMany({ where: { tmdbId: { in: ids }, posterBlocked: true }, select: { tmdbId: true } }),
+    prisma.tVShow.findMany({ where: { tmdbId: { in: ids }, posterBlocked: true }, select: { tmdbId: true } }),
+  ]);
+  const blocked = new Set<number>();
+  for (const m of blockedMovies) blocked.add(m.tmdbId);
+  for (const s of blockedShows) blocked.add(s.tmdbId);
+  if (blocked.size === 0) return payload;
+
+  function mask(o: unknown): unknown {
+    if (!o || typeof o !== "object") return o;
+    if (Array.isArray(o)) return o.map(mask);
+    const r = o as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(r)) out[k] = mask(v);
+    const idForBlock =
+      typeof out.tmdbId === "number" ? out.tmdbId
+      : typeof out.id === "number" && (typeof out.poster_path === "string" || typeof out.posterPath === "string" || out.poster_path === null || out.posterPath === null) ? out.id
+      : null;
+    if (idForBlock !== null && blocked.has(idForBlock as number)) {
+      if (typeof out.posterPath === "string") out.posterPath = POSTER_BLOCKED_SENTINEL;
+      if (typeof out.poster_path === "string") out.poster_path = POSTER_BLOCKED_SENTINEL;
+    }
+    return out;
+  }
+  return mask(payload) as T;
+}
+
 /** TV analogue. Filters on contentRating === "TV-MA" if requested. */
 export async function safeguardTMDBShows<T extends ShowLike>(
   items: T[],

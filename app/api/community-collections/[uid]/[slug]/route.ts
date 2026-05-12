@@ -8,6 +8,7 @@ import {
   CollectionItemRef,
 } from "@/lib/collection-match";
 import { getWatchedProgress } from "@/lib/collection-watched";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +131,7 @@ export async function GET(
       .catch(() => { /* non-critical */ });
   }
 
-  return NextResponse.json({
+  return NextResponse.json(await maskBlockedInResponse({
     collection: {
       id: collection.id,
       name: collection.name,
@@ -185,5 +186,5 @@ export async function GET(
       isOwner: !!user && collection.userId === user.id,
       isSaved: !!save,
     },
-  });
+  }));
 }

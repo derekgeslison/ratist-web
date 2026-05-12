@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
           appearances: Object.fromEntries(v.appearances),
         }));
 
-      return NextResponse.json({ results });
+      return NextResponse.json(await maskBlockedInResponse({ results }));
 
     } else {
       // People → find movies & TV shows
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
           appearances: Object.fromEntries(v.appearances),
         }));
 
-      return NextResponse.json({ results });
+      return NextResponse.json(await maskBlockedInResponse({ results }));
     }
   } catch (err) {
     console.error("Shared cast error:", err);

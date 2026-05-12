@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 const TMDB_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE = "https://api.themoviedb.org/3";
@@ -110,7 +111,7 @@ export async function GET(
     choreography: agg._avg.choreography,
   };
 
-  return NextResponse.json({
+  return NextResponse.json(await maskBlockedInResponse({
     tmdbId,
     title: show.name,
     posterPath: show.posterPath,
@@ -123,5 +124,5 @@ export async function GET(
     totalRatings: ratistCount,
     breakdown,
     fields,
-  });
+  }));
 }

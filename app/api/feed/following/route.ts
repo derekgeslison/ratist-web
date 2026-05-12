@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export async function GET(req: NextRequest) {
   try {
@@ -100,7 +101,7 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 20);
 
-    return NextResponse.json({ items });
+    return NextResponse.json(await maskBlockedInResponse({ items }));
   } catch (err) {
     console.error("Following feed error:", err);
     return NextResponse.json({ items: [] });

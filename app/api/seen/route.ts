@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -212,7 +213,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ movies: [...movies, ...rewatches, ...shows], episodeGroups });
+    return NextResponse.json(await maskBlockedInResponse({ movies: [...movies, ...rewatches, ...shows], episodeGroups }));
   } catch (err) {
     console.error("Seen list error:", err);
     return NextResponse.json({ movies: [], episodeGroups: [] });

@@ -4,6 +4,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { checkCommunityRateLimit } from "@/lib/rate-limit";
 import { checkBadges } from "@/lib/badges";
 import { postingBlockResponse } from "@/lib/posting-block";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 import { getCriticUserIds } from "@/lib/critics";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ export async function GET() {
       };
     }).sort((a, b) => b.score - a.score);
 
-    return NextResponse.json({ items: result });
+    return NextResponse.json(await maskBlockedInResponse({ items: result }));
   } catch (err) {
     console.error("GET looks-like error:", err);
     return NextResponse.json({ error: "Server error", items: [] }, { status: 500 });

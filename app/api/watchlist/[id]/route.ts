@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { loadWatchlistMovies, loadWatchlistShows } from "../route";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       loadWatchlistShows(id),
     ]);
 
-    return NextResponse.json({
+    return NextResponse.json(await maskBlockedInResponse({
       watchlist: {
         id: watchlist.id, name: watchlist.name, slug: watchlist.slug,
         description: watchlist.description, isDefault: watchlist.isDefault,
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest, { params }: Props) {
         collaboratorCount: watchlist.collaborators.length,
       },
       movies: [...movies, ...shows],
-    });
+    }));
   } catch (err) {
     console.error("Watchlist GET error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

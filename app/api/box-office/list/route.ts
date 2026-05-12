@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 import {
   BOX_OFFICE_FLOOR,
   ROI_MIN_BUDGET,
@@ -147,7 +148,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const results: BoxOfficeRow[] = rows.map(toBoxOfficeRow);
-    return NextResponse.json({ results, total, page, limit, hasMore: offset + rows.length < total });
+    return NextResponse.json(await maskBlockedInResponse({ results, total, page, limit, hasMore: offset + rows.length < total }));
   } catch (err) {
     console.error("Box office list error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

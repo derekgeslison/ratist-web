@@ -5,6 +5,7 @@ import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
 import { notify } from "@/lib/notifications";
 import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
 import { postingBlockResponse } from "@/lib/posting-block";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -147,7 +148,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     };
   });
 
-  return NextResponse.json({
+  return NextResponse.json(await maskBlockedInResponse({
     thread: {
       ...thread,
       posts: postsWithAggregatedReactions,
@@ -156,7 +157,7 @@ export async function GET(req: NextRequest, { params }: Props) {
     },
     userPollVote,
     userDebateVote,
-  });
+  }));
 }
 
 // POST /api/forum/threads/[slug] — add reply

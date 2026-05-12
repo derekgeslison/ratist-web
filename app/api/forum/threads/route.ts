@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { checkCommunityRateLimit } from "@/lib/rate-limit";
 import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
 import { postingBlockResponse } from "@/lib/posting-block";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -142,12 +143,12 @@ export async function GET(req: NextRequest) {
       debateVotes: undefined,
     }));
 
-    return NextResponse.json({
+    return NextResponse.json(await maskBlockedInResponse({
       threads: enrichedThreads,
       total,
       page,
       totalPages: Math.ceil(total / PAGE_SIZE),
-    });
+    }));
   } catch (err) {
     console.error("Forum threads GET error:", err);
     return NextResponse.json({ threads: [], total: 0 });

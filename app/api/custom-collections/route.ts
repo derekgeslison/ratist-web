@@ -24,7 +24,10 @@ export async function GET(req: NextRequest) {
       items: {
         orderBy: { sortOrder: "asc" },
         take: 4, // preview posters only
-        select: { posterPath: true },
+        // tmdbId + mediaType lets us check the per-title block flag
+        // when building previewPosters so blocked posters don't slip
+        // through the cover-strip on the collections list.
+        select: { posterPath: true, tmdbId: true, mediaType: true },
       },
       // Theme info is exposed so theme-reassign UIs can warn the user
       // before overwriting an existing tag.
@@ -33,6 +36,20 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // Look up per-title posterBlocked flags so the preview-poster
+  // strip on the collections list doesn't render explicit imagery.
+  const previewTmdbIds = collections.flatMap((c) => c.items.map((i) => i.tmdbId));
+  const [blockedMovies, blockedShows] = previewTmdbIds.length > 0
+    ? await Promise.all([
+        prisma.movie.findMany({ where: { tmdbId: { in: previewTmdbIds }, posterBlocked: true }, select: { tmdbId: true } }),
+        prisma.tVShow.findMany({ where: { tmdbId: { in: previewTmdbIds }, posterBlocked: true }, select: { tmdbId: true } }),
+      ])
+    : [[], []];
+  const blockedSet = new Set<number>([
+    ...blockedMovies.map((m) => m.tmdbId),
+    ...blockedShows.map((s) => s.tmdbId),
+  ]);
 
   return NextResponse.json({
     collections: collections.map((c) => ({
@@ -48,7 +65,9 @@ export async function GET(req: NextRequest) {
       themePromptTitle: c.themePrompt?.title ?? null,
       saveCount: c.saveCount,
       itemCount: c._count.items,
-      previewPosters: c.items.map((i) => i.posterPath).filter(Boolean),
+      previewPosters: c.items
+        .map((i) => (blockedSet.has(i.tmdbId) ? "__BLOCKED__" : i.posterPath))
+        .filter(Boolean),
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
     })),

@@ -8,6 +8,7 @@ import { resolveCast } from "@/lib/tmdb-cast";
 import { resolveStudioNames } from "@/lib/studios";
 import { loadGroupMembers, loadGroupSeenSets, computeGroupScore, MAX_GROUP_SIZE, type MemberPrefs } from "@/lib/recommend-group";
 import { predictRatingsBatch } from "@/lib/collection-match";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 import { genrePrefsScore, getBatchScoreEstimates, getBatchScoreEstimatesTv } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
@@ -807,11 +808,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return NextResponse.json(await maskBlockedInResponse({
       results,
       totalPages: discoverData.total_pages ?? 1,
       page: actualPage,
-    });
+    }));
   } catch (err) {
     console.error("Recommend error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

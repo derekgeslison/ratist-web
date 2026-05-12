@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, Film, User, Tv, Tag, Newspaper, BookOpen, MessageSquare, Map as MapIcon, ThumbsUp } from "lucide-react";
 import { type TMDBMovie as LibTMDBMovie, searchKeywords, discoverMovies, discoverShows, getGenres } from "@/lib/tmdb";
+import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 import { generateFuzzyVariants } from "@/lib/fuzzy-search";
 import { searchEditorial } from "@/lib/search-editorial";
 import SearchFilters from "./SearchFilters";
@@ -180,6 +181,12 @@ export default async function SearchPage({ searchParams }: Props) {
   if (genreFilter) shows = shows.filter((s) => (s as unknown as { genre_ids?: number[] }).genre_ids?.includes(Number(genreFilter)));
   if (yearFrom) shows = shows.filter((s) => { const y = parseInt((s.first_air_date ?? "").slice(0, 4)); return !isNaN(y) && y >= parseInt(yearFrom); });
   if (yearTo) shows = shows.filter((s) => { const y = parseInt((s.first_air_date ?? "").slice(0, 4)); return !isNaN(y) && y <= parseInt(yearTo); });
+
+  // Apply content-safety pass (filter NC-17, mask blocked posters)
+  // before sorting so the visible result set never includes the
+  // raw poster art for admin-flagged titles.
+  movies = await safeguardTMDBMovies(movies, { filterNC17: true, stripBlockedPosters: true });
+  shows = await safeguardTMDBShows(shows, { stripBlockedPosters: true });
 
   // Sort movies
   if (sortMode === "rating") movies.sort((a, b) => b.vote_average - a.vote_average);

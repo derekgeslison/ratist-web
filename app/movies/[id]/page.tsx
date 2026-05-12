@@ -120,6 +120,17 @@ export default async function MovieDetailPage({ params }: Props) {
     stripBlockedPosters: true,
   });
 
+  // Collection parts ("Part of X" strip on the detail page). Mask
+  // blocked posters but keep all parts in the strip — filtering NC-17
+  // entries out entirely would drop the franchise's adult parts and
+  // could collapse the strip below the length-2 threshold, hiding the
+  // entire section. Placeholder + title is the right UX here.
+  if (collection?.parts?.length) {
+    collection.parts = await safeguardTMDBMovies(collection.parts, {
+      stripBlockedPosters: true,
+    });
+  }
+
   // Fire-and-forget syncs — driven off the single dbMovie lookup above.
   if (dbMovie) {
     const age = dbMovie.cachedAt ? Date.now() - new Date(dbMovie.cachedAt as Date | string).getTime() : Infinity;

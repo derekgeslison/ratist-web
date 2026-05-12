@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
 import { ensureUpcomingWeeks, runStatusTransitions, getSuperlatives } from "@/lib/movie-club";
 import { activeBackstageUserWhere } from "@/lib/subscription";
+import { maskBlockedInResponse } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -183,14 +184,14 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return NextResponse.json(await maskBlockedInResponse({
       weeks: enrichedWeeks,
       votingWeeks: enrichedVoting,
       upcoming: upcoming.map((u) => ({ ...u, movieYear: (u as { movie?: { releaseDate?: string } }).movie?.releaseDate?.slice(0, 4) ?? null, movie: undefined })),
       isMember,
       memberCount,
       userVoteCount,
-    });
+    }));
   } catch (err) {
     console.error("Movie club weeks error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
