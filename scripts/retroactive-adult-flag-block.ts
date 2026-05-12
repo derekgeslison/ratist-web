@@ -32,15 +32,28 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY;
 if (!TMDB_API_KEY) { console.error("TMDB_API_KEY missing"); process.exit(1); }
 
 async function main() {
-  // Skip rows already correctly tagged. We re-check rows that are
-  // still missing isAdult, regardless of current posterBlocked
-  // state — the goal is to populate the new column on every row.
+  // Heuristic-narrowed first pass: target rows most likely to be
+  // adult-tagged on TMDB. Adult content clusters in:
+  //   - posterBlocked: true (Vision SafeSearch or admin flagged)
+  //   - mpaaRating IN (NC-17, NR, null) — porn is rarely R/PG/G
+  //   - low popularity (< 5)
+  // This narrows ~562k catalog rows to a few thousand candidates,
+  // turning a 15-hour sweep into ~15 minutes. A full sweep over the
+  // remainder can run later as a background cron without urgency.
   const candidates = await prisma.movie.findMany({
-    where: { isAdult: false },
+    where: {
+      isAdult: false,
+      OR: [
+        { posterBlocked: true },
+        { mpaaRating: { in: ["NC-17", "NR"] } },
+        { mpaaRating: null },
+        { popularity: { lt: 5 } },
+      ],
+    },
     select: { id: true, tmdbId: true, title: true, mpaaRating: true, posterBlocked: true },
-    orderBy: { popularity: "desc" },
+    orderBy: { popularity: "asc" },
   });
-  console.log(`Checking ${candidates.length} movies for TMDB.adult flag…`);
+  console.log(`Checking ${candidates.length} likely-adult candidates for TMDB.adult flag…`);
 
   let checked = 0;
   let adultFound = 0;

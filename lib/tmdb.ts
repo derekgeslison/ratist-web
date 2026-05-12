@@ -161,6 +161,25 @@ export async function getPopularMovies(page = 1) {
   return tmdbFetch<TMDBPageResult<TMDBMovie>>("/movie/popular", { page: String(page) });
 }
 
+/**
+ * Stable English-first partition. Splits a TMDB-shaped list into
+ * `original_language === "en"` items and everything else,
+ * preserving the input ordering within each group. Used to de-
+ * prioritize non-English films/shows in popular sections without
+ * filtering them out entirely — Tagalog / Tamil / etc. regional
+ * hits that TMDB ranks high globally still show up, just below
+ * the English-language tier the home audience actually wants.
+ */
+export function englishFirst<T extends { original_language?: string }>(items: T[]): T[] {
+  const en: T[] = [];
+  const other: T[] = [];
+  for (const item of items) {
+    if (item.original_language === "en") en.push(item);
+    else other.push(item);
+  }
+  return [...en, ...other];
+}
+
 export async function getTrendingMovies(timeWindow: "day" | "week" = "week") {
   return tmdbFetch<TMDBPageResult<TMDBMovie>>(`/trending/movie/${timeWindow}`);
 }

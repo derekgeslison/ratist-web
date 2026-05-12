@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Movies & TV", description: "Find movies and TV shows to watch. Filter by genre, streaming service, year, and rating. Community reviews, personalized recommendations, and deep criteria-based ratings.", alternates: { canonical: "/movies" } };
-import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, englishFirst, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
@@ -155,12 +155,17 @@ export default async function MoviesPage({ searchParams }: Props) {
   };
   const legacyDecade = params.decade ? DECADES[params.decade] : undefined;
 
+  // One extra TMDB page beyond what perPage requires, so the safeguard
+  // filter (adult-hide, NC-17 filter, etc.) has buffer to chew through
+  // without dropping the visible count below perPage. The final slice
+  // to perPage happens post-safeguard in the page body below.
+  const BUFFER_PAGES = 1;
   async function fetchMoviePages(fetcher: (p: number) => Promise<MovieResult>): Promise<MovieResult> {
     const responses = await Promise.all(
-      Array.from({ length: tmdbPagesNeeded }, (_, i) => fetcher(tmdbStartPage + i))
+      Array.from({ length: tmdbPagesNeeded + BUFFER_PAGES }, (_, i) => fetcher(tmdbStartPage + i))
     );
     return {
-      results: responses.flatMap((r) => r.results).slice(0, perPage),
+      results: responses.flatMap((r) => r.results),
       total_results: responses[0]?.total_results ?? 0,
       total_pages: Math.min(
         Math.ceil((responses[0]?.total_results ?? 0) / perPage),
@@ -171,10 +176,10 @@ export default async function MoviesPage({ searchParams }: Props) {
 
   async function fetchShowPages(fetcher: (p: number) => Promise<ShowResult>): Promise<ShowResult> {
     const responses = await Promise.all(
-      Array.from({ length: tmdbPagesNeeded }, (_, i) => fetcher(tmdbStartPage + i))
+      Array.from({ length: tmdbPagesNeeded + BUFFER_PAGES }, (_, i) => fetcher(tmdbStartPage + i))
     );
     return {
-      results: responses.flatMap((r) => r.results).slice(0, perPage),
+      results: responses.flatMap((r) => r.results),
       total_results: responses[0]?.total_results ?? 0,
       total_pages: Math.min(
         Math.ceil((responses[0]?.total_results ?? 0) / perPage),
@@ -251,6 +256,11 @@ export default async function MoviesPage({ searchParams }: Props) {
       else if (releaseStatus === "upcoming") pageTitle = "Coming Soon";
     } else if (sort === "popular") {
       movieResult = await fetchMoviePages((p) => getPopularMovies(p));
+      // English-first reorder: TMDB's /movie/popular surfaces a lot
+      // of regional hits ahead of films our English-language audience
+      // cares about. Stable partition keeps non-English titles in
+      // the list, just below the English tier.
+      movieResult.results = englishFirst(movieResult.results);
       pageTitle = contentType === "movie" ? "Popular Movies" : "Popular";
     } else if (sort === "top_rated") {
       movieResult = await fetchMoviePages((p) => getTopRatedMovies(p));
@@ -320,6 +330,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     } else if (!isSearchOrFilter) {
       if (sort === "popular") {
         showResult = await fetchShowPages((p) => getPopularShows(p));
+        showResult.results = englishFirst(showResult.results);
         if (contentType === "tv") pageTitle = "Popular TV Shows";
       } else if (sort === "top_rated") {
         showResult = await fetchShowPages((p) => getTopRatedShows(p));
@@ -684,17 +695,23 @@ export default async function MoviesPage({ searchParams }: Props) {
   }
 
   // Apply discovery-safety pass: filter NC-17 movies and mask admin-
-  // blocked posters across whichever rails this page surfaced.
+  // blocked posters across whichever rails this page surfaced. Then
+  // trim to perPage — fetchMoviePages/fetchShowPages pulled a one-
+  // page buffer beyond what perPage needed so the filter has room to
+  // remove items without dropping the visible count below the user's
+  // selected perPage.
   if (movieResult) {
-    movieResult.results = await safeguardTMDBMovies(movieResult.results, {
+    const safe = await safeguardTMDBMovies(movieResult.results, {
       filterNC17: true,
       stripBlockedPosters: true,
     });
+    movieResult.results = safe.slice(0, perPage);
   }
   if (showResult) {
-    showResult.results = await safeguardTMDBShows(showResult.results, {
+    const safe = await safeguardTMDBShows(showResult.results, {
       stripBlockedPosters: true,
     });
+    showResult.results = safe.slice(0, perPage);
   }
 
   const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);

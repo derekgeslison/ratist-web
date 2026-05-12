@@ -5,7 +5,7 @@ import { Film, Eye, Heart, MessageCircle } from "lucide-react";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows, englishFirst } from "@/lib/tmdb";
 import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";
@@ -195,13 +195,22 @@ export default async function HomePage() {
     safeguardTMDBShows(popularShows.results, { stripBlockedPosters: true }),
     safeguardTMDBShows(trendingShows.results, { stripBlockedPosters: true }),
   ]);
-  popular.results = safePopular;
+  // English-first reorder for the popularity-leaning rails. TMDB's
+  // /movie/popular and /tv/popular surface a lot of regional hits
+  // (Tagalog, Tamil, Telugu, etc.) ranked by global popularity. The
+  // English-language audience we target rarely cares about those at
+  // the top of a "Popular" row, so we partition English first while
+  // preserving the underlying popularity order within each group.
+  // Non-English titles still appear — they just sit below the
+  // English tier. Top-rated and now-playing already skew English
+  // (US theatrical sourcing) so we leave those alone.
+  popular.results = englishFirst(safePopular);
   topRated.results = safeTopRated;
   nowPlaying.results = safeNowPlaying;
   upcoming.results = safeUpcoming;
-  trendingMovies.results = safeTrendingMovies;
-  popularShows.results = safePopularShows;
-  trendingShows.results = safeTrendingShows;
+  trendingMovies.results = englishFirst(safeTrendingMovies);
+  popularShows.results = englishFirst(safePopularShows);
+  trendingShows.results = englishFirst(safeTrendingShows);
 
   // Forum threads: filter + rank for the home-page slot.
   //
