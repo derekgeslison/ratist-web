@@ -82,42 +82,94 @@ function avgArr(arr: number[]): number {
 }
 
 /**
- * Rebuilds a user's persona profile from all their ratings.
+ * Maps a TMDB genre ID (movie OR TV) to the UserProfile genre key(s)
+ * it should contribute to. Most TMDB genres map 1:1; TV's combined
+ * genres ("Sci-Fi & Fantasy", "Action & Adventure", "War & Politics",
+ * "Kids") map to one or more of the existing profile keys so TV
+ * ratings can update the same persona dimensions as movies.
+ *
+ * Some TV-only TMDB genres (News, Reality, Soap, Talk) intentionally
+ * map to nothing — the profile doesn't have a dimension for those.
+ */
+export function getProfileGenreKeys(tmdbGenreId: number): string[] {
+  switch (tmdbGenreId) {
+    // TV-specific that map to existing profile keys
+    case 10759: return ["genreAction"];                  // Action & Adventure
+    case 10765: return ["genreScifi", "genreFantasy"];   // Sci-Fi & Fantasy
+    case 10768: return ["genreHistorical"];              // War & Politics
+    case 10762: return ["genreFamily"];                  // Kids
+    default: {
+      const k = TMDB_GENRE_TO_PROFILE[tmdbGenreId];
+      return k ? [k] : [];
+    }
+  }
+}
+
+/**
+ * The 21 sub-fields a Ratist rating carries. Used to detect whether a
+ * rating has any user-supplied sub-field data ("filled out the full
+ * rubric") so we can decide whether to substitute community averages.
+ */
+const ALL_SUBFIELDS = [
+  "plot", "storytelling", "pacingClimax", "premiseOriginality",
+  "relatability", "characterDev", "dialogueScripting",
+  "overallEmotion", "meaning", "movingness",
+  "cinematography", "artisticEffect", "visualEffects", "locationCost", "musicSound",
+  "casting", "actingQuality", "blockingChoreo",
+  "appeal", "superficialAllure", "choreography",
+] as const;
+
+/** "Did the user actually fill out the Ratist rubric for this rating?"
+ *  Returns false for basic/quick ratings, imports, and any "standard"
+ *  rating where the user left every sub-field blank. */
+function hasUserSubfields(rating: Record<string, unknown>): boolean {
+  if (rating.reviewType === "basic") return false;
+  return ALL_SUBFIELDS.some((f) => typeof rating[f] === "number");
+}
+
+/**
+ * Rebuilds a user's persona profile from all their ratings (movies + TV).
  * Called after every new/edited rating.
  *
- * For users with < 10 full Ratist ratings, blends the user's explicit
- * onboarding/settings preferences with rating-derived scores:
- *   - Onboarding weight starts at 10% and linearly decreases to 0% at 10 ratings
- *   - Rating-derived weight starts at 90% and increases to 100% at 10 ratings
- * After 10+ full Ratist ratings, the profile is 100% rating-derived.
+ * Component preferences (narrative / character / message / cinematic /
+ * performance / entertainment focused) come from the 21 sub-fields. For
+ * Ratist ratings, use the user's actual sub-fields; for basic/quick or
+ * imports (which carry only an overall rating), substitute community
+ * averages of those sub-fields as a stand-in. Contribution per rating:
+ *   if MAX(communitySubfieldAvg, userSubfieldAvg) >= 7.5
+ *     AND overallRating >= 7.5
+ *   → user's overallRating
+ *   else → 0
+ * Average over all rated titles, then upscale so the max category → 10.
  *
- * Only full Ratist ratings (reviewType "standard"/"critic") count toward the
- * blending threshold — quick, basic, and imported ratings don't provide
- * enough component data to reliably determine preferences.
+ * Genre preferences come from the user's overall rating averaged across
+ * the title's TMDB genres, gated at >= 7.5 ("liked it"):
+ *   contribution per (rating, genre) = overallRating if overall >= 7.5
+ *                                       AND title has that genre, else 0
+ *   raw_score[G] = mean over all rated titles of the contribution
+ *   upscaled so the max genre → 10
  *
- * Algorithm:
- *   For each focused category (e.g. narrativeFocused with fields [plot, storytelling, ...]):
- *     For each movie rating where overallRating is set:
- *       communityAvg = avg of non-null community sub-field scores
- *       userAvg = avg of non-null user sub-field scores
- *       if MAX(communityAvg, userAvg) >= 8 AND overallRating >= 8:
- *         contribution = overallRating
- *       else:
- *         contribution = 0
- *     raw_score = avg(all contributions, including 0s)
- *   Then upscale so max category score = 10.
+ * TV ratings (series scope) feed the same buckets as movies. TV-only
+ * genre IDs are mapped through getProfileGenreKeys (e.g. "Sci-Fi &
+ * Fantasy" → both genreScifi and genreFantasy).
  *
- *   Genre: if genreScore >= 8 AND overallRating >= 8 → contribution = overallRating, else 0.
+ * Blending: for users with < 10 full Ratist ratings, the upscaled
+ * scores are blended with their statedPrefs (onboarding picks) at a
+ * weight decaying from 10% to 0% as fullRatistCount climbs to 10.
  */
+const LIKED_THRESHOLD = 7.5;
+
 export async function rebuildUserProfile(userId: string) {
-  const ratings = await prisma.movieRating.findMany({
-    where: { userId },
-  });
+  const [movieRatings, tvRatings] = await Promise.all([
+    prisma.movieRating.findMany({ where: { userId } }),
+    prisma.tVShowRating.findMany({ where: { userId, ratingScope: "series" } }),
+  ]);
 
-  // Only use ratings where overallRating is explicitly set
-  const validRatings = ratings.filter((r) => r.overallRating != null);
+  const validMovieRatings = movieRatings.filter((r) => r.overallRating != null);
+  const validTvRatings = tvRatings.filter((r) => r.overallRating != null);
+  const totalValid = validMovieRatings.length + validTvRatings.length;
 
-  if (validRatings.length === 0) {
+  if (totalValid === 0) {
     // No ratings at all — keep onboarding preferences as-is
     await prisma.userProfile.upsert({
       where: { userId },
@@ -127,39 +179,83 @@ export async function rebuildUserProfile(userId: string) {
     return;
   }
 
-  // Count full Ratist ratings for blending threshold
-  const fullRatistCount = ratings.filter(
-    (r) => r.reviewType === "standard" || r.reviewType === "critic"
-  ).length;
+  // Count full Ratist ratings (movies + TV) for blending threshold.
+  // "Full" = user submitted the rubric — not basic/quick, not import.
+  // We use hasUserSubfields rather than reviewType alone so a partially-
+  // filled "standard" rating with no sub-fields doesn't falsely count.
+  const fullRatistCount =
+    movieRatings.filter((r) => hasUserSubfields(r as unknown as Record<string, unknown>)).length +
+    tvRatings.filter((r) => hasUserSubfields(r as unknown as Record<string, unknown>)).length;
 
-  // Load preserved onboarding/settings preferences for blending
   const currentProfile = await prisma.userProfile.findUnique({
     where: { userId },
     select: { statedPrefs: true },
   });
   const statedPrefs = currentProfile?.statedPrefs as Record<string, number> | null;
 
-  const movieIds = validRatings.map((r) => r.movieId);
+  const movieIds = validMovieRatings.map((r) => r.movieId);
+  const tvShowIds = validTvRatings.map((r) => r.tvShowId);
 
-  // Community sub-field averages for each movie
-  const communityAvgs = await prisma.movieRating.groupBy({
-    by: ["movieId"],
-    where: { movieId: { in: movieIds }, excluded: false },
-    _avg: {
-      plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
-      relatability: true, characterDev: true, dialogueScripting: true,
-      overallEmotion: true, meaning: true, movingness: true,
-      cinematography: true, artisticEffect: true, visualEffects: true,
-      locationCost: true, musicSound: true,
-      casting: true, actingQuality: true, blockingChoreo: true,
-      appeal: true,
-    },
-  });
-  const communityMap = new Map(
-    communityAvgs.map((c) => [c.movieId, c._avg as Record<string, number | null>])
+  // Community sub-field averages + per-title genres in one round of
+  // parallel queries. Series-scope only for TV community avgs so per-
+  // season rows don't double-count.
+  const [movieCommunityAvgs, tvCommunityAvgs, movieGenres, tvShowGenres] = await Promise.all([
+    movieIds.length > 0
+      ? prisma.movieRating.groupBy({
+          by: ["movieId"],
+          where: { movieId: { in: movieIds }, excluded: false },
+          _avg: {
+            plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+            relatability: true, characterDev: true, dialogueScripting: true,
+            overallEmotion: true, meaning: true, movingness: true,
+            cinematography: true, artisticEffect: true, visualEffects: true,
+            locationCost: true, musicSound: true,
+            casting: true, actingQuality: true, blockingChoreo: true,
+            appeal: true,
+          },
+        })
+      : Promise.resolve([] as { movieId: string; _avg: Record<string, number | null> }[]),
+    tvShowIds.length > 0
+      ? prisma.tVShowRating.groupBy({
+          by: ["tvShowId"],
+          where: { tvShowId: { in: tvShowIds }, excluded: false, ratingScope: "series" },
+          _avg: {
+            plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+            relatability: true, characterDev: true, dialogueScripting: true,
+            overallEmotion: true, meaning: true, movingness: true,
+            cinematography: true, artisticEffect: true, visualEffects: true,
+            locationCost: true, musicSound: true,
+            casting: true, actingQuality: true, blockingChoreo: true,
+            appeal: true,
+          },
+        })
+      : Promise.resolve([] as { tvShowId: string; _avg: Record<string, number | null> }[]),
+    movieIds.length > 0
+      ? prisma.movieGenre.findMany({ where: { movieId: { in: movieIds } }, select: { movieId: true, genreId: true } })
+      : Promise.resolve([] as { movieId: string; genreId: number }[]),
+    tvShowIds.length > 0
+      ? prisma.tVShowGenre.findMany({ where: { tvShowId: { in: tvShowIds } }, select: { tvShowId: true, genreId: true } })
+      : Promise.resolve([] as { tvShowId: string; genreId: number }[]),
+  ]);
+
+  const movieCommunityMap = new Map(
+    movieCommunityAvgs.map((c) => [c.movieId, c._avg as Record<string, number | null>])
   );
-
-  const THRESHOLD = 8;
+  const tvCommunityMap = new Map(
+    tvCommunityAvgs.map((c) => [c.tvShowId, c._avg as Record<string, number | null>])
+  );
+  const movieGenresByMovie = new Map<string, number[]>();
+  for (const g of movieGenres) {
+    const arr = movieGenresByMovie.get(g.movieId) ?? [];
+    arr.push(g.genreId);
+    movieGenresByMovie.set(g.movieId, arr);
+  }
+  const tvGenresByShow = new Map<string, number[]>();
+  for (const g of tvShowGenres) {
+    const arr = tvGenresByShow.get(g.tvShowId) ?? [];
+    arr.push(g.genreId);
+    tvGenresByShow.set(g.tvShowId, arr);
+  }
 
   const categoryContributions: Record<FocusedKey, number[]> = {
     narrativeFocused: [],
@@ -174,31 +270,65 @@ export async function rebuildUserProfile(userId: string) {
     GENRE_KEYS.map((k) => [k, [] as number[]])
   );
 
-  for (const rating of validRatings) {
-    const overallRating = rating.overallRating!;
-    const community = communityMap.get(rating.movieId) ?? {};
-    const ratingObj = rating as unknown as Record<string, number | null>;
+  // Unified iteration over movie + TV ratings.
+  type UnifiedRating = {
+    overallRating: number;
+    raw: Record<string, number | null>;
+    community: Record<string, number | null>;
+    genreIds: number[];
+    reviewType: string;
+  };
+  const unified: UnifiedRating[] = [
+    ...validMovieRatings.map((r) => ({
+      overallRating: r.overallRating!,
+      raw: r as unknown as Record<string, number | null>,
+      community: movieCommunityMap.get(r.movieId) ?? {},
+      genreIds: movieGenresByMovie.get(r.movieId) ?? [],
+      reviewType: r.reviewType,
+    })),
+    ...validTvRatings.map((r) => ({
+      overallRating: r.overallRating!,
+      raw: r as unknown as Record<string, number | null>,
+      community: tvCommunityMap.get(r.tvShowId) ?? {},
+      genreIds: tvGenresByShow.get(r.tvShowId) ?? [],
+      reviewType: r.reviewType,
+    })),
+  ];
 
-    // For imported ratings with no component scores, inherit community averages
-    // so they still contribute to the user's profile
-    const isImportedOnly = rating.importSource != null &&
-      FOCUSED_CATEGORIES.narrativeFocused.every((f) => ratingObj[f] == null);
-    const effectiveScores = isImportedOnly ? community : ratingObj;
+  for (const rating of unified) {
+    const overallRating = rating.overallRating;
+    // Use community sub-fields as a stand-in for basic/quick ratings and
+    // any "standard" rating where the user left all sub-fields blank.
+    // Otherwise use the user's own sub-fields. The component formula
+    // still maxes against community separately below — this just
+    // controls what "user's view" means for max() input.
+    const effectiveScores = hasUserSubfields(rating.raw as unknown as Record<string, unknown>)
+      ? rating.raw
+      : rating.community;
 
+    // Component contributions.
     for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
-      const userAvg = subFieldAvg(effectiveScores as Record<string, number | null>, fields);
-      const communityAvg = subFieldAvg(community, fields);
+      const userAvg = subFieldAvg(effectiveScores, fields);
+      const communityAvg = subFieldAvg(rating.community, fields);
       const maxVal = Math.max(userAvg ?? 0, communityAvg ?? 0);
-      const contribution = maxVal >= THRESHOLD && overallRating >= THRESHOLD ? overallRating : 0;
+      const contribution = maxVal >= LIKED_THRESHOLD && overallRating >= LIKED_THRESHOLD ? overallRating : 0;
       categoryContributions[cat].push(contribution);
     }
 
-    for (const key of GENRE_KEYS) {
-      const genreScore = ratingObj[key];
-      if (genreScore != null) {
-        const contribution = genreScore >= THRESHOLD && overallRating >= THRESHOLD ? overallRating : 0;
-        genreContributions[key].push(contribution);
-      }
+    // Genre contributions — derived from the title's actual TMDB genres
+    // (not from non-existent per-rating genre columns). If the user
+    // liked the title (overall >= LIKED_THRESHOLD), contribute the
+    // user's overall to each profile-genre the title is tagged with;
+    // otherwise contribute 0. Average is over ALL of the user's rated
+    // titles (penalizes sparsity), matching the Excel spec.
+    const liked = overallRating >= LIKED_THRESHOLD;
+    const profileKeysHitByThisTitle = new Set<string>();
+    for (const tmdbId of rating.genreIds) {
+      for (const k of getProfileGenreKeys(tmdbId)) profileKeysHitByThisTitle.add(k);
+    }
+    for (const k of GENRE_KEYS) {
+      const contribution = liked && profileKeysHitByThisTitle.has(k) ? overallRating : 0;
+      genreContributions[k].push(contribution);
     }
   }
 

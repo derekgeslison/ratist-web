@@ -281,7 +281,13 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Create rating — set both overallRating AND ratistRating
+        // Create rating — set both overallRating AND ratistRating.
+        // reviewType is explicitly "basic" because an import is just a
+        // 1-10 number plus optional review text (no Ratist sub-fields).
+        // The MovieRating schema default is "standard" so without this
+        // every import would be falsely tagged as a full Ratist review
+        // and inflate downstream counts (fullRatistCount, critic gate,
+        // etc.). Matches the TV import path's behavior.
         await prisma.movieRating.create({
           data: {
             userId: user.id,
@@ -290,6 +296,7 @@ export async function POST(req: NextRequest) {
             ratistRating: row.rating ?? null,
             reviewText: row.review ?? null,
             importSource: source,
+            reviewType: "basic",
           },
         });
 
