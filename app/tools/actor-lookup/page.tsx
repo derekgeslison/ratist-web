@@ -20,7 +20,7 @@ type SearchMode = "person" | "content";
 const LOOKUP_KEY = "ratist-actor-lookup-state";
 
 function ActorLookupContent() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
 
   // Restore from sessionStorage on mount
@@ -202,8 +202,20 @@ function ActorLookupContent() {
     try { sessionStorage.removeItem(`${LOOKUP_KEY}-prev`); } catch { /* ignore */ }
   }
 
-  // Auto-select person from URL params
+  // Auto-select person from URL params. Two important guards:
+  //   1. sessionStorage wins over the URL. The URL is a stale snapshot
+  //      of "the celebrity selected earlier in this tab"; if the user
+  //      has since switched to a different celebrity, sessionStorage
+  //      has the fresh state. Without this guard, navigating away
+  //      and back rewinds to whoever's in the URL.
+  //   2. Wait until auth has finished loading before triggering the
+  //      lookup. selectPerson reads `user`; if auth is still resolving
+  //      it falls into the `!user` branch and stamps seenItems = [],
+  //      giving a "0 results" view even when the user is signed in.
+  const hasRestoredPerson = restored.selectedPerson != null;
   useEffect(() => {
+    if (authLoading) return;
+    if (hasRestoredPerson) return;
     const personId = searchParams.get("personId");
     const personName = searchParams.get("name");
     if (personId && personName) {
@@ -217,7 +229,7 @@ function ActorLookupContent() {
       selectPerson(person);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -352,7 +364,11 @@ function ActorLookupContent() {
                           )}
                         </div>
                         <p className="text-xs text-white mt-1.5 line-clamp-1 font-medium">{m.title}</p>
-                        {m.character && <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">as {m.character}</p>}
+                        {m.character ? (
+                          <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">as {m.character}</p>
+                        ) : m.job ? (
+                          <p className="text-xs text-[var(--foreground-muted)] line-clamp-1">({m.job})</p>
+                        ) : null}
                         {m.ratistRating && <p className="text-xs font-semibold text-[var(--ratist-red)]">Your rating: {m.ratistRating.toFixed(1)}</p>}
                       </Link>
                     ))}

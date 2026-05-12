@@ -24,6 +24,10 @@ interface TopUser {
   // Server-computed: per-feature count of calendar days in the current
   // window where the user hit their plan's daily cap for that feature.
   daysAtCap: Record<string, number>;
+  // Server-computed: per-feature count of ISO weeks in the current
+  // window where the user hit their plan's weekly cap (used for
+  // weekly-budgeted features like watch_companion_generate).
+  weeksAtCap: Record<string, number>;
 }
 
 interface UsageResponse {
@@ -51,14 +55,35 @@ const SUSTAINED_THRESHOLD: Record<WindowKey, number> = {
   "30d": 15, // half the window
 };
 
-function heatFlag(user: TopUser, windowKey: WindowKey): { feature: string; days: number } | null {
+// Weekly-budget equivalent for watch_companion_generate. A flagged user
+// has burned their entire weekly companion allowance for N consecutive
+// weeks in the window. The 24h view is N/A here — too short to bucket
+// into weeks. The 30d threshold of 4 implements the "every week for
+// over a month" abuse pattern admins care about.
+const SUSTAINED_WEEKLY_THRESHOLD: Record<WindowKey, number> = {
+  "24h": 99, // effectively disabled
+  "7d": 1,
+  "30d": 4,
+};
+
+function heatFlag(user: TopUser, windowKey: WindowKey): { feature: string; days: number; unit: "day" | "week" } | null {
   if (user.isAdmin || user.aiDisabled) return null;
-  const threshold = SUSTAINED_THRESHOLD[windowKey];
-  // Pick the worst feature — highest daysAtCap — when multiple features flag.
-  let worst: { feature: string; days: number } | null = null;
+  // Daily-cap features first.
+  const dailyThreshold = SUSTAINED_THRESHOLD[windowKey];
+  let worst: { feature: string; days: number; unit: "day" | "week" } | null = null;
   for (const [feature, days] of Object.entries(user.daysAtCap ?? {})) {
-    if (days >= threshold && (!worst || days > worst.days)) {
-      worst = { feature, days };
+    if (days >= dailyThreshold && (!worst || days > worst.days)) {
+      worst = { feature, days, unit: "day" };
+    }
+  }
+  // Weekly-cap features (currently watch_companion_generate). Compared
+  // alongside daily flags; whichever feature hits its threshold harder
+  // wins. The "worse" comparison is on raw count — a 4-weeks streak
+  // beats a 2-days-at-cap streak when both qualify.
+  const weeklyThreshold = SUSTAINED_WEEKLY_THRESHOLD[windowKey];
+  for (const [feature, weeks] of Object.entries(user.weeksAtCap ?? {})) {
+    if (weeks >= weeklyThreshold && (!worst || weeks > worst.days)) {
+      worst = { feature, days: weeks, unit: "week" };
     }
   }
   return worst;
@@ -225,8 +250,12 @@ export default function AdminAiUsagePage() {
                       {(() => {
                         const heat = heatFlag(u, windowKey);
                         if (!heat) return null;
-                        const label = windowKey === "24h" ? "at cap today" : `${heat.days}d at cap`;
-                        const title = `Hit the daily cap on ${heat.feature} on ${heat.days} calendar day${heat.days === 1 ? "" : "s"} in this window — sustained pressure, worth a manual review.`;
+                        const unitShort = heat.unit === "week" ? "w" : "d";
+                        const unitLong = heat.unit === "week" ? "week" : "calendar day";
+                        const label = windowKey === "24h" && heat.unit === "day"
+                          ? "at cap today"
+                          : `${heat.days}${unitShort} at cap`;
+                        const title = `Hit the ${heat.unit === "week" ? "weekly" : "daily"} cap on ${heat.feature} on ${heat.days} ${unitLong}${heat.days === 1 ? "" : "s"} in this window — sustained pressure, worth a manual review.`;
                         return (
                           <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-400 bg-amber-400/10" title={title}>
                             🔥 {label}

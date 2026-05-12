@@ -252,9 +252,18 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           {!u.bannedAt && !u.deletedAt && (
             <button
               onClick={() => {
+                // Two-step prompt with early-abort on Cancel. prompt()
+                // returns null when the user cancels; without these
+                // guards the action would proceed regardless and a
+                // mistaken click couldn't be backed out.
                 const reason = prompt("Ban reason (optional):");
+                if (reason === null) return;
                 const days = prompt("Ban duration in days (empty = permanent):");
-                doAction("ban", { reason, expiresAt: days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : undefined });
+                if (days === null) return;
+                doAction("ban", {
+                  reason: reason.trim() || undefined,
+                  expiresAt: days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : undefined,
+                });
               }}
               disabled={actionLoading}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm border border-orange-500/50 text-orange-400 hover:bg-orange-500/10 transition-colors disabled:opacity-50"
@@ -277,9 +286,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <button
               onClick={() => {
                 const reason = prompt("Block reason (optional):");
+                if (reason === null) return;
                 const days = prompt("Block duration in days (empty = until you lift it):");
+                if (days === null) return;
                 doAction("block_posting", {
-                  reason: reason ?? undefined,
+                  reason: reason.trim() || undefined,
                   expiresAt: days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : undefined,
                 });
               }}

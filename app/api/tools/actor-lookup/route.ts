@@ -57,7 +57,11 @@ export async function GET(req: NextRequest) {
           tmdbId: m.tmdbId,
           title: m.title,
           posterPath: dbMovie?.posterPath ?? m.poster_path,
-          character: m.character,
+          // Preserve both — actors carry `character`, crew carry
+          // `job`. Without `job` the render layer was showing
+          // nothing for directors / writers / producers.
+          character: (m as { character?: string }).character,
+          job: (m as { job?: string }).job,
           ratistRating: dbMovie?.ratings?.[0]?.ratistRating ?? null,
         };
       });
@@ -106,7 +110,8 @@ export async function GET(req: NextRequest) {
           tmdbId: s.tmdbId,
           title: s.title,
           posterPath: dbShow?.posterPath ?? s.poster_path,
-          character: s.character,
+          character: (s as { character?: string }).character,
+          job: (s as { job?: string }).job,
           ratistRating: dbShow?.ratings?.[0]?.ratistRating ?? null,
         };
       });

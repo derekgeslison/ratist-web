@@ -447,7 +447,7 @@ export default function MovieDetailTabs({
           {/* Soundtrack */}
           <section>
             <h2 className="text-base font-semibold text-white mb-3">Official Soundtrack</h2>
-            <Soundtrack tmdbId={movie.id} title={movie.title} mediaType="movie" />
+            <Soundtrack tmdbId={movie.id} title={movie.title} mediaType="movie" year={movie.release_date} />
           </section>
 
           {images.length > 0 && (

@@ -18,16 +18,24 @@ interface Props {
   tmdbId: number;
   title: string;
   mediaType?: "movie" | "tv";
+  /** Release year of the movie or show — passed to the soundtrack
+   *  matcher as a tiebreaker / outlier filter so a similarly-named
+   *  film's soundtrack doesn't get pulled (e.g. "Jane" vs "Becoming
+   *  Jane"). */
+  year?: string | number | null;
 }
 
-export default function Soundtrack({ tmdbId, title, mediaType = "movie" }: Props) {
+export default function Soundtrack({ tmdbId, title, mediaType = "movie", year }: Props) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [albumTitle, setAlbumTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/movies/${tmdbId}/soundtrack?title=${encodeURIComponent(title)}&type=${mediaType}`)
+    const params = new URLSearchParams({ title, type: mediaType });
+    const yearMatch = year != null ? String(year).match(/^(\d{4})/) : null;
+    if (yearMatch) params.set("year", yearMatch[1]);
+    fetch(`/api/movies/${tmdbId}/soundtrack?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => {
         setTracks(data.tracks ?? []);
@@ -35,7 +43,7 @@ export default function Soundtrack({ tmdbId, title, mediaType = "movie" }: Props
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [tmdbId, title, mediaType]);
+  }, [tmdbId, title, mediaType, year]);
 
   if (loading) {
     return (

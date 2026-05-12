@@ -50,6 +50,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const title = req.nextUrl.searchParams.get("title") ?? "";
   const mediaType = req.nextUrl.searchParams.get("type") ?? "movie"; // "movie" | "tv"
+  const yearParam = req.nextUrl.searchParams.get("year");
+  const movieYear = yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : null;
 
   if (!title) return NextResponse.json({ tracks: [] });
 
@@ -75,15 +77,42 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const titleNorm = normalize(title);
-    // Extract the core title without sequel numbers for broader matching
-    const coreTitleNorm = normalize(title.replace(/\s*(vol\.?\s*\d+|volume\s*\d+|\d+)$/i, "").trim());
+
+    /**
+     * Strict title-match. Previously this was a substring check, which
+     * blew up on short titles: a search for "Jane" matched "Becoming
+     * Jane", "Jane Eyre", etc. The candidate's normalized title must
+     * now either be exactly the movie title or follow one of a few
+     * canonical soundtrack/score release-naming patterns where the
+     * surrounding text is restricted to generic decorators
+     * (original / motion picture / soundtrack / score / etc).
+     */
+    const DECOR = "(?:original|deluxe|expanded|complete|the|a|motion picture|music|songs|from|soundtrack|score|ost|vol\\s*\\d+|edition|recording|recordings|sessions|extended|special)";
+    function titleMatchesSoundtrack(candidateNorm: string, t: string): boolean {
+      if (!t || !candidateNorm) return false;
+      if (candidateNorm === t) return true;
+      // Title at start, followed by decorators/whitespace only:
+      //   "jane original motion picture soundtrack"
+      const startRe = new RegExp(`^${escapeRegExp(t)}(?:\\s+${DECOR})+$`);
+      if (startRe.test(candidateNorm)) return true;
+      // Title at end, preceded by decorators only:
+      //   "music from jane", "the songs of jane"
+      const endRe = new RegExp(`^(?:${DECOR}\\s+)+${escapeRegExp(t)}$`);
+      if (endRe.test(candidateNorm)) return true;
+      // Title surrounded by decorators on both sides (rare but valid):
+      //   "music from jane original soundtrack"
+      const sandwichRe = new RegExp(`^(?:${DECOR}\\s+)+${escapeRegExp(t)}(?:\\s+${DECOR})+$`);
+      if (sandwichRe.test(candidateNorm)) return true;
+      return false;
+    }
+    function escapeRegExp(s: string): string {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
 
     const candidates = searchData.releases
       .filter((r) => {
         const rNorm = normalize(r.title);
-        // Flexible matching: normalized titles overlap
-        return rNorm.includes(titleNorm) || titleNorm.includes(rNorm.replace(/\s*(original\s+)?score.*$/, "").trim())
-          || rNorm.includes(coreTitleNorm);
+        return titleMatchesSoundtrack(rNorm, titleNorm);
       })
       .map((r) => {
         const rTitle = r.title.toLowerCase();
@@ -104,6 +133,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
         // Small bonus for having more tracks within the sweet spot
         if (count >= 8 && count <= 45) score += Math.min(count, 30);
+
+        // Year proximity — when the caller passed a year, releases
+        // within a couple years of the film get a boost, anything far
+        // outside that window gets penalized. A soundtrack album dated
+        // a decade off the film almost certainly belongs to a
+        // different production with a similar name.
+        if (movieYear && r.date) {
+          const m = r.date.match(/^(\d{4})/);
+          if (m) {
+            const diff = Math.abs(Number(m[1]) - movieYear);
+            if (diff <= 2) score += 30;
+            else if (diff <= 5) score += 10;
+            else score -= Math.min(diff * 2, 60);
+          }
+        }
 
         return { release: r, score };
       })

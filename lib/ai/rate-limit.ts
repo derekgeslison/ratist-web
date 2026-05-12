@@ -33,6 +33,18 @@ export const FEATURE_CAPS: Record<string, AiLimits> = {
   watch_companion_generate: { freeDaily: 0, paidDaily: 0 },
 };
 
+// Per-feature WEEKLY caps for features whose budget is weekly rather
+// than daily. Powers the abuse-monitor "weeks at cap" signal on the
+// admin AI-usage page. Keep these in sync with the live limiter
+// (checkWatchCompanionRateLimit in app/api/watch-companion/generate).
+export interface AiWeeklyLimits {
+  freeWeekly: number;
+  paidWeekly: number;
+}
+export const WEEKLY_FEATURE_CAPS: Record<string, AiWeeklyLimits> = {
+  watch_companion_generate: { freeWeekly: 2, paidWeekly: 5 },
+};
+
 // === Shared AI tools pool ===
 // The three user-facing AI tools (movies search, recommendations, AI
 // collections) share a single daily budget rather than having per-feature

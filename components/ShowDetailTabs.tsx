@@ -1347,7 +1347,7 @@ export default function ShowDetailTabs({
           {/* Soundtrack */}
           <section>
             <h2 className="text-base font-semibold text-white mb-3">Official Soundtrack</h2>
-            <Soundtrack tmdbId={show.id} title={show.name} mediaType="tv" />
+            <Soundtrack tmdbId={show.id} title={show.name} mediaType="tv" year={show.first_air_date} />
           </section>
 
           {images.length > 0 && (

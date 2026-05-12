@@ -2,7 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { isSubscriptionActive } from "@/lib/subscription";
-import { FEATURE_CAPS } from "@/lib/ai/rate-limit";
+import { FEATURE_CAPS, WEEKLY_FEATURE_CAPS } from "@/lib/ai/rate-limit";
+
+/** ISO-week key (YYYY-Www) so a daily log entry maps deterministically
+ *  to a 7-day bucket. Used by the weekly-cap abuse heuristic for
+ *  watch_companion_generate. */
+function isoWeekKey(d: Date): string {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  // Shift to nearest Thursday so week 1 is the one containing Jan 4.
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +117,33 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Weekly cap-hit tracking — mirrors the daily logic above but
+  // bucketed into ISO weeks for features whose budget is weekly
+  // (currently just watch_companion_generate). Feeds the admin
+  // page's "sustained heavy companion use" abuse flag.
+  const weeklyCounts = new Map<string, number>();
+  for (const row of rawLogs) {
+    if (!WEEKLY_FEATURE_CAPS[row.feature]) continue;
+    const week = isoWeekKey(row.createdAt);
+    const key = `${row.userId}${row.feature}${week}`;
+    weeklyCounts.set(key, (weeklyCounts.get(key) ?? 0) + 1);
+  }
+  const weeksAtCapByUser = new Map<string, Record<string, number>>();
+  for (const [key, count] of weeklyCounts) {
+    const [uid, feature] = key.split("");
+    const caps = WEEKLY_FEATURE_CAPS[feature];
+    if (!caps) continue;
+    const u = userMap.get(uid);
+    const isPaid = u ? isSubscriptionActive(u) : false;
+    const cap = isPaid ? caps.paidWeekly : caps.freeWeekly;
+    if (cap === 0) continue;
+    if (count >= cap) {
+      const existing = weeksAtCapByUser.get(uid) ?? {};
+      existing[feature] = (existing[feature] ?? 0) + 1;
+      weeksAtCapByUser.set(uid, existing);
+    }
+  }
+
   const topUsers = topUserGroups.map((g) => {
     const u = userMap.get(g.userId);
     const hasPass = u?.subscriptionTier === "backstage_pass" &&
@@ -123,6 +162,7 @@ export async function GET(req: NextRequest) {
       lastCall: g._max.createdAt?.toISOString() ?? null,
       byFeature: featureBreakdownMap.get(g.userId) ?? {},
       daysAtCap: daysAtCapByUser.get(g.userId) ?? {},
+      weeksAtCap: weeksAtCapByUser.get(g.userId) ?? {},
     };
   });
 
