@@ -1,4 +1,5 @@
 import { getWatchProviders, getMovieDetails } from "@/lib/tmdb";
+import { prisma } from "@/lib/prisma";
 
 export interface EligibilityResult {
   eligible: boolean;
@@ -30,11 +31,44 @@ const THEATRICAL_WINDOW_DAYS = 45;
  */
 export async function isMovieEligibleForCompanion(tmdbId: number): Promise<EligibilityResult> {
   try {
+    // Adult-content gate. Block companion generation on titles that
+    // are either flagged adult by TMDB, rated NC-17, OR have no/NR
+    // rating AND have been admin/auto-flagged as having explicit
+    // posters (the posterBlocked signal). LLM-generated watch
+    // companions on hardcore titles are off-product and a waste of
+    // credits regardless of who's requesting.
+    const dbMovie = await prisma.movie.findUnique({
+      where: { tmdbId },
+      select: { mpaaRating: true, posterBlocked: true },
+    }).catch(() => null);
+    const adultBlocked =
+      dbMovie?.mpaaRating === "NC-17"
+      || ((dbMovie?.mpaaRating === "NR" || dbMovie?.mpaaRating == null) && dbMovie?.posterBlocked === true);
+    if (adultBlocked) {
+      return {
+        eligible: false,
+        reason: "This title isn't eligible for a Watch Companion.",
+      };
+    }
+    // TMDB-side adult flag is a separate signal — porn entries on
+    // TMDB carry adult: true even when our DB row is fresh. Cheap to
+    // check via the same getMovieDetails call we'd make below for the
+    // theatrical-window logic.
+    const movieDetails = await getMovieDetails(tmdbId).catch(() => null);
+    if (movieDetails && (movieDetails as { adult?: boolean }).adult === true) {
+      return {
+        eligible: false,
+        reason: "This title isn't eligible for a Watch Companion.",
+      };
+    }
+
     const providers = await getWatchProviders(tmdbId);
     const hasAnyProvider = !!(providers?.flatrate?.length || providers?.rent?.length || providers?.buy?.length);
     if (hasAnyProvider) return { eligible: true };
 
-    const movie = await getMovieDetails(tmdbId);
+    // Reuse the movieDetails fetched for the adult-flag check above
+    // when possible — saves an extra TMDB round trip.
+    const movie = movieDetails ?? await getMovieDetails(tmdbId);
     const release = movie.release_date ? new Date(movie.release_date) : null;
     const now = new Date();
     if (!release || release > now) {
