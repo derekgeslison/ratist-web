@@ -86,6 +86,17 @@ export default async function MovieDetailPage({ params }: Props) {
     notFound();
   }
 
+  // Early TMDB.adult gate — runs BEFORE any DB lookup. If TMDB
+  // itself reports the title as adult content, 404 immediately. This
+  // is defense-in-depth: the DB-based check below catches rows where
+  // upsertMovie has already mirrored the flag, but if a dev server's
+  // Prisma client is stale (doesn't know `isAdult`), the select-with-
+  // catch silently returns null and the DB check no-ops. The TMDB
+  // check has no such failure mode.
+  if ((movie as { adult?: boolean }).adult === true) {
+    notFound();
+  }
+
   // Parallel fetch: TMDB-side data + the one local Movie row we need
   // across every downstream sub-query on this page. Previously this
   // page issued ~4 separate findUnique calls for the same row and

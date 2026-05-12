@@ -241,7 +241,26 @@ export default async function CelebrityPage({ params }: Props) {
     ...safeMovieFilms.map((f): [string, FilmEntry] => [`movie-${f.id}`, f]),
     ...safeShowFilms.map((f): [string, FilmEntry] => [`tv-${f.id}`, f]),
   ]);
-  const filmography = filmographyRaw.map((f) => safeByKey.get(`${f.mediaType}-${f.id}`) ?? f);
+  // Drop items the safeguard removed entirely (TMDB-adult hides),
+  // pass through the masked version for items it kept, and only fall
+  // through to the raw entry when there was no DB row to consult at
+  // all. The earlier `?? f` fallback resurrected filtered items
+  // because Map.get returns undefined for both "filtered out" and
+  // "wasn't in the safeguarded set" — we now disambiguate.
+  const safeguardedIds = new Set<string>([
+    ...movieFilms.map((f) => `movie-${f.id}`),
+    ...showFilms.map((f) => `tv-${f.id}`),
+  ]);
+  const filmography = filmographyRaw.flatMap<FilmEntry>((f) => {
+    const key = `${f.mediaType}-${f.id}`;
+    const safe = safeByKey.get(key);
+    if (safe) return [safe];
+    // If we put this id INTO the safeguard but didn't get it back,
+    // it was filtered out as adult-hidden — drop it.
+    if (safeguardedIds.has(key)) return [];
+    // Not in our DB at all and not safeguarded — keep raw.
+    return [f];
+  });
 
   // Fire-and-forget bootstrap: ensure every credit on this person's
   // filmography is cached in our Movie / TVShow tables. The lazy
