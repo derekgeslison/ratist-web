@@ -128,6 +128,55 @@ function hasUserSubfields(rating: Record<string, unknown>): boolean {
 }
 
 /**
+ * Count how many of a user's ratings (movies + TV, series-scope only)
+ * actually represent a filled-out Ratist rubric. This is the single
+ * source of truth for two gates that previously diverged:
+ *   - rebuildUserProfile: skips the statedPrefs blend at >= 10
+ *   - settings page: hides the genre + component editor at >= 10
+ *
+ * Counts presence of any subfield (via hasUserSubfields), not just
+ * reviewType, so a partially-filled "standard" with no rubric data
+ * doesn't falsely count and a quick rating with subfields doesn't
+ * falsely escape the count.
+ */
+export const FULL_RATIST_THRESHOLD = 10;
+
+export async function getFullRatistCount(userId: string): Promise<number> {
+  const [movieRatings, tvRatings] = await Promise.all([
+    prisma.movieRating.findMany({
+      where: { userId },
+      select: {
+        reviewType: true,
+        plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+        relatability: true, characterDev: true, dialogueScripting: true,
+        overallEmotion: true, meaning: true, movingness: true,
+        cinematography: true, artisticEffect: true, visualEffects: true,
+        locationCost: true, musicSound: true,
+        casting: true, actingQuality: true, blockingChoreo: true,
+        appeal: true, superficialAllure: true, choreography: true,
+      },
+    }),
+    prisma.tVShowRating.findMany({
+      where: { userId, ratingScope: "series" },
+      select: {
+        reviewType: true,
+        plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+        relatability: true, characterDev: true, dialogueScripting: true,
+        overallEmotion: true, meaning: true, movingness: true,
+        cinematography: true, artisticEffect: true, visualEffects: true,
+        locationCost: true, musicSound: true,
+        casting: true, actingQuality: true, blockingChoreo: true,
+        appeal: true, superficialAllure: true, choreography: true,
+      },
+    }),
+  ]);
+  let count = 0;
+  for (const r of movieRatings) if (hasUserSubfields(r as unknown as Record<string, unknown>)) count++;
+  for (const r of tvRatings) if (hasUserSubfields(r as unknown as Record<string, unknown>)) count++;
+  return count;
+}
+
+/**
  * Rebuilds a user's persona profile from all their ratings (movies + TV).
  * Called after every new/edited rating.
  *
@@ -153,9 +202,15 @@ function hasUserSubfields(rating: Record<string, unknown>): boolean {
  * genre IDs are mapped through getProfileGenreKeys (e.g. "Sci-Fi &
  * Fantasy" → both genreScifi and genreFantasy).
  *
- * Blending: for users with < 10 full Ratist ratings, the upscaled
- * scores are blended with their statedPrefs (onboarding picks) at a
- * weight decaying from 10% to 0% as fullRatistCount climbs to 10.
+ * Blending: for users with < FULL_RATIST_THRESHOLD full Ratist ratings,
+ * the upscaled scores are blended with their statedPrefs (onboarding
+ * picks) at a weight decaying linearly from 70% to 0% as
+ * fullRatistCount climbs to FULL_RATIST_THRESHOLD. The high starting
+ * weight matters because rating-derived signal is sparse for new
+ * users — at 0 ratings the entire rating-derived profile is empty, so
+ * a 10% onboarding contribution leaves you with effectively no
+ * personalization; 70% lets the onboarding picks actually carry the
+ * profile until rating signal accumulates.
  */
 const LIKED_THRESHOLD = 7.5;
 
@@ -180,12 +235,11 @@ export async function rebuildUserProfile(userId: string) {
   }
 
   // Count full Ratist ratings (movies + TV) for blending threshold.
-  // "Full" = user submitted the rubric — not basic/quick, not import.
-  // We use hasUserSubfields rather than reviewType alone so a partially-
-  // filled "standard" rating with no sub-fields doesn't falsely count.
-  const fullRatistCount =
-    movieRatings.filter((r) => hasUserSubfields(r as unknown as Record<string, unknown>)).length +
-    tvRatings.filter((r) => hasUserSubfields(r as unknown as Record<string, unknown>)).length;
+  // Computed inline rather than calling getFullRatistCount to avoid a
+  // second round-trip — we already have the rating rows loaded here.
+  let fullRatistCount = 0;
+  for (const r of movieRatings) if (hasUserSubfields(r as unknown as Record<string, unknown>)) fullRatistCount++;
+  for (const r of tvRatings) if (hasUserSubfields(r as unknown as Record<string, unknown>)) fullRatistCount++;
 
   const currentProfile = await prisma.userProfile.findUnique({
     where: { userId },
@@ -343,13 +397,16 @@ export async function rebuildUserProfile(userId: string) {
   const scaledComponents = upscaleProfile(rawComponents);
   const scaledGenres = upscaleProfile(rawGenres);
 
-  // Blend with onboarding/settings preferences for users with < 10 full Ratist ratings.
-  // Onboarding weight linearly decreases: 10% at 0 ratings → 0% at 10 ratings.
+  // Blend with onboarding/settings preferences while the user is below
+  // FULL_RATIST_THRESHOLD. Onboarding weight linearly decreases from
+  // 70% at 0 ratings to 0% at FULL_RATIST_THRESHOLD. Was 10% — bumped
+  // because at low rating counts the rating-derived side is mostly
+  // empty so 10% wasn't enough to keep the profile feeling personal.
   let finalComponents = scaledComponents;
   let finalGenres = scaledGenres;
 
-  if (fullRatistCount < 10 && statedPrefs) {
-    const onboardingWeight = 0.10 * (1 - fullRatistCount / 10); // 10% → 0%
+  if (fullRatistCount < FULL_RATIST_THRESHOLD && statedPrefs) {
+    const onboardingWeight = 0.70 * (1 - fullRatistCount / FULL_RATIST_THRESHOLD);
     const ratingWeight = 1 - onboardingWeight;
 
     const componentKeys = Object.keys(FOCUSED_CATEGORIES) as FocusedKey[];
