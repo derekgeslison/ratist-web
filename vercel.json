@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/year-in-review-unlock",
       "schedule": "0 0 1 12 *"
+    },
+    {
+      "path": "/api/cron/scan-nc17-posters",
+      "schedule": "0 4 1 * *"
     }
   ]
 }
