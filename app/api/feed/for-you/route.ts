@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { getBatchScoreEstimates } from "@/lib/profile";
+import { getBatchScoreEstimates, genrePrefsScore } from "@/lib/profile";
+import { predictRatingsBatch } from "@/lib/collection-match";
 
 export const dynamic = "force-dynamic";
 
@@ -165,46 +166,120 @@ export async function GET(req: NextRequest) {
     const seenMovieIds = new Set(seenMovieRows.map((s) => s.movie.tmdbId));
     const seenShowIds = new Set(seenShowRows.map((s) => s.tvShow.tmdbId));
 
-    // Movie recommendations
+    // Load the user's taste profile once for the genre-prefs fallback
+    // used when a candidate isn't in our DB. predictRatingsBatch does
+    // its own profile lookup internally; this is only for the
+    // fallback path on candidates the prediction engine returns null
+    // for. Cast to a loose record so we can pass it to genrePrefsScore.
+    const beccyProfile = await prisma.userProfile
+      .findUnique({ where: { userId: user.id } })
+      .catch(() => null);
+    const tasteProfile = beccyProfile as unknown as Record<string, unknown> | null;
+
+    /** Hybrid scorer — see route doc note above. Combines TMDB's
+     *  "/recommendations" (keyword/popularity) + "/similar"
+     *  (genre/cast) into one pool, dedupes, then re-ranks by the
+     *  viewer's predicted rating. Prediction engine handles titles
+     *  with community-rating data; genrePrefsScore picks up the
+     *  rest using just the title's TMDB genre tags. Items without
+     *  any signal are dropped. */
+    interface TmdbCandidate {
+      id: number;
+      title: string;
+      posterPath: string | null;
+      voteAverage: number;
+      releaseDate: string | null;
+      genreIds: number[];
+    }
+    async function scoreAndPick(
+      candidates: TmdbCandidate[],
+      mediaType: "movie" | "tv",
+    ): Promise<Array<{ type: "movie" | "tv"; tmdbId: number; title: string; posterPath: string | null; voteAverage: number; releaseDate: string | null }>> {
+      if (candidates.length === 0) return [];
+      const predictionMap = await predictRatingsBatch(
+        user!.id,
+        candidates.map((c) => ({ tmdbId: c.id, mediaType })),
+      ).catch(() => new Map<string, number | null>());
+
+      const scored: Array<{ c: TmdbCandidate; score: number }> = [];
+      for (const c of candidates) {
+        let score: number | null = null;
+        const pred = predictionMap.get(`${mediaType}-${c.id}`);
+        if (pred != null) {
+          score = pred;
+        } else if (tasteProfile) {
+          score = genrePrefsScore(tasteProfile, c.genreIds);
+        }
+        if (score != null) scored.push({ c, score });
+      }
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, 5).map(({ c }) => ({
+        type: mediaType,
+        tmdbId: c.id,
+        title: c.title,
+        posterPath: c.posterPath,
+        voteAverage: c.voteAverage,
+        releaseDate: c.releaseDate,
+      }));
+    }
+
+    // Movie recommendations — hybrid pool from /recommendations +
+    // /similar, ranked by viewer's predicted score.
     for (const rated of topRatedMovies) {
       try {
-        const res = await fetch(
-          `https://api.themoviedb.org/3/movie/${rated.movie.tmdbId}/recommendations?api_key=${API_KEY}&page=1`,
-          { next: { revalidate: 86400 } }
-        );
-        if (!res.ok) continue;
-        const data = await res.json();
-        type MovieRec = { id: number; title: string; poster_path: string | null; vote_average: number; release_date?: string };
-        const filtered: MovieRec[] = (data.results ?? [])
-          .filter((m: MovieRec) => !seenMovieIds.has(m.id) && m.vote_average >= 6);
-        const recs = shuffle(filtered, rng)
-          .slice(0, 5)
-          .map((m) => ({
-            type: "movie" as const, tmdbId: m.id, title: m.title, posterPath: m.poster_path,
-            voteAverage: m.vote_average, releaseDate: m.release_date ?? null,
-          }));
+        const [recRes, simRes] = await Promise.all([
+          fetch(`https://api.themoviedb.org/3/movie/${rated.movie.tmdbId}/recommendations?api_key=${API_KEY}&page=1`, { next: { revalidate: 86400 } }),
+          fetch(`https://api.themoviedb.org/3/movie/${rated.movie.tmdbId}/similar?api_key=${API_KEY}&page=1`, { next: { revalidate: 86400 } }),
+        ]);
+        type RawMovieRec = { id: number; title: string; poster_path: string | null; vote_average: number; release_date?: string; genre_ids?: number[] };
+        const pool = new Map<number, TmdbCandidate>();
+        const ingest = async (res: Response) => {
+          if (!res.ok) return;
+          const data = await res.json();
+          for (const m of (data.results ?? []) as RawMovieRec[]) {
+            if (seenMovieIds.has(m.id)) continue;
+            if ((m.vote_average ?? 0) < 6) continue;
+            if (pool.has(m.id)) continue;
+            pool.set(m.id, {
+              id: m.id, title: m.title, posterPath: m.poster_path,
+              voteAverage: m.vote_average, releaseDate: m.release_date ?? null,
+              genreIds: m.genre_ids ?? [],
+            });
+          }
+        };
+        await ingest(recRes);
+        await ingest(simRes);
+        const recs = await scoreAndPick(Array.from(pool.values()), "movie");
         if (recs.length > 0) becauseYouLiked.push({ source: rated.movie, recs });
       } catch { /* skip */ }
     }
 
-    // TV show recommendations
+    // TV show recommendations — same hybrid + re-rank as movies.
     for (const rated of topRatedShows) {
       try {
-        const res = await fetch(
-          `https://api.themoviedb.org/3/tv/${rated.tvShow.tmdbId}/recommendations?api_key=${API_KEY}&page=1`,
-          { next: { revalidate: 86400 } }
-        );
-        if (!res.ok) continue;
-        const data = await res.json();
-        type ShowRec = { id: number; name: string; poster_path: string | null; vote_average: number; first_air_date?: string };
-        const filtered: ShowRec[] = (data.results ?? [])
-          .filter((s: ShowRec) => !seenShowIds.has(s.id) && s.vote_average >= 6);
-        const recs = shuffle(filtered, rng)
-          .slice(0, 5)
-          .map((s) => ({
-            type: "tv" as const, tmdbId: s.id, title: s.name, posterPath: s.poster_path,
-            voteAverage: s.vote_average, releaseDate: s.first_air_date ?? null,
-          }));
+        const [recRes, simRes] = await Promise.all([
+          fetch(`https://api.themoviedb.org/3/tv/${rated.tvShow.tmdbId}/recommendations?api_key=${API_KEY}&page=1`, { next: { revalidate: 86400 } }),
+          fetch(`https://api.themoviedb.org/3/tv/${rated.tvShow.tmdbId}/similar?api_key=${API_KEY}&page=1`, { next: { revalidate: 86400 } }),
+        ]);
+        type RawShowRec = { id: number; name: string; poster_path: string | null; vote_average: number; first_air_date?: string; genre_ids?: number[] };
+        const pool = new Map<number, TmdbCandidate>();
+        const ingest = async (res: Response) => {
+          if (!res.ok) return;
+          const data = await res.json();
+          for (const s of (data.results ?? []) as RawShowRec[]) {
+            if (seenShowIds.has(s.id)) continue;
+            if ((s.vote_average ?? 0) < 6) continue;
+            if (pool.has(s.id)) continue;
+            pool.set(s.id, {
+              id: s.id, title: s.name, posterPath: s.poster_path,
+              voteAverage: s.vote_average, releaseDate: s.first_air_date ?? null,
+              genreIds: s.genre_ids ?? [],
+            });
+          }
+        };
+        await ingest(recRes);
+        await ingest(simRes);
+        const recs = await scoreAndPick(Array.from(pool.values()), "tv");
         if (recs.length > 0) becauseYouLiked.push({ source: { tmdbId: rated.tvShow.tmdbId, title: rated.tvShow.name, posterPath: rated.tvShow.posterPath }, recs });
       } catch { /* skip */ }
     }
