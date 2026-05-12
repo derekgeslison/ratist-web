@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Play, ArrowRight, ChevronDown, ChevronUp, Check, Eye, Tv, CalendarDays, X } from "lucide-react";
@@ -25,6 +25,7 @@ import AwardsTab from "./AwardsTab";
 import ReviewCard from "./ReviewCard";
 import RatingBadge from "./RatingBadge";
 import type { AwardBodyGroup } from "@/lib/awards";
+import { scoreColor } from "@/lib/ratings";
 import DiscussionRow from "./DiscussionRow";
 import ReviewDigest from "./ReviewDigest";
 
@@ -84,6 +85,55 @@ interface Props {
 const TABS = ["Overview", "Cast & Crew", "Reviews", "Seasons", "Awards", "Media", "Discussions", "Parents' Guide"] as const;
 type Tab = (typeof TABS)[number];
 
+/**
+ * Episode-overview text with a "Show more" / "Show less" toggle that
+ * only appears when the text is actually visually clamped. The earlier
+ * version showed the button based on character count, which over-
+ * triggered on desktop and under-triggered on mobile. Here we measure
+ * scrollHeight vs clientHeight while line-clamp-2 is active and let a
+ * ResizeObserver re-check when the row's width changes.
+ */
+function EpisodeDescription({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      // Only meaningful in the clamped state; when expanded, scroll
+      // and client heights are equal by definition. Skip re-measurement
+      // so we don't lose the "needs clamp" signal while expanded.
+      if (expanded) return;
+      setOverflows(el.scrollHeight > el.clientHeight + 1);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expanded, text]);
+
+  return (
+    <div className="mt-1">
+      <p
+        ref={ref}
+        className={`text-[11px] text-[var(--foreground-muted)] ${expanded ? "" : "line-clamp-2"}`}
+      >
+        {text}
+      </p>
+      {(overflows || expanded) && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[10px] text-[var(--ratist-red)] hover:underline mt-0.5"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function FactRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
@@ -98,23 +148,37 @@ function SeasonCard({
   season,
   showTmdbId,
   seenEpisodes,
+  episodeRatings,
+  communityAverages,
   onToggleEpisode,
   onToggleSeason,
   onUpdateEpisodeDate,
   onUpdateSeasonDate,
+  onRateEpisode,
+  onRemoveRating,
   isLoggedIn,
   aggregate,
+  userSeasonRating,
+  canRateSeason,
   isAiring,
 }: {
   season: TMDBSeason;
   showTmdbId: number;
   seenEpisodes: Map<string, string | null>;
+  episodeRatings: Map<string, number>;
+  communityAverages: Map<string, { avg: number; count: number }>;
   onToggleEpisode: (seasonNumber: number, episodeNumber: number) => void;
   onToggleSeason: (seasonNumber: number, episodeCount: number, episodes: TMDBEpisode[]) => void;
   onUpdateEpisodeDate: (seasonNumber: number, episodeNumber: number, date: string | null) => void;
   onUpdateSeasonDate: (seasonNumber: number, episodes: TMDBEpisode[], date: string | null) => void;
+  onRateEpisode: (seasonNumber: number, episodeNumber: number, rating: number) => void;
+  onRemoveRating: (seasonNumber: number, episodeNumber: number) => void;
   isLoggedIn: boolean;
   aggregate?: SeasonAggregate;
+  /** Viewer's existing rating for this season (null if unrated). Drives the "Rate" vs "Edit rating" pill. */
+  userSeasonRating?: number | null;
+  /** False for Specials — the rate page form only lists S1..N, so we hide the Rate button there. */
+  canRateSeason?: boolean;
   /** True when this season is mid-broadcast — both
    *  next_episode_to_air and last_episode_to_air resolve to this
    *  season. Drives the "Currently Airing" pill on the row header. */
@@ -123,10 +187,14 @@ function SeasonCard({
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expandedDescs, setExpandedDescs] = useState<Set<number>>(new Set());
   // Date picker state: "season" or episode number, plus pending date value
   const [datePickerOpen, setDatePickerOpen] = useState<"season" | number | null>(null);
   const [pendingDate, setPendingDate] = useState("");
+  // Rating picker open state — keyed by episode number (only one open at a time).
+  const [ratingPickerOpen, setRatingPickerOpen] = useState<number | null>(null);
+  // Slider draft value while the picker is open. Seeded from the
+  // viewer's existing rating (or 5 if unrated) when the picker opens.
+  const [pendingRating, setPendingRating] = useState<number>(5);
 
   // Count seen episodes in this season — use seenEpisodes map directly so it works before expanding
   const seenCount = episodes
@@ -308,6 +376,20 @@ function SeasonCard({
               )}
             </div>
           )}
+          {canRateSeason && (
+            <Link
+              href={`/shows/${showTmdbId}/rate?scope=season&season=${season.season_number}`}
+              onClick={(e) => e.stopPropagation()}
+              className={`shrink-0 mr-3 text-[10px] font-medium px-2.5 py-1.5 rounded-full border transition-colors ${
+                userSeasonRating != null
+                  ? "border-[var(--ratist-red)]/60 bg-[var(--ratist-red)]/15 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/25"
+                  : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--ratist-red)]/60 hover:text-[var(--ratist-red)]"
+              }`}
+              title={userSeasonRating != null ? `Your rating: ${userSeasonRating.toFixed(1)} — click to edit` : "Rate this season"}
+            >
+              {userSeasonRating != null ? "Edit rating" : "Rate"}
+            </Link>
+          )}
         </>)}
       </div>
 
@@ -323,6 +405,8 @@ function SeasonCard({
               {episodes.map((ep) => {
                 const key = `${season.season_number}-${ep.episode_number}`;
                 const isSeen = seenEpisodes.has(key);
+                const myRating = episodeRatings.get(key);
+                const community = communityAverages.get(key);
                 return (
                   <div key={ep.id} className="flex items-start gap-3 px-4 py-3">
                     {ep.still_path ? (
@@ -349,26 +433,10 @@ function SeasonCard({
                         <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">
                           {ep.air_date}
                           {ep.runtime ? ` · ${ep.runtime}m` : ""}
-                          {ep.vote_average > 0 ? ` · ${ep.vote_average.toFixed(1)}★` : ""}
+                          {community ? ` · ${community.avg.toFixed(1)}★ (${community.count})` : ""}
                         </p>
                       )}
-                      {ep.overview && (
-                        <div className="mt-1">
-                          <p className={`text-[11px] text-[var(--foreground-muted)] ${expandedDescs.has(ep.episode_number) ? "" : "line-clamp-2"}`}>{ep.overview}</p>
-                          {ep.overview.length > 120 && (
-                            <button
-                              onClick={() => setExpandedDescs((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(ep.episode_number)) next.delete(ep.episode_number); else next.add(ep.episode_number);
-                                return next;
-                              })}
-                              className="text-[10px] text-[var(--ratist-red)] hover:underline mt-0.5"
-                            >
-                              {expandedDescs.has(ep.episode_number) ? "Show less" : "Show more"}
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      {ep.overview && <EpisodeDescription text={ep.overview} />}
                     </div>
                     {isLoggedIn && (<>
                       <button
@@ -436,6 +504,78 @@ function SeasonCard({
                           )}
                         </div>
                       )}
+                      <div className="shrink-0 mt-0.5 relative">
+                        <button
+                          onClick={() => {
+                            if (ratingPickerOpen === ep.episode_number) {
+                              setRatingPickerOpen(null);
+                            } else {
+                              setPendingRating(myRating ?? 5);
+                              setRatingPickerOpen(ep.episode_number);
+                            }
+                          }}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+                            myRating
+                              ? "border-[var(--ratist-red)]/60 bg-[var(--ratist-red)]/15 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/25"
+                              : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)] hover:text-white"
+                          }`}
+                          title={myRating ? `Your rating: ${myRating.toFixed(1)}/10 — click to change` : "Rate this episode 1–10"}
+                        >
+                          {myRating ? `${myRating.toFixed(1)}/10` : "Rate"}
+                        </button>
+                        {ratingPickerOpen === ep.episode_number && (
+                          <div className="absolute top-full right-0 mt-2 z-30 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 shadow-xl w-64">
+                            <p className="text-xs text-[var(--foreground-muted)] mb-2">Rate this episode (1–10, half-marks ok)</p>
+                            <div className="flex items-center gap-3 mb-3">
+                              <input
+                                type="range"
+                                min={1}
+                                max={10}
+                                step={0.5}
+                                value={pendingRating}
+                                onChange={(e) => setPendingRating(parseFloat(e.target.value))}
+                                className="flex-1 accent-[var(--ratist-red)]"
+                              />
+                              <span
+                                className="text-base font-bold min-w-[36px] text-center"
+                                style={{ color: scoreColor(pendingRating) }}
+                              >
+                                {pendingRating.toFixed(1)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              {myRating != null && (
+                                <button
+                                  onClick={() => {
+                                    onRemoveRating(season.season_number, ep.episode_number);
+                                    setRatingPickerOpen(null);
+                                  }}
+                                  className="text-[10px] text-red-400 hover:text-red-300"
+                                >
+                                  Remove rating
+                                </button>
+                              )}
+                              <div className="ml-auto flex items-center gap-2">
+                                <button
+                                  onClick={() => setRatingPickerOpen(null)}
+                                  className="text-[10px] text-[var(--foreground-muted)] hover:text-white"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    onRateEpisode(season.season_number, ep.episode_number, pendingRating);
+                                    setRatingPickerOpen(null);
+                                  }}
+                                  className="text-[10px] font-semibold text-white bg-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/80 px-2.5 py-1 rounded"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </>)}
                   </div>
                 );
@@ -501,6 +641,29 @@ export default function ShowDetailTabs({
   }
   // Map of "seasonNumber-episodeNumber" → watchedDate (ISO string or null)
   const [seenEpisodes, setSeenEpisodes] = useState<Map<string, string | null>>(new Map());
+  // Map of "seasonNumber-episodeNumber" → viewer's 1–10 rating.
+  // Mirrors EpisodeRating rows on the server; updated optimistically.
+  const [episodeRatings, setEpisodeRatings] = useState<Map<string, number>>(new Map());
+  // Map of "seasonNumber-episodeNumber" → { avg, count } across all
+  // raters. Always fetched (even for anonymous viewers) so the show
+  // page can show a community signal in place of TMDB's per-episode
+  // vote_average.
+  const [communityAverages, setCommunityAverages] = useState<Map<string, { avg: number; count: number }>>(new Map());
+  // Toast surfaced when a rated episode can't be unseen — clicking
+  // the seen toggle returns 409 from the seen route, we show this
+  // message + a "remove rating first" hint.
+  const [seenBlockMessage, setSeenBlockMessage] = useState<string | null>(null);
+  // Map of seasonNumber → viewer's existing rating score. Drives the
+  // "Rate" vs "Edit rating" pill on each season card.
+  const [userSeasonRatings, setUserSeasonRatings] = useState<Map<number, number>>(new Map());
+
+  // Auto-dismiss the seen-block toast after a few seconds. The message
+  // is short-lived UX feedback, not a persistent error state.
+  useEffect(() => {
+    if (!seenBlockMessage) return;
+    const id = setTimeout(() => setSeenBlockMessage(null), 5000);
+    return () => clearTimeout(id);
+  }, [seenBlockMessage]);
 
   // Fetch seen episodes on mount
   useEffect(() => {
@@ -523,11 +686,103 @@ export default function ShowDetailTabs({
       .catch(() => {});
   }, [user, show.id]);
 
+  // Fetch viewer's per-season ratings so each season card can show
+  // "Rate" vs "Edit rating". Only the seasonRatings list is used here;
+  // the rating page handles the full breakdown.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/shows/${show.id}/rate`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json() as { seasonRatings?: Array<{ seasonNumber: number; ratistRating: number | null; overallRating: number | null }> };
+        if (cancelled) return;
+        const map = new Map<number, number>();
+        for (const r of data.seasonRatings ?? []) {
+          const score = r.ratistRating ?? r.overallRating;
+          if (score != null) map.set(r.seasonNumber, score);
+        }
+        setUserSeasonRatings(map);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, show.id]);
+
+  // Fetch episode ratings (viewer's own + community averages) on
+  // mount. Community averages load for anonymous viewers too; the
+  // ratings list is server-gated on auth.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const headers: Record<string, string> = {};
+      if (user) {
+        try { headers.Authorization = `Bearer ${await user.getIdToken()}`; } catch { /* ignore */ }
+      }
+      try {
+        const res = await fetch(`/api/shows/${show.id}/episodes/rating`, { headers });
+        if (!res.ok) return;
+        const data = await res.json() as {
+          ratings: Array<{ seasonNumber: number; episodeNumber: number; rating: number }>;
+          communityAverages: Record<string, { avg: number; count: number }>;
+        };
+        if (cancelled) return;
+        const ratingsMap = new Map<string, number>();
+        for (const r of data.ratings ?? []) ratingsMap.set(`${r.seasonNumber}-${r.episodeNumber}`, r.rating);
+        setEpisodeRatings(ratingsMap);
+        const avgMap = new Map<string, { avg: number; count: number }>();
+        for (const [k, v] of Object.entries(data.communityAverages ?? {})) avgMap.set(k, v);
+        setCommunityAverages(avgMap);
+      } catch { /* ignore */ }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [user, show.id]);
+
+  const rateEpisode = useCallback(
+    async (seasonNumber: number, episodeNumber: number, rating: number) => {
+      if (!user) return;
+      const key = `${seasonNumber}-${episodeNumber}`;
+      // Optimistic: update rating + ensure seen locally.
+      setEpisodeRatings((prev) => { const next = new Map(prev); next.set(key, rating); return next; });
+      setSeenEpisodes((prev) => { if (prev.has(key)) return prev; const next = new Map(prev); next.set(key, null); return next; });
+      const token = await user.getIdToken();
+      fetch(`/api/shows/${show.id}/episodes/rating`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ seasonNumber, episodeNumber, rating, showName: show.name, posterPath: show.poster_path }),
+      }).catch(() => {});
+    },
+    [show.id, show.name, show.poster_path, user],
+  );
+
+  const removeRating = useCallback(
+    async (seasonNumber: number, episodeNumber: number) => {
+      if (!user) return;
+      const key = `${seasonNumber}-${episodeNumber}`;
+      setEpisodeRatings((prev) => { const next = new Map(prev); next.delete(key); return next; });
+      const token = await user.getIdToken();
+      fetch(`/api/shows/${show.id}/episodes/rating`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ seasonNumber, episodeNumber }),
+      }).catch(() => {});
+    },
+    [show.id, user],
+  );
+
   const toggleEpisode = useCallback(
     async (seasonNumber: number, episodeNumber: number) => {
       if (!user) return;
       const key = `${seasonNumber}-${episodeNumber}`;
       const removing = seenEpisodes.has(key);
+      // Client-side guard: refuse unmark when a rating exists. Mirrors
+      // the server's 409 behavior but skips the round trip + flicker.
+      if (removing && episodeRatings.has(key)) {
+        setSeenBlockMessage(`You've rated S${seasonNumber}E${episodeNumber}. Remove the rating first to mark it unwatched.`);
+        return;
+      }
       setSeenEpisodes((prev) => {
         const next = new Map(prev);
         if (removing) next.delete(key);
@@ -535,7 +790,7 @@ export default function ShowDetailTabs({
         return next;
       });
       const token = await user.getIdToken();
-      fetch(`/api/shows/${show.id}/episodes/seen`, {
+      const res = await fetch(`/api/shows/${show.id}/episodes/seen`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -543,9 +798,19 @@ export default function ShowDetailTabs({
           episodes: [{ seasonNumber, episodeNumber }],
           action: removing ? "remove" : "add",
         }),
-      }).catch(() => {});
+      }).catch(() => null);
+      // 409 = rating exists. Rollback the optimistic state and toast.
+      if (res && res.status === 409) {
+        setSeenEpisodes((prev) => {
+          const next = new Map(prev);
+          if (removing) next.set(key, null);
+          else next.delete(key);
+          return next;
+        });
+        setSeenBlockMessage(`You've rated S${seasonNumber}E${episodeNumber}. Remove the rating first to mark it unwatched.`);
+      }
     },
-    [seenEpisodes, show.id, user]
+    [seenEpisodes, episodeRatings, show.id, user]
   );
 
   const updateEpisodeDate = useCallback(
@@ -630,6 +895,18 @@ export default function ShowDetailTabs({
     <>
       {trailerOpen && trailerKey && (
         <TrailerModal trailerKey={trailerKey} onClose={() => setTrailerOpen(false)} />
+      )}
+      {seenBlockMessage && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-[var(--surface)] border border-amber-500/50 rounded-lg shadow-xl px-4 py-3 flex items-start gap-3">
+          <div className="flex-1 text-xs text-white leading-relaxed">{seenBlockMessage}</div>
+          <button
+            onClick={() => setSeenBlockMessage(null)}
+            className="text-[var(--foreground-muted)] hover:text-white shrink-0"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       {/* Tab navigation */}
@@ -910,18 +1187,27 @@ export default function ShowDetailTabs({
       {/* ── SEASONS TAB ── */}
       {activeTab === "Seasons" && (
         <div className="space-y-4 pb-16">
+          <p className="text-xs text-[var(--foreground-muted)] bg-[var(--surface-1)] border border-[var(--border)] rounded-lg px-3 py-2 leading-relaxed">
+            Episode ratings are quick 1–10 marks. They show a community average per episode but don&apos;t factor into your taste profile or a show&apos;s Ratist Rating — use the full rubric on the series or a specific season for that.
+          </p>
           {mainSeasons.map((s) => (
             <SeasonCard
               key={s.season_number}
               season={s}
               showTmdbId={show.id}
               seenEpisodes={seenEpisodes}
+              episodeRatings={episodeRatings}
+              communityAverages={communityAverages}
               onToggleEpisode={toggleEpisode}
               onToggleSeason={toggleSeason}
               onUpdateEpisodeDate={updateEpisodeDate}
               onUpdateSeasonDate={updateSeasonDate}
+              onRateEpisode={rateEpisode}
+              onRemoveRating={removeRating}
               isLoggedIn={isLoggedIn}
               aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === s.season_number)}
+              userSeasonRating={userSeasonRatings.get(s.season_number) ?? null}
+              canRateSeason
               isAiring={
                 show.next_episode_to_air?.season_number === s.season_number
                 && show.last_episode_to_air?.season_number === s.season_number
@@ -936,10 +1222,14 @@ export default function ShowDetailTabs({
                 season={specials}
                 showTmdbId={show.id}
                 seenEpisodes={seenEpisodes}
+                episodeRatings={episodeRatings}
+                communityAverages={communityAverages}
                 onToggleEpisode={toggleEpisode}
                 onToggleSeason={toggleSeason}
                 onUpdateEpisodeDate={updateEpisodeDate}
                 onUpdateSeasonDate={updateSeasonDate}
+                onRateEpisode={rateEpisode}
+                onRemoveRating={removeRating}
                 isLoggedIn={isLoggedIn}
                 aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === 0)}
               />

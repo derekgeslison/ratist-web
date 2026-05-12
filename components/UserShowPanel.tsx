@@ -186,7 +186,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
       {loaded && (
         <>
           {user ? (<>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-start gap-2">
               <div>
                 <Link
                   href={`/shows/${tmdbId}/rate`}

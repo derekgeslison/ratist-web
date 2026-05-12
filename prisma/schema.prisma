@@ -53,6 +53,7 @@ model User {
   favoriteMovies                UserFavoriteMovie[]
   favoriteShows                 UserFavoriteShow[]
   episodesSeen                  EpisodeSeen[]
+  episodeRatings                EpisodeRating[]
   watchlistsOwned               Watchlist[]
   watchlistCollab               WatchlistCollaborator[]
   blogPosts                     BlogPost[]
@@ -564,6 +565,34 @@ model EpisodeSeen {
   @@index([userId, showTmdbId])
   @@index([userId, watchedDate])
   @@map("episode_seen")
+}
+
+// Per-episode 1–10 quick rating. Intentionally separate from
+// TVShowRating (which is the full Ratist rubric at the series or
+// per-season level). Episode ratings are simple gut scores that
+// don't feed the taste-profile algorithm — see the notation at the
+// top of the Seasons tab on the show page.
+//
+// Side effect of creating a rating: an EpisodeSeen row is also
+// created (or kept) for the same episode. Removing the rating does
+// NOT remove the EpisodeSeen — only an explicit unseen does. Unseen
+// is refused at the API layer when a rating exists for the episode.
+model EpisodeRating {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  showTmdbId    Int      @map("show_tmdb_id")
+  seasonNumber  Int      @map("season_number")
+  episodeNumber Int      @map("episode_number")
+  rating        Float    // 1–10 in 0.5 increments (matches the main rating sliders)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, showTmdbId, seasonNumber, episodeNumber])
+  @@index([userId, showTmdbId])
+  @@index([showTmdbId, seasonNumber, episodeNumber]) // for community-avg aggregation
+  @@map("episode_ratings")
 }
 
 model WatchlistShow {

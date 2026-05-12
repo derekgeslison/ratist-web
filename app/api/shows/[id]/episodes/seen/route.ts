@@ -103,6 +103,34 @@ export async function POST(req: NextRequest, { params }: Props) {
     const hasAired = (airDate: string | null | undefined): boolean =>
       !!airDate && airDate.length >= 10 && airDate.slice(0, 10) <= todayStr;
 
+    // Refuse unmark-seen when any of the targeted episodes carries an
+    // EpisodeRating — the rating implies the user watched (and rated)
+    // the episode, so unseen would be inconsistent. The client surfaces
+    // the 409 with a toast pointing at the rated episode(s); the user
+    // can then remove the rating(s) and retry.
+    if (action === "remove") {
+      const ratingWhere: { userId: string; showTmdbId: number; seasonNumber?: number; OR?: Array<{ seasonNumber: number; episodeNumber: number }> } = {
+        userId: user.id,
+        showTmdbId,
+      };
+      if (mode === "season" && seasonNumber != null) {
+        ratingWhere.seasonNumber = seasonNumber;
+      } else if (mode === "episodes" && Array.isArray(episodes) && episodes.length > 0) {
+        ratingWhere.OR = (episodes as { seasonNumber: number; episodeNumber: number }[])
+          .map((ep) => ({ seasonNumber: ep.seasonNumber, episodeNumber: ep.episodeNumber }));
+      }
+      const conflicting = await prisma.episodeRating.findMany({
+        where: ratingWhere,
+        select: { seasonNumber: true, episodeNumber: true },
+      });
+      if (conflicting.length > 0) {
+        return NextResponse.json({
+          error: "Some of the episodes you're trying to unwatch have ratings. Remove the rating(s) first, then try again.",
+          ratedEpisodes: conflicting,
+        }, { status: 409 });
+      }
+    }
+
     if (mode === "series") {
       // Mark entire series: fetch all seasons from TMDB, collect all episodes
       const show = await getShowDetails(showTmdbId);
