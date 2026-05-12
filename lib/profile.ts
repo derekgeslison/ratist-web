@@ -595,8 +595,13 @@ export async function getBatchScoreEstimates(
     if (movie) {
       const genreScores: number[] = [];
       for (const mg of movie.genres) {
-        const profileKey = TMDB_GENRE_TO_PROFILE[mg.genreId];
-        if (profileKey) genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+        // getProfileGenreKeys handles multi-mapping (e.g. one TV ID
+        // splits across two profile keys). Almost all movie genres
+        // map 1:1, but using the same helper as rebuildUserProfile
+        // keeps movie and TV scoring symmetrical.
+        for (const profileKey of getProfileGenreKeys(mg.genreId)) {
+          genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+        }
       }
       if (genreScores.length > 0) {
         const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
@@ -692,8 +697,14 @@ export async function getBatchScoreEstimatesTv(
     if (show) {
       const genreScores: number[] = [];
       for (const sg of show.genres) {
-        const profileKey = TMDB_GENRE_TO_PROFILE[sg.genreId];
-        if (profileKey) genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+        // Use getProfileGenreKeys so TV-only genre IDs (Action &
+        // Adventure, Sci-Fi & Fantasy, War & Politics, Kids) actually
+        // contribute. TMDB_GENRE_TO_PROFILE on its own doesn't know
+        // about those, so without this helper the 10% genre nudge
+        // silently dropped for most shows.
+        for (const profileKey of getProfileGenreKeys(sg.genreId)) {
+          genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+        }
       }
       if (genreScores.length > 0) {
         const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
