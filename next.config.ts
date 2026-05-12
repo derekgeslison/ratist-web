@@ -2,7 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    unoptimized: true,
+    // Per-image `unoptimized` prop still works (set on avatars, Giphy
+    // GIFs, theme header images, etc. — anywhere we want to skip
+    // Vercel's optimizer). Removing the global flag lets TMDB
+    // posters / backdrops auto-convert to WebP/AVIF, generate
+    // responsive variants, and benefit from Next's lazy-load tuning.
+    // This is the biggest single bandwidth lever on the site —
+    // launch traffic likely stays in the Vercel free tier for
+    // transforms; we'll monitor and re-evaluate post-launch.
     remotePatterns: [
       {
         protocol: "https",

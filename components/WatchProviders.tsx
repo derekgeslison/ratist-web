@@ -29,7 +29,7 @@ function ProviderBadges({ providers, contentTitle, contentType = "movie", isRent
             className={`relative w-9 h-9 rounded-lg overflow-hidden border border-[var(--border)] shrink-0 ${href ? "hover:border-[var(--ratist-red)] transition-colors" : ""}`}
           >
             <Image
-              src={`https://image.tmdb.org/t/p/original${p.logo_path}`}
+              src={`https://image.tmdb.org/t/p/w92${p.logo_path}`}
               alt={p.provider_name}
               fill
               sizes="36px"
