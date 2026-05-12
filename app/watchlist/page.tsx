@@ -1478,8 +1478,13 @@ export default function WatchlistPage() {
                                 : "border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"
                             }`}
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={`https://image.tmdb.org/t/p/w45${p.logo}`} alt="" className="w-4 h-4 rounded" />
+                            <Image
+                              src={`https://image.tmdb.org/t/p/w45${p.logo}`}
+                              alt=""
+                              width={16}
+                              height={16}
+                              className="rounded"
+                            />
                             {p.short}
                           </button>
                         ))}
