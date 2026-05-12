@@ -25,16 +25,21 @@ export async function GET(req: NextRequest) {
 
     const diffMultiplier = (d: string) => d === "hard" ? 2.0 : d === "medium" ? 1.5 : 1.0;
 
-    // Weighted lifetime points (daily only)
-    const weightedLifetime = dailyAttempts.reduce((sum, a) => sum + a.rawScore * diffMultiplier(a.difficulty), 0);
+    // Per-attempt weighted scores — used for avg-weighted + best-
+    // weighted so that hard-difficulty runs are reflected in headline
+    // stats. Daily-only.
+    const weightedAttempts = dailyAttempts.map((a) => a.rawScore * diffMultiplier(a.difficulty));
+    const weightedLifetime = weightedAttempts.reduce((sum, w) => sum + w, 0);
 
-    // Average raw score
+    // Raw + weighted averages and bests.
     const avgRaw = dailyAttempts.length > 0
       ? dailyAttempts.reduce((sum, a) => sum + a.rawScore, 0) / dailyAttempts.length
       : 0;
-
-    // Best daily score
+    const avgWeighted = weightedAttempts.length > 0
+      ? weightedAttempts.reduce((s, w) => s + w, 0) / weightedAttempts.length
+      : 0;
     const bestDaily = dailyAttempts.reduce((max, a) => Math.max(max, a.rawScore), 0);
+    const bestWeighted = weightedAttempts.reduce((max, w) => Math.max(max, w), 0);
 
     // Accuracy: correct answers / total answers
     let totalCorrect = 0;
@@ -81,7 +86,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       weightedLifetime: Math.round(weightedLifetime * 10) / 10,
       avgRawScore: Math.round(avgRaw * 10) / 10,
+      avgWeightedScore: Math.round(avgWeighted * 10) / 10,
       bestDailyScore: Math.round(bestDaily * 10) / 10,
+      bestWeightedScore: Math.round(bestWeighted * 10) / 10,
       totalDailyQuizzes: dailyAttempts.length,
       totalPracticeQuizzes: practiceAttempts.length,
       accuracy: totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 1000) / 10 : 0,

@@ -132,7 +132,7 @@ interface Props {
   siteUrl?: string;
   savedRankings?: { tmdbId: number; title: string; posterPath: string | null; year: string; ratistRating: number | null }[];
   rankingsYear?: string;
-  cineqStats?: { totalQuizzes: number; weightedLifetime: number; avgScore: number; bestScore: number } | null;
+  cineqStats?: { totalQuizzes: number; weightedLifetime: number; avgScore: number; avgWeightedScore: number; bestScore: number; bestWeightedScore: number } | null;
   movieClubMember?: boolean;
   movieClubWeeksParticipated?: number;
 }
@@ -744,13 +744,21 @@ export default function ProfileTabs({
                   <p className="text-base font-bold text-white whitespace-nowrap">{Math.round(cineqStats.weightedLifetime).toLocaleString()}</p>
                   <p className="text-xs text-[var(--foreground-muted)]">Lifetime Pts</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2 py-3 text-center min-w-0">
-                  <p className="text-base font-bold text-white">{cineqStats.avgScore.toFixed(1)}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">Avg Score</p>
+                <div
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2 py-3 text-center min-w-0"
+                  title="Difficulty-weighted average (Hard 2x, Medium 1.5x, Easy 1x). Raw average below."
+                >
+                  <p className="text-base font-bold text-white">{cineqStats.avgWeightedScore.toFixed(1)}</p>
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">{cineqStats.avgScore.toFixed(1)} raw</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">Avg Score</p>
                 </div>
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2 py-3 text-center min-w-0">
-                  <p className="text-base font-bold text-white">{cineqStats.bestScore.toFixed(1)}</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">Best Score</p>
+                <div
+                  className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2 py-3 text-center min-w-0"
+                  title="Highest difficulty-weighted score. Raw best below."
+                >
+                  <p className="text-base font-bold text-white">{cineqStats.bestWeightedScore.toFixed(1)}</p>
+                  <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">{cineqStats.bestScore.toFixed(1)} raw</p>
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">Best Score</p>
                 </div>
                 <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-2 py-3 text-center min-w-0">
                   <p className="text-base font-bold text-white">{cineqStats.totalQuizzes}</p>

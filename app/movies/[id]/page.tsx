@@ -82,38 +82,40 @@ export default async function MovieDetailPage({ params }: Props) {
     notFound();
   }
 
-  // Parallel fetch: watch providers + recommendations + collection (non-blocking)
-  const [watchProviders, recommendations, collection, boxOfficeRanks] = await Promise.all([
+  // Parallel fetch: TMDB-side data + the one local Movie row we need
+  // across every downstream sub-query on this page. Previously this
+  // page issued ~4 separate findUnique calls for the same row and
+  // walked through 5+ DB blocks sequentially; consolidating cuts the
+  // server-render TTFB on every visit. catch(null) keeps the page
+  // resilient to a stale DB connection or a missing row.
+  const [watchProviders, recommendations, collection, boxOfficeRanks, dbMovie] = await Promise.all([
     getWatchProviders(movie.id).catch(() => null),
     getMovieRecommendations(movie.id).catch(() => ({ results: [] })),
     movie.belongs_to_collection
       ? getCollectionDetails(movie.belongs_to_collection.id).catch(() => null)
       : Promise.resolve(null),
-    // Per-movie box-office rank badges for the Overview tab. Pulls
-    // the DB row internally and runs the rank queries in parallel.
-    // catch(null) so a query failure doesn't blow up the page —
-    // the section just won't render.
     getMovieBoxOfficeRanks(movie.id).catch(() => null),
+    prisma.movie.findUnique({
+      where: { tmdbId: movie.id },
+      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true },
+    }).catch(() => null),
   ]);
 
-  // Cache to local DB — resync if stale (7 days) or if key fields are missing (fire and forget)
-  prisma.movie.findUnique({ where: { tmdbId: movie.id }, select: { cachedAt: true, posterPath: true, mpaaRating: true } })
-    .then((existing) => {
-      const age = existing?.cachedAt ? Date.now() - new Date(existing.cachedAt as Date | string).getTime() : Infinity;
-      const missingData = existing && (!existing.posterPath || !existing.mpaaRating);
-      if (age > 7 * 24 * 60 * 60 * 1000 || missingData) upsertMovie(movie).catch(() => {});
-    })
-    .catch(() => {});
+  // Fire-and-forget syncs — driven off the single dbMovie lookup above.
+  if (dbMovie) {
+    const age = dbMovie.cachedAt ? Date.now() - new Date(dbMovie.cachedAt as Date | string).getTime() : Infinity;
+    const missingData = !dbMovie.posterPath || !dbMovie.mpaaRating;
+    if (age > 7 * 24 * 60 * 60 * 1000 || missingData) upsertMovie(movie).catch(() => {});
+    syncMovieAwards(dbMovie.id, movie.id, dbMovie.imdbId ?? movie.imdb_id).catch(() => {});
+  } else {
+    // Row doesn't exist yet — first-time view. Upsert it.
+    upsertMovie(movie).catch(() => {});
+  }
 
-  // Awards sync — fire and forget
-  prisma.movie.findUnique({ where: { tmdbId: movie.id }, select: { id: true, imdbId: true } })
-    .then((dbMovie) => {
-      if (dbMovie) syncMovieAwards(dbMovie.id, movie.id, dbMovie.imdbId ?? movie.imdb_id).catch(() => {});
-    })
-    .catch(() => {});
-
-  // Fetch text reviews from DB
-  let reviews: {
+  // All remaining DB-backed page data fetched in parallel. Each
+  // sub-fetch handles its own missing-dbMovie / DB-error case so a
+  // single failing block doesn't take the whole page down.
+  type ReviewRow = {
     id: string;
     reviewText: string | null;
     ratistRating: number | null;
@@ -125,161 +127,149 @@ export default async function MovieDetailPage({ params }: Props) {
     createdAt: Date;
     likeCount: number;
     commentCount: number;
-  }[] = [];
-  try {
-    const dbMovie = await prisma.movie.findUnique({
-      where: { tmdbId: movie.id },
-      select: { id: true },
-    });
-    if (dbMovie) {
-      const rawReviews = await prisma.movieRating.findMany({
-        where: {
-          movieId: dbMovie.id,
-          reviewText: { not: null },
-          // Exclude drafts. A complete review always has ratistRating
-          // set — basic reviews copy overallRating into it, standard
-          // and critic reviews compute it from required sub-fields.
-          // A draft (saved without all required fields) leaves
-          // ratistRating null.
-          ratistRating: { not: null },
-        },
-        select: {
-          id: true,
-          reviewText: true,
-          ratistRating: true,
-          overallRating: true,
-          reviewType: true,
-          hasSpoilers: true,
-          commentsDisabled: true,
-          createdAt: true,
-          user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      });
+  };
+  type DiscussionRow = { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string };
 
-      // Fetch comment + like counts from unified models
-      const reviewIds = rawReviews.map((r) => r.id);
-      const [commentCounts, likeCounts] = await Promise.all([
-        prisma.comment.groupBy({
-          by: ["targetId"],
-          where: { targetType: "review", targetId: { in: reviewIds } },
-          _count: { id: true },
-        }),
-        prisma.postLike.groupBy({
-          by: ["targetId"],
-          where: { targetType: "review", targetId: { in: reviewIds } },
-          _count: { targetId: true },
-        }),
-      ]);
-      const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
-      const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
+  const movieRowId = dbMovie?.id;
+  const [reviews, discussions, hasCompanion, awards, ratistAggregate] = await Promise.all([
+    // Reviews: pulled from movie_ratings + comment/like counts in a 2-step pipeline.
+    (async (): Promise<ReviewRow[]> => {
+      if (!movieRowId) return [];
+      try {
+        const rawReviews = await prisma.movieRating.findMany({
+          where: {
+            movieId: movieRowId,
+            reviewText: { not: null },
+            // Exclude drafts. ratistRating is null on drafts; basic
+            // reviews mirror overallRating, standard/critic compute
+            // from required sub-fields.
+            ratistRating: { not: null },
+          },
+          select: {
+            id: true,
+            reviewText: true,
+            ratistRating: true,
+            overallRating: true,
+            reviewType: true,
+            hasSpoilers: true,
+            commentsDisabled: true,
+            createdAt: true,
+            user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        });
+        const reviewIds = rawReviews.map((r) => r.id);
+        const [commentCounts, likeCounts] = await Promise.all([
+          prisma.comment.groupBy({
+            by: ["targetId"],
+            where: { targetType: "review", targetId: { in: reviewIds } },
+            _count: { id: true },
+          }),
+          prisma.postLike.groupBy({
+            by: ["targetId"],
+            where: { targetType: "review", targetId: { in: reviewIds } },
+            _count: { targetId: true },
+          }),
+        ]);
+        const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
+        const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
+        return rawReviews.map((r) => ({
+          ...r,
+          commentCount: commentMap.get(r.id) ?? 0,
+          likeCount: likeMap.get(r.id) ?? 0,
+        }));
+      } catch {
+        return [];
+      }
+    })(),
 
-      reviews = rawReviews.map((r) => ({
-        ...r,
-        commentCount: commentMap.get(r.id) ?? 0,
-        likeCount: likeMap.get(r.id) ?? 0,
-      }));
-    }
-  } catch {
-    // DB not ready yet
-  }
+    // Discussions: forum + news + blog rolled into one sorted list.
+    (async (): Promise<DiscussionRow[]> => {
+      try {
+        const [linkedThreads, linkedNews, linkedBlog] = await Promise.all([
+          prisma.forumThread.findMany({
+            where: { media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
+            select: {
+              id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
+              author: { select: { name: true } },
+              _count: { select: { posts: true } },
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 10,
+          }),
+          prisma.newsItem.findMany({
+            where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
+            select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
+            orderBy: { publishedAt: "desc" },
+            take: 5,
+          }),
+          prisma.blogPost.findMany({
+            where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
+            select: { id: true, title: true, slug: true, type: true, viewCount: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
+            orderBy: { publishedAt: "desc" },
+            take: 5,
+          }),
+        ]);
+        const forumDiscussions = linkedThreads.map((t) => ({
+          id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
+          authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
+          createdAt: t.createdAt.toISOString(), linkType: "forum" as const, linkHref: `/forum/t/${t.slug}`,
+        }));
+        const newsDiscussions = linkedNews.map((n) => ({
+          id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
+          authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
+          createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
+        }));
+        const blogDiscussions = linkedBlog.map((b) => {
+          const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
+          const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
+          return {
+            id: b.id, title: b.title, slug: b.slug, threadType,
+            authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
+            createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
+          };
+        });
+        return [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      } catch {
+        return [];
+      }
+    })(),
 
-  // Fetch forum threads linked to this movie
-  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string }[] = [];
-  try {
-    const [linkedThreads, linkedNews, linkedBlog] = await Promise.all([
-      prisma.forumThread.findMany({
-        where: { media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-        select: {
-          id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
-          author: { select: { name: true } },
-          _count: { select: { posts: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 10,
-      }),
-      prisma.newsItem.findMany({
-        where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-        select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
-        orderBy: { publishedAt: "desc" },
-        take: 5,
-      }),
-      prisma.blogPost.findMany({
-        where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-        select: { id: true, title: true, slug: true, type: true, viewCount: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
-        orderBy: { publishedAt: "desc" },
-        take: 5,
-      }),
-    ]);
-    const forumDiscussions = linkedThreads.map((t) => ({
-      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
-      authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
-      createdAt: t.createdAt.toISOString(), linkType: "forum" as const, linkHref: `/forum/t/${t.slug}`,
-    }));
-    const newsDiscussions = linkedNews.map((n) => ({
-      id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
-      authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
-      createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
-    }));
-    const blogDiscussions = linkedBlog.map((b) => {
-      const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
-      const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
-      return {
-        id: b.id, title: b.title, slug: b.slug, threadType,
-        authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
-        createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
-      };
-    });
-    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } catch { /* DB not ready */ }
-
-  // Is there a published Watch Companion for this movie?
-  let hasCompanion = false;
-  try {
-    const c = await prisma.watchCompanion.findUnique({
+    // Published Watch Companion check.
+    prisma.watchCompanion.findUnique({
       where: { tmdbId_mediaType: { tmdbId: movie.id, mediaType: "movie" } },
       select: { status: true },
-    });
-    hasCompanion = c?.status === "published";
-  } catch { /* DB not ready */ }
+    }).then((c) => c?.status === "published").catch(() => false),
 
-  // Fetch awards from DB
-  let awards: Awaited<ReturnType<typeof getMovieAwards>> = [];
-  try {
-    const dbMovie = await prisma.movie.findUnique({
-      where: { tmdbId: movie.id },
-      select: { id: true },
-    });
-    if (dbMovie) {
-      awards = await getMovieAwards(dbMovie.id);
-    }
-  } catch { /* DB not ready */ }
+    // Awards from DB.
+    movieRowId ? getMovieAwards(movieRowId).catch(() => [] as Awaited<ReturnType<typeof getMovieAwards>>) : Promise.resolve([] as Awaited<ReturnType<typeof getMovieAwards>>),
+
+    // Ratist community aggregate for JSON-LD.
+    (async (): Promise<{ value: number; count: number } | null> => {
+      if (!movieRowId) return null;
+      try {
+        const agg = await prisma.movieRating.aggregate({
+          // excluded: false keeps admin-flagged review-bomb ratings out
+          // of the public-facing community aggregate that feeds JSON-LD.
+          where: { movieId: movieRowId, ratistRating: { not: null }, excluded: false },
+          _avg: { ratistRating: true },
+          _count: { ratistRating: true },
+        });
+        if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
+          return { value: agg._avg.ratistRating, count: agg._count.ratistRating };
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
 
   const trailerKey = getTrailerKey(movie);
   const mpaaRating = getMpaaRating(movie);
   const communityScore = movie.vote_average > 0 ? movie.vote_average : null;
-
-  // Ratist's own community aggregate. Prefer this in JSON-LD when we have
-  // meaningful volume; otherwise fall through to TMDB numbers.
-  let ratistAggregate: { value: number; count: number } | null = null;
-  try {
-    const dbMovie = await prisma.movie.findUnique({
-      where: { tmdbId: movie.id },
-      select: { id: true },
-    });
-    if (dbMovie) {
-      const agg = await prisma.movieRating.aggregate({
-        where: { movieId: dbMovie.id, ratistRating: { not: null } },
-        _avg: { ratistRating: true },
-        _count: { ratistRating: true },
-      });
-      if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
-        ratistAggregate = { value: agg._avg.ratistRating, count: agg._count.ratistRating };
-      }
-    }
-  } catch { /* DB not ready */ }
 
   // Check if movie is currently in theaters (released within last 8 weeks)
   const releaseDate = movie.release_date ? new Date(movie.release_date) : null;

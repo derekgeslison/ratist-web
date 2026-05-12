@@ -269,12 +269,18 @@ export default async function ProfilePage({ params }: Props) {
     where: { userId: user.id, mode: "daily" },
     select: { rawScore: true, difficulty: true },
   });
-  const cineqStats = cineqAttempts.length > 0 ? {
-    totalQuizzes: cineqAttempts.length,
-    weightedLifetime: Math.round(cineqAttempts.reduce((s, a) => s + a.rawScore * (a.difficulty === "hard" ? 2.0 : a.difficulty === "medium" ? 1.5 : 1.0), 0) * 10) / 10,
-    avgScore: Math.round(cineqAttempts.reduce((s, a) => s + a.rawScore, 0) / cineqAttempts.length * 10) / 10,
-    bestScore: Math.round(Math.max(...cineqAttempts.map((a) => a.rawScore)) * 10) / 10,
-  } : null;
+  const cineqStats = cineqAttempts.length > 0 ? (() => {
+    const diffMult = (d: string) => d === "hard" ? 2.0 : d === "medium" ? 1.5 : 1.0;
+    const weighted = cineqAttempts.map((a) => a.rawScore * diffMult(a.difficulty));
+    return {
+      totalQuizzes: cineqAttempts.length,
+      weightedLifetime: Math.round(weighted.reduce((s, w) => s + w, 0) * 10) / 10,
+      avgScore: Math.round(cineqAttempts.reduce((s, a) => s + a.rawScore, 0) / cineqAttempts.length * 10) / 10,
+      avgWeightedScore: Math.round(weighted.reduce((s, w) => s + w, 0) / weighted.length * 10) / 10,
+      bestScore: Math.round(Math.max(...cineqAttempts.map((a) => a.rawScore)) * 10) / 10,
+      bestWeightedScore: Math.round(Math.max(...weighted) * 10) / 10,
+    };
+  })() : null;
 
   // Movie Club membership — only render the "member" badge when the
   // user's Backstage Pass is currently active. We keep the

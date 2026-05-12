@@ -429,11 +429,21 @@ function SeasonCard({
                         <span className="text-[var(--foreground-muted)] mr-1">{ep.episode_number}.</span>
                         {ep.name}
                       </p>
-                      {ep.air_date && (
-                        <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">
-                          {ep.air_date}
-                          {ep.runtime ? ` · ${ep.runtime}m` : ""}
-                          {community ? ` · ${community.avg.toFixed(1)}★ (${community.count})` : ""}
+                      {(ep.air_date || community) && (
+                        <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                          {ep.air_date && <span>{ep.air_date}</span>}
+                          {ep.runtime ? <span>· {ep.runtime}m</span> : null}
+                          {community && (
+                            <span
+                              className="text-xs font-semibold"
+                              style={{ color: scoreColor(community.avg) }}
+                            >
+                              {community.avg.toFixed(1)}★
+                              <span className="text-[10px] font-medium text-[var(--foreground-muted)] ml-1">
+                                ({community.count})
+                              </span>
+                            </span>
+                          )}
                         </p>
                       )}
                       {ep.overview && <EpisodeDescription text={ep.overview} />}

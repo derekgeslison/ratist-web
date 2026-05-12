@@ -11,7 +11,7 @@ import { playCountdownBeep, playDoubleDing, warmUpAudio } from "@/lib/screening"
 
 interface QuizQuestion { index: number; mediaType: string; phases: string[][]; options: string[]; answerIdx: number; }
 interface AnswerResult { questionIndex: number; selectedOption: string; timeElapsed: number; wrongGuesses: number; correct: boolean; points: number; posterPath: string | null; }
-interface Stats { weightedLifetime: number; avgRawScore: number; bestDailyScore: number; totalDailyQuizzes: number; totalPracticeQuizzes: number; accuracy: number; avgWrongGuessesPerQuiz: number; dailyStreak: number; playedToday: string[]; }
+interface Stats { weightedLifetime: number; avgRawScore: number; avgWeightedScore: number; bestDailyScore: number; bestWeightedScore: number; totalDailyQuizzes: number; totalPracticeQuizzes: number; accuracy: number; avgWrongGuessesPerQuiz: number; dailyStreak: number; playedToday: string[]; }
 
 const SECS = 25;
 const PTS_SEC = 4;
@@ -332,14 +332,15 @@ export default function CineQPage() {
         {stats && stats.totalDailyQuizzes > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
             {[
-              { label: "Lifetime Pts", value: stats.weightedLifetime.toLocaleString() },
-              { label: "Avg Score", value: stats.avgRawScore.toFixed(1) },
-              { label: "Streak", value: `${stats.dailyStreak}d` },
-              { label: "Accuracy", value: `${stats.accuracy}%` },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
+              { label: "Lifetime Pts", value: stats.weightedLifetime.toLocaleString(), sub: null as string | null, title: "Total points across all daily quizzes (difficulty-weighted)." },
+              { label: "Avg Score", value: stats.avgWeightedScore.toFixed(1), sub: `${stats.avgRawScore.toFixed(1)} raw`, title: "Difficulty-weighted average (Hard 2x, Medium 1.5x, Easy 1x). Raw average below." },
+              { label: "Streak", value: `${stats.dailyStreak}d`, sub: null as string | null, title: "Consecutive days played." },
+              { label: "Accuracy", value: `${stats.accuracy}%`, sub: null as string | null, title: "Correct answers across all attempts." },
+            ].map(({ label, value, sub, title }) => (
+              <div key={label} title={title} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3 text-center">
                 <p className="text-lg font-bold text-white">{value}</p>
-                <p className="text-xs text-[var(--foreground-muted)]">{label}</p>
+                {sub && <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">{sub}</p>}
+                <p className="text-xs text-[var(--foreground-muted)] mt-1">{label}</p>
               </div>
             ))}
           </div>

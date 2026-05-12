@@ -26,6 +26,13 @@ interface AccountStatus {
   banReason?: string | null;
 }
 
+interface SubscriptionState {
+  hasPass: boolean;
+  status: string | null;
+  expiry: string | null;
+  loading: boolean;
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -36,6 +43,11 @@ interface AuthContextValue {
    *  without an extra fetch. */
   tourDismissedAt: string | null;
   accountStatus: AccountStatus | null;
+  /** Backstage Pass subscription state — fetched once per session and
+   *  shared across every `useSubscription()` call. Avoids the ~5–10
+   *  parallel requests to /api/subscription/status that used to happen
+   *  on every page mount (Navbar + AdUnit + page-level checks). */
+  subscription: SubscriptionState;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
   signInWithFacebook: () => Promise<{ isNewUser: boolean }>;
   signInWithApple: () => Promise<{ isNewUser: boolean }>;
@@ -60,6 +72,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [tourDismissedAt, setTourDismissedAt] = useState<string | null>(null);
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionState>({
+    hasPass: false,
+    status: null,
+    expiry: null,
+    loading: true,
+  });
+
+  // One subscription fetch per session, triggered when the Firebase
+  // user is established / cleared. All `useSubscription()` consumers
+  // read from this context, so the API call doesn't fan out to every
+  // page mount with a Pass-aware component.
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      setSubscription({ hasPass: false, status: null, expiry: null, loading: false });
+      return;
+    }
+    let cancelled = false;
+    setSubscription((prev) => ({ ...prev, loading: true }));
+    user.getIdToken()
+      .then((token) => fetch("/api/subscription/status", { headers: { Authorization: `Bearer ${token}` } }))
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        setSubscription({
+          hasPass: d.hasBackstagePass ?? false,
+          status: d.status ?? null,
+          expiry: d.expiry ?? null,
+          loading: false,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSubscription((prev) => ({ ...prev, loading: false }));
+      });
+    return () => { cancelled = true; };
+  }, [user, loading]);
 
   const syncUser = useCallback(async (firebaseUser: User, restoreAction?: string) => {
     const token = await firebaseUser.getIdToken();
@@ -247,7 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, tourDismissedAt, accountStatus, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, tourDismissedAt, accountStatus, subscription, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
       {children}
     </AuthContext.Provider>
   );

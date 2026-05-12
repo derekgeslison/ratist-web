@@ -74,92 +74,32 @@ export default async function ShowDetailPage({ params }: Props) {
     notFound();
   }
 
-  // Parallel fetch: watch providers + recommendations (non-blocking)
-  const [watchProviders, recommendations] = await Promise.all([
+  // Parallel fetch: TMDB-side data + the one local TVShow row every
+  // downstream sub-query needs. Mirrors the consolidation done on the
+  // movies page — previously this page issued 4 separate findUnique
+  // calls for the same row and walked through 5+ DB blocks in series.
+  const [watchProviders, recommendations, dbShow] = await Promise.all([
     getShowWatchProviders(show.id).catch(() => null),
     getShowRecommendations(show.id).catch(() => ({ results: [] })),
+    prisma.tVShow.findUnique({
+      where: { tmdbId: show.id },
+      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, contentRating: true },
+    }).catch(() => null),
   ]);
 
-  // Cache to local DB — resync if stale (7 days) or if key fields are missing (fire and forget)
-  prisma.tVShow.findUnique({ where: { tmdbId: show.id }, select: { cachedAt: true, posterPath: true, contentRating: true } })
-    .then((existing) => {
-      const age = existing?.cachedAt ? Date.now() - new Date(existing.cachedAt as Date | string).getTime() : Infinity;
-      const missingData = existing && (!existing.posterPath || !existing.contentRating);
-      if (age > 7 * 24 * 60 * 60 * 1000 || missingData) upsertTVShow(show).catch(() => {});
-    })
-    .catch(() => {});
+  // Fire-and-forget syncs driven off the single dbShow lookup above.
+  if (dbShow) {
+    const age = dbShow.cachedAt ? Date.now() - new Date(dbShow.cachedAt as Date | string).getTime() : Infinity;
+    const missingData = !dbShow.posterPath || !dbShow.contentRating;
+    if (age > 7 * 24 * 60 * 60 * 1000 || missingData) upsertTVShow(show).catch(() => {});
+    if (dbShow.imdbId) syncTVShowAwards(dbShow.id, dbShow.imdbId).catch(() => {});
+  } else {
+    // First-time view — populate the row.
+    upsertTVShow(show).catch(() => {});
+  }
 
-  // Awards sync — fire and forget (requires IMDb ID)
-  prisma.tVShow.findUnique({ where: { tmdbId: show.id }, select: { id: true, imdbId: true } })
-    .then((dbShow) => {
-      if (dbShow?.imdbId) syncTVShowAwards(dbShow.id, dbShow.imdbId).catch(() => {});
-    })
-    .catch(() => {});
-
-  // Fetch forum discussions linked to this show
-  let discussions: { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string }[] = [];
-  try {
-    const [linkedThreads, linkedNews, linkedBlog] = await Promise.all([
-      prisma.forumThread.findMany({
-        where: { media: { some: { tmdbId: show.id, mediaType: "tv" } } },
-        select: {
-          id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
-          author: { select: { name: true } },
-          _count: { select: { posts: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 10,
-      }),
-      prisma.newsItem.findMany({
-        where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
-        select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
-        orderBy: { publishedAt: "desc" },
-        take: 5,
-      }),
-      prisma.blogPost.findMany({
-        where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
-        select: { id: true, title: true, slug: true, type: true, viewCount: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
-        orderBy: { publishedAt: "desc" },
-        take: 5,
-      }),
-    ]);
-    const forumDiscussions = linkedThreads.map((t) => ({
-      id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
-      authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
-      createdAt: t.createdAt.toISOString(), linkType: "forum" as const, linkHref: `/forum/t/${t.slug}`,
-    }));
-    const newsDiscussions = linkedNews.map((n) => ({
-      id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
-      authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
-      createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
-    }));
-    const blogDiscussions = linkedBlog.map((b) => {
-      const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
-      const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
-      return {
-        id: b.id, title: b.title, slug: b.slug, threadType,
-        authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
-        createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
-      };
-    });
-    discussions = [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  } catch { /* DB not ready */ }
-
-  // Fetch awards from DB
-  let awards: Awaited<ReturnType<typeof getTVShowAwards>> = [];
-  try {
-    const dbShow = await prisma.tVShow.findUnique({
-      where: { tmdbId: show.id },
-      select: { id: true },
-    });
-    if (dbShow) {
-      awards = await getTVShowAwards(dbShow.id);
-    }
-  } catch { /* DB not ready */ }
-
-  // Fetch text reviews from DB
-  let reviews: {
+  type DiscussionRow = { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string };
+  type ReviewRow = {
     id: string;
     reviewText: string | null;
     ratistRating: number | null;
@@ -173,131 +113,193 @@ export default async function ShowDetailPage({ params }: Props) {
     createdAt: Date;
     likeCount: number;
     commentCount: number;
-  }[] = [];
-  let seasonAggregates: {
+  };
+  type SeasonAggregate = {
     ratingScope: string;
     seasonNumber: number;
     avg: { ratistRating: number | null; storyScore: number | null; styleScore: number | null; emotiveScore: number | null; actingScore: number | null; entertainScore: number | null };
     count: number;
-  }[] = [];
-  try {
-    const dbShow = await prisma.tVShow.findUnique({
-      where: { tmdbId: show.id },
-      select: { id: true },
-    });
-    if (dbShow) {
-      const [rawReviews, rawAggregates] = await Promise.all([
-        prisma.tVShowRating.findMany({
-          where: {
-            tvShowId: dbShow.id,
-            reviewText: { not: null },
-            // Exclude drafts (text saved before required fields → no
-            // ratistRating computed).
-            ratistRating: { not: null },
-          },
-          select: {
-            id: true,
-            reviewText: true,
-            ratistRating: true,
-            overallRating: true,
-            reviewType: true,
-            ratingScope: true,
-            seasonNumber: true,
-            hasSpoilers: true,
-            commentsDisabled: true,
-            createdAt: true,
-            user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        }),
-        prisma.tVShowRating.groupBy({
-          by: ["ratingScope", "seasonNumber"],
-          where: { tvShowId: dbShow.id, ratistRating: { not: null } },
-          _avg: {
-            ratistRating: true,
-            storyScore: true,
-            styleScore: true,
-            emotiveScore: true,
-            actingScore: true,
-            entertainScore: true,
-          },
+  };
+
+  const showRowId = dbShow?.id;
+  const [
+    discussions,
+    awards,
+    reviewsAndAggregates,
+    hasCompanion,
+    ratistAggregate,
+  ] = await Promise.all([
+    // Discussions: forum + news + blog rolled into one sorted list.
+    (async (): Promise<DiscussionRow[]> => {
+      try {
+        const [linkedThreads, linkedNews, linkedBlog] = await Promise.all([
+          prisma.forumThread.findMany({
+            where: { media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+            select: {
+              id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
+              author: { select: { name: true } },
+              _count: { select: { posts: true } },
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 10,
+          }),
+          prisma.newsItem.findMany({
+            where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+            select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
+            orderBy: { publishedAt: "desc" },
+            take: 5,
+          }),
+          prisma.blogPost.findMany({
+            where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: show.id, mediaType: "tv" } } },
+            select: { id: true, title: true, slug: true, type: true, viewCount: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
+            orderBy: { publishedAt: "desc" },
+            take: 5,
+          }),
+        ]);
+        const forumDiscussions = linkedThreads.map((t) => ({
+          id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
+          authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
+          createdAt: t.createdAt.toISOString(), linkType: "forum" as const, linkHref: `/forum/t/${t.slug}`,
+        }));
+        const newsDiscussions = linkedNews.map((n) => ({
+          id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
+          authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
+          createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
+        }));
+        const blogDiscussions = linkedBlog.map((b) => {
+          const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
+          const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
+          return {
+            id: b.id, title: b.title, slug: b.slug, threadType,
+            authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
+            createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
+          };
+        });
+        return [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      } catch {
+        return [];
+      }
+    })(),
+
+    // Awards from DB.
+    showRowId
+      ? getTVShowAwards(showRowId).catch(() => [] as Awaited<ReturnType<typeof getTVShowAwards>>)
+      : Promise.resolve([] as Awaited<ReturnType<typeof getTVShowAwards>>),
+
+    // Reviews + season aggregates: two queries, then comment/like counts.
+    (async (): Promise<{ reviews: ReviewRow[]; seasonAggregates: SeasonAggregate[] }> => {
+      if (!showRowId) return { reviews: [], seasonAggregates: [] };
+      try {
+        const [rawReviews, rawAggregates] = await Promise.all([
+          prisma.tVShowRating.findMany({
+            where: {
+              tvShowId: showRowId,
+              reviewText: { not: null },
+              ratistRating: { not: null },
+            },
+            select: {
+              id: true,
+              reviewText: true,
+              ratistRating: true,
+              overallRating: true,
+              reviewType: true,
+              ratingScope: true,
+              seasonNumber: true,
+              hasSpoilers: true,
+              commentsDisabled: true,
+              createdAt: true,
+              user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 20,
+          }),
+          prisma.tVShowRating.groupBy({
+            by: ["ratingScope", "seasonNumber"],
+            where: { tvShowId: showRowId, ratistRating: { not: null }, excluded: false },
+            _avg: {
+              ratistRating: true,
+              storyScore: true,
+              styleScore: true,
+              emotiveScore: true,
+              actingScore: true,
+              entertainScore: true,
+            },
+            _count: { ratistRating: true },
+          }),
+        ]);
+
+        const reviewIds = rawReviews.map((r) => r.id);
+        const [commentCounts, likeCounts] = await Promise.all([
+          prisma.comment.groupBy({
+            by: ["targetId"],
+            where: { targetType: "review", targetId: { in: reviewIds } },
+            _count: { id: true },
+          }),
+          prisma.postLike.groupBy({
+            by: ["targetId"],
+            where: { targetType: "review", targetId: { in: reviewIds } },
+            _count: { targetId: true },
+          }),
+        ]);
+        const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
+        const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
+
+        return {
+          reviews: rawReviews.map((r) => ({
+            ...r,
+            commentCount: commentMap.get(r.id) ?? 0,
+            likeCount: likeMap.get(r.id) ?? 0,
+          })),
+          seasonAggregates: rawAggregates.map((a) => ({
+            ratingScope: a.ratingScope,
+            seasonNumber: a.seasonNumber,
+            avg: {
+              ratistRating: a._avg.ratistRating,
+              storyScore: a._avg.storyScore,
+              styleScore: a._avg.styleScore,
+              emotiveScore: a._avg.emotiveScore,
+              actingScore: a._avg.actingScore,
+              entertainScore: a._avg.entertainScore,
+            },
+            count: a._count.ratistRating,
+          })),
+        };
+      } catch {
+        return { reviews: [], seasonAggregates: [] };
+      }
+    })(),
+
+    // Published Watch Companion check.
+    prisma.watchCompanion.findUnique({
+      where: { tmdbId_mediaType: { tmdbId: show.id, mediaType: "tv" } },
+      select: { status: true },
+    }).then((c) => c?.status === "published").catch(() => false),
+
+    // Series-level Ratist community aggregate for JSON-LD.
+    (async (): Promise<{ value: number; count: number } | null> => {
+      if (!showRowId) return null;
+      try {
+        const agg = await prisma.tVShowRating.aggregate({
+          where: { tvShowId: showRowId, ratingScope: "series", ratistRating: { not: null }, excluded: false },
+          _avg: { ratistRating: true },
           _count: { ratistRating: true },
-        }),
-      ]);
+        });
+        if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
+          return { value: agg._avg.ratistRating, count: agg._count.ratistRating };
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
 
-      // Fetch comment + like counts from unified models
-      const reviewIds = rawReviews.map((r) => r.id);
-      const [commentCounts, likeCounts] = await Promise.all([
-        prisma.comment.groupBy({
-          by: ["targetId"],
-          where: { targetType: "review", targetId: { in: reviewIds } },
-          _count: { id: true },
-        }),
-        prisma.postLike.groupBy({
-          by: ["targetId"],
-          where: { targetType: "review", targetId: { in: reviewIds } },
-          _count: { targetId: true },
-        }),
-      ]);
-      const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
-      const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
-
-      reviews = rawReviews.map((r) => ({
-        ...r,
-        commentCount: commentMap.get(r.id) ?? 0,
-        likeCount: likeMap.get(r.id) ?? 0,
-      }));
-
-      seasonAggregates = rawAggregates.map((a) => ({
-        ratingScope: a.ratingScope,
-        seasonNumber: a.seasonNumber,
-        avg: {
-          ratistRating: a._avg.ratistRating,
-          storyScore: a._avg.storyScore,
-          styleScore: a._avg.styleScore,
-          emotiveScore: a._avg.emotiveScore,
-          actingScore: a._avg.actingScore,
-          entertainScore: a._avg.entertainScore,
-        },
-        count: a._count.ratistRating,
-      }));
-    }
-  } catch { /* DB not ready */ }
+  const { reviews, seasonAggregates } = reviewsAndAggregates;
 
   const trailerKey = getShowTrailerKey(show);
   const contentRating = getShowContentRating(show);
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
-
-  // Is there a published Watch Companion for this show?
-  let hasCompanion = false;
-  try {
-    const c = await prisma.watchCompanion.findUnique({
-      where: { tmdbId_mediaType: { tmdbId: show.id, mediaType: "tv" } },
-      select: { status: true },
-    });
-    hasCompanion = c?.status === "published";
-  } catch { /* DB not ready */ }
-
-  // Ratist series-level community aggregate for JSON-LD. Falls through to
-  // TMDB numbers when Ratist hasn't accumulated any series ratings yet.
-  let ratistAggregate: { value: number; count: number } | null = null;
-  try {
-    const dbShow = await prisma.tVShow.findUnique({
-      where: { tmdbId: show.id },
-      select: { id: true },
-    });
-    if (dbShow) {
-      const agg = await prisma.tVShowRating.aggregate({
-        where: { tvShowId: dbShow.id, ratingScope: "series", ratistRating: { not: null } },
-        _avg: { ratistRating: true },
-        _count: { ratistRating: true },
-      });
-      if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
-        ratistAggregate = { value: agg._avg.ratistRating, count: agg._count.ratistRating };
-      }
-    }
-  } catch { /* DB not ready */ }
   const cast = show.aggregate_credits?.cast ?? [];
   const crew = show.aggregate_credits?.crew ?? [];
   const images = show.images?.backdrops ?? [];
