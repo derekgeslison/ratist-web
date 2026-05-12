@@ -64,3 +64,22 @@ export async function resolveCastFull(names: string[]): Promise<ResolvedPerson[]
   const out = await Promise.all(names.slice(0, 3).map(resolveOne));
   return out.filter((p): p is ResolvedPerson => p != null);
 }
+
+/**
+ * Like resolveCast, but also returns the original names TMDB couldn't
+ * match. Used by /recommend to tell the user when an AI-extracted
+ * actor name was silently dropped.
+ */
+export async function resolveCastWithUnresolved(names: string[]): Promise<{ ids: number[]; unresolved: string[] }> {
+  if (!names?.length) return { ids: [], unresolved: [] };
+  const sliced = names.slice(0, 3);
+  const resolved = await Promise.all(sliced.map(resolveOne));
+  const ids: number[] = [];
+  const unresolved: string[] = [];
+  for (let i = 0; i < sliced.length; i++) {
+    const r = resolved[i];
+    if (r) ids.push(r.id);
+    else unresolved.push(sliced[i]);
+  }
+  return { ids, unresolved };
+}

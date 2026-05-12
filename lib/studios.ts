@@ -114,3 +114,19 @@ export function resolveStudioNames(names: string[]): number[] {
   }
   return out;
 }
+
+/**
+ * Resolve studio names + return any that don't match the whitelist.
+ * /recommend uses the unresolved list to tell the user when an AI-
+ * extracted studio name was silently dropped.
+ */
+export function resolveStudioNamesWithUnresolved(names: string[]): { ids: number[]; unresolved: string[] } {
+  const ids: number[] = [];
+  const unresolved: string[] = [];
+  for (const name of names) {
+    const match = STUDIOS.find((s) => s.name === name);
+    if (match) ids.push(match.id);
+    else unresolved.push(name);
+  }
+  return { ids, unresolved };
+}

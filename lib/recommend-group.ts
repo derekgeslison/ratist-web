@@ -95,42 +95,79 @@ export interface PerMemberScore {
 
 export interface GroupScoreResult {
   floor: number | null;
+  mean: number | null;
   groupScore: number | null;
   perMember: PerMemberScore[];
 }
 
 /**
  * Compute group score for a single candidate. members already loaded by
- * loadGroupMembers; itemGenres are the candidate's genre tags.
+ * loadGroupMembers; itemGenres are the candidate's genre tags;
+ * memberPredictions is the per-member predicted-rating map keyed by
+ * `${mediaType}-${tmdbId}`.
+ *
+ * Per-member score priority:
+ *   1. Predicted rating from predictRatingsBatch (1-10, fractional).
+ *      This is the same engine the solo path uses, so it inherits all
+ *      its richness — components, genres, statedPrefs, community
+ *      grounding — and works for members whose genre columns are
+ *      sparse (e.g. mostly IMDb imports).
+ *   2. Genre-prefs fallback (computeMatchScore, integer 1-10). Kicks
+ *      in when the title isn't in our DB or has no community data.
+ *   3. null — neither signal available.
  *
  * Aggregation:
- *   floor      = min(score) over members with hasData and score != null
- *   groupScore = round(0.6 * floor + 0.4 * mean) over the same set
+ *   floor      = min(score) over members with score != null
+ *   mean       = average score over the same set
+ *   groupScore = round(0.5 * floor + 0.5 * mean) — even blend of
+ *                "nobody hates it" and "average is high"
  *
- * Both null when no member produced a usable score (no data OR no
- * genre overlap with the candidate).
+ * The /recommend results UI exposes a toggle ("Best for everyone"
+ * uses groupScore, "Most popular with the group" sorts by mean).
+ *
+ * Floor/mean/groupScore all null when no member produced a usable
+ * score (no prediction + no genre overlap).
  */
-export function computeGroupScore(members: MemberPrefs[], itemGenres: string[]): GroupScoreResult {
-  const perMember: PerMemberScore[] = members.map((m) => ({
-    firebaseUid: m.firebaseUid,
-    name: m.name,
-    avatarUrl: m.avatarUrl,
-    score: m.hasData ? computeMatchScore(m.genrePrefs, itemGenres) : null,
-  }));
+export function computeGroupScore(
+  members: MemberPrefs[],
+  itemGenres: string[],
+  itemKey?: string,
+  memberPredictions?: Map<string, Map<string, number | null>>,
+): GroupScoreResult {
+  const perMember: PerMemberScore[] = members.map((m) => {
+    let score: number | null = null;
+    if (itemKey && memberPredictions) {
+      const pred = memberPredictions.get(m.userId)?.get(itemKey);
+      if (typeof pred === "number") score = Math.round(pred * 10) / 10;
+    }
+    if (score == null && m.hasData) {
+      score = computeMatchScore(m.genrePrefs, itemGenres);
+    }
+    return {
+      firebaseUid: m.firebaseUid,
+      name: m.name,
+      avatarUrl: m.avatarUrl,
+      score,
+    };
+  });
 
   const validScores = perMember
     .map((p) => p.score)
     .filter((s): s is number => typeof s === "number" && s > 0);
 
   if (validScores.length === 0) {
-    return { floor: null, groupScore: null, perMember };
+    return { floor: null, mean: null, groupScore: null, perMember };
   }
 
   const floor = Math.min(...validScores);
-  const mean = validScores.reduce((a, b) => a + b, 0) / validScores.length;
-  const groupScore = Math.round(0.6 * floor + 0.4 * mean);
+  const meanRaw = validScores.reduce((a, b) => a + b, 0) / validScores.length;
+  // 1-decimal precision so floor/mean variance survives rounding —
+  // critical for the consensus-vs-popular toggle to surface
+  // differences when member scores are close.
+  const mean = Math.round(meanRaw * 10) / 10;
+  const groupScore = Math.round((0.5 * floor + 0.5 * meanRaw) * 10) / 10;
 
-  return { floor, groupScore, perMember };
+  return { floor, mean, groupScore, perMember };
 }
 
 /**

@@ -3,9 +3,9 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { getGenres, getShowGenres } from "@/lib/tmdb";
 import { expandMoods } from "@/lib/ai/mood-expand";
-import { resolveKeywords } from "@/lib/tmdb-keywords";
-import { resolveCast } from "@/lib/tmdb-cast";
-import { resolveStudioNames } from "@/lib/studios";
+import { resolveKeywordsWithUnresolved } from "@/lib/tmdb-keywords";
+import { resolveCastWithUnresolved } from "@/lib/tmdb-cast";
+import { resolveStudioNamesWithUnresolved } from "@/lib/studios";
 import { loadGroupMembers, loadGroupSeenSets, computeGroupScore, MAX_GROUP_SIZE, type MemberPrefs } from "@/lib/recommend-group";
 import { predictRatingsBatch } from "@/lib/collection-match";
 import { maskBlockedInResponse } from "@/lib/safe-content";
@@ -149,23 +149,38 @@ export async function POST(req: NextRequest) {
     const keywordPhrases: string[] = Array.isArray(body.keywords)
       ? body.keywords.filter((k: unknown): k is string => typeof k === "string" && k.trim().length > 0).map((k: string) => k.trim().toLowerCase()).slice(0, 3)
       : [];
-    const keywordIds = keywordPhrases.length > 0 ? await resolveKeywords(keywordPhrases) : [];
+    const keywordResolve = keywordPhrases.length > 0 ? await resolveKeywordsWithUnresolved(keywordPhrases) : { ids: [], unresolved: [] };
+    const keywordIds = keywordResolve.ids;
     const keywordsParam = keywordIds.length > 0 ? keywordIds.join("|") : undefined;
     const excludeKeywordPhrases: string[] = Array.isArray(body.excludeKeywords)
       ? body.excludeKeywords.filter((k: unknown): k is string => typeof k === "string" && k.trim().length > 0).map((k: string) => k.trim().toLowerCase()).slice(0, 3)
       : [];
-    const excludeKeywordIds = excludeKeywordPhrases.length > 0 ? await resolveKeywords(excludeKeywordPhrases) : [];
+    const excludeKeywordResolve = excludeKeywordPhrases.length > 0 ? await resolveKeywordsWithUnresolved(excludeKeywordPhrases) : { ids: [], unresolved: [] };
+    const excludeKeywordIds = excludeKeywordResolve.ids;
     const excludeKeywordsParam = excludeKeywordIds.length > 0 ? excludeKeywordIds.join("|") : undefined;
     const studioNames: string[] = Array.isArray(body.studios)
       ? body.studios.filter((s: unknown): s is string => typeof s === "string")
       : [];
-    const studioIds = studioNames.length > 0 ? resolveStudioNames(studioNames) : [];
+    const studioResolve = studioNames.length > 0 ? resolveStudioNamesWithUnresolved(studioNames) : { ids: [], unresolved: [] };
+    const studioIds = studioResolve.ids;
     const companiesParam = studioIds.length > 0 ? studioIds.join("|") : undefined;
     const castPhrases: string[] = Array.isArray(body.cast)
       ? body.cast.filter((n: unknown): n is string => typeof n === "string" && n.trim().length > 0).map((n: string) => n.trim()).slice(0, 3)
       : [];
-    const castIds = castPhrases.length > 0 ? await resolveCast(castPhrases) : [];
+    const castResolve = castPhrases.length > 0 ? await resolveCastWithUnresolved(castPhrases) : { ids: [], unresolved: [] };
+    const castIds = castResolve.ids;
     const castParam = castIds.length > 0 ? castIds.join(",") : undefined;
+    // Aggregate the AI-extracted phrases TMDB couldn't match so the
+    // frontend can show them on the AI filter pill. Otherwise these
+    // disappear silently and the user just sees fewer results than the
+    // prompt implied.
+    const unresolvedAiFilters = {
+      keywords: keywordResolve.unresolved,
+      excludeKeywords: excludeKeywordResolve.unresolved,
+      cast: castResolve.unresolved,
+      studios: studioResolve.unresolved,
+    };
+    const hasUnresolvedAiFilters = unresolvedAiFilters.keywords.length + unresolvedAiFilters.excludeKeywords.length + unresolvedAiFilters.cast.length + unresolvedAiFilters.studios.length > 0;
 
     // Expand hidden mood tags into genre adds / avoids. Moods don't count as
     // UI filters but they re-shape the search (e.g. "dark" adds Drama/Crime/
@@ -250,15 +265,27 @@ export async function POST(req: NextRequest) {
     const currentYear = new Date().getFullYear();
 
     // ── Era ──
+    // Three buckets, each a half-open range over the year axis:
+    //   recent  → [currentYear-3, ∞)
+    //   2000s   → [2000, ∞)
+    //   pre2000 → (∞, 1999]
+    // Selecting multiple buckets is a UNION of their ranges. For two
+    // ranges that share an unbounded side, the union is well-defined
+    // (e.g. recent + 2000s → [2000, ∞)). For pre2000 + (recent or 2000s)
+    // the union has a gap TMDB Discover can't express, so we widen to
+    // the open range — strictly a superset, never silently empty.
     let yearFrom = "";
     let yearTo = "";
     if (eraArr.length > 0) {
-      if (eraArr.includes("recent")) yearFrom = String(currentYear - 3);
-      if (eraArr.includes("2000s")) yearFrom = yearFrom || "2000";
-      if (eraArr.includes("pre2000")) yearTo = "1999";
-      if (eraArr.includes("pre2000") && (eraArr.includes("2000s") || eraArr.includes("recent"))) {
-        yearFrom = ""; yearTo = "";
-      }
+      const lowerBounds: number[] = [];
+      const upperBounds: number[] = [];
+      let upperUnbounded = false;
+      let lowerUnbounded = false;
+      if (eraArr.includes("recent")) { lowerBounds.push(currentYear - 3); upperUnbounded = true; }
+      if (eraArr.includes("2000s")) { lowerBounds.push(2000); upperUnbounded = true; }
+      if (eraArr.includes("pre2000")) { upperBounds.push(1999); lowerUnbounded = true; }
+      if (!lowerUnbounded && lowerBounds.length > 0) yearFrom = String(Math.min(...lowerBounds));
+      if (!upperUnbounded && upperBounds.length > 0) yearTo = String(Math.max(...upperBounds));
     }
     // Precise year range from AI overrides era buckets when set.
     if (precisePeriodFrom != null) yearFrom = String(precisePeriodFrom);
@@ -321,7 +348,10 @@ export async function POST(req: NextRequest) {
         excludeOriginalLanguagesArr,
         page,
       });
-      return NextResponse.json(taste);
+      return NextResponse.json({
+        ...taste,
+        unresolvedAiFilters: hasUnresolvedAiFilters ? unresolvedAiFilters : undefined,
+      });
     }
     // Random page (1-10) when no experience is selected, so refreshing the
     // tool shuffles in fresh titles instead of always showing the same TMDB
@@ -479,15 +509,26 @@ export async function POST(req: NextRequest) {
       if (experienceArr.length > 1) {
         const fetches = await Promise.all(experienceArr.map((exp) => fetchForExperience(exp, includeKeywords)));
         const merged: Record<string, unknown>[] = [];
+        // Dedup across experience pools — the same movie can satisfy
+        // "Hidden Gem" and "Taste" both, and round-robin merge without
+        // a seen-set would surface it twice with different reason
+        // badges. First-seen wins, so the experience listed first in
+        // the picker keeps its reason label.
+        const seen = new Set<string>();
         const cursors = fetches.map(() => 0);
         let added = 0;
         while (added < 20) {
           let anyAdded = false;
           for (let e = 0; e < fetches.length && added < 20; e++) {
-            if (cursors[e] < fetches[e].results.length) {
-              merged.push(fetches[e].results[cursors[e]++]);
+            while (cursors[e] < fetches[e].results.length) {
+              const candidate = fetches[e].results[cursors[e]++];
+              const key = `${candidate._mediaType}:${candidate.id}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              merged.push(candidate);
               added++;
               anyAdded = true;
+              break;
             }
           }
           if (!anyAdded) break;
@@ -616,8 +657,9 @@ export async function POST(req: NextRequest) {
 
     // Solo-mode matching no longer uses raw genre prefs — replaced by
     // predictRatingsBatch below (full-taste-profile prediction grounded
-    // in community ratings). Group mode still uses per-member genre
-    // prefs via loadGroupMembers / computeGroupScore.
+    // in community ratings). Group mode runs the same engine per
+    // member so members with sparse genre columns (e.g. mostly IMDb
+    // imports) still produce real scores; genre-prefs is the fallback.
 
     // How many of the user's requested genres match this title's genre tags.
     // Client sorts by this first so an explicit "sci-fi + romance" query keeps
@@ -628,8 +670,8 @@ export async function POST(req: NextRequest) {
     // community-collections match — full taste profile (components +
     // genres + your rating patterns) grounded in community ratings.
     // Returns null per item when the title isn't in our DB or there's
-    // insufficient data. Skipped in group mode (which uses
-    // computeGroupScore's per-member floor) and for unauthed visitors.
+    // insufficient data. Skipped in group mode (which runs the same
+    // engine per member below) and for unauthed visitors.
     let predictionMap = new Map<string, number | null>();
     // The user's profile is also fetched so we can fall back to a
     // genre-prefs-only score when the prediction engine returns null
@@ -653,6 +695,33 @@ export async function POST(req: NextRequest) {
       soloProfile = profileRes as Record<string, unknown> | null;
     }
 
+    // Group mode: predict ratings for every member in parallel against
+    // the same candidate list. Each member gets their own prediction
+    // map. computeGroupScore tries predicted score first per (member,
+    // item) pair, falls back to genre-prefs match for members whose
+    // genre profile is non-empty but prediction returned null (movie
+    // not in DB, no community data). Members with mostly-imported
+    // ratings get real scores here via the component side of their
+    // profile, which is exactly what was missing.
+    const memberPredictions = new Map<string, Map<string, number | null>>();
+    if (isGroupMode && groupMembers.length > 0) {
+      const predItems = (discoverData.results ?? []).map((m: Record<string, unknown>) => ({
+        tmdbId: m.id as number,
+        mediaType: m._mediaType as "movie" | "tv",
+      }));
+      const perMemberPreds = await Promise.all(
+        groupMembers.map((m) =>
+          predictRatingsBatch(m.userId, predItems).catch((err) => {
+            console.error(`[recommend] predictRatingsBatch failed for member ${m.userId}:`, err);
+            return new Map<string, number | null>();
+          }),
+        ),
+      );
+      for (let i = 0; i < groupMembers.length; i++) {
+        memberPredictions.set(groupMembers[i].userId, perMemberPreds[i]);
+      }
+    }
+
     // Build results
     let results = (discoverData.results ?? []).map((m: Record<string, unknown>) => {
       const mt = m._mediaType as string;
@@ -669,13 +738,23 @@ export async function POST(req: NextRequest) {
       //           sort by matchScore desc keeps "everyone tolerates this"
       //           on top. Per-member detail rides along separately.
       let matchScore: number | null = null;
+      // 'predicted' means matchScore came from the full prediction engine
+      // (predictRatingsBatch). 'genre-fallback' means we only had the
+      // viewer's genre prefs to work with — frontend renders this as
+      // "Matches your genres" rather than an X% number so we don't imply
+      // false precision. Null in group mode (the badge there means
+      // "group floor", not a personal prediction).
+      let matchScoreType: "predicted" | "genre-fallback" | null = null;
       let floor: number | null = null;
+      let mean: number | null = null;
       let groupScore: number | null = null;
       let perMemberScores: { firebaseUid: string; name: string; avatarUrl: string | null; score: number | null }[] | undefined;
 
       if (isGroupMode && groupMembers.length > 0) {
-        const g = computeGroupScore(groupMembers, itemGenres);
+        const itemKey = `${mt}-${m.id}`;
+        const g = computeGroupScore(groupMembers, itemGenres, itemKey, memberPredictions);
         floor = g.floor;
+        mean = g.mean;
         groupScore = g.groupScore;
         perMemberScores = g.perMember;
         matchScore = g.floor; // mirror floor for client sort + badge
@@ -683,12 +762,16 @@ export async function POST(req: NextRequest) {
         const pred = predictionMap.get(`${mt}-${m.id}`);
         if (pred != null) {
           matchScore = Math.round(pred * 10) / 10;
+          matchScoreType = "predicted";
         } else if (soloProfile) {
           // Genre-prefs fallback. Keeps the badge meaningful when the
           // prediction engine can't run (movie not in our DB / community
           // ratings are all quick / etc).
           const fallback = genrePrefsScore(soloProfile, itemGenreIds);
-          if (fallback != null) matchScore = Math.round(fallback * 10) / 10;
+          if (fallback != null) {
+            matchScore = Math.round(fallback * 10) / 10;
+            matchScoreType = "genre-fallback";
+          }
         }
       }
 
@@ -711,7 +794,9 @@ export async function POST(req: NextRequest) {
         streaming: providers?.stream ?? [],
         rentBuy: providers?.rent ?? [],
         matchScore,
+        matchScoreType,
         floor,
+        mean,
         groupScore,
         perMemberScores,
         requestedMatchCount,
@@ -721,23 +806,17 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // "Based on your taste" — sort by match score desc, prefer items
-    // above a 50% floor, but never let the floor return zero results.
-    // Without this, the experience just adds a quality floor to the
-    // TMDB query (vote_count >= 50, vote_average >= 6) and surfaces
-    // whatever's popular regardless of taste fit — users were seeing
-    // 18% / 34% matches in a feature literally called "based on your
-    // taste". The 50% floor drops those; the top-5 safety net handles
-    // genre-narrow queries (e.g. Action+War for a viewer whose War
-    // prefs are mid-low) where strict filtering would leave nothing.
+    // "Based on your taste" — sort by match score desc. We used to drop
+    // results below a 5.0 floor, but that truncated narrow taste
+    // profiles to top-5 and made low-match queries feel empty. The
+    // TMDB query already enforces a quality floor (vote_count >= 50,
+    // vote_average >= 6); the user gets the full page sorted by fit
+    // and can decide whether a 34% match is worth scrolling past.
     // Group mode is its own thing; unauthed visitors have no profile.
     if (experienceArr.includes("taste") && !isGroupMode && user) {
-      const MATCH_FLOOR = 5.0;
       results.sort((a: { matchScore: number | null }, b: { matchScore: number | null }) =>
         (b.matchScore ?? -1) - (a.matchScore ?? -1),
       );
-      const aboveFloor = results.filter((r: { matchScore: number | null }) => (r.matchScore ?? -1) >= MATCH_FLOOR);
-      results = aboveFloor.length >= 3 ? aboveFloor : results.slice(0, 5);
     }
 
     // Exclude seen/rated content. Three cases:
@@ -812,6 +891,7 @@ export async function POST(req: NextRequest) {
       results,
       totalPages: discoverData.total_pages ?? 1,
       page: actualPage,
+      unresolvedAiFilters: hasUnresolvedAiFilters ? unresolvedAiFilters : undefined,
     }));
   } catch (err) {
     console.error("Recommend error:", err);
@@ -988,13 +1068,18 @@ async function runTasteOnlyMode(p: TasteParams) {
   const results: any[] = [];
   for (const m of candidateMovies) {
     let matchScore: number | null = null;
+    let matchScoreType: "predicted" | "genre-fallback" | null = null;
     const pred = moviePreds.get(m.id);
     if (pred != null) {
       matchScore = Math.round(pred * 10) / 10;
+      matchScoreType = "predicted";
     } else if (tasteProfile) {
       const tmdbGenreIds = m.genres.map((g) => g.genreId);
       const fallback = genrePrefsScore(tasteProfile as unknown as Record<string, unknown>, tmdbGenreIds);
-      if (fallback != null) matchScore = Math.round(fallback * 10) / 10;
+      if (fallback != null) {
+        matchScore = Math.round(fallback * 10) / 10;
+        matchScoreType = "genre-fallback";
+      }
     }
     if (matchScore == null) continue;
     // requestedMatchCount = 0 uniformly. The client's match-mode sort
@@ -1019,7 +1104,9 @@ async function runTasteOnlyMode(p: TasteParams) {
       streaming: [],
       rentBuy: [],
       matchScore,
+      matchScoreType,
       floor: null,
+      mean: null,
       groupScore: null,
       perMemberScores: undefined,
       requestedMatchCount: 0,
@@ -1029,13 +1116,18 @@ async function runTasteOnlyMode(p: TasteParams) {
 
   for (const s of candidateShows) {
     let matchScore: number | null = null;
+    let matchScoreType: "predicted" | "genre-fallback" | null = null;
     const pred = showPreds.get(s.id);
     if (pred != null) {
       matchScore = Math.round(pred * 10) / 10;
+      matchScoreType = "predicted";
     } else if (tasteProfile) {
       const tmdbGenreIds = s.genres.map((g) => g.genreId);
       const fallback = genrePrefsScore(tasteProfile as unknown as Record<string, unknown>, tmdbGenreIds);
-      if (fallback != null) matchScore = Math.round(fallback * 10) / 10;
+      if (fallback != null) {
+        matchScore = Math.round(fallback * 10) / 10;
+        matchScoreType = "genre-fallback";
+      }
     }
     if (matchScore == null) continue;
     results.push({
@@ -1053,7 +1145,9 @@ async function runTasteOnlyMode(p: TasteParams) {
       streaming: [],
       rentBuy: [],
       matchScore,
+      matchScoreType,
       floor: null,
+      mean: null,
       groupScore: null,
       perMemberScores: undefined,
       requestedMatchCount: 0,

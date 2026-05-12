@@ -42,3 +42,23 @@ export async function resolveKeywordsFull(phrases: string[]): Promise<ResolvedKe
   const out = await Promise.all(phrases.slice(0, 3).map(resolveOne));
   return out.filter((k): k is ResolvedKeyword => k != null);
 }
+
+/**
+ * Like resolveKeywords, but also returns the original phrases that
+ * TMDB couldn't match. Callers (e.g. /recommend) surface these back
+ * to the user so it's visible when an AI-extracted keyword silently
+ * disappeared from the actual search.
+ */
+export async function resolveKeywordsWithUnresolved(phrases: string[]): Promise<{ ids: number[]; unresolved: string[] }> {
+  if (!phrases?.length) return { ids: [], unresolved: [] };
+  const sliced = phrases.slice(0, 3);
+  const resolved = await Promise.all(sliced.map(resolveOne));
+  const ids: number[] = [];
+  const unresolved: string[] = [];
+  for (let i = 0; i < sliced.length; i++) {
+    const r = resolved[i];
+    if (r) ids.push(r.id);
+    else unresolved.push(sliced[i]);
+  }
+  return { ids, unresolved };
+}
