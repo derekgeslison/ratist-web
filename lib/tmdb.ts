@@ -111,7 +111,19 @@ export interface TMDBGenre {
   name: string;
 }
 
+/**
+ * Sentinel value stamped onto `poster_path` by safeguardTMDBMovies /
+ * safeguardTMDBShows (and detail-page masks) when an admin / the
+ * Vision auto-scan has flagged the poster as containing explicit
+ * content. posterUrl recognizes the sentinel and routes the render
+ * to /poster-blocked.svg instead of the generic missing-poster
+ * placeholder. Stays a plain string so the existing prop typings
+ * (`string | null`) on every component continue to work unchanged.
+ */
+export const POSTER_BLOCKED_SENTINEL = "__BLOCKED__";
+
 export function posterUrl(path: string | null, size = "w500"): string {
+  if (path === POSTER_BLOCKED_SENTINEL) return "/poster-blocked.svg";
   if (!path) return "/placeholder-poster.svg";
   return `${IMAGE_BASE_URL}/${size}${path}`;
 }

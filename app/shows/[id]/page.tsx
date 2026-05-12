@@ -14,6 +14,7 @@ import {
   getShowTrailerKey,
   getShowContentRating,
   languageName,
+  POSTER_BLOCKED_SENTINEL,
   type TMDBShow,
 } from "@/lib/tmdb";
 import UserShowPanel from "@/components/UserShowPanel";
@@ -89,7 +90,7 @@ export default async function ShowDetailPage({ params }: Props) {
   ]);
 
   if (dbShow?.posterBlocked) {
-    show.poster_path = null;
+    show.poster_path = POSTER_BLOCKED_SENTINEL;
   }
 
   recommendations.results = await safeguardTMDBShows(recommendations.results, {

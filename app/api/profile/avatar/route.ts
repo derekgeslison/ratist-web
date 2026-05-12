@@ -29,6 +29,14 @@ async function checkSafeSearch(imageBase64: string): Promise<{ safe: boolean; re
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
+          // Force quota attribution to the Firebase project; without
+          // this Google routes to a different default project and
+          // returns PERMISSION_DENIED even when Vision is enabled
+          // on the real one. Result: moderation has been silently
+          // failing-open until this header lands.
+          ...(process.env.FIREBASE_ADMIN_PROJECT_ID
+            ? { "x-goog-user-project": process.env.FIREBASE_ADMIN_PROJECT_ID }
+            : {}),
         },
         body: JSON.stringify({
           requests: [

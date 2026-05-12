@@ -20,10 +20,12 @@ import {
   getTrailerKey,
   getMpaaRating,
   languageName,
+  POSTER_BLOCKED_SENTINEL,
   type TMDBMovie,
   type TMDBCollection,
 } from "@/lib/tmdb";
 import UserMoviePanel from "@/components/UserMoviePanel";
+import MoviePosterBlockToggle from "@/components/admin/MoviePosterBlockToggle";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
 import CommunityBreakdown from "@/components/CommunityBreakdown";
 import { upsertMovie } from "@/lib/tmdb-sync";
@@ -102,11 +104,12 @@ export default async function MovieDetailPage({ params }: Props) {
     }).catch(() => null),
   ]);
 
-  // Mask the movie's own poster if an admin has flagged it. Sets
-  // poster_path to null so the existing missing-poster placeholder
-  // takes over across header, JSON-LD, and any inline references.
+  // Mask the movie's own poster if an admin / the Vision auto-scan
+  // has flagged it. We stamp the sentinel so posterUrl() resolves to
+  // the custom /poster-blocked.svg placeholder (distinct from the
+  // generic missing-poster fallback).
   if (dbMovie?.posterBlocked) {
-    movie.poster_path = null;
+    movie.poster_path = POSTER_BLOCKED_SENTINEL;
   }
 
   // Mask blocked posters inside the recommendations rail rendered
@@ -374,13 +377,18 @@ export default async function MovieDetailPage({ params }: Props) {
         {/* Main info row */}
         <div className="flex gap-6 -mt-16 relative z-10 mb-8">
           {/* Poster — tap to zoom into a larger version. */}
-          <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] self-start mt-16 sm:mt-20 lg:mt-24 rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
-            <ZoomableImage
-              src={posterUrl(movie.poster_path, "w342")}
-              zoomSrc={posterUrl(movie.poster_path, "w780")}
-              alt={movie.title}
-              sizes="(max-width: 640px) 128px, (max-width: 1024px) 176px, 208px"
-            />
+          <div className="self-start mt-16 sm:mt-20 lg:mt-24">
+            <div className="relative w-32 sm:w-44 lg:w-52 shrink-0 aspect-[2/3] rounded-lg overflow-hidden border-2 border-[var(--border)] shadow-2xl bg-[var(--surface-2)]">
+              <ZoomableImage
+                src={posterUrl(movie.poster_path, "w342")}
+                zoomSrc={posterUrl(movie.poster_path, "w780")}
+                alt={movie.title}
+                sizes="(max-width: 640px) 128px, (max-width: 1024px) 176px, 208px"
+              />
+            </div>
+            {mpaaRating === "NC-17" && dbMovie && (
+              <MoviePosterBlockToggle tmdbId={movie.id} initialBlocked={dbMovie.posterBlocked ?? false} />
+            )}
           </div>
 
           {/* Details */}

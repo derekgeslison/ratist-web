@@ -328,6 +328,13 @@ model Movie {
   // in browse/discovery surfaces. Renders fall back to a placeholder
   // when this is true; the movie itself is still accessible.
   posterBlocked      Boolean   @default(false) @map("poster_blocked")
+  // Automated poster scan via Google Cloud Vision SafeSearch. We
+  // scan NC-17 posters in batch (cheaper than scanning the whole
+  // catalog) and store the verdict so we can re-tune thresholds
+  // without re-fetching. posterScannedAt is set even on "clean"
+  // verdicts so the script doesn't re-scan them.
+  posterScanResult   Json?     @map("poster_scan_result")
+  posterScannedAt    DateTime? @map("poster_scanned_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 

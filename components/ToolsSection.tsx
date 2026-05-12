@@ -18,11 +18,14 @@ interface Tool {
 
 // Default 4-up showcase. Order matters — earlier entries are kept
 // first when filtering against overlap with the dynamic action tiles.
+// Descriptions are kept in sync with the canonical copy on /tools.
+// If you tweak one there, mirror it here (and vice versa) — diverging
+// copy looks careless when a user clicks through.
 const DEFAULT_TOOLS: Tool[] = [
   {
     icon: Users,
     title: "Shared Cast & Crew",
-    description: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share.",
+    description: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share. Filter by minimum overlap.",
     href: "/tools/shared-cast",
   },
   {
@@ -34,7 +37,7 @@ const DEFAULT_TOOLS: Tool[] = [
   {
     icon: TrendingUp,
     title: "Box Office Insights",
-    description: "All-time grossers, year-by-year top earners, franchise and studio rankings, ROI champions, and per-decade leaderboards across film history.",
+    description: "Lifetime gross leaderboards: highest grossing, biggest profit, best ROI, biggest bombs, top of the year. Plus a fully filterable list across every tracked title.",
     href: "/box-office",
   },
   {
@@ -52,13 +55,13 @@ const RESERVE: Tool[] = [
   {
     icon: MonitorPlay,
     title: "Screening Room",
-    description: "Watch with friends — synced playback, live chat, polls, and shared reactions in real time.",
+    description: "Watch movies or shows with friends remotely. Predict plots, react in real-time, run polls, and compare ratings when the credits roll.",
     href: "/screening-room",
   },
   {
     icon: Swords,
     title: "The Matchup",
-    description: "Compare how your taste lines up with another user — shared films, agreements, biggest disagreements.",
+    description: "Pick two movies or shows and compare them head-to-head across every Ratist rating category. Let the data settle the debate.",
     href: "/tools/matchup",
   },
   {

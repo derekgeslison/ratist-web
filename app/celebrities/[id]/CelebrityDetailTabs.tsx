@@ -48,48 +48,6 @@ export default function CelebrityDetailTabs({
   photos,
   discussions,
 }: Props) {
-  const { user: authUser } = useAuth();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!authUser) return;
-    authUser.getIdToken().then((token) =>
-      fetch("/api/auth/admin-check", { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => r.json())
-        .then((d) => setIsAdmin(d.isAdmin === true))
-        .catch(() => {}),
-    );
-  }, [authUser]);
-
-  async function bulkPosterBlock(blocked: boolean) {
-    if (!authUser || bulkBusy || filmography.length === 0) return;
-    setBulkBusy(true);
-    setBulkMessage(null);
-    try {
-      const token = await authUser.getIdToken();
-      const items = filmography.map((f) => ({
-        mediaType: (f.mediaType ?? "movie") as "movie" | "tv",
-        tmdbId: f.id,
-        blocked,
-      }));
-      const res = await fetch("/api/admin/poster-block", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setBulkMessage(`${blocked ? "Blocked" : "Unblocked"} ${data.movieCount + data.showCount} posters. Reload to see changes.`);
-      } else {
-        setBulkMessage("Action failed");
-      }
-    } catch {
-      setBulkMessage("Action failed");
-    }
-    setBulkBusy(false);
-  }
 
   function tabToHash(tab: Tab): string {
     return tab.toLowerCase();
@@ -157,40 +115,17 @@ export default function CelebrityDetailTabs({
         <div className="space-y-4 pb-16">
           {filmography.length > 0 ? (
             <>
-              <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <Film className="w-5 h-5 text-[var(--ratist-red)]" /> Filmography
                 </h2>
-                <div className="flex items-center gap-2">
-                  {isAdmin && (
-                    <>
-                      <button
-                        onClick={() => bulkPosterBlock(true)}
-                        disabled={bulkBusy}
-                        className="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                        title="Block every poster in this filmography (admin)"
-                      >
-                        Block all posters
-                      </button>
-                      <button
-                        onClick={() => bulkPosterBlock(false)}
-                        disabled={bulkBusy}
-                        className="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--foreground-muted)] transition-colors disabled:opacity-50"
-                        title="Unblock every poster in this filmography (admin)"
-                      >
-                        Unblock all
-                      </button>
-                    </>
-                  )}
-                  <Link
-                    href={`/movies?cast=${personId}&castLabels=${encodeURIComponent(personName)}`}
-                    className="text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors flex items-center gap-1"
-                  >
-                    Show all <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
+                <Link
+                  href={`/movies?cast=${personId}&castLabels=${encodeURIComponent(personName)}`}
+                  className="text-sm text-[var(--foreground-muted)] hover:text-[var(--ratist-red)] transition-colors flex items-center gap-1"
+                >
+                  Show all <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
-              {bulkMessage && <p className="text-xs text-[var(--foreground-muted)]">{bulkMessage}</p>}
               <CelebrityCreditsSection credits={filmography} personId={personId} />
             </>
           ) : (

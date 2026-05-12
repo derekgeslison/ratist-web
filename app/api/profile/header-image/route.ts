@@ -16,7 +16,16 @@ async function checkSafeSearch(imageBase64: string): Promise<{ safe: boolean; re
     const tokenResult = await credential.getAccessToken();
     const response = await fetch("https://vision.googleapis.com/v1/images:annotate", {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenResult.access_token}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${tokenResult.access_token}`,
+        "Content-Type": "application/json",
+        // x-goog-user-project forces correct quota attribution; without
+        // it Google routes to a default project and returns 403 even
+        // when Vision is enabled on the real Firebase project.
+        ...(process.env.FIREBASE_ADMIN_PROJECT_ID
+          ? { "x-goog-user-project": process.env.FIREBASE_ADMIN_PROJECT_ID }
+          : {}),
+      },
       body: JSON.stringify({ requests: [{ image: { content: imageBase64 }, features: [{ type: "SAFE_SEARCH_DETECTION" }] }] }),
     });
     if (!response.ok) { console.warn("Vision API unavailable:", response.status); return { safe: true }; }

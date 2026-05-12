@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { POSTER_BLOCKED_SENTINEL } from "@/lib/tmdb";
+import { scanPosterSafeSearch, shouldBlockPoster } from "@/lib/vision-safesearch";
 
 /**
  * Browse / discovery safety helpers. Two concerns wired up here:
@@ -7,19 +9,90 @@ import { prisma } from "@/lib/prisma";
  *    public discovery rails. TMDB list endpoints don't return MPAA
  *    rating inline, so we cache certifications on Movie.mpaaRating
  *    (via upsertMovie on detail views) and post-filter using that.
- *    Items we haven't cached yet pass through — the worst case is
- *    one impression for a film no one has ever interacted with on
- *    the site, after which it gets cached and filtered.
  *
  * 2. Some posters (NC-17 or otherwise) contain explicit nudity. We
  *    let admins block individual posters via Movie.posterBlocked /
- *    TVShow.posterBlocked; this helper nulls out `poster_path` on
- *    matched items so the existing "no poster" placeholder kicks
- *    in across every render path that consumes a TMDB-shaped list.
+ *    TVShow.posterBlocked, AND lazily auto-scan any NC-17 poster
+ *    that hasn't been run through Google Cloud Vision SafeSearch
+ *    yet — first render of a page that includes an unscanned NC-17
+ *    movie kicks off the scan, applies the verdict, and stores it
+ *    so subsequent renders are instant. The bulk backfill script
+ *    (scripts/scan-nc17-posters.ts) covers the existing catalog;
+ *    this on-render path covers anything new the site encounters.
  */
+
+const TMDB_POSTER_BASE = "https://image.tmdb.org/t/p/w500";
+// Concurrency cap on parallel Vision calls. Vision quota defaults to
+// 1800 req/min so we'd hit that ceiling fast on a heavy actor page
+// without this. 10 keeps us well under and still finishes a 30-film
+// filmography in ~2 rounds (~1s wall-clock).
+const SCAN_CONCURRENCY = 10;
 
 type MovieLike = { id: number; poster_path: string | null };
 type ShowLike = { id: number; poster_path: string | null };
+
+interface MovieRow {
+  tmdbId: number;
+  posterPath: string | null;
+  mpaaRating: string | null;
+  posterBlocked: boolean;
+  posterScannedAt: Date | null;
+}
+
+async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const out: T[] = new Array(tasks.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < tasks.length) {
+      const idx = cursor++;
+      try {
+        out[idx] = await tasks[idx]();
+      } catch {
+        // swallow — task results are written individually; failures
+        // leave the slot undefined and the caller treats absence
+        // as "skip, don't update DB".
+      }
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker());
+  await Promise.all(workers);
+  return out;
+}
+
+/**
+ * Scan any NC-17 movies in `rows` whose poster hasn't been processed
+ * yet. Updates the DB and returns a new map keyed by tmdbId with the
+ * post-scan posterBlocked state so the caller can mask without
+ * needing a second round-trip.
+ */
+async function scanUnscannedNC17(rows: MovieRow[]): Promise<Map<number, MovieRow>> {
+  const map = new Map(rows.map((r) => [r.tmdbId, r]));
+  const unscanned = rows.filter(
+    (r) => r.mpaaRating === "NC-17" && !r.posterScannedAt && r.posterPath,
+  );
+  if (unscanned.length === 0) return map;
+
+  const tasks = unscanned.map((row) => async () => {
+    const verdict = await scanPosterSafeSearch(`${TMDB_POSTER_BASE}${row.posterPath}`);
+    if (!verdict) return;
+    const block = shouldBlockPoster(verdict);
+    await prisma.movie.update({
+      where: { tmdbId: row.tmdbId },
+      data: {
+        posterScannedAt: new Date(),
+        posterScanResult: verdict as unknown as object,
+        ...(block ? { posterBlocked: true } : {}),
+      },
+    }).catch(() => { /* race / row missing — ignore */ });
+    if (block) {
+      const updated = { ...row, posterBlocked: true, posterScannedAt: new Date() };
+      map.set(row.tmdbId, updated);
+    }
+  });
+
+  await runWithConcurrency(tasks, SCAN_CONCURRENCY);
+  return map;
+}
 
 /**
  * Apply NC-17 filter + poster-block masking to a list of TMDB-shaped
@@ -35,9 +108,18 @@ export async function safeguardTMDBMovies<T extends MovieLike>(
   const tmdbIds = items.map((i) => i.id);
   const rows = await prisma.movie.findMany({
     where: { tmdbId: { in: tmdbIds } },
-    select: { tmdbId: true, mpaaRating: true, posterBlocked: true },
+    select: {
+      tmdbId: true, posterPath: true,
+      mpaaRating: true, posterBlocked: true, posterScannedAt: true,
+    },
   });
-  const map = new Map(rows.map((r) => [r.tmdbId, r]));
+
+  // Lazy auto-scan: any NC-17 movie that hasn't been through Vision
+  // SafeSearch yet gets scanned on this render so the verdict applies
+  // immediately. Only runs when the caller cares about poster masking.
+  const map = opts.stripBlockedPosters
+    ? await scanUnscannedNC17(rows)
+    : new Map(rows.map((r) => [r.tmdbId, r]));
 
   let result: T[] = items;
   if (opts.filterNC17) {
@@ -46,7 +128,7 @@ export async function safeguardTMDBMovies<T extends MovieLike>(
   if (opts.stripBlockedPosters) {
     result = result.map((i) => {
       const row = map.get(i.id);
-      if (row?.posterBlocked) return { ...i, poster_path: null };
+      if (row?.posterBlocked) return { ...i, poster_path: POSTER_BLOCKED_SENTINEL };
       return i;
     });
   }
@@ -70,7 +152,7 @@ export async function safeguardTMDBShows<T extends ShowLike>(
   if (opts.stripBlockedPosters) {
     result = result.map((i) => {
       const row = map.get(i.id);
-      if (row?.posterBlocked) return { ...i, poster_path: null };
+      if (row?.posterBlocked) return { ...i, poster_path: POSTER_BLOCKED_SENTINEL };
       return i;
     });
   }

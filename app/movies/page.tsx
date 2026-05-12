@@ -495,6 +495,64 @@ export default async function MoviesPage({ searchParams }: Props) {
     for (let i = 0; i < showIds.length; i++) extractProviders(showProvidersList[i] as never, showIds[i]);
   }
 
+  // TV-rating supplement. TMDB's /discover/tv has no certification
+  // parameter, and the default "popular" pool skews to TV-14 / TV-MA;
+  // when a viewer selects TV-Y / TV-Y7 / TV-G / TV-PG, the post-filter
+  // below would find nothing because those shows never made it into
+  // the 20-row TMDB fetch. To make the filter actually surface
+  // results, we supplement showResult with cached shows from our DB
+  // whose contentRating matches the selection. Other filters (genre,
+  // year, etc.) don't constrain the supplement — that's a knowing
+  // trade so kid-rated browsing isn't dead-on-arrival.
+  if (tvMpaaRatings.length > 0 && showShows && !seenOnlyMode) {
+    try {
+      const dbShows = await prisma.tVShow.findMany({
+        where: { contentRating: { in: tvMpaaRatings } },
+        select: {
+          tmdbId: true, name: true, overview: true,
+          posterPath: true, backdropPath: true,
+          firstAirDate: true, voteAverage: true, voteCount: true,
+          popularity: true,
+        },
+        orderBy: { popularity: "desc" },
+        take: 60,
+      });
+      if (dbShows.length > 0) {
+        const existingIds = new Set((showResult?.results ?? []).map((s) => s.id));
+        const supplemented: TMDBShow[] = dbShows
+          .filter((r) => !existingIds.has(r.tmdbId))
+          .map((r) => ({
+            id: r.tmdbId,
+            name: r.name,
+            overview: r.overview ?? "",
+            poster_path: r.posterPath,
+            backdrop_path: r.backdropPath,
+            first_air_date: r.firstAirDate ?? "",
+            vote_average: r.voteAverage ?? 0,
+            vote_count: r.voteCount ?? 0,
+            popularity: r.popularity ?? 0,
+            genre_ids: [],
+            origin_country: [],
+            original_language: "",
+            original_name: r.name,
+          }));
+        if (showResult) {
+          showResult = {
+            ...showResult,
+            results: [...showResult.results, ...supplemented],
+            total_results: showResult.total_results + supplemented.length,
+          };
+        } else {
+          showResult = {
+            results: supplemented,
+            total_results: supplemented.length,
+            total_pages: 1,
+          };
+        }
+      }
+    } catch { /* DB not ready */ }
+  }
+
   // Fetch certifications: try DB cache first, then fill gaps from TMDB API
   const certMap = new Map<string, string>();
   try {
