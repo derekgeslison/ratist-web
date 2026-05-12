@@ -59,28 +59,83 @@ export function formatBoxOfficeLong(value: bigint | number | null | undefined): 
   return `$${n.toLocaleString()}`;
 }
 
-/** Profit = revenue - budget. Returns null if either side is missing
- *  or below the floor. */
+// ── Studio-side P&L estimation constants ──────────────────────────
+// Naive `revenue - budget` ignores that ~half of ticket revenue goes
+// to theaters (more for the first weekend, less by week 5) and that
+// the studio spends a sizeable additional amount on marketing /
+// prints-and-advertising on top of production. The numbers below are
+// industry-cited mid-points used to estimate the actual studio P&L.
+//
+// STUDIO_SHARE_RATE — worldwide blended studio cut of theatrical
+// gross. US domestic is ~50%, international averages ~40%, the
+// weighted blend lands near 45%.
+//
+// MARKETING_PCT — production-budget multiplier for marketing spend.
+//
+// MARKETING_CAP — absolute ceiling on marketing spend in USD.
+// Tentpole budgets aren't matched dollar-for-dollar by marketing:
+// Endgame's $356M budget didn't carry $178M of marketing. Cited cap
+// range is $100-200M; we use $150M as the mid-point.
+export const STUDIO_SHARE_RATE = 0.45;
+export const MARKETING_PCT = 0.5;
+export const MARKETING_CAP = 150_000_000;
+
+/** Estimated marketing spend for a given production budget — 50% of
+ *  budget, capped at MARKETING_CAP. */
+export function estimateMarketingSpend(budget: bigint | number): number {
+  const b = typeof budget === "bigint" ? Number(budget) : budget;
+  return Math.min(b * MARKETING_PCT, MARKETING_CAP);
+}
+
+/** Estimated total studio investment in a release: budget + marketing. */
+export function estimateTotalCost(budget: bigint | number): number {
+  const b = typeof budget === "bigint" ? Number(budget) : budget;
+  return b + estimateMarketingSpend(b);
+}
+
+/** Estimated studio share of worldwide box office. */
+export function estimateStudioShare(revenue: bigint | number): number {
+  const r = typeof revenue === "bigint" ? Number(revenue) : revenue;
+  return r * STUDIO_SHARE_RATE;
+}
+
+export type BoxOfficeMetric = "est" | "gross";
+
+/** Estimated studio profit (default mode). When `metric === "gross"`
+ *  returns the naive revenue - budget instead, for the toggle's
+ *  raw view. Returns null when either side is missing or below the
+ *  display floor. */
 export function calculateProfit(
   revenue: bigint | null | undefined,
   budget: bigint | null | undefined,
-): bigint | null {
+  metric: BoxOfficeMetric = "est",
+): number | null {
   if (revenue == null || budget == null) return null;
   if (revenue < BOX_OFFICE_FLOOR || budget < BOX_OFFICE_FLOOR) return null;
-  return revenue - budget;
+  if (metric === "gross") return Number(revenue) - Number(budget);
+  return estimateStudioShare(revenue) - estimateTotalCost(budget);
 }
 
-/** ROI = revenue / budget. Returns null if budget is below the
- *  ROI-specific floor (avoids absurd multipliers from micro-budget
- *  films). 1.0 = break-even, 5.0 = 5× return. */
+/** Estimated ROI as a multiplier — 1.0 = break-even, 2.0 = doubled
+ *  the investment. When `metric === "gross"` returns the naive
+ *  revenue/budget ratio instead. Returns null below the ROI budget
+ *  floor (excludes micro-budget outliers). */
 export function calculateROI(
   revenue: bigint | null | undefined,
   budget: bigint | null | undefined,
+  metric: BoxOfficeMetric = "est",
 ): number | null {
   if (revenue == null || budget == null) return null;
   if (revenue < BOX_OFFICE_FLOOR || budget < ROI_MIN_BUDGET) return null;
-  return Number(revenue) / Number(budget);
+  if (metric === "gross") return Number(revenue) / Number(budget);
+  return estimateStudioShare(revenue) / estimateTotalCost(budget);
 }
+
+/** Plain-English explanation of the Est. Profit / Est. ROI formula.
+ *  Used on every page that shows the estimated metric so readers
+ *  understand what the number represents. */
+export const PROFIT_FORMULA_BLURB =
+  "Estimated studio profit assumes a 45% worldwide studio share of theatrical box office and marketing costs of 50% of production budget capped at $150M. It doesn't include home video, streaming, or merchandising revenue. Switch to Gross to see raw revenue − budget.";
 
 /** Format an ROI multiplier as "5.2×" or "520%". The multiplier form
  *  reads better at scale (12.4× vs 1240%) and matches industry usage. */

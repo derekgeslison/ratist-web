@@ -4,13 +4,19 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Film, Info } from "lucide-react";
 import { getFranchiseMovies } from "@/lib/box-office-queries";
-import { formatBoxOffice, formatROI } from "@/lib/box-office";
+import { formatBoxOffice, formatROI, calculateROI, type BoxOfficeMetric } from "@/lib/box-office";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import MetricToggle, { parseMetric } from "@/components/box-office/MetricToggle";
+import ProfitFormulaNote from "@/components/box-office/ProfitFormulaNote";
 
+// Reading searchParams opts this page out of static caching; the
+// `revalidate` constant is retained for the default-metric variant
+// but Next.js will dynamic-render any request that includes ?metric=.
 export const revalidate = 21600;
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ metric?: string | string[] }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -31,8 +37,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function FranchiseDetailPage({ params }: Props) {
+export default async function FranchiseDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = await searchParams;
+  const metric: BoxOfficeMetric = parseMetric(sp.metric);
   const collectionId = parseInt(id, 10);
   if (Number.isNaN(collectionId)) notFound();
 
@@ -45,6 +53,19 @@ export default async function FranchiseDetailPage({ params }: Props) {
   const totalBudget = movies.reduce((acc, m) => acc + (m.budget ?? 0), 0);
   const filmsWithRevenue = movies.filter((m) => m.revenue != null).length;
   const filmsWithBudget = movies.filter((m) => m.budget != null).length;
+
+  // Aggregate franchise ROI matches the active metric: gross uses
+  // total revenue / total budget; estimated routes through
+  // calculateROI (handles the studio-share + capped-marketing math).
+  // The treat-the-franchise-as-one-virtual-film approach is faithful
+  // either way — sums are pre-computed and we just apply the formula
+  // once.
+  const franchiseROI =
+    totalRevenue > 0 && totalBudget > 0
+      ? metric === "gross"
+        ? totalRevenue / totalBudget
+        : calculateROI(BigInt(totalRevenue), BigInt(totalBudget), "est")
+      : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -83,15 +104,20 @@ export default async function FranchiseDetailPage({ params }: Props) {
           hint={filmsWithBudget < movies.length ? `${filmsWithBudget} of ${movies.length} reported` : undefined}
         />
         <Stat
-          label="Franchise ROI"
-          value={
-            totalBudget > 0 && totalRevenue > 0
-              ? formatROI(totalRevenue / totalBudget) ?? "—"
-              : "—"
-          }
-          hint="Total revenue ÷ total budget"
+          label={`Franchise ${metric === "gross" ? "Gross " : "Est. "}ROI`}
+          value={franchiseROI != null ? formatROI(franchiseROI) ?? "—" : "—"}
+          hint={metric === "gross" ? "Total revenue ÷ total budget" : "Est. studio share ÷ (budget + capped marketing)"}
         />
       </div>
+
+      {/* Metric toggle + formula explanation. Sits above the
+         "missing data" disclaimer so the calculation method is the
+         first thing the user sees. */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold">ROI calculation</span>
+        <MetricToggle metric={metric} />
+      </div>
+      <ProfitFormulaNote metric={metric} className="mb-4" />
 
       {filmsWithRevenue < movies.length || filmsWithBudget < movies.length ? (
         <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
@@ -112,7 +138,7 @@ export default async function FranchiseDetailPage({ params }: Props) {
           <span className="text-right">Year</span>
           <span className="text-right">Revenue</span>
           <span className="text-right">Budget</span>
-          <span className="text-right">ROI</span>
+          <span className="text-right">{metric === "gross" ? "Gross " : "Est. "}ROI</span>
         </div>
         <ul className="divide-y divide-[var(--border)]">
           {movies.map((m) => (
@@ -148,7 +174,14 @@ export default async function FranchiseDetailPage({ params }: Props) {
                   {formatBoxOffice(m.budget) ?? "—"}
                 </span>
                 <span className="hidden md:block text-sm text-white tabular-nums text-right">
-                  {formatROI(m.roi) ?? "—"}
+                  {(() => {
+                    // row.roi is the est value (set by toBoxOfficeRow);
+                    // compute gross from raw revenue/budget when toggled.
+                    const display = metric === "gross"
+                      ? (m.revenue != null && m.budget != null && m.budget > 0 ? m.revenue / m.budget : null)
+                      : m.roi;
+                    return formatROI(display) ?? "—";
+                  })()}
                 </span>
               </Link>
             </li>

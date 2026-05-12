@@ -12,6 +12,7 @@ import {
 import { getMostRecentlyEndedWindow } from "@/lib/box-office";
 import { Leaderboard } from "@/components/box-office/Leaderboard";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import ProfitFormulaNote from "@/components/box-office/ProfitFormulaNote";
 
 export const metadata: Metadata = {
   title: "Box Office Insights",
@@ -95,7 +96,7 @@ export default async function BoxOfficePage() {
 
       {/* Data disclaimer — applies to every leaderboard on this page,
           so it lives once at the top instead of being repeated. */}
-      <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
+      <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-3">
         <Info className="w-4 h-4 text-[var(--foreground-muted)] shrink-0 mt-0.5" />
         <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
           Box-office figures are sourced from TMDB and reflect <strong className="text-white/80">cumulative lifetime</strong> grosses, not daily or
@@ -104,6 +105,11 @@ export default async function BoxOfficePage() {
           films with budgets under $100K to suppress micro-budget outliers.
         </p>
       </div>
+      {/* Estimated-profit formula. The hub shows the canonical
+         estimated view; the Gross toggle lives on deeper pages
+         (/box-office/all, franchise/studio/year drill-downs) where
+         users actively explore and re-sort. */}
+      <ProfitFormulaNote metric="est" className="mb-6" />
 
       {/* Quick filter / drill-down hub */}
       <div className="flex flex-wrap gap-2 mb-8">
@@ -203,8 +209,8 @@ export default async function BoxOfficePage() {
         />
         <Leaderboard
           icon={DollarSign}
-          title="Biggest Profit"
-          subtitle="Lifetime gross minus production budget"
+          title="Biggest Est. Profit"
+          subtitle="Estimated studio profit (see note above)"
           rows={topProfit}
           metric="profit"
           viewAllHref="/box-office/all?sort=profit-desc"
@@ -216,8 +222,8 @@ export default async function BoxOfficePage() {
         />
         <Leaderboard
           icon={BarChart3}
-          title="Best Return on Investment"
-          subtitle={`ROI = revenue ÷ budget (min $100K budget)`}
+          title="Best Est. Return on Investment"
+          subtitle="Est. studio share ÷ (budget + capped marketing)"
           rows={bestROI}
           metric="roi"
           viewAllHref="/box-office/all?sort=roi-desc"
@@ -230,7 +236,7 @@ export default async function BoxOfficePage() {
         <Leaderboard
           icon={AlertTriangle}
           title="Biggest Box Office Bombs"
-          subtitle="Worst ROI (min $100K budget)"
+          subtitle="Worst Est. ROI (min $100K budget)"
           rows={worstROI}
           metric="roi"
           viewAllHref="/box-office/all?sort=roi-asc"

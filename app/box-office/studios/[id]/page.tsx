@@ -4,13 +4,18 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Building2, Info } from "lucide-react";
 import { getStudioMovies } from "@/lib/box-office-queries";
-import { formatBoxOffice, formatROI } from "@/lib/box-office";
+import { formatBoxOffice, formatROI, calculateROI, type BoxOfficeMetric } from "@/lib/box-office";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import MetricToggle, { parseMetric } from "@/components/box-office/MetricToggle";
+import ProfitFormulaNote from "@/components/box-office/ProfitFormulaNote";
 
+// Reading searchParams forces per-request render when ?metric= is
+// set; the default-metric variant still benefits from the 6h cache.
 export const revalidate = 21600;
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ metric?: string | string[] }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -31,8 +36,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function StudioDetailPage({ params }: Props) {
+export default async function StudioDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const sp = await searchParams;
+  const metric: BoxOfficeMetric = parseMetric(sp.metric);
   const studioId = parseInt(id, 10);
   if (Number.isNaN(studioId)) notFound();
 
@@ -46,6 +53,16 @@ export default async function StudioDetailPage({ params }: Props) {
   const totalBudget = movies.reduce((acc, m) => acc + (m.budget ?? 0), 0);
   const filmsWithRevenue = movies.filter((m) => m.revenue != null).length;
   const filmsWithBudget = movies.filter((m) => m.budget != null).length;
+
+  // Studio-wide ROI computed against the active metric. Same
+  // treat-the-aggregate-as-one-virtual-film approach we use for
+  // franchises.
+  const studioROI =
+    totalRevenue > 0 && totalBudget > 0
+      ? metric === "gross"
+        ? totalRevenue / totalBudget
+        : calculateROI(BigInt(totalRevenue), BigInt(totalBudget), "est")
+      : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -97,15 +114,18 @@ export default async function StudioDetailPage({ params }: Props) {
           hint={filmsWithBudget < movies.length ? `${filmsWithBudget} of ${movies.length} reported` : undefined}
         />
         <Stat
-          label="Studio ROI"
-          value={
-            totalBudget > 0 && totalRevenue > 0
-              ? formatROI(totalRevenue / totalBudget) ?? "—"
-              : "—"
-          }
-          hint="Total revenue ÷ total budget"
+          label={`Studio ${metric === "gross" ? "Gross " : "Est. "}ROI`}
+          value={studioROI != null ? formatROI(studioROI) ?? "—" : "—"}
+          hint={metric === "gross" ? "Total revenue ÷ total budget" : "Est. studio share ÷ (budget + capped marketing)"}
         />
       </div>
+
+      {/* Metric toggle + formula note. */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold">ROI calculation</span>
+        <MetricToggle metric={metric} />
+      </div>
+      <ProfitFormulaNote metric={metric} className="mb-4" />
 
       {filmsWithRevenue < movies.length || filmsWithBudget < movies.length ? (
         <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
@@ -126,7 +146,7 @@ export default async function StudioDetailPage({ params }: Props) {
           <span className="text-right">Year</span>
           <span className="text-right">Revenue</span>
           <span className="text-right">Budget</span>
-          <span className="text-right">ROI</span>
+          <span className="text-right">{metric === "gross" ? "Gross " : "Est. "}ROI</span>
         </div>
         <ul className="divide-y divide-[var(--border)]">
           {movies.map((m) => (
@@ -162,7 +182,12 @@ export default async function StudioDetailPage({ params }: Props) {
                   {formatBoxOffice(m.budget) ?? "—"}
                 </span>
                 <span className="hidden md:block text-sm text-white tabular-nums text-right">
-                  {formatROI(m.roi) ?? "—"}
+                  {(() => {
+                    const display = metric === "gross"
+                      ? (m.revenue != null && m.budget != null && m.budget > 0 ? m.revenue / m.budget : null)
+                      : m.roi;
+                    return formatROI(display) ?? "—";
+                  })()}
                 </span>
               </Link>
             </li>

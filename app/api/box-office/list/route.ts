@@ -76,8 +76,11 @@ export async function GET(req: NextRequest) {
     // ORDER BY can reference (revenue - budget) and (revenue/budget)
     // without re-applying filters per-row.
     if (sort === "profit-desc" || sort === "profit-asc" || sort === "roi-desc" || sort === "roi-asc") {
+      const metricParam = sp.get("metric");
+      const metric: "est" | "gross" = metricParam === "gross" ? "gross" : "est";
       return await runComputedSort({
         sort,
+        metric,
         genreIds,
         mpaCodes,
         languages,
@@ -155,6 +158,7 @@ export async function GET(req: NextRequest) {
  *  with parameter placeholders to keep the query injection-safe. */
 async function runComputedSort(opts: {
   sort: "profit-desc" | "profit-asc" | "roi-desc" | "roi-asc";
+  metric: "est" | "gross";
   genreIds: number[];
   mpaCodes: string[];
   languages: string[];
@@ -163,7 +167,7 @@ async function runComputedSort(opts: {
   limit: number;
   offset: number;
 }): Promise<NextResponse> {
-  const { sort, genreIds, mpaCodes, languages, releaseFrom, releaseTo, limit, offset } = opts;
+  const { sort, metric, genreIds, mpaCodes, languages, releaseFrom, releaseTo, limit, offset } = opts;
 
   // Both profit and ROI need real revenue and a real budget. ROI
   // additionally needs the higher ROI_MIN_BUDGET floor so a $5K film
@@ -193,11 +197,20 @@ async function runComputedSort(opts: {
   }
 
   const whereSql = whereClauses.join(" AND ");
+  // Estimated formula must match lib/box-office.ts. Studio share 45%
+  // of revenue minus production budget minus capped marketing
+  // (min(budget × 50%, $150M)).
+  const profitExpr = metric === "gross"
+    ? "(m.revenue - m.budget)"
+    : "(m.revenue::float * 0.45 - m.budget::float - LEAST(m.budget::float * 0.5, 150000000))";
+  const roiExpr = metric === "gross"
+    ? "(m.revenue::float / m.budget::float)"
+    : "((m.revenue::float * 0.45) / (m.budget::float + LEAST(m.budget::float * 0.5, 150000000)))";
   const orderExpr =
-    sort === "profit-desc" ? "(m.revenue - m.budget) DESC"
-    : sort === "profit-asc" ? "(m.revenue - m.budget) ASC"
-    : sort === "roi-desc" ? "(m.revenue::float / m.budget::float) DESC"
-    : "(m.revenue::float / m.budget::float) ASC";
+    sort === "profit-desc" ? `${profitExpr} DESC`
+    : sort === "profit-asc" ? `${profitExpr} ASC`
+    : sort === "roi-desc" ? `${roiExpr} DESC`
+    : `${roiExpr} ASC`;
 
   // Two queries: count + results. The count omits LIMIT/OFFSET.
   const countSql = `SELECT COUNT(*)::bigint AS count FROM movies m WHERE ${whereSql}`;

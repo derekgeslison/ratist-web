@@ -80,16 +80,16 @@ export async function GET(request: Request) {
       subtitle = "Lifetime worldwide gross";
       topRows = (await getTopGrossing(5)).map(toRow);
     } else if (page === "topProfit") {
-      title = "Biggest Profit of All Time";
-      subtitle = "Lifetime gross minus production budget";
+      title = "Biggest Est. Profit of All Time";
+      subtitle = "Estimated studio P&L (worldwide)";
       topRows = (await getTopProfit(5)).map(toProfitRow);
     } else if (page === "bestROI") {
-      title = "Best Return on Investment";
-      subtitle = "Revenue ÷ budget · min $100K";
+      title = "Best Est. Return on Investment";
+      subtitle = "Studio share ÷ (budget + capped marketing)";
       topRows = (await getROIRanking("best", 5)).map(toROIRow);
     } else if (page === "worstROI") {
       title = "Biggest Box Office Bombs";
-      subtitle = "Worst ROI · min $100K budget";
+      subtitle = "Worst Est. ROI · min $100K budget";
       topRows = (await getROIRanking("worst", 5)).map(toROIRow);
     } else if (page === "highestBudget") {
       title = "Highest Production Budgets";

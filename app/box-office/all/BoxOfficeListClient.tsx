@@ -9,8 +9,11 @@ import {
   formatBoxOffice,
   formatROI,
   type BoxOfficeRow,
+  type BoxOfficeMetric,
 } from "@/lib/box-office";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import MetricToggle from "@/components/box-office/MetricToggle";
+import ProfitFormulaNote from "@/components/box-office/ProfitFormulaNote";
 
 interface Genre {
   id: number;
@@ -119,6 +122,10 @@ export default function BoxOfficeListClient({ genres }: Props) {
   // the user opts in. The active-filter count stays visible in the
   // collapsed header so it's clear when filters are already applied.
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  // Toggle between the estimated studio-P&L formula (default) and
+  // the naive revenue−budget math. Lives in URL state via
+  // MetricToggle so it's shareable.
+  const metric: BoxOfficeMetric = (searchParams.get("metric") === "gross") ? "gross" : "est";
 
   const [results, setResults] = useState<BoxOfficeRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -138,9 +145,13 @@ export default function BoxOfficeListClient({ genres }: Props) {
     if (selectedLanguage) params.set("languages", selectedLanguage);
     if (releaseFrom) params.set("releaseFrom", releaseFrom);
     if (releaseTo) params.set("releaseTo", releaseTo);
+    // Metric only matters for profit/ROI sorts (the SQL ORDER BY
+    // swaps based on it), but pass it always so the API doesn't
+    // re-derive from raw URL.
+    if (metric === "gross") params.set("metric", "gross");
     params.set("limit", String(PAGE_SIZE));
     return `/api/box-office/list?${params.toString()}`;
-  }, [sort, selectedGenres, selectedMpa, selectedLanguage, releaseFrom, releaseTo]);
+  }, [sort, selectedGenres, selectedMpa, selectedLanguage, releaseFrom, releaseTo, metric]);
 
   // Sync the same filter state to the URL bar — so back/forward and
   // direct-link sharing both work without an extra useEffect chain.
@@ -153,9 +164,10 @@ export default function BoxOfficeListClient({ genres }: Props) {
     if (releaseFrom) params.set("releaseFrom", releaseFrom);
     if (releaseTo) params.set("releaseTo", releaseTo);
     if (dateMode !== "year") params.set("dateMode", dateMode);
+    if (metric === "gross") params.set("metric", "gross");
     const qs = params.toString();
     router.replace(qs ? `/box-office/all?${qs}` : "/box-office/all", { scroll: false });
-  }, [sort, selectedGenres, selectedMpa, selectedLanguage, releaseFrom, releaseTo, dateMode, router]);
+  }, [sort, selectedGenres, selectedMpa, selectedLanguage, releaseFrom, releaseTo, dateMode, metric, router]);
 
   // Fetch first page whenever filters change. Independent from the
   // load-more handler so we always reset to page 1 on filter change.
@@ -314,6 +326,17 @@ export default function BoxOfficeListClient({ genres }: Props) {
           shareText={shareText}
         />
       </div>
+
+      {/* Profit/ROI calculation toggle + explanation. The toggle
+         swaps every Profit / ROI column on the page (and the SQL sort)
+         between the estimated studio-P&L formula and the naive
+         revenue−budget math. The formula note is shown only when on
+         Estimated; Gross math is self-explanatory. */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold">Profit / ROI</span>
+        <MetricToggle metric={metric} />
+      </div>
+      <ProfitFormulaNote metric={metric} className="mb-3" />
 
       <div className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 mb-6">
         <Info className="w-4 h-4 text-[var(--foreground-muted)] shrink-0 mt-0.5" />
@@ -554,7 +577,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
           <span className="text-right">Revenue</span>
           <span className="text-right">Budget</span>
           <span className="text-right">
-            {sort.startsWith("roi") ? "ROI" : "Profit"}
+            {metric === "gross" ? "Gross " : "Est. "}{sort.startsWith("roi") ? "ROI" : "Profit"}
           </span>
         </div>
         <div className="overflow-hidden rounded-b-xl">
@@ -570,7 +593,7 @@ export default function BoxOfficeListClient({ genres }: Props) {
           ) : (
             <ul className="divide-y divide-[var(--border)]">
               {results.map((row, idx) => (
-                <ResultRow key={row.tmdbId} row={row} rank={idx + 1} sort={sort} />
+                <ResultRow key={row.tmdbId} row={row} rank={idx + 1} sort={sort} metric={metric} />
               ))}
             </ul>
           )}
@@ -592,15 +615,28 @@ export default function BoxOfficeListClient({ genres }: Props) {
   );
 }
 
-function ResultRow({ row, rank, sort }: { row: BoxOfficeRow; rank: number; sort: string }) {
+function ResultRow({ row, rank, sort, metric }: { row: BoxOfficeRow; rank: number; sort: string; metric: BoxOfficeMetric }) {
   const showROI = sort.startsWith("roi");
-  const rightLabel = showROI ? "ROI" : "Profit";
+  // Label always carries the qualifier ("Est." or "Gross") so the
+  // active calculation is obvious from a glance — no surprises if
+  // someone swaps modes mid-session.
+  const prefix = metric === "gross" ? "Gross " : "Est. ";
+  const rightLabel = `${prefix}${showROI ? "ROI" : "Profit"}`;
+  // Compute the displayed value from raw revenue + budget when the
+  // user is in Gross mode. row.profit / row.roi are pre-populated
+  // with the estimated values by toBoxOfficeRow.
+  const displayProfit = metric === "gross"
+    ? (row.revenue != null && row.budget != null ? row.revenue - row.budget : null)
+    : row.profit;
+  const displayROI = metric === "gross"
+    ? (row.revenue != null && row.budget != null && row.budget > 0 ? row.revenue / row.budget : null)
+    : row.roi;
   const rightValue = showROI
-    ? formatROI(row.roi)
-    : row.profit != null
-      ? row.profit < 0
-        ? `−${formatBoxOffice(Math.abs(row.profit))}`
-        : formatBoxOffice(row.profit)
+    ? formatROI(displayROI)
+    : displayProfit != null
+      ? displayProfit < 0
+        ? `−${formatBoxOffice(Math.abs(displayProfit))}`
+        : formatBoxOffice(displayProfit)
       : null;
 
   const year = row.releaseDate?.slice(0, 4) ?? "—";

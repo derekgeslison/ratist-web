@@ -12,9 +12,27 @@ import { prisma } from "@/lib/prisma";
 import {
   BOX_OFFICE_FLOOR,
   ROI_MIN_BUDGET,
+  STUDIO_SHARE_RATE,
+  MARKETING_PCT,
+  MARKETING_CAP,
   toBoxOfficeRow,
   type BoxOfficeRow,
+  type BoxOfficeMetric,
 } from "@/lib/box-office";
+
+// SQL fragments matching the JS estimators in lib/box-office.ts so
+// the `metric=est` SQL ORDER BY produces the same ranking the UI
+// shows in row math. Inlined as string literals (rather than $-params)
+// because Postgres treats them as numeric constants in the expression.
+const SQL_EST_STUDIO_SHARE = `(m.revenue::float * ${STUDIO_SHARE_RATE})`;
+const SQL_EST_MARKETING = `LEAST(m.budget::float * ${MARKETING_PCT}, ${MARKETING_CAP})`;
+const SQL_EST_TOTAL_COST = `(m.budget::float + ${SQL_EST_MARKETING})`;
+const SQL_EST_PROFIT = `(${SQL_EST_STUDIO_SHARE} - ${SQL_EST_TOTAL_COST})`;
+const SQL_EST_ROI = `(${SQL_EST_STUDIO_SHARE} / ${SQL_EST_TOTAL_COST})`;
+
+// Bare-table-alias variants for queries that don't alias to `m`.
+const SQL_EST_PROFIT_BARE = SQL_EST_PROFIT.replace(/m\./g, "");
+const SQL_EST_ROI_BARE = SQL_EST_ROI.replace(/m\./g, "");
 
 const BASE_SELECT = {
   tmdbId: true,
@@ -73,8 +91,12 @@ export async function getHighestBudget(limit: number = 10): Promise<BoxOfficeRow
 export async function getROIRanking(
   direction: "best" | "worst",
   limit: number = 10,
+  metric: BoxOfficeMetric = "est",
 ): Promise<BoxOfficeRow[]> {
   const order = direction === "best" ? "DESC" : "ASC";
+  const roiExpr = metric === "gross"
+    ? "(revenue::float / budget::float)"
+    : SQL_EST_ROI_BARE;
   const rows = await prisma.$queryRawUnsafe<
     Array<{
       tmdb_id: number;
@@ -88,7 +110,7 @@ export async function getROIRanking(
     `SELECT tmdb_id, title, poster_path, release_date, revenue, budget
      FROM movies
      WHERE revenue >= $1 AND budget >= $2
-     ORDER BY (revenue::float / budget::float) ${order}
+     ORDER BY ${roiExpr} ${order}
      LIMIT $3`,
     Number(BOX_OFFICE_FLOOR),
     Number(ROI_MIN_BUDGET),
@@ -106,9 +128,16 @@ export async function getROIRanking(
   );
 }
 
-/** Biggest profit (revenue minus budget). Different from ROI: a movie
- *  with $500M profit on a $200M budget beats a 100× ROI student film. */
-export async function getTopProfit(limit: number = 10): Promise<BoxOfficeRow[]> {
+/** Biggest profit. Default uses the estimated studio-side P&L formula
+ *  (matches the UI's "Est. Profit" column); `metric: "gross"` returns
+ *  the naive revenue - budget ranking instead. */
+export async function getTopProfit(
+  limit: number = 10,
+  metric: BoxOfficeMetric = "est",
+): Promise<BoxOfficeRow[]> {
+  const profitExpr = metric === "gross"
+    ? "(revenue - budget)"
+    : SQL_EST_PROFIT_BARE;
   const rows = await prisma.$queryRawUnsafe<
     Array<{
       tmdb_id: number;
@@ -122,7 +151,7 @@ export async function getTopProfit(limit: number = 10): Promise<BoxOfficeRow[]> 
     `SELECT tmdb_id, title, poster_path, release_date, revenue, budget
      FROM movies
      WHERE revenue >= $1 AND budget >= $2
-     ORDER BY (revenue - budget) DESC
+     ORDER BY ${profitExpr} DESC
      LIMIT $3`,
     Number(BOX_OFFICE_FLOOR),
     Number(ROI_MIN_BUDGET),
@@ -323,6 +352,9 @@ export interface BoxOfficeFilters {
   languages?: string[];
   releaseFrom?: string;
   releaseTo?: string;
+  /** Sort-only: switches profit / ROI ordering between the estimated
+   *  studio-P&L formula and naive revenue/budget. Other sorts ignore. */
+  metric?: BoxOfficeMetric;
 }
 
 /**
@@ -349,11 +381,14 @@ export async function getTopFiltered(filters: BoxOfficeFilters, limit: number): 
     if (genreIds.length) {
       wheres.push(`EXISTS (SELECT 1 FROM movie_genres mg WHERE mg.movie_id = m.id AND mg.genre_id IN (${genreIds.map((g) => push(g)).join(",")}))`);
     }
+    const metric: BoxOfficeMetric = filters.metric ?? "est";
+    const profitExpr = metric === "gross" ? "(m.revenue - m.budget)" : SQL_EST_PROFIT;
+    const roiExpr = metric === "gross" ? "(m.revenue::float / m.budget::float)" : SQL_EST_ROI;
     const order =
-      sort === "profit-desc" ? "(m.revenue - m.budget) DESC"
-      : sort === "profit-asc" ? "(m.revenue - m.budget) ASC"
-      : sort === "roi-desc" ? "(m.revenue::float / m.budget::float) DESC"
-      : "(m.revenue::float / m.budget::float) ASC";
+      sort === "profit-desc" ? `${profitExpr} DESC`
+      : sort === "profit-asc" ? `${profitExpr} ASC`
+      : sort === "roi-desc" ? `${roiExpr} DESC`
+      : `${roiExpr} ASC`;
     const sql = `
       SELECT m.tmdb_id, m.title, m.poster_path, m.release_date, m.revenue, m.budget
         FROM movies m

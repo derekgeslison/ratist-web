@@ -9,13 +9,17 @@ import {
   formatBoxOffice,
   formatROI,
   BOX_OFFICE_FLOOR,
+  type BoxOfficeMetric,
 } from "@/lib/box-office";
 import { BoxOfficeShare } from "@/components/box-office/BoxOfficeShare";
+import MetricToggle, { parseMetric } from "@/components/box-office/MetricToggle";
+import ProfitFormulaNote from "@/components/box-office/ProfitFormulaNote";
 
 export const revalidate = 21600;
 
 interface Props {
   params: Promise<{ year: string }>;
+  searchParams: Promise<{ metric?: string | string[] }>;
 }
 
 const MIN_YEAR = 1900;
@@ -44,8 +48,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function BoxOfficeYearPage({ params }: Props) {
+export default async function BoxOfficeYearPage({ params, searchParams }: Props) {
   const { year: yearParam } = await params;
+  const sp = await searchParams;
+  const metric: BoxOfficeMetric = parseMetric(sp.metric);
   const year = parseYear(yearParam);
   if (!year) notFound();
 
@@ -115,6 +121,17 @@ export default async function BoxOfficeYearPage({ params }: Props) {
         </div>
       ) : null}
 
+      {/* Metric toggle + formula note above the table. */}
+      {movies.length > 0 && (
+        <>
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider font-semibold">ROI calculation</span>
+            <MetricToggle metric={metric} />
+          </div>
+          <ProfitFormulaNote metric={metric} className="mb-4" />
+        </>
+      )}
+
       {/* Per-film table */}
       {movies.length > 0 && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden mb-6">
@@ -124,7 +141,7 @@ export default async function BoxOfficeYearPage({ params }: Props) {
             <span>Title</span>
             <span className="text-right">Revenue</span>
             <span className="text-right">Budget</span>
-            <span className="text-right">ROI</span>
+            <span className="text-right">{metric === "gross" ? "Gross " : "Est. "}ROI</span>
           </div>
           <ul className="divide-y divide-[var(--border)]">
             {movies.map((m, idx) => (
@@ -161,7 +178,12 @@ export default async function BoxOfficeYearPage({ params }: Props) {
                     {formatBoxOffice(m.budget) ?? "—"}
                   </span>
                   <span className="hidden md:block text-sm text-white tabular-nums text-right">
-                    {formatROI(m.roi) ?? "—"}
+                    {(() => {
+                      const display = metric === "gross"
+                        ? (m.revenue != null && m.budget != null && m.budget > 0 ? m.revenue / m.budget : null)
+                        : m.roi;
+                      return formatROI(display) ?? "—";
+                    })()}
                   </span>
                 </Link>
               </li>
