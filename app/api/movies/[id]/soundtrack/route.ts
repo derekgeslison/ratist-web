@@ -50,10 +50,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const title = req.nextUrl.searchParams.get("title") ?? "";
   const mediaType = req.nextUrl.searchParams.get("type") ?? "movie"; // "movie" | "tv"
+  const releaseDateParam = req.nextUrl.searchParams.get("releaseDate");
   const yearParam = req.nextUrl.searchParams.get("year");
   const movieYear = yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : null;
 
   if (!title) return NextResponse.json({ tracks: [] });
+
+  // Hard release-date gate. A title with no known release date, or one
+  // more than ~1 month in the future, simply doesn't have a soundtrack
+  // we should be matching against — and the matcher tends to misfire
+  // hard in that void (an unreleased "Jane" pulled a same-name film's
+  // soundtrack because no year filter could apply). Bail out before
+  // we even call MusicBrainz.
+  const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+  if (!releaseDateParam) return NextResponse.json({ tracks: [] });
+  const releaseTs = Date.parse(releaseDateParam);
+  if (!Number.isFinite(releaseTs)) return NextResponse.json({ tracks: [] });
+  if (releaseTs > Date.now() + ONE_MONTH_MS) return NextResponse.json({ tracks: [] });
 
   try {
     // Search for soundtrack releases matching the title
@@ -112,7 +125,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const candidates = searchData.releases
       .filter((r) => {
         const rNorm = normalize(r.title);
-        return titleMatchesSoundtrack(rNorm, titleNorm);
+        if (!titleMatchesSoundtrack(rNorm, titleNorm)) return false;
+        // Hard year-gap reject. When the caller passed a year, drop
+        // any release dated more than 5 years off — that window covers
+        // legitimate anniversary/re-issue releases without accepting
+        // a different-decade same-name film's soundtrack.
+        if (movieYear && r.date) {
+          const m = r.date.match(/^(\d{4})/);
+          if (m && Math.abs(Number(m[1]) - movieYear) > 5) return false;
+        }
+        return true;
       })
       .map((r) => {
         const rTitle = r.title.toLowerCase();

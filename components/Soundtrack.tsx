@@ -18,22 +18,27 @@ interface Props {
   tmdbId: number;
   title: string;
   mediaType?: "movie" | "tv";
-  /** Release year of the movie or show — passed to the soundtrack
-   *  matcher as a tiebreaker / outlier filter so a similarly-named
-   *  film's soundtrack doesn't get pulled (e.g. "Jane" vs "Becoming
-   *  Jane"). */
-  year?: string | number | null;
+  /** Full release date (ISO yyyy-mm-dd or yyyy form). Drives both the
+   *  hard release-window gate (no fetch for titles without a date or
+   *  more than ~1 month away) and the year-proximity scoring for
+   *  same-name-different-year confusion (e.g. "Jane" vs the 2017
+   *  "Jane" documentary). */
+  releaseDate?: string | null;
 }
 
-export default function Soundtrack({ tmdbId, title, mediaType = "movie", year }: Props) {
+export default function Soundtrack({ tmdbId, title, mediaType = "movie", releaseDate }: Props) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [albumTitle, setAlbumTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams({ title, type: mediaType });
-    const yearMatch = year != null ? String(year).match(/^(\d{4})/) : null;
+    // Don't even call the API for titles with no known release date —
+    // the server short-circuits in that case, but skipping the round
+    // trip is friendlier in dev / on the prod network log.
+    if (!releaseDate) { setLoading(false); return; }
+    const params = new URLSearchParams({ title, type: mediaType, releaseDate });
+    const yearMatch = releaseDate.match(/^(\d{4})/);
     if (yearMatch) params.set("year", yearMatch[1]);
     fetch(`/api/movies/${tmdbId}/soundtrack?${params.toString()}`)
       .then((r) => r.json())
@@ -43,7 +48,7 @@ export default function Soundtrack({ tmdbId, title, mediaType = "movie", year }:
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [tmdbId, title, mediaType, year]);
+  }, [tmdbId, title, mediaType, releaseDate]);
 
   if (loading) {
     return (

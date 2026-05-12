@@ -234,15 +234,20 @@ export default async function MoviesPage({ searchParams }: Props) {
   // client component queries our DB and renders below in place of these
   // TMDB-backed results).
   if (showMovies && shouldFetchMovies && !seenOnlyMode) {
-    if (params.search && !hasFilters && sort === "popular") {
+    if (params.search) {
+      // Any sort + any filter set: still use /search/movie. TMDB's
+      // /discover/movie silently drops `with_text_query`, so falling
+      // back to discover when sort != "popular" was throwing away
+      // the search term and returning the global top-N by sort
+      // instead. Sort gets applied in-memory below (search has no
+      // sort_by param).
       movieResult = await fetchMoviePages((p) => searchMovies(params.search!, p));
       pageTitle = `Search: "${params.search}"`;
-    } else if (params.search || hasFilters) {
+    } else if (hasFilters) {
       movieResult = await fetchMoviePages((p) =>
-        discoverMovies({ ...discoverOptions, query: params.search, page: p })
+        discoverMovies({ ...discoverOptions, page: p })
       );
-      if (params.search) pageTitle = `Search: "${params.search}"`;
-      else if (releaseStatus === "now_playing") pageTitle = "Now Playing in Theaters";
+      if (releaseStatus === "now_playing") pageTitle = "Now Playing in Theaters";
       else if (releaseStatus === "upcoming") pageTitle = "Coming Soon";
     } else if (sort === "popular") {
       movieResult = await fetchMoviePages((p) => getPopularMovies(p));
@@ -302,11 +307,15 @@ export default async function MoviesPage({ searchParams }: Props) {
       releaseStatus,
     };
 
-    if (params.search && !hasFilters && sort === "popular") {
+    if (params.search) {
+      // Same fix as movies above — always use /search/tv when there's
+      // a search term, then in-memory sort. /discover/tv's
+      // with_text_query is unreliable and we'd otherwise lose the
+      // search filter on non-popular sorts.
       showResult = await fetchShowPages((p) => searchShows(params.search!, p));
-    } else if (isSearchOrFilter) {
+    } else if (hasFilters) {
       showResult = await fetchShowPages((p) =>
-        discoverShows({ ...tvDiscoverOptions, page: p, query: params.search })
+        discoverShows({ ...tvDiscoverOptions, page: p })
       );
     } else if (!isSearchOrFilter) {
       if (sort === "popular") {
@@ -337,6 +346,32 @@ export default async function MoviesPage({ searchParams }: Props) {
   }
   if (seenOnlyMode) {
     pageTitle = contentType === "movie" ? "Seen Movies" : contentType === "tv" ? "Seen TV Shows" : "Seen";
+  }
+
+  // In-memory sort for search-driven results. TMDB's /search/movie and
+  // /search/tv have no sort_by parameter — their default order is
+  // popularity-derived. When the viewer pairs a search term with a
+  // non-popular sort selection, we apply the sort here so the
+  // selection isn't silently ignored.
+  if (params.search && sort !== "popular") {
+    if (movieResult) {
+      const arr = [...movieResult.results];
+      if (sort === "top_rated") arr.sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
+      else if (sort === "newest") arr.sort((a, b) => (b.release_date ?? "").localeCompare(a.release_date ?? ""));
+      else if (sort === "oldest") arr.sort((a, b) => (a.release_date ?? "").localeCompare(b.release_date ?? ""));
+      else if (sort === "title_az") arr.sort((a, b) => a.title.localeCompare(b.title));
+      else if (sort === "title_za") arr.sort((a, b) => b.title.localeCompare(a.title));
+      movieResult = { ...movieResult, results: arr };
+    }
+    if (showResult) {
+      const arr = [...showResult.results];
+      if (sort === "top_rated") arr.sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
+      else if (sort === "newest") arr.sort((a, b) => (b.first_air_date ?? "").localeCompare(a.first_air_date ?? ""));
+      else if (sort === "oldest") arr.sort((a, b) => (a.first_air_date ?? "").localeCompare(b.first_air_date ?? ""));
+      else if (sort === "title_az") arr.sort((a, b) => a.name.localeCompare(b.name));
+      else if (sort === "title_za") arr.sort((a, b) => b.name.localeCompare(a.name));
+      showResult = { ...showResult, results: arr };
+    }
   }
 
   // ── AI-driven post-filters ──
@@ -438,13 +473,36 @@ export default async function MoviesPage({ searchParams }: Props) {
   if (isSearchMode && (movieResult || showResult)) {
     const movies: MixedItem[] = (movieResult?.results ?? []).map((m) => ({ type: "movie" as const, data: m, popularity: m.popularity }));
     const shows: MixedItem[] = (showResult?.results ?? []).map((s) => ({ type: "show" as const, data: s, popularity: s.popularity }));
+    // Cross-type accessors so a single sort closure can handle both
+    // sides of the merged set.
+    const dateOf = (item: MixedItem): string =>
+      item.type === "movie"
+        ? (item.data as TMDBMovie).release_date ?? ""
+        : (item.data as TMDBShow).first_air_date ?? "";
+    const titleOf = (item: MixedItem): string =>
+      item.type === "movie" ? (item.data as TMDBMovie).title : (item.data as TMDBShow).name;
+    const voteOf = (item: MixedItem): number =>
+      (item.data as { vote_average?: number }).vote_average ?? 0;
+
+    let merged = [...movies, ...shows];
     if (isRelevance && genres && genres.length >= 2) {
       // Relevance already placed best matches first — preserve that order
       // (don't re-sort by popularity which would undo the client match sort).
-      mixedResults = [...movies, ...shows].slice(0, perPage);
+    } else if (sort === "top_rated") {
+      merged.sort((a, b) => voteOf(b) - voteOf(a));
+    } else if (sort === "newest") {
+      merged.sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
+    } else if (sort === "oldest") {
+      merged.sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
+    } else if (sort === "title_az") {
+      merged.sort((a, b) => titleOf(a).localeCompare(titleOf(b)));
+    } else if (sort === "title_za") {
+      merged.sort((a, b) => titleOf(b).localeCompare(titleOf(a)));
     } else {
-      mixedResults = [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, perPage);
+      // popular / default — popularity desc (existing behavior).
+      merged.sort((a, b) => b.popularity - a.popularity);
     }
+    mixedResults = merged.slice(0, perPage);
   }
 
   const genreList = await (contentType === "tv" ? getShowGenres() : getGenres());
