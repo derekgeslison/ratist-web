@@ -151,6 +151,30 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // Soft "posting block" — user can still browse + rate their own
+    // reviews, but can't comment, post forum threads/replies, or
+    // create community items / collections / companion suggestions.
+    // Mirrors the ban action shape: optional reason + optional expiry.
+    case "block_posting": {
+      const { reason, expiresAt } = body;
+      const until = expiresAt ? new Date(expiresAt) : null;
+      await prisma.user.update({
+        where: { id: userId },
+        data: { postingBlockedAt: new Date(), postingBlockedUntil: until, postingBlockReason: reason || null },
+      });
+      await logAdminAction(admin.id, "block_posting", userId, `Blocked from posting${reason ? `: ${reason}` : ""}${until ? ` until ${until.toISOString().slice(0, 10)}` : " (permanent)"}`);
+      return NextResponse.json({ ok: true });
+    }
+
+    case "unblock_posting": {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { postingBlockedAt: null, postingBlockedUntil: null, postingBlockReason: null },
+      });
+      await logAdminAction(admin.id, "unblock_posting", userId, "Posting block lifted");
+      return NextResponse.json({ ok: true });
+    }
+
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }

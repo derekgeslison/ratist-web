@@ -35,9 +35,12 @@ export async function GET(req: NextRequest) {
   });
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
 
-  // Resolve target movie/show names
+  // Resolve target movie/show names. show / show_season / show_episode
+  // all use a TVShow DB id, so we can pool them into one lookup.
   const movieIds = flags.filter((f) => f.targetType === "movie" && f.targetId).map((f) => f.targetId!);
-  const showIds = flags.filter((f) => f.targetType === "show" && f.targetId).map((f) => f.targetId!);
+  const showIds = flags
+    .filter((f) => (f.targetType === "show" || f.targetType === "show_season" || f.targetType === "show_episode") && f.targetId)
+    .map((f) => f.targetId!);
   const [movies, shows] = await Promise.all([
     movieIds.length > 0 ? prisma.movie.findMany({ where: { id: { in: movieIds } }, select: { id: true, title: true, tmdbId: true } }) : [],
     showIds.length > 0 ? prisma.tVShow.findMany({ where: { id: { in: showIds } }, select: { id: true, name: true, tmdbId: true } }) : [],
@@ -217,7 +220,7 @@ export async function POST(req: NextRequest) {
       flagsCreated.push(flag.id);
     }
 
-    // Same for TV shows
+    // ── TV series-level bombs ─────────────────────────────────────
     const recentByShow = await prisma.tVShowRating.groupBy({
       by: ["tvShowId"],
       where: { createdAt: { gte: since }, ratistRating: { not: null }, ratingScope: "series" },
@@ -241,7 +244,7 @@ export async function POST(req: NextRequest) {
       if (!isLowBomb && !isHighBomb) continue;
 
       const existing = await prisma.fraudFlag.findFirst({
-        where: { type: "review_bomb", targetId: group.tvShowId, status: { not: "dismissed" } },
+        where: { type: "review_bomb", targetType: "show", targetId: group.tvShowId, status: { not: "dismissed" } },
       });
       if (existing) continue;
 
@@ -263,6 +266,170 @@ export async function POST(req: NextRequest) {
             ratings: recentRatings.map((r) => ({
               userId: r.userId,
               rating: r.ratistRating,
+              date: r.createdAt.toISOString().split("T")[0],
+            })),
+          },
+        },
+      });
+      flagsCreated.push(flag.id);
+    }
+
+    // ── TV per-season bombs ───────────────────────────────────────
+    // Same shape as the series scan but grouped by (tvShowId,
+    // seasonNumber) and scoped to season ratings only. Surfaces in
+    // the admin UI as a "review_bomb" with targetType="show_season";
+    // the season number rides in evidence.
+    const recentBySeason = await prisma.tVShowRating.groupBy({
+      by: ["tvShowId", "seasonNumber"],
+      where: { createdAt: { gte: since }, ratistRating: { not: null }, ratingScope: "season" },
+      _count: { id: true },
+    });
+
+    for (const group of recentBySeason) {
+      if (group._count.id < minRecent) continue;
+
+      const recentRatings = await prisma.tVShowRating.findMany({
+        where: {
+          tvShowId: group.tvShowId,
+          seasonNumber: group.seasonNumber,
+          createdAt: { gte: since },
+          ratistRating: { not: null },
+          ratingScope: "season",
+        },
+        select: { userId: true, ratistRating: true, createdAt: true },
+      });
+
+      const total = recentRatings.length;
+      const extremeLow = recentRatings.filter((r) => r.ratistRating! <= 2).length;
+      const extremeHigh = recentRatings.filter((r) => r.ratistRating! >= 9).length;
+
+      const isLowBomb = extremeLow / total >= extremeThreshold;
+      const isHighBomb = extremeHigh / total >= extremeThreshold;
+      if (!isLowBomb && !isHighBomb) continue;
+
+      // Dedupe on (target, season) using JSON contains since season
+      // number lives inside evidence.
+      const existing = await prisma.fraudFlag.findFirst({
+        where: {
+          type: "review_bomb",
+          targetType: "show_season",
+          targetId: group.tvShowId,
+          status: { not: "dismissed" },
+          evidence: { path: ["seasonNumber"], equals: group.seasonNumber },
+        },
+      });
+      if (existing) continue;
+
+      const userIds = recentRatings.map((r) => r.userId);
+      const flag = await prisma.fraudFlag.create({
+        data: {
+          type: "review_bomb",
+          severity: total >= 10 ? "high" : "medium",
+          userIds,
+          targetType: "show_season",
+          targetId: group.tvShowId,
+          evidence: {
+            seasonNumber: group.seasonNumber,
+            recentCount: total,
+            extremeLowCount: extremeLow,
+            extremeHighCount: extremeHigh,
+            extremeRate: Math.round(Math.max(extremeLow, extremeHigh) / total * 100),
+            direction: isLowBomb ? "low" : "high",
+            windowDays,
+            ratings: recentRatings.map((r) => ({
+              userId: r.userId,
+              rating: r.ratistRating,
+              date: r.createdAt.toISOString().split("T")[0],
+            })),
+          },
+        },
+      });
+      flagsCreated.push(flag.id);
+    }
+
+    // ── Episode-level bombs ──────────────────────────────────────
+    // Episode ratings are stored keyed by TMDB show id, not the
+    // local TVShow DB id, so we groupBy on the TMDB triple and then
+    // resolve the show row for targetId / display. minRecent is
+    // halved for episodes because per-episode rating volume is
+    // structurally lower than series-level. extremeLow / extremeHigh
+    // thresholds stay at ≤2 / ≥9 since the rating is the same 1–10
+    // scale.
+    const episodeMinRecent = Math.max(3, Math.floor(minRecent / 2));
+    const recentByEpisode = await prisma.episodeRating.groupBy({
+      by: ["showTmdbId", "seasonNumber", "episodeNumber"],
+      where: { createdAt: { gte: since }, excluded: false },
+      _count: { id: true },
+    });
+
+    // Resolve all involved show rows in one pass so we can attach
+    // targetId without an N+1 lookup.
+    const tmdbIds = [...new Set(recentByEpisode.filter((g) => g._count.id >= episodeMinRecent).map((g) => g.showTmdbId))];
+    const showRows = tmdbIds.length > 0
+      ? await prisma.tVShow.findMany({ where: { tmdbId: { in: tmdbIds } }, select: { id: true, tmdbId: true } })
+      : [];
+    const showRowByTmdb = new Map(showRows.map((r) => [r.tmdbId, r.id]));
+
+    for (const group of recentByEpisode) {
+      if (group._count.id < episodeMinRecent) continue;
+
+      const recentRatings = await prisma.episodeRating.findMany({
+        where: {
+          showTmdbId: group.showTmdbId,
+          seasonNumber: group.seasonNumber,
+          episodeNumber: group.episodeNumber,
+          createdAt: { gte: since },
+          excluded: false,
+        },
+        select: { userId: true, rating: true, createdAt: true },
+      });
+
+      const total = recentRatings.length;
+      const extremeLow = recentRatings.filter((r) => r.rating <= 2).length;
+      const extremeHigh = recentRatings.filter((r) => r.rating >= 9).length;
+
+      const isLowBomb = extremeLow / total >= extremeThreshold;
+      const isHighBomb = extremeHigh / total >= extremeThreshold;
+      if (!isLowBomb && !isHighBomb) continue;
+
+      const showRowId = showRowByTmdb.get(group.showTmdbId);
+      if (!showRowId) continue;
+
+      const existing = await prisma.fraudFlag.findFirst({
+        where: {
+          type: "review_bomb",
+          targetType: "show_episode",
+          targetId: showRowId,
+          status: { not: "dismissed" },
+          AND: [
+            { evidence: { path: ["seasonNumber"], equals: group.seasonNumber } },
+            { evidence: { path: ["episodeNumber"], equals: group.episodeNumber } },
+          ],
+        },
+      });
+      if (existing) continue;
+
+      const userIds = recentRatings.map((r) => r.userId);
+      const flag = await prisma.fraudFlag.create({
+        data: {
+          type: "review_bomb",
+          severity: total >= 8 ? "high" : "medium",
+          userIds,
+          targetType: "show_episode",
+          targetId: showRowId,
+          evidence: {
+            showTmdbId: group.showTmdbId,
+            seasonNumber: group.seasonNumber,
+            episodeNumber: group.episodeNumber,
+            recentCount: total,
+            extremeLowCount: extremeLow,
+            extremeHighCount: extremeHigh,
+            extremeRate: Math.round(Math.max(extremeLow, extremeHigh) / total * 100),
+            direction: isLowBomb ? "low" : "high",
+            windowDays,
+            ratings: recentRatings.map((r) => ({
+              userId: r.userId,
+              rating: r.rating,
               date: r.createdAt.toISOString().split("T")[0],
             })),
           },
@@ -346,19 +513,49 @@ export async function POST(req: NextRequest) {
           where: { userId: { in: userIds }, movieId: flag.targetId },
           data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
         });
-      } else {
+      } else if (flag.targetType === "show_season") {
+        const seasonNumber = (flag.evidence as { seasonNumber?: number })?.seasonNumber;
         await prisma.tVShowRating.updateMany({
-          where: { userId: { in: userIds }, tvShowId: flag.targetId },
+          where: {
+            userId: { in: userIds },
+            tvShowId: flag.targetId,
+            ratingScope: "season",
+            ...(typeof seasonNumber === "number" ? { seasonNumber } : {}),
+          },
+          data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
+        });
+      } else if (flag.targetType === "show_episode") {
+        const ev = flag.evidence as { showTmdbId?: number; seasonNumber?: number; episodeNumber?: number };
+        if (typeof ev.showTmdbId === "number" && typeof ev.seasonNumber === "number" && typeof ev.episodeNumber === "number") {
+          await prisma.episodeRating.updateMany({
+            where: {
+              userId: { in: userIds },
+              showTmdbId: ev.showTmdbId,
+              seasonNumber: ev.seasonNumber,
+              episodeNumber: ev.episodeNumber,
+            },
+            data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
+          });
+        }
+      } else {
+        // targetType === "show" (series scope)
+        await prisma.tVShowRating.updateMany({
+          where: { userId: { in: userIds }, tvShowId: flag.targetId, ratingScope: "series" },
           data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
         });
       }
     } else {
-      // Exclude all ratings from these users
+      // Exclude all ratings from these users — covers all three
+      // tables (duplicate_cluster / thin_account paths).
       await prisma.movieRating.updateMany({
         where: { userId: { in: userIds } },
         data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
       });
       await prisma.tVShowRating.updateMany({
+        where: { userId: { in: userIds } },
+        data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
+      });
+      await prisma.episodeRating.updateMany({
         where: { userId: { in: userIds } },
         data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
       });
@@ -394,12 +591,18 @@ export async function POST(req: NextRequest) {
     const reason = `Fraud flag: ${flag.type} (${flag.id})`;
     const userIds = flag.userIds as string[];
 
-    // Re-include ratings that were excluded by this specific flag
+    // Re-include ratings that were excluded by this specific flag.
+    // Three tables to walk because review_bomb flags can target
+    // movies, show series/seasons, or individual episodes.
     await prisma.movieRating.updateMany({
       where: { userId: { in: userIds }, excludedReason: reason },
       data: { excluded: false, excludedAt: null, excludedReason: null },
     });
     await prisma.tVShowRating.updateMany({
+      where: { userId: { in: userIds }, excludedReason: reason },
+      data: { excluded: false, excludedAt: null, excludedReason: null },
+    });
+    await prisma.episodeRating.updateMany({
       where: { userId: { in: userIds }, excludedReason: reason },
       data: { excluded: false, excludedAt: null, excludedReason: null },
     });
@@ -428,12 +631,18 @@ export async function POST(req: NextRequest) {
       data: { bannedAt: new Date(), banReason: `Banned via fraud detection: ${flag.type}` },
     });
 
-    // Also exclude their ratings
+    // Also exclude their ratings — all three rating tables, since a
+    // banned cluster shouldn't continue contributing to any community
+    // aggregate.
     await prisma.movieRating.updateMany({
       where: { userId: { in: userIds } },
       data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
     });
     await prisma.tVShowRating.updateMany({
+      where: { userId: { in: userIds } },
+      data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
+    });
+    await prisma.episodeRating.updateMany({
       where: { userId: { in: userIds } },
       data: { excluded: true, excludedAt: new Date(), excludedReason: reason },
     });

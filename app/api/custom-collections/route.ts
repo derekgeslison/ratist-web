@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
+import { postingBlockResponse } from "@/lib/posting-block";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,9 @@ export async function POST(req: NextRequest) {
   if (!user.isAdmin && !isSubscriptionActive(user)) {
     return NextResponse.json({ error: "Custom collections are a Backstage Pass feature." }, { status: 403 });
   }
+
+  const blockResp = await postingBlockResponse(user.id);
+  if (blockResp) return blockResp;
 
   const body = await req.json().catch(() => null);
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";

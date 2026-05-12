@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink, getCommentTargetLink } from "@/lib/notifications";
+import { postingBlockResponse } from "@/lib/posting-block";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const blockResp = await postingBlockResponse(user.id);
+    if (blockResp) return blockResp;
 
     const { targetType, targetId, parentId, text, gifUrl, linkedCollectionId: rawLinkedCollectionId } = await req.json();
     if (!targetType || !targetId) {

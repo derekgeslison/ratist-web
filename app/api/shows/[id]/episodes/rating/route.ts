@@ -43,7 +43,9 @@ export async function GET(req: NextRequest, { params }: Props) {
   // anonymous viewers so the show page can render community signals.
   const groups = await prisma.episodeRating.groupBy({
     by: ["seasonNumber", "episodeNumber"],
-    where: { showTmdbId },
+    // Exclude rows the admin has marked as bombed so the public
+    // community average matches what shows on the page after triage.
+    where: { showTmdbId, excluded: false },
     _avg: { rating: true },
     _count: { rating: true },
   });

@@ -24,6 +24,9 @@ interface UserDetail {
   bannedAt: string | null;
   bannedUntil: string | null;
   banReason: string | null;
+  postingBlockedAt: string | null;
+  postingBlockedUntil: string | null;
+  postingBlockReason: string | null;
   _count: {
     ratings: number;
     favoriteMovies: number;
@@ -131,6 +134,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             {u.isAdmin && <span className="text-xs bg-[var(--ratist-red)]/20 text-[var(--ratist-red)] px-2 py-0.5 rounded">Admin</span>}
             {u.deletedAt && <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded">Deleted</span>}
             {u.bannedAt && <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded">Banned</span>}
+            {u.postingBlockedAt && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded">Posting Blocked</span>}
           </div>
           <p className="text-sm text-[var(--foreground-muted)]">{u.email}</p>
           {u.bio && <p className="text-sm text-[var(--foreground-muted)] mt-1">{u.bio}</p>}
@@ -149,6 +153,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
           <p className="text-sm text-orange-400 font-semibold mb-1">Banned {u.bannedUntil ? `until ${new Date(u.bannedUntil).toLocaleDateString()}` : "permanently"}</p>
           {u.banReason && <p className="text-xs text-[var(--foreground-muted)]">Reason: {u.banReason}</p>}
+        </div>
+      )}
+      {u.postingBlockedAt && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+          <p className="text-sm text-yellow-400 font-semibold mb-1">
+            Blocked from posting {u.postingBlockedUntil ? `until ${new Date(u.postingBlockedUntil).toLocaleDateString()}` : "until admin lifts it"}
+          </p>
+          <p className="text-xs text-[var(--foreground-muted)]">Can still rate movies/shows/episodes; cannot comment or post community content.</p>
+          {u.postingBlockReason && <p className="text-xs text-[var(--foreground-muted)] mt-1">Reason: {u.postingBlockReason}</p>}
         </div>
       )}
       {u.deletedAt && (
@@ -257,6 +270,33 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm border border-green-500/50 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50"
             >
               Unban
+            </button>
+          )}
+
+          {!u.postingBlockedAt && !u.deletedAt && !u.bannedAt && (
+            <button
+              onClick={() => {
+                const reason = prompt("Block reason (optional):");
+                const days = prompt("Block duration in days (empty = until you lift it):");
+                doAction("block_posting", {
+                  reason: reason ?? undefined,
+                  expiresAt: days ? new Date(Date.now() + Number(days) * 86400000).toISOString() : undefined,
+                });
+              }}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm border border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 transition-colors disabled:opacity-50"
+            >
+              <Ban className="w-4 h-4" /> Block from Posting
+            </button>
+          )}
+
+          {u.postingBlockedAt && (
+            <button
+              onClick={() => doAction("unblock_posting")}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm border border-green-500/50 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50"
+            >
+              Unblock Posting
             </button>
           )}
 

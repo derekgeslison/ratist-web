@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
+import { postingBlockResponse } from "@/lib/posting-block";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,11 @@ const RECAP_TARGET_TYPES = ["recap_installment", "recap_series"] as const;
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in to suggest an edit" }, { status: 401 });
+
+  // Site-wide posting block (separate from the companion-specific
+  // block below — admins can apply either, this catches the broad one).
+  const blockResp = await postingBlockResponse(user.id);
+  if (blockResp) return blockResp;
 
   // Admin-set troll block. We fetch the flag here rather than in getAuthedUser
   // since it's companion-specific and most routes don't care. The optional

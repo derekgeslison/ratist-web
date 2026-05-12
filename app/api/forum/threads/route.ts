@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { checkCommunityRateLimit } from "@/lib/rate-limit";
 import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
+import { postingBlockResponse } from "@/lib/posting-block";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +158,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const blockResp = await postingBlockResponse(user.id);
+  if (blockResp) return blockResp;
 
   const rateLimitMsg = await checkCommunityRateLimit(user.id, user.isAdmin, "forumThread");
   if (rateLimitMsg) return NextResponse.json({ error: rateLimitMsg }, { status: 429 });

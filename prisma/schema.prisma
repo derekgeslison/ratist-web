@@ -188,6 +188,16 @@ model User {
   bannedUntil DateTime? @map("banned_until") // null = permanent ban
   banReason   String?   @map("ban_reason")
 
+  // Soft posting block — separate from a full ban. Blocked users can
+  // still browse, rate movies/shows/episodes (their own reviews and
+  // review text), and edit their existing reviews. They cannot create
+  // comments, forum threads/replies, or community items (Hot Takes,
+  // Recasts, Looks Like, Pitches), community collections, or Watch
+  // Companion suggestions. Optional expiry; null = until-admin-clears.
+  postingBlockedAt    DateTime? @map("posting_blocked_at")
+  postingBlockedUntil DateTime? @map("posting_blocked_until")
+  postingBlockReason  String?   @map("posting_block_reason")
+
   @@map("users")
 }
 
@@ -584,6 +594,12 @@ model EpisodeRating {
   seasonNumber  Int      @map("season_number")
   episodeNumber Int      @map("episode_number")
   rating        Float    // 1–10 in 0.5 increments (matches the main rating sliders)
+  // Fraud-detection plumbing — mirrors MovieRating / TVShowRating.
+  // Admin "exclude" action on a review-bomb flag flips these so the
+  // row stops contributing to community-average aggregations.
+  excluded       Boolean   @default(false)
+  excludedAt     DateTime? @map("excluded_at")
+  excludedReason String?   @map("excluded_reason")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

@@ -20,6 +20,11 @@ interface FlagEvidence {
   ratingCount?: number;
   allExtreme?: boolean;
   accountAgeDays?: number | null;
+  // Season / episode review-bomb flags carry the scope here so the
+  // admin display can show "Season 2" or "S2E5" alongside the title.
+  seasonNumber?: number;
+  episodeNumber?: number;
+  showTmdbId?: number;
 }
 
 interface FraudFlag {
@@ -209,7 +214,15 @@ export default function FraudPage() {
                   <p className="text-xs text-[var(--foreground-muted)]">
                     {new Date(flag.createdAt).toLocaleDateString()} · {flag.userIds.length} user{flag.userIds.length === 1 ? "" : "s"}
                     {flag.targetId && targetMap[flag.targetId] && (
-                      <> · <span className="text-white">{targetMap[flag.targetId].title}</span></>
+                      <> · <span className="text-white">
+                        {targetMap[flag.targetId].title}
+                        {flag.targetType === "show_season" && flag.evidence?.seasonNumber != null && (
+                          <span className="text-[var(--foreground-muted)]"> — Season {flag.evidence.seasonNumber}</span>
+                        )}
+                        {flag.targetType === "show_episode" && flag.evidence?.seasonNumber != null && flag.evidence?.episodeNumber != null && (
+                          <span className="text-[var(--foreground-muted)]"> — S{flag.evidence.seasonNumber}E{flag.evidence.episodeNumber}</span>
+                        )}
+                      </span></>
                     )}
                   </p>
                 </div>

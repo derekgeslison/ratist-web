@@ -27,6 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       createdAt: true, updatedAt: true,
       deletedAt: true, deletedBy: true,
       bannedAt: true, bannedUntil: true, banReason: true,
+      postingBlockedAt: true, postingBlockedUntil: true, postingBlockReason: true,
       _count: {
         select: {
           ratings: true,

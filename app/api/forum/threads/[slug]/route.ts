@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthedUser, canDelete } from "@/lib/auth-helpers";
 import { notify } from "@/lib/notifications";
 import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
+import { postingBlockResponse } from "@/lib/posting-block";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,9 @@ export async function POST(req: NextRequest, { params }: Props) {
   const { slug } = await params;
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const blockResp = await postingBlockResponse(user.id);
+  if (blockResp) return blockResp;
 
   const thread = await prisma.forumThread.findUnique({
     where: { slug },
