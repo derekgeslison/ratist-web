@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Movies & TV", description: "Find movies and TV shows to watch. Filter by genre, streaming service, year, and rating. Community reviews, personalized recommendations, and deep criteria-based ratings.", alternates: { canonical: "/movies" } };
 import { getPopularMovies, getTopRatedMovies, searchMovies, discoverMovies, getGenres, getPopularShows, getTopRatedShows, searchShows, discoverShows, getShowGenres, getWatchProviders, getShowWatchProviders, type TMDBMovie, type TMDBShow, STREAMING_PROVIDERS } from "@/lib/tmdb";
+import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";
 import MovieListItem from "@/components/MovieListItem";
@@ -83,6 +84,13 @@ export default async function MoviesPage({ searchParams }: Props) {
   const genres = params.genres?.split(",").filter(Boolean);
   const castIds = params.cast?.split(",").filter(Boolean);
   const mpaaRatings = params.mpaa?.split(",").filter(Boolean) ?? [];
+  // Split the rating filter into movie + TV halves. Movie certs flow
+  // into TMDB's /discover/movie `certification` param; TV certs have
+  // no /discover/tv equivalent and are post-filtered against our
+  // contentRating cache after the fetch.
+  const TV_RATING_SET = new Set(["TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA"]);
+  const movieMpaaRatings = mpaaRatings.filter((r) => !TV_RATING_SET.has(r));
+  const tvMpaaRatings = mpaaRatings.filter((r) => TV_RATING_SET.has(r));
 
   const releaseStatus = params.releaseStatus; // "now_playing" | "upcoming" | undefined
   const providers = params.providers?.split(",").filter(Boolean);
@@ -194,7 +202,7 @@ export default async function MoviesPage({ searchParams }: Props) {
     sort: effectiveSort,
     yearFrom: params.yearFrom ?? legacyDecade?.from,
     yearTo: params.yearTo ?? legacyDecade?.to,
-    certifications: mpaaRatings.length > 0 ? mpaaRatings : undefined,
+    certifications: movieMpaaRatings.length > 0 ? movieMpaaRatings : undefined,
     ratingGte: params.ratingOp !== "lte" ? params.ratingVal : undefined,
     ratingLte: params.ratingOp === "lte" ? params.ratingVal : undefined,
     providers,
@@ -214,10 +222,18 @@ export default async function MoviesPage({ searchParams }: Props) {
   const showMovies = contentType === "all" || contentType === "movie";
   const showShows = contentType === "all" || contentType === "tv";
 
+  // When the user picks TV-only certs (e.g., TV-MA) in "all" mode, we
+  // suppress the movie fetch so the listing doesn't pad with unfiltered
+  // films alongside the cert-filtered TV results. Mirror of the
+  // movie-only-cert → suppress-TV branch in shouldFetchShows below.
+  const shouldFetchMovies = contentType === "movie" || (
+    contentType === "all" && !(tvMpaaRatings.length > 0 && movieMpaaRatings.length === 0)
+  );
+
   // Fetch movies — skipped entirely in seen-only mode (the SeenMoviesView
   // client component queries our DB and renders below in place of these
   // TMDB-backed results).
-  if (showMovies && !seenOnlyMode) {
+  if (showMovies && shouldFetchMovies && !seenOnlyMode) {
     if (params.search && !hasFilters && sort === "popular") {
       movieResult = await fetchMoviePages((p) => searchMovies(params.search!, p));
       pageTitle = `Search: "${params.search}"`;
@@ -257,7 +273,11 @@ export default async function MoviesPage({ searchParams }: Props) {
     contentType === "all"
       && !castIds?.length
       && !hasMovieOnlyGenre
-      && mpaaRatings.length === 0
+      // Movie-only cert filter means the user has signaled a movie-
+      // shape intent; suppress TV. TV-only certs (or no cert filter)
+      // still fetch shows, since we can post-filter shows against
+      // their contentRating cache.
+      && movieMpaaRatings.length === 0
       && !hasMaxCap
       && !hasMinCap
   );
@@ -526,6 +546,40 @@ export default async function MoviesPage({ searchParams }: Props) {
       ]);
     }
   } catch { /* DB not ready */ }
+
+  // TV content-rating post-filter. TMDB's /discover/tv doesn't accept
+  // a certification parameter, so when the user selects TV-Y / TV-PG /
+  // TV-MA / etc., we filter the fetched results against the
+  // contentRating cache we just built above. Shows whose cert we
+  // don't know (no US content_ratings entry on TMDB) are dropped
+  // when a TV cert filter is active, matching the "exclude unknowns"
+  // semantics admins expect for an explicit cert filter.
+  if (tvMpaaRatings.length > 0 && showResult) {
+    const wanted = new Set(tvMpaaRatings);
+    const filtered = showResult.results.filter((s) => {
+      const cert = certMap.get(`s-${s.id}`);
+      return cert ? wanted.has(cert) : false;
+    });
+    showResult = {
+      ...showResult,
+      results: filtered,
+      total_results: filtered.length,
+    };
+  }
+
+  // Apply discovery-safety pass: filter NC-17 movies and mask admin-
+  // blocked posters across whichever rails this page surfaced.
+  if (movieResult) {
+    movieResult.results = await safeguardTMDBMovies(movieResult.results, {
+      filterNC17: true,
+      stripBlockedPosters: true,
+    });
+  }
+  if (showResult) {
+    showResult.results = await safeguardTMDBShows(showResult.results, {
+      stripBlockedPosters: true,
+    });
+  }
 
   const totalResults = (movieResult?.total_results ?? 0) + (showResult?.total_results ?? 0);
   const totalPages = contentType === "tv"

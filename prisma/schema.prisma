@@ -323,6 +323,11 @@ model Movie {
   // TMDB Discover at runtime.
   originalLanguage   String?   @map("original_language")
   cachedAt           DateTime? @map("cached_at")
+  // Admin-set poster block. Some NC-17 / adult-leaning films ship
+  // posters containing explicit nudity that we don't want appearing
+  // in browse/discovery surfaces. Renders fall back to a placeholder
+  // when this is true; the movie itself is still accessible.
+  posterBlocked      Boolean   @default(false) @map("poster_blocked")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
@@ -462,6 +467,8 @@ model TVShow {
   watchProviders     Json?     @map("watch_providers")
   providersUpdatedAt DateTime? @map("providers_updated_at")
   cachedAt           DateTime? @map("cached_at")
+  // Admin-set poster block — mirrors Movie.posterBlocked.
+  posterBlocked      Boolean   @default(false) @map("poster_blocked")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 

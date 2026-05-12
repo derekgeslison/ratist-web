@@ -17,6 +17,7 @@ import CelebrityDetailTabs from "./CelebrityDetailTabs";
 import { upsertCelebrity } from "@/lib/tmdb-sync";
 import { getCelebrityAwards } from "@/lib/awards";
 import { syncCelebrityAwards } from "@/lib/awards-sync";
+import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -218,13 +219,28 @@ export default async function CelebrityPage({ params }: Props) {
     else filmMap.set(key, { id: c.id, title: c.name, poster_path: c.poster_path, release_date: c.first_air_date, vote_average: c.vote_average, jobs: [c.job], popularity: c.popularity, mediaType: "tv" });
   }
 
-  const filmography = [...filmMap.values()]
+  const filmographyRaw = [...filmMap.values()]
     .sort((a, b) => {
       // No release date = announced/upcoming, sort to the top (newest)
       const dateA = a.release_date ? new Date(a.release_date).getTime() : Infinity;
       const dateB = b.release_date ? new Date(b.release_date).getTime() : Infinity;
       return dateB - dateA;
     });
+
+  // Mask admin-blocked posters across the filmography. Split by
+  // mediaType so each side hits the right safeguard helper, then
+  // merge back preserving the original sort order.
+  const movieFilms = filmographyRaw.filter((f) => f.mediaType === "movie");
+  const showFilms = filmographyRaw.filter((f) => f.mediaType === "tv");
+  const [safeMovieFilms, safeShowFilms] = await Promise.all([
+    safeguardTMDBMovies(movieFilms, { stripBlockedPosters: true }),
+    safeguardTMDBShows(showFilms, { stripBlockedPosters: true }),
+  ]);
+  const safeByKey = new Map<string, FilmEntry>([
+    ...safeMovieFilms.map((f): [string, FilmEntry] => [`movie-${f.id}`, f]),
+    ...safeShowFilms.map((f): [string, FilmEntry] => [`tv-${f.id}`, f]),
+  ]);
+  const filmography = filmographyRaw.map((f) => safeByKey.get(`${f.mediaType}-${f.id}`) ?? f);
 
   // Photos
   const photos = person.images?.profiles ?? [];

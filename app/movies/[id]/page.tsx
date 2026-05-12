@@ -31,6 +31,7 @@ import { getMovieBoxOfficeRanks } from "@/lib/box-office-queries";
 import { getMovieAwards } from "@/lib/awards";
 import { syncMovieAwards } from "@/lib/awards-sync";
 import { prisma } from "@/lib/prisma";
+import { safeguardTMDBMovies } from "@/lib/safe-content";
 import PageShare from "@/components/PageShare";
 import ShareNudge from "@/components/ShareNudge";
 import AdUnit from "@/components/AdUnit";
@@ -97,9 +98,23 @@ export default async function MovieDetailPage({ params }: Props) {
     getMovieBoxOfficeRanks(movie.id).catch(() => null),
     prisma.movie.findUnique({
       where: { tmdbId: movie.id },
-      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true },
+      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true, posterBlocked: true },
     }).catch(() => null),
   ]);
+
+  // Mask the movie's own poster if an admin has flagged it. Sets
+  // poster_path to null so the existing missing-poster placeholder
+  // takes over across header, JSON-LD, and any inline references.
+  if (dbMovie?.posterBlocked) {
+    movie.poster_path = null;
+  }
+
+  // Mask blocked posters inside the recommendations rail rendered
+  // further down by MovieDetailTabs.
+  recommendations.results = await safeguardTMDBMovies(recommendations.results, {
+    filterNC17: true,
+    stripBlockedPosters: true,
+  });
 
   // Fire-and-forget syncs — driven off the single dbMovie lookup above.
   if (dbMovie) {

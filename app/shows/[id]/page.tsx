@@ -20,6 +20,7 @@ import UserShowPanel from "@/components/UserShowPanel";
 import ShowDetailTabs from "@/components/ShowDetailTabs";
 import { upsertTVShow } from "@/lib/tmdb-sync";
 import { prisma } from "@/lib/prisma";
+import { safeguardTMDBShows } from "@/lib/safe-content";
 import { getTVShowAwards } from "@/lib/awards";
 import { syncTVShowAwards } from "@/lib/awards-sync";
 import PageShare from "@/components/PageShare";
@@ -83,9 +84,17 @@ export default async function ShowDetailPage({ params }: Props) {
     getShowRecommendations(show.id).catch(() => ({ results: [] })),
     prisma.tVShow.findUnique({
       where: { tmdbId: show.id },
-      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, contentRating: true },
+      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, contentRating: true, posterBlocked: true },
     }).catch(() => null),
   ]);
+
+  if (dbShow?.posterBlocked) {
+    show.poster_path = null;
+  }
+
+  recommendations.results = await safeguardTMDBShows(recommendations.results, {
+    stripBlockedPosters: true,
+  });
 
   // Fire-and-forget syncs driven off the single dbShow lookup above.
   if (dbShow) {

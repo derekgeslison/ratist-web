@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Sparkles, Film, TrendingUp, Brain, Eye, Heart, MessageCircle } from "lucide-react";
+import { Film, Eye, Heart, MessageCircle } from "lucide-react";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows } from "@/lib/tmdb";
+import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";
 import MovieRow from "@/components/MovieRow";
@@ -19,33 +20,8 @@ import BackstagePassPromo from "@/components/BackstagePassPromo";
 import NewsTrailerCard from "@/components/NewsTrailerCard";
 import NavEntryRegister from "@/components/NavEntryRegister";
 import TourBanner from "@/components/TourBanner";
+import ToolsSection from "@/components/ToolsSection";
 
-const TOOLS = [
-  {
-    icon: Users,
-    title: "Shared Cast & Crew",
-    description: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share.",
-    href: "/tools/shared-cast",
-  },
-  {
-    icon: Sparkles,
-    title: "What Should I Watch?",
-    description: "Answer a few quick questions about your mood, preferred era, and runtime — and get personalized movie and TV show recommendations.",
-    href: "/tools/recommend",
-  },
-  {
-    icon: TrendingUp,
-    title: "Box Office Insights",
-    description: "All-time grossers, year-by-year top earners, franchise and studio rankings, ROI champions, and per-decade leaderboards across film history.",
-    href: "/box-office",
-  },
-  {
-    icon: Brain,
-    title: "Cine-Q Trivia",
-    description: "Daily movie trivia with weighted difficulty scoring. Climb the leaderboard, earn badges, and prove you really know your cinema.",
-    href: "/community/cineq",
-  },
-];
 
 export const dynamic = "force-dynamic";
 
@@ -201,6 +177,32 @@ export default async function HomePage() {
     }),
   ]);
 
+  // Filter NC-17 movies + mask admin-blocked posters across every
+  // TMDB-driven movie rail (popular, top-rated, now-playing, upcoming,
+  // trending) and mask blocked posters on the show rails. Done after
+  // the parallel fetch so the rest of the page consumes the cleaned
+  // lists by mutating .results in place — every downstream consumer
+  // already reads `.results` off these objects.
+  const [
+    safePopular, safeTopRated, safeNowPlaying, safeUpcoming, safeTrendingMovies,
+    safePopularShows, safeTrendingShows,
+  ] = await Promise.all([
+    safeguardTMDBMovies(popular.results, { filterNC17: true, stripBlockedPosters: true }),
+    safeguardTMDBMovies(topRated.results, { filterNC17: true, stripBlockedPosters: true }),
+    safeguardTMDBMovies(nowPlaying.results, { filterNC17: true, stripBlockedPosters: true }),
+    safeguardTMDBMovies(upcoming.results, { filterNC17: true, stripBlockedPosters: true }),
+    safeguardTMDBMovies(trendingMovies.results, { filterNC17: true, stripBlockedPosters: true }),
+    safeguardTMDBShows(popularShows.results, { stripBlockedPosters: true }),
+    safeguardTMDBShows(trendingShows.results, { stripBlockedPosters: true }),
+  ]);
+  popular.results = safePopular;
+  topRated.results = safeTopRated;
+  nowPlaying.results = safeNowPlaying;
+  upcoming.results = safeUpcoming;
+  trendingMovies.results = safeTrendingMovies;
+  popularShows.results = safePopularShows;
+  trendingShows.results = safeTrendingShows;
+
   // Forum threads: filter + rank for the home-page slot.
   //
   // Filter: drop threads whose title contains common profanity. This
@@ -343,35 +345,10 @@ export default async function HomePage() {
         {/* Ad — between Now Playing and Tools */}
         <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_HOME ?? ""} format="auto" className="py-2" />
 
-        {/* Tools Spotlight */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">Tools &amp; Features</h2>
-            <Link href="/tools" className="text-sm text-[var(--ratist-red)] hover:underline font-medium">
-              View all tools &rarr;
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {TOOLS.map(({ icon: Icon, title, description, href }) => (
-              <Link
-                key={href}
-                href={href}
-                className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 hover:border-[var(--ratist-red)] transition-colors group flex flex-col gap-3"
-              >
-                <Icon className="w-6 h-6 text-[var(--ratist-red)]" />
-                <div className="flex-1">
-                  <p className="text-white font-bold text-sm mb-1">{title}</p>
-                  <p className="text-[var(--foreground-muted)] text-sm leading-relaxed">
-                    {description}
-                  </p>
-                </div>
-                <span className="text-[var(--ratist-red)] text-sm font-semibold group-hover:underline">
-                  Explore &rarr;
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {/* Tools Spotlight — swaps overlapping entries for reserve picks
+            when the dynamic action tiles above already surface the
+            default destination. */}
+        <ToolsSection />
 
         {/* Popular */}
         <MovieRow
