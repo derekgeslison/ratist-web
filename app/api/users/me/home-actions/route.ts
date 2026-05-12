@@ -26,6 +26,76 @@ type CandidateId = (typeof CANDIDATES)[number]["id"];
 // Defaults for users with zero activity across the board.
 const COLD_START: CandidateId[] = ["watchlist", "recommend", "forum"];
 
+// Recency window for "current habits" calculation. We try the last
+// 30 days first — if the user has touched at least two distinct
+// features in that window, we use those counts. Otherwise we widen
+// to all-time so the home page still surfaces something useful for
+// users who haven't been active recently.
+const RECENT_DAYS = 30;
+const MIN_RECENT_FEATURES = 2;
+
+type Counts = Record<CandidateId, number>;
+
+async function getCounts(userId: string, hasPass: boolean, since: Date | null): Promise<Counts> {
+  // Pre-build the createdAt / addedAt / joinedAt filter so each query
+  // can spread it in. When `since` is null we pass an empty object,
+  // which Prisma treats as no filter (all-time count).
+  const sinceCreatedAt = since ? { createdAt: { gte: since } } : {};
+  const sinceAddedAt = since ? { addedAt: { gte: since } } : {};
+  const sinceJoinedAt = since ? { joinedAt: { gte: since } } : {};
+
+  const [
+    ratingsMovies, ratingsShows,
+    watchlistMovies, watchlistShows,
+    diary,
+    rankingsLists,
+    forumThreads, forumPosts,
+    recommend,
+    collections,
+    screeningHosted, screeningJoined,
+    cineq,
+    movieClub,
+  ] = await Promise.all([
+    prisma.movieRating.count({ where: { userId, ...sinceCreatedAt } }),
+    prisma.tVShowRating.count({ where: { userId, ...sinceCreatedAt } }),
+    prisma.watchlistMovie.count({ where: { watchlist: { userId }, ...sinceAddedAt } }),
+    prisma.watchlistShow.count({ where: { watchlist: { userId }, ...sinceAddedAt } }),
+    prisma.userWatchLog.count({ where: { userId, ...sinceCreatedAt } }),
+    // Rankings: count distinct listKeys all-time (no time filter
+    // available — UserMovieRanking has no createdAt column). We
+    // groupBy listKey so bulk imports don't inflate the count past
+    // "how many ranking lists the user has actually curated", which
+    // keeps this on the same scale as the other tiles. Recency-wise
+    // this leans toward all-time even when other tiles are 30-day
+    // scoped; that's the trade for not adding a migration here.
+    prisma.userMovieRanking.groupBy({ by: ["listKey"], where: { userId } }),
+    prisma.forumThread.count({ where: { authorId: userId, ...sinceCreatedAt } }),
+    prisma.forumPost.count({ where: { authorId: userId, ...sinceCreatedAt } }),
+    prisma.aiUsageLog.count({ where: { userId, feature: "recommend", ...sinceCreatedAt } }),
+    prisma.customCollection.count({ where: { userId, ...sinceCreatedAt } }),
+    prisma.screeningSession.count({ where: { hostId: userId, ...sinceCreatedAt } }),
+    prisma.screeningParticipant.count({ where: { userId, ...sinceJoinedAt } }),
+    // Cine-Q: only completed attempts count. Open-and-walk-away
+    // (status: "in_progress") used to inflate the count without
+    // reflecting actual engagement.
+    prisma.cineQAttempt.count({ where: { userId, status: "completed", ...sinceCreatedAt } }),
+    hasPass ? prisma.movieClubRating.count({ where: { userId, ...sinceCreatedAt } }) : Promise.resolve(0),
+  ]);
+
+  return {
+    ratings:    ratingsMovies + ratingsShows,
+    watchlist:  watchlistMovies + watchlistShows,
+    diary,
+    rankings:   rankingsLists.length,
+    forum:      forumThreads + forumPosts,
+    recommend,
+    collections,
+    screening:  screeningHosted + screeningJoined,
+    cineq,
+    movieClub,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (!auth?.startsWith("Bearer ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,51 +109,20 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const hasPass = isSubscriptionActive(user);
-
-  // Parallel count queries — one per candidate. Each returns a number.
-  const [
-    ratingsMovies, ratingsShows,
-    watchlistMovies, watchlistShows,
-    diary,
-    rankings,
-    forumThreads, forumPosts,
-    recommend,
-    collections,
-    screeningHosted, screeningJoined,
-    cineq,
-    movieClub,
-  ] = await Promise.all([
-    prisma.movieRating.count({ where: { userId: user.id } }),
-    prisma.tVShowRating.count({ where: { userId: user.id } }),
-    prisma.watchlistMovie.count({ where: { watchlist: { userId: user.id } } }),
-    prisma.watchlistShow.count({ where: { watchlist: { userId: user.id } } }),
-    prisma.userWatchLog.count({ where: { userId: user.id } }),
-    prisma.userMovieRanking.count({ where: { userId: user.id } }),
-    prisma.forumThread.count({ where: { authorId: user.id } }),
-    prisma.forumPost.count({ where: { authorId: user.id } }),
-    prisma.aiUsageLog.count({ where: { userId: user.id, feature: "recommend" } }),
-    prisma.customCollection.count({ where: { userId: user.id } }),
-    prisma.screeningSession.count({ where: { hostId: user.id } }),
-    prisma.screeningParticipant.count({ where: { userId: user.id } }),
-    prisma.cineQAttempt.count({ where: { userId: user.id } }),
-    hasPass ? prisma.movieClubRating.count({ where: { userId: user.id } }) : Promise.resolve(0),
-  ]);
-
-  const counts: Record<CandidateId, number> = {
-    ratings:    ratingsMovies + ratingsShows,
-    watchlist:  watchlistMovies + watchlistShows,
-    diary,
-    rankings,
-    forum:      forumThreads + forumPosts,
-    recommend,
-    collections,
-    screening:  screeningHosted + screeningJoined,
-    cineq,
-    movieClub,
-  };
-
-  // Filter pool by tier (free users never see paid features).
   const pool = CANDIDATES.filter((c) => c.tier === "free" || hasPass);
+
+  // Two parallel passes: recent-window + all-time. If the recent
+  // pass has enough breadth to populate the top two tiles, we go
+  // with it; otherwise we fall back to all-time so the page still
+  // reflects who the user is.
+  const since = new Date(Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000);
+  const [recentCounts, allCounts] = await Promise.all([
+    getCounts(user.id, hasPass, since),
+    getCounts(user.id, hasPass, null),
+  ]);
+  const recentBreadth = pool.filter((c) => recentCounts[c.id] > 0).length;
+  const counts: Counts = recentBreadth >= MIN_RECENT_FEATURES ? recentCounts : allCounts;
+
   const totalUsage = pool.reduce((s, c) => s + counts[c.id], 0);
 
   let pickIds: CandidateId[];
@@ -98,29 +137,35 @@ export async function GET(req: NextRequest) {
       pickIds = pickIds.slice(0, 3);
     }
   } else {
-    // Sort the pool by usage DESC, ties broken by CANDIDATES order
-    // (i.e. ratings > watchlist > diary > ...) since `pool` preserves
-    // that ordering. Take top 2 — these are the user's actual habits.
+    // Sort the pool by usage DESC, ties broken by CANDIDATES order.
     const sorted = [...pool].sort((a, b) => counts[b.id] - counts[a.id]);
-    const top2 = sorted.slice(0, 2).map((c) => c.id);
+    let top2 = sorted.slice(0, 2).map((c) => c.id);
 
-    // For the third "engagement nudge" slot, look at the remaining
-    // candidates and pick from the lowest-usage ones. Rotate daily so
-    // someone who skips a feature today sees a different prompt
-    // tomorrow. Multiple zeros tie at the bottom; the day-of-year
-    // index selects one within that pool deterministically.
-    const remaining = sorted.slice(2);
-    const minCount = remaining.length > 0 ? counts[remaining[remaining.length - 1].id] : 0;
-    const lowest = remaining.filter((c) => counts[c.id] === minCount);
+    // Dedupe ratings + diary. The rate route auto-creates a
+    // UserWatchLog row when watchedDate is set, so heavy raters
+    // naturally rank #1 and #2 on these two tiles, which represent
+    // the same activity from different angles. Keep the higher of
+    // the two; the loser falls through to the nudge pool.
+    if (top2.includes("ratings") && top2.includes("diary")) {
+      const loser: CandidateId = counts.ratings >= counts.diary ? "diary" : "ratings";
+      top2 = sorted.filter((c) => c.id !== loser).slice(0, 2).map((c) => c.id);
+    }
+
+    // For the third "engagement nudge" slot, pick from the lowest-
+    // usage features still available. Rotate daily so someone who
+    // skips a feature today sees a different prompt tomorrow.
+    const remaining = pool.filter((c) => !top2.includes(c.id));
+    const remainingSorted = [...remaining].sort((a, b) => counts[b.id] - counts[a.id]);
+    const minCount = remainingSorted.length > 0 ? counts[remainingSorted[remainingSorted.length - 1].id] : 0;
+    const lowest = remainingSorted.filter((c) => counts[c.id] === minCount);
     const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
     const nudge = lowest.length > 0
       ? lowest[dayIndex % lowest.length].id
-      : remaining[0]?.id;
+      : remainingSorted[0]?.id;
 
     pickIds = nudge ? [...top2, nudge] : top2;
   }
 
-  // Hydrate ids into the public shape the client expects.
   const picks = pickIds
     .map((id) => CANDIDATES.find((c) => c.id === id))
     .filter((c): c is (typeof CANDIDATES)[number] => Boolean(c))
