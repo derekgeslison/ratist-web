@@ -37,6 +37,7 @@ interface MovieRow {
   mpaaRating: string | null;
   posterBlocked: boolean;
   posterScannedAt: Date | null;
+  isAdult: boolean;
 }
 
 async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
@@ -122,6 +123,7 @@ export async function safeguardTMDBMovies<T extends MovieLike>(
     select: {
       tmdbId: true, posterPath: true,
       mpaaRating: true, posterBlocked: true, posterScannedAt: true,
+      isAdult: true,
     },
   });
 
@@ -133,6 +135,12 @@ export async function safeguardTMDBMovies<T extends MovieLike>(
     : new Map(rows.map((r) => [r.tmdbId, r]));
 
   let result: T[] = items;
+  // Always-on hide rule: TMDB.adult === true → vanish entirely.
+  // TMDB reserves the adult flag for commercial porn-industry
+  // releases regardless of how they got rated (or didn't), so the
+  // mpaaRating dimension was redundant — mainstream NC-17 films
+  // (Clockwork Orange, Showgirls, etc.) carry adult: false anyway.
+  result = result.filter((i) => !map.get(i.id)?.isAdult);
   if (opts.filterNC17) {
     result = result.filter((i) => map.get(i.id)?.mpaaRating !== "NC-17");
   }
@@ -193,32 +201,61 @@ export async function maskBlockedInResponse<T>(payload: T): Promise<T> {
   if (tmdbIds.size === 0) return payload;
 
   const ids = [...tmdbIds];
-  const [blockedMovies, blockedShows] = await Promise.all([
-    prisma.movie.findMany({ where: { tmdbId: { in: ids }, posterBlocked: true }, select: { tmdbId: true } }),
+  const [movieRows, blockedShows] = await Promise.all([
+    prisma.movie.findMany({
+      where: { tmdbId: { in: ids } },
+      select: { tmdbId: true, posterBlocked: true, isAdult: true, mpaaRating: true },
+    }),
     prisma.tVShow.findMany({ where: { tmdbId: { in: ids }, posterBlocked: true }, select: { tmdbId: true } }),
   ]);
-  const blocked = new Set<number>();
-  for (const m of blockedMovies) blocked.add(m.tmdbId);
-  for (const s of blockedShows) blocked.add(s.tmdbId);
-  if (blocked.size === 0) return payload;
 
-  function mask(o: unknown): unknown {
+  // Hide-entirely set: any TMDB-adult-flagged movie vanishes from
+  // every discovery / list / feed surface. mpaaRating doesn't add
+  // safety here — TMDB only marks commercial porn-industry titles
+  // adult, regardless of MPAA rating.
+  const hidden = new Set<number>();
+  // Poster-mask set: anything currently flagged blocked but not in
+  // the hide-entirely set (mainstream NC-17 with explicit posters,
+  // admin-flagged titles, etc.).
+  const blocked = new Set<number>();
+  for (const m of movieRows) {
+    if (m.isAdult) hidden.add(m.tmdbId);
+    else if (m.posterBlocked) blocked.add(m.tmdbId);
+  }
+  for (const s of blockedShows) blocked.add(s.tmdbId);
+  if (hidden.size === 0 && blocked.size === 0) return payload;
+
+  function extractId(out: Record<string, unknown>): number | null {
+    if (typeof out.tmdbId === "number") return out.tmdbId;
+    if (typeof out.id === "number" && (typeof out.poster_path === "string" || typeof out.posterPath === "string" || out.poster_path === null || out.posterPath === null)) {
+      return out.id;
+    }
+    return null;
+  }
+
+  function process(o: unknown): unknown {
     if (!o || typeof o !== "object") return o;
-    if (Array.isArray(o)) return o.map(mask);
+    if (Array.isArray(o)) {
+      // Filter out hide-entirely items at the array level, then recurse.
+      return o
+        .filter((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return true;
+          const id = extractId(item as Record<string, unknown>);
+          return id === null || !hidden.has(id);
+        })
+        .map(process);
+    }
     const r = o as Record<string, unknown>;
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(r)) out[k] = mask(v);
-    const idForBlock =
-      typeof out.tmdbId === "number" ? out.tmdbId
-      : typeof out.id === "number" && (typeof out.poster_path === "string" || typeof out.posterPath === "string" || out.poster_path === null || out.posterPath === null) ? out.id
-      : null;
-    if (idForBlock !== null && blocked.has(idForBlock as number)) {
+    for (const [k, v] of Object.entries(r)) out[k] = process(v);
+    const id = extractId(out);
+    if (id !== null && blocked.has(id)) {
       if (typeof out.posterPath === "string") out.posterPath = POSTER_BLOCKED_SENTINEL;
       if (typeof out.poster_path === "string") out.poster_path = POSTER_BLOCKED_SENTINEL;
     }
     return out;
   }
-  return mask(payload) as T;
+  return process(payload) as T;
 }
 
 /** TV analogue. Filters on contentRating === "TV-MA" if requested. */

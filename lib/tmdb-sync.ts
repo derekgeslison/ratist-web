@@ -144,10 +144,13 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
       originalLanguage: tmdb.original_language ?? null,
       cachedAt: new Date(),
-      // TMDB's adult flag = hardcore content. Auto-block the poster
-      // on first cache so the title never appears with its real
-      // poster in any browse / discovery surface, with zero Vision
-      // calls needed.
+      // Mirror TMDB's adult flag. Two effects downstream:
+      //   1. isAdult + mpaaRating === "NC-17"  → title fully hidden
+      //   2. isAdult + (NR / null)             → poster + media masked
+      // We set posterBlocked on first cache too so the title never
+      // shows the real poster art in any list before the next
+      // pipeline pass catches it.
+      isAdult: !!tmdb.adult,
       ...(tmdb.adult ? { posterBlocked: true } : {}),
     },
     update: {
@@ -171,6 +174,10 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
       originalLanguage: tmdb.original_language ?? null,
       cachedAt: new Date(),
+      // Mirror adult flag on updates too so a re-fetch never loses
+      // it. posterBlocked is NOT reset here — admin overrides win.
+      isAdult: !!tmdb.adult,
+      ...(tmdb.adult ? { posterBlocked: true } : {}),
     },
     select: { id: true },
   });

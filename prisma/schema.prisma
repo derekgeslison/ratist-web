@@ -333,6 +333,13 @@ model Movie {
   // are almost always explicit); admins can additionally flip this
   // for NR / unrated movies whose Media tab is reported.
   mediaBlocked       Boolean   @default(false) @map("media_blocked")
+  // Mirrors TMDB's `adult` boolean. Drives the hide-entirely
+  // policy: any row with isAdult: true vanishes from every list /
+  // search / detail / filmography surface. TMDB reserves the
+  // adult flag for commercial porn-industry releases regardless
+  // of MPAA rating, so mainstream NC-17 (Clockwork Orange,
+  // Showgirls, etc.) carries adult: false and stays browsable.
+  isAdult            Boolean   @default(false) @map("is_adult")
   // Automated poster scan via Google Cloud Vision SafeSearch. We
   // scan NC-17 posters in batch (cheaper than scanning the whole
   // catalog) and store the verdict so we can re-tune thresholds

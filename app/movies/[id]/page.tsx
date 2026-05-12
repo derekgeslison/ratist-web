@@ -101,10 +101,17 @@ export default async function MovieDetailPage({ params }: Props) {
     getMovieBoxOfficeRanks(movie.id).catch(() => null),
     prisma.movie.findUnique({
       where: { tmdbId: movie.id },
-      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true, posterBlocked: true, mediaBlocked: true },
+      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true, posterBlocked: true, mediaBlocked: true, isAdult: true },
     }).catch(() => null),
   ]);
 
+  // Hide-entirely gate: TMDB-adult-flagged movies don't get detail
+  // pages on this site. notFound() returns the standard 404 shell
+  // so any incoming link / search-engine hit lands on a clean
+  // "page not found" rather than the title's real page.
+  if (dbMovie?.isAdult) {
+    notFound();
+  }
   // Mask the movie's own poster if an admin / the Vision auto-scan
   // has flagged it. We stamp the sentinel so posterUrl() resolves to
   // the custom /poster-blocked.svg placeholder (distinct from the

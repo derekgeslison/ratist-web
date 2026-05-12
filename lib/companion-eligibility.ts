@@ -31,29 +31,24 @@ const THEATRICAL_WINDOW_DAYS = 45;
  */
 export async function isMovieEligibleForCompanion(tmdbId: number): Promise<EligibilityResult> {
   try {
-    // Adult-content gate. Block companion generation on titles that
-    // are either flagged adult by TMDB, rated NC-17, OR have no/NR
-    // rating AND have been admin/auto-flagged as having explicit
-    // posters (the posterBlocked signal). LLM-generated watch
-    // companions on hardcore titles are off-product and a waste of
-    // credits regardless of who's requesting.
+    // Adult-content gate. Hide-entirely rule: any TMDB-adult-flagged
+    // title (which the rest of the site already drops from lists and
+    // 404s on the detail page) is also ineligible for a Watch
+    // Companion. Cheaper to check our DB column than re-fetch TMDB.
     const dbMovie = await prisma.movie.findUnique({
       where: { tmdbId },
-      select: { mpaaRating: true, posterBlocked: true },
+      select: { isAdult: true },
     }).catch(() => null);
-    const adultBlocked =
-      dbMovie?.mpaaRating === "NC-17"
-      || ((dbMovie?.mpaaRating === "NR" || dbMovie?.mpaaRating == null) && dbMovie?.posterBlocked === true);
-    if (adultBlocked) {
+    if (dbMovie?.isAdult) {
       return {
         eligible: false,
         reason: "This title isn't eligible for a Watch Companion.",
       };
     }
-    // TMDB-side adult flag is a separate signal — porn entries on
-    // TMDB carry adult: true even when our DB row is fresh. Cheap to
-    // check via the same getMovieDetails call we'd make below for the
-    // theatrical-window logic.
+    // TMDB-side fallback for titles that aren't in our DB yet — the
+    // upsert flow would set isAdult on cache, but a request can land
+    // before that. Cheap because we'd call getMovieDetails below for
+    // the theatrical-window logic anyway.
     const movieDetails = await getMovieDetails(tmdbId).catch(() => null);
     if (movieDetails && (movieDetails as { adult?: boolean }).adult === true) {
       return {

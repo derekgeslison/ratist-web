@@ -55,6 +55,49 @@ export default function ModerationPage() {
   const [banDays, setBanDays] = useState("");
   const [banRemoveContent, setBanRemoveContent] = useState(true);
 
+  // Manual poster-block tool. Admin pastes a movie TMDB id and
+  // optionally checks "Block media tab too". For the R-rated edge
+  // cases the auto-scan misses.
+  const [manualBlockId, setManualBlockId] = useState("");
+  const [manualBlockMediaToo, setManualBlockMediaToo] = useState(false);
+  const [manualBlockBusy, setManualBlockBusy] = useState(false);
+  const [manualBlockMessage, setManualBlockMessage] = useState<string | null>(null);
+
+  async function manualPosterBlock() {
+    if (!user || manualBlockBusy) return;
+    const tmdbId = Number(manualBlockId.trim());
+    if (!Number.isFinite(tmdbId) || tmdbId < 1) {
+      setManualBlockMessage("Enter a valid TMDB movie id.");
+      return;
+    }
+    setManualBlockBusy(true);
+    setManualBlockMessage(null);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/poster-block", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mediaType: "movie",
+          tmdbId,
+          blocked: true,
+          ...(manualBlockMediaToo ? { mediaBlocked: true } : {}),
+        }),
+      });
+      if (res.ok) {
+        setManualBlockMessage(`Blocked poster${manualBlockMediaToo ? " + media tab" : ""} for TMDB ${tmdbId}.`);
+        setManualBlockId("");
+        setManualBlockMediaToo(false);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setManualBlockMessage(data.error ?? "Block failed");
+      }
+    } catch {
+      setManualBlockMessage("Block failed");
+    }
+    setManualBlockBusy(false);
+  }
+
   async function fetchReports() {
     if (!user) return;
     const token = await user.getIdToken();
@@ -93,6 +136,47 @@ export default function ModerationPage() {
           <Flag className="w-5 h-5 text-[var(--ratist-red)]" /> Content Moderation
         </h2>
         <p className="text-sm text-[var(--foreground-muted)]">Review reported content from users.</p>
+      </div>
+
+      {/* Manual poster-block tool. Catches the rated-R edge cases where
+          the auto-scan didn't flag the title but admin can confirm
+          visually. Same backend endpoint as the per-movie toggle. */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
+          <Ban className="w-4 h-4 text-red-400" /> Manual poster block
+        </h3>
+        <p className="text-xs text-[var(--foreground-muted)] mb-3">
+          Paste a TMDB movie id to immediately block its poster (and optionally its Media tab images).
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={manualBlockId}
+            onChange={(e) => setManualBlockId(e.target.value)}
+            placeholder="TMDB movie id (e.g. 1234567)"
+            className="bg-[var(--surface-2)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] flex-1 min-w-[180px] max-w-[280px]"
+            onKeyDown={(e) => { if (e.key === "Enter") manualPosterBlock(); }}
+          />
+          <label className="text-xs text-[var(--foreground-muted)] flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={manualBlockMediaToo}
+              onChange={(e) => setManualBlockMediaToo(e.target.checked)}
+              className="accent-[var(--ratist-red)]"
+            />
+            Block media tab too
+          </label>
+          <button
+            onClick={manualPosterBlock}
+            disabled={manualBlockBusy || !manualBlockId.trim()}
+            className="text-xs font-semibold px-3 py-1.5 rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          >
+            {manualBlockBusy ? "Blocking…" : "Block"}
+          </button>
+        </div>
+        {manualBlockMessage && (
+          <p className="text-xs text-[var(--foreground-muted)] mt-2">{manualBlockMessage}</p>
+        )}
       </div>
 
       {/* Tabs */}

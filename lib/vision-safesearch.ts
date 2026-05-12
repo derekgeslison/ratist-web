@@ -35,13 +35,22 @@ export interface SafeSearchVerdict {
 }
 
 const HIT: Likelihood[] = ["LIKELY", "VERY_LIKELY"];
+const HIT_INCLUSIVE: Likelihood[] = ["POSSIBLE", "LIKELY", "VERY_LIKELY"];
 
-/** True when the poster crosses our explicit-content threshold. */
+/**
+ * True when the poster crosses our explicit-content threshold.
+ *
+ * Tuning history: the initial pass blocked at adult >= LIKELY only.
+ * That left ~7% of the NC-17 catalog unblocked despite visible
+ * nudity — illustrated, partial, or low-contrast posters scored
+ * adult: POSSIBLE and squeaked through. We now block at adult:
+ * POSSIBLE+ AND racy: LIKELY+, accepting a higher false-positive
+ * rate (counterbalanced by the per-movie admin unblock toggle on
+ * the detail page).
+ */
 export function shouldBlockPoster(v: SafeSearchVerdict): boolean {
-  if (HIT.includes(v.adult)) return true;
-  // racy alone is fuzzy — only block at VERY_LIKELY to keep
-  // false positives down (art-house posters love a racy edge).
-  if (v.racy === "VERY_LIKELY") return true;
+  if (HIT_INCLUSIVE.includes(v.adult)) return true;
+  if (HIT.includes(v.racy)) return true;
   return false;
 }
 
