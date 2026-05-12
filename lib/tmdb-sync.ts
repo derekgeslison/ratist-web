@@ -26,6 +26,10 @@ export interface TMDBMovieForSync {
   vote_count?: number | null;
   status?: string | null;
   imdb_id?: string | null;
+  /** TMDB's hardcore-content flag. When true, this is porn-tier
+   *  material — we auto-block the poster on first cache, no Vision
+   *  call needed. */
+  adult?: boolean;
   // TMDB returns the franchise/collection a movie belongs to as a
   // sub-object on the movie detail response; null for standalone
   // films. Used by /box-office/franchises aggregation.
@@ -140,6 +144,11 @@ export async function upsertMovie(tmdb: TMDBMovieForSync): Promise<string> {
       tmdbCollectionName: tmdb.belongs_to_collection?.name ?? null,
       originalLanguage: tmdb.original_language ?? null,
       cachedAt: new Date(),
+      // TMDB's adult flag = hardcore content. Auto-block the poster
+      // on first cache so the title never appears with its real
+      // poster in any browse / discovery surface, with zero Vision
+      // calls needed.
+      ...(tmdb.adult ? { posterBlocked: true } : {}),
     },
     update: {
       imdbId: tmdb.imdb_id ?? undefined,

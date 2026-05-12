@@ -328,6 +328,11 @@ model Movie {
   // in browse/discovery surfaces. Renders fall back to a placeholder
   // when this is true; the movie itself is still accessible.
   posterBlocked      Boolean   @default(false) @map("poster_blocked")
+  // Suppress the Media tab images on this movie. NC-17 is auto-
+  // suppressed at the page level even when this is false (those
+  // are almost always explicit); admins can additionally flip this
+  // for NR / unrated movies whose Media tab is reported.
+  mediaBlocked       Boolean   @default(false) @map("media_blocked")
   // Automated poster scan via Google Cloud Vision SafeSearch. We
   // scan NC-17 posters in batch (cheaper than scanning the whole
   // catalog) and store the verdict so we can re-tune thresholds

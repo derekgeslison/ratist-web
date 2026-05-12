@@ -14,10 +14,11 @@ import { prisma } from "@/lib/prisma";
 import CelebrityBio from "./CelebrityBio";
 import CelebrityUserPanel from "./CelebrityUserPanel";
 import CelebrityDetailTabs from "./CelebrityDetailTabs";
-import { upsertCelebrity } from "@/lib/tmdb-sync";
+import { upsertCelebrity, upsertMovie, upsertTVShow } from "@/lib/tmdb-sync";
 import { getCelebrityAwards } from "@/lib/awards";
 import { syncCelebrityAwards } from "@/lib/awards-sync";
 import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
+import { getMovieDetails, getShowDetails } from "@/lib/tmdb";
 
 const API_KEY = process.env.TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
@@ -241,6 +242,51 @@ export default async function CelebrityPage({ params }: Props) {
     ...safeShowFilms.map((f): [string, FilmEntry] => [`tv-${f.id}`, f]),
   ]);
   const filmography = filmographyRaw.map((f) => safeByKey.get(`${f.mediaType}-${f.id}`) ?? f);
+
+  // Fire-and-forget bootstrap: ensure every credit on this person's
+  // filmography is cached in our Movie / TVShow tables. The lazy
+  // poster-block scanner only fires on rows we have in DB (it needs
+  // the mpaaRating to decide whether to scan), so without this step
+  // an actor with hundreds of uncached credits would render all of
+  // them unscanned. We don't await — page render proceeds immediately
+  // and the next visit benefits from the populated cache.
+  (async () => {
+    const movieIds = filmographyRaw
+      .filter((f) => f.mediaType === "movie")
+      .map((f) => f.id);
+    const showIds = filmographyRaw
+      .filter((f) => f.mediaType === "tv")
+      .map((f) => f.id);
+    const [knownMovies, knownShows] = await Promise.all([
+      movieIds.length > 0
+        ? prisma.movie.findMany({ where: { tmdbId: { in: movieIds } }, select: { tmdbId: true } })
+        : [],
+      showIds.length > 0
+        ? prisma.tVShow.findMany({ where: { tmdbId: { in: showIds } }, select: { tmdbId: true } })
+        : [],
+    ]);
+    const knownMovieIds = new Set(knownMovies.map((m) => m.tmdbId));
+    const knownShowIds = new Set(knownShows.map((s) => s.tmdbId));
+    const missingMovieIds = movieIds.filter((id) => !knownMovieIds.has(id));
+    const missingShowIds = showIds.filter((id) => !knownShowIds.has(id));
+
+    // Throttle background work so a 500-credit actor doesn't hammer
+    // TMDB. Cap at 30 upserts per page load — the rest backfill on
+    // subsequent visits.
+    const CAP = 30;
+    for (const id of missingMovieIds.slice(0, CAP)) {
+      try {
+        const tmdb = await getMovieDetails(id);
+        await upsertMovie(tmdb);
+      } catch { /* ignore — best effort */ }
+    }
+    for (const id of missingShowIds.slice(0, CAP)) {
+      try {
+        const tmdb = await getShowDetails(id);
+        await upsertTVShow(tmdb);
+      } catch { /* ignore */ }
+    }
+  })().catch(() => { /* fire-and-forget */ });
 
   // Photos
   const photos = person.images?.profiles ?? [];

@@ -67,8 +67,19 @@ async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number)
  */
 async function scanUnscannedNC17(rows: MovieRow[]): Promise<Map<number, MovieRow>> {
   const map = new Map(rows.map((r) => [r.tmdbId, r]));
+  // We scan anything that could plausibly carry explicit content:
+  // - NC-17 (the obvious one)
+  // - NR  / null mpaaRating (unrated indies, foreign releases — we
+  //   don't know what's on the poster until Vision tells us)
+  // We do NOT scan rated-G-through-R movies; their posters are
+  // theatrically vetted and the false-positive rate isn't worth
+  // the Vision cost across the whole catalog.
+  const RISK_RATINGS = new Set(["NC-17", "NR"]);
   const unscanned = rows.filter(
-    (r) => r.mpaaRating === "NC-17" && !r.posterScannedAt && r.posterPath,
+    (r) =>
+      !r.posterScannedAt &&
+      r.posterPath &&
+      (r.mpaaRating == null || RISK_RATINGS.has(r.mpaaRating)),
   );
   if (unscanned.length === 0) return map;
 

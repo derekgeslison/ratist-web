@@ -106,6 +106,25 @@ export async function GET(req: NextRequest) {
           } else {
             contentPreview = "(suggestion deleted)";
           }
+        } else if (r.targetType === "moviePoster" || r.targetType === "movieMedia") {
+          // Poster / media reports — targetId is the TMDB movie id
+          // stringified. Surface title + current posterBlocked state
+          // so the admin can decide at-a-glance.
+          const tmdbId = Number(r.targetId);
+          if (Number.isFinite(tmdbId)) {
+            const movie = await prisma.movie.findUnique({
+              where: { tmdbId },
+              select: { title: true, posterPath: true, posterBlocked: true, mpaaRating: true },
+            });
+            if (movie) {
+              const status = movie.posterBlocked ? " [POSTER ALREADY BLOCKED]" : "";
+              const cert = movie.mpaaRating ?? "Unrated";
+              const scope = r.targetType === "moviePoster" ? "Poster" : "Media images";
+              contentPreview = `${scope} on "${movie.title}" (${cert})${status}`;
+            } else {
+              contentPreview = `${r.targetType === "moviePoster" ? "Poster" : "Media"} report on TMDB id ${tmdbId} (not in our DB)`;
+            }
+          }
         }
       } catch { /* content may not exist */ }
 

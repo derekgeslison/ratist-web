@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 
-const VALID_REASONS = ["spam", "harassment", "inappropriate", "spoilers", "other"];
-const VALID_TYPES = ["review", "comment", "forumPost", "hotTake", "recast", "looksLike", "companion_suggestion"];
+const VALID_REASONS = ["spam", "harassment", "inappropriate", "spoilers", "nudity", "other"];
+// moviePoster + movieMedia entries flag explicit imagery on a movie
+// detail page so the admin can review and (for posters) one-click
+// block via the existing posterBlocked flag. targetId is the TMDB
+// movie id (stringified) for both.
+const VALID_TYPES = ["review", "comment", "forumPost", "hotTake", "recast", "looksLike", "companion_suggestion", "moviePoster", "movieMedia"];
 
 // POST /api/reports — submit a report
 export async function POST(req: NextRequest) {

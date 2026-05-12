@@ -26,6 +26,7 @@ import {
 } from "@/lib/tmdb";
 import UserMoviePanel from "@/components/UserMoviePanel";
 import MoviePosterBlockToggle from "@/components/admin/MoviePosterBlockToggle";
+import ReportPosterButton from "@/components/ReportPosterButton";
 import MovieDetailTabs from "@/components/MovieDetailTabs";
 import CommunityBreakdown from "@/components/CommunityBreakdown";
 import { upsertMovie } from "@/lib/tmdb-sync";
@@ -100,7 +101,7 @@ export default async function MovieDetailPage({ params }: Props) {
     getMovieBoxOfficeRanks(movie.id).catch(() => null),
     prisma.movie.findUnique({
       where: { tmdbId: movie.id },
-      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true, posterBlocked: true },
+      select: { id: true, imdbId: true, cachedAt: true, posterPath: true, mpaaRating: true, posterBlocked: true, mediaBlocked: true },
     }).catch(() => null),
   ]);
 
@@ -295,7 +296,12 @@ export default async function MovieDetailPage({ params }: Props) {
   const isInTheaters = releaseDate && releaseDate >= eightWeeksAgo && releaseDate <= new Date();
   const cast = movie.credits?.cast ?? [];
   const crew = movie.credits?.crew ?? [];
-  const images = movie.images?.backdrops ?? [];
+  // Media tab safeguard: NC-17 movies almost always ship explicit
+  // backdrop/still imagery, so we suppress the whole tab by default.
+  // Admins can additionally flip Movie.mediaBlocked on NR / unrated
+  // films via the moderation queue.
+  const suppressMedia = mpaaRating === "NC-17" || dbMovie?.mediaBlocked === true;
+  const images = suppressMedia ? [] : (movie.images?.backdrops ?? []);
 
   // JSON-LD structured data
   const directors = crew.filter((c) => c.job === "Director").map((c) => c.name);
@@ -359,10 +365,13 @@ export default async function MovieDetailPage({ params }: Props) {
         <SmartBackLink defaultHref="/movies" defaultLabel="All movies" />
       </div>
 
-      {/* Backdrop hero */}
+      {/* Backdrop hero. When media is suppressed (NC-17 auto, or
+          admin-flipped mediaBlocked, or the poster itself is blocked)
+          the backdrop comes from the same TMDB images pool we don't
+          want to surface — fall back to the gradient placeholder. */}
       <div className="relative w-full h-[30vh] min-h-[200px] max-h-[340px] overflow-hidden">
         <Image
-          src={backdropUrl(movie.backdrop_path, "original")}
+          src={(suppressMedia || dbMovie?.posterBlocked) ? "/placeholder-backdrop.svg" : backdropUrl(movie.backdrop_path, "original")}
           alt={movie.title}
           fill
           priority
@@ -386,8 +395,12 @@ export default async function MovieDetailPage({ params }: Props) {
                 sizes="(max-width: 640px) 128px, (max-width: 1024px) 176px, 208px"
               />
             </div>
-            {mpaaRating === "NC-17" && dbMovie && (
-              <MoviePosterBlockToggle tmdbId={movie.id} initialBlocked={dbMovie.posterBlocked ?? false} />
+            {(mpaaRating === "NC-17" || mpaaRating === "NR" || !mpaaRating) && (
+              <MoviePosterBlockToggle
+                tmdbId={movie.id}
+                initialPosterBlocked={dbMovie?.posterBlocked ?? false}
+                initialMediaBlocked={dbMovie?.mediaBlocked ?? false}
+              />
             )}
           </div>
 
@@ -397,7 +410,12 @@ export default async function MovieDetailPage({ params }: Props) {
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
                 {movie.title}
               </h1>
-              <PageShare title={`${movie.title} on The Ratist`} />
+              <div className="flex items-center gap-2 shrink-0">
+                {(mpaaRating === "NC-17" || mpaaRating === "NR" || !mpaaRating) && (
+                  <ReportPosterButton tmdbId={movie.id} />
+                )}
+                <PageShare title={`${movie.title} on The Ratist`} />
+              </div>
             </div>
             {movie.tagline && (
               <p className="text-sm italic text-[var(--foreground-muted)] mb-3">{movie.tagline}</p>

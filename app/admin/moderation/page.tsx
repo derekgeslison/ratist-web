@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Flag, Check, Trash2, Ban, X, AlertTriangle, Clock } from "lucide-react";
+import { Flag, Check, Trash2, Ban, X, AlertTriangle, Clock, ExternalLink } from "lucide-react";
 
 interface ReportItem {
   id: string;
@@ -28,6 +28,7 @@ const REASON_LABELS: Record<string, string> = {
   harassment: "Harassment",
   inappropriate: "Inappropriate",
   spoilers: "Unmarked spoilers",
+  nudity: "Nudity / explicit",
   other: "Other",
 };
 
@@ -39,6 +40,8 @@ const TYPE_LABELS: Record<string, string> = {
   recast: "Recast",
   looksLike: "Looks Like",
   companion_suggestion: "Companion Suggestion",
+  moviePoster: "Movie Poster",
+  movieMedia: "Movie Media Image",
 };
 
 export default function ModerationPage() {
@@ -220,6 +223,65 @@ export default function ModerationPage() {
                   >
                     <X className="w-3 h-3" /> Dismiss
                   </button>
+                  {(r.targetType === "moviePoster" || r.targetType === "movieMedia") && (
+                    <Link
+                      href={`/movies/${r.targetId}${r.targetType === "movieMedia" ? "#media" : ""}`}
+                      target="_blank"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" /> View movie page
+                    </Link>
+                  )}
+                  {r.targetType === "moviePoster" && (
+                    <button
+                      onClick={async () => {
+                        if (!user || actionId) return;
+                        setActionId(r.id);
+                        const token = await user.getIdToken();
+                        await fetch("/api/admin/poster-block", {
+                          method: "POST",
+                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                          body: JSON.stringify({ mediaType: "movie", tmdbId: Number(r.targetId), blocked: true }),
+                        });
+                        await fetch("/api/admin/moderation", {
+                          method: "PATCH",
+                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                          body: JSON.stringify({ reportId: r.id, action: "dismiss" }),
+                        });
+                        await fetchReports();
+                        setActionId(null);
+                      }}
+                      disabled={!!actionId}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    >
+                      <Ban className="w-3 h-3" /> Block poster
+                    </button>
+                  )}
+                  {r.targetType === "movieMedia" && (
+                    <button
+                      onClick={async () => {
+                        if (!user || actionId) return;
+                        setActionId(r.id);
+                        const token = await user.getIdToken();
+                        await fetch("/api/admin/poster-block", {
+                          method: "POST",
+                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                          body: JSON.stringify({ mediaType: "movie", tmdbId: Number(r.targetId), mediaBlocked: true }),
+                        });
+                        await fetch("/api/admin/moderation", {
+                          method: "PATCH",
+                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                          body: JSON.stringify({ reportId: r.id, action: "dismiss" }),
+                        });
+                        await fetchReports();
+                        setActionId(null);
+                      }}
+                      disabled={!!actionId}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    >
+                      <Ban className="w-3 h-3" /> Block media tab
+                    </button>
+                  )}
                   <button
                     onClick={() => resolve(r.id, "remove")}
                     disabled={!!actionId}

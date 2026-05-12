@@ -30,9 +30,13 @@ export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  // `blocked` (poster) and `mediaBlocked` (Media tab images on movies)
+  // are independent toggles. Callers can pass either or both; absent
+  // fields leave the existing state alone. mediaBlocked is movie-only;
+  // it's ignored on TV rows since the show data model doesn't have it.
   const body = await req.json().catch(() => null) as
-    | { mediaType: "movie" | "tv"; tmdbId: number; blocked: boolean }
-    | { items: Array<{ mediaType: "movie" | "tv"; tmdbId: number; blocked: boolean }> }
+    | { mediaType: "movie" | "tv"; tmdbId: number; blocked?: boolean; mediaBlocked?: boolean }
+    | { items: Array<{ mediaType: "movie" | "tv"; tmdbId: number; blocked?: boolean; mediaBlocked?: boolean }> }
     | null;
   if (!body) return NextResponse.json({ error: "Missing body" }, { status: 400 });
 
@@ -57,12 +61,15 @@ export async function POST(req: NextRequest) {
           await upsertMovie(tmdb);
         } catch { continue; }
       }
-      await prisma.movie.update({
-        where: { tmdbId: item.tmdbId },
-        data: { posterBlocked: item.blocked },
-      });
+      const data: { posterBlocked?: boolean; mediaBlocked?: boolean } = {};
+      if (typeof item.blocked === "boolean") data.posterBlocked = item.blocked;
+      if (typeof item.mediaBlocked === "boolean") data.mediaBlocked = item.mediaBlocked;
+      if (Object.keys(data).length === 0) continue;
+      await prisma.movie.update({ where: { tmdbId: item.tmdbId }, data });
       movieCount++;
     } else {
+      // TV rows don't carry mediaBlocked; ignore that field here.
+      if (typeof item.blocked !== "boolean") continue;
       const existing = await prisma.tVShow.findUnique({ where: { tmdbId: item.tmdbId }, select: { id: true } });
       if (!existing) {
         try {

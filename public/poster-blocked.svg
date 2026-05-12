@@ -18,5 +18,5 @@
   </g>
   <text x="250" y="430" text-anchor="middle" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="32" font-weight="700" letter-spacing="-0.5">Poster Blocked</text>
   <text x="250" y="470" text-anchor="middle" fill="#9a9aa3" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="18" font-weight="500">Explicit content</text>
-  <text x="250" y="500" text-anchor="middle" fill="#6a6a73" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="14">The title is still available</text>
+  <text x="250" y="508" text-anchor="middle" fill="#8a8a93" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="20">The title is still available</text>
 </svg>
