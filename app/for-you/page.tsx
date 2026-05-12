@@ -15,6 +15,7 @@ import ShowCard from "@/components/ShowCard";
 import SpotlightCards from "@/components/SpotlightCards";
 import AdUnit from "@/components/AdUnit";
 import FirstVisitHint from "@/components/FirstVisitHint";
+import { useWatchlistFlow } from "@/components/WatchlistFlow";
 
 interface MediaItem {
   type: "movie" | "tv";
@@ -251,7 +252,20 @@ function TopPickRow({ pick, rank }: { pick: TopPick; rank: number }) {
   const { user } = useAuth();
   const { seen, watchlisted, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useMovieUserState(pick.tmdbId);
   const [markingS, setMarkingS] = useState(false);
-  const [markingW, setMarkingW] = useState(false);
+
+  // Shared watchlist flow — same multi-list picker behavior used on
+  // /movies, /shows, detail pages, etc. (see WatchlistFlow.tsx).
+  // Without this, the row was POSTing directly to the default-list
+  // endpoint and skipping the picker that lets users choose among
+  // multiple watchlists.
+  const { handleClick: handleWatchlistClick, busy: markingW, picker: watchlistPicker } = useWatchlistFlow({
+    tmdbId: pick.tmdbId,
+    mediaType: "movie",
+    title: pick.title,
+    posterPath: pick.posterPath,
+    releaseDate: pick.releaseDate,
+    onWatchlistedChange: setWatchlistState,
+  });
 
   async function toggleSeen() {
     if (!user || markingS) return;
@@ -264,19 +278,6 @@ function TopPickRow({ pick, rank }: { pick: TopPick; rank: number }) {
     }).catch(() => null);
     if (res?.ok) { const d = await res.json(); if (d.seen) persistSeen(); else persistUnseen(); }
     setMarkingS(false);
-  }
-
-  async function toggleWatchlist() {
-    if (!user || markingW) return;
-    setMarkingW(true);
-    const token = await user.getIdToken();
-    const res = await fetch(`/api/movies/${pick.tmdbId}/watchlist`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title: pick.title, poster_path: pick.posterPath, release_date: pick.releaseDate }),
-    }).catch(() => null);
-    if (res?.ok) { const d = await res.json(); setWatchlistState(d.watchlisted ?? !watchlisted); }
-    setMarkingW(false);
   }
 
   return (
@@ -304,11 +305,12 @@ function TopPickRow({ pick, rank }: { pick: TopPick; rank: number }) {
             title={seen ? "Seen" : "Mark as seen"}>
             {seen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
-          <button onClick={toggleWatchlist} disabled={markingW}
+          <button onClick={handleWatchlistClick} disabled={markingW}
             className={`p-1.5 rounded transition-colors ${watchlisted ? "text-blue-400" : "text-[var(--foreground-muted)] hover:text-blue-400"}`}
             title={watchlisted ? "Watchlisted" : "Add to watchlist"}>
             {watchlisted ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
           </button>
+          {watchlistPicker}
         </div>
       )}
     </div>
