@@ -8,6 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Sparkles, ThumbsUp, ThumbsDown, Plus, Search, X, Clock, TrendingUp, MessageCircle, Trash2, Users, Award, Zap } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
+import ShareButton from "@/components/ShareButton";
 import AdUnit from "@/components/AdUnit";
 import { useFollowingIds } from "@/hooks/useFollowingIds";
 
@@ -286,14 +287,22 @@ export default function LooksLikePage() {
           <Sparkles className="w-6 h-6 text-purple-400" />
           <h1 className="text-2xl font-bold text-white">Looks Like</h1>
         </div>
-        {user && !showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Submit Pair
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <ShareButton
+            label="Share"
+            text="Looks Like on The Ratist — vote on celebrity lookalike pairs"
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/community/looks-like`}
+            cardImageUrl="/api/og/looks-like"
+          />
+          {user && !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Submit Pair
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Celebrity lookalike pairs — vote on who really could be twins.</p>
 

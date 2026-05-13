@@ -206,10 +206,14 @@ export default function AdminOscarPicksPage() {
                 </div>
               )}
 
-              {/* Step 3: Add nominees to each category */}
+              {/* Step 3: Add nominees to each category.
+                  `overflow-visible` (not hidden) so the per-category search
+                  result dropdown can extend past the tile bottom. Header
+                  picks up rounded-t-xl explicitly so its inner bg doesn't
+                  look square against the outer rounded corners. */}
               {activeYearData.categories.length > 0 && (
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-visible">
+                  <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)] rounded-t-xl">
                     <h3 className="text-sm font-semibold text-white">Step 3 — Add Nominees</h3>
                     <p className="text-xs text-[var(--foreground-muted)] mt-0.5">For each category, search for the nominated movie. For acting categories, add the actor&apos;s name in the detail field.</p>
                   </div>

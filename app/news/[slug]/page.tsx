@@ -12,6 +12,7 @@ import { Calendar, ExternalLink } from "lucide-react";
 import SmartBackLink from "@/components/SmartBackLink";
 import NavEntryRegister from "@/components/NavEntryRegister";
 import PageShare from "@/components/PageShare";
+import PostLikeButton from "@/components/PostLikeButton";
 import AdUnit from "@/components/AdUnit";
 
 interface Props {
@@ -109,8 +110,15 @@ export default async function NewsArticlePage({ params }: Props) {
         </div>
       )}
 
-      {/* Title & meta */}
-      <h1 className="text-2xl sm:text-3xl font-bold text-white mb-3 leading-tight">{item.title}</h1>
+      {/* Title row — like + share live to the right of the headline,
+          mirroring the blog detail layout. */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">{item.title}</h1>
+        <div className="flex items-center gap-3 shrink-0">
+          <PostLikeButton targetType="news" targetId={item.id} />
+          <PageShare title={item.title} />
+        </div>
+      </div>
 
       <div className="flex items-center gap-3 text-sm text-[var(--foreground-muted)] mb-6 flex-wrap">
         {item.showAuthor !== false && item.author && (
@@ -163,8 +171,6 @@ export default async function NewsArticlePage({ params }: Props) {
       )}
 
       <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_NEWS ?? ""} format="auto" className="mb-6" />
-
-      <PageShare title={item.title} />
 
       <div className="mt-8">
         <CommentSection targetType="news" targetId={item.id} />

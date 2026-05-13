@@ -8,6 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, RefreshCw, ThumbsUp, ThumbsDown, Plus, X, Search, Clock, TrendingUp, MessageCircle, Trash2, Tv, Users, Award, Zap } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
+import ShareButton from "@/components/ShareButton";
 import AdUnit from "@/components/AdUnit";
 import { useFollowingIds } from "@/hooks/useFollowingIds";
 
@@ -387,11 +388,19 @@ export default function RecastPage() {
           <RefreshCw className="w-6 h-6 text-blue-400" />
           <h1 className="text-2xl font-bold text-white">Recast</h1>
         </div>
-        {user && !showForm && (
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-colors">
-            <Plus className="w-4 h-4" /> Suggest Recast
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <ShareButton
+            label="Share"
+            text="Recast on The Ratist — vote on dream recastings of iconic roles"
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/community/recast`}
+            cardImageUrl="/api/og/recast"
+          />
+          {user && !showForm && (
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-colors">
+              <Plus className="w-4 h-4" /> Suggest Recast
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Who should have played that role? Pick a movie or TV show, submit your ideal recast, and vote on others.</p>
 

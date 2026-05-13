@@ -750,7 +750,29 @@ export default async function MoviesPage({ searchParams }: Props) {
          Pagination and "no results" rendering happen inside the component;
          the rest of the page (filter bar, ads, etc.) stays put so the
          filter UX is identical. */}
-      {seenOnlyMode && <SeenMoviesView view={view as "grid" | "list"} pageTitle={pageTitle} />}
+      {seenOnlyMode && (() => {
+        // Surface filters that the seen-mode API can't honor so the user
+        // doesn't see "all my seen movies" and wonder why their filter did
+        // nothing. Keywords / AI severity / releaseStatus aren't applied.
+        const unsupportedActive: string[] = [];
+        if (keywords || excludeKeywords) unsupportedActive.push("Keywords");
+        if (releaseStatus) unsupportedActive.push("Release status");
+        const hasSeverity = Object.values(severityCaps).some((v) => v != null);
+        if (hasSeverity || excludeGenres.length > 0 || excludeLanguages.length > 0 || excludeAnime) {
+          unsupportedActive.push("AI filters");
+        }
+        return (
+          <>
+            {unsupportedActive.length > 0 && (
+              <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5 px-4 py-2.5 text-xs text-yellow-200/80">
+                Showing your seen titles. These filters can't be applied to seen results and are being ignored:{" "}
+                <span className="font-semibold text-yellow-200">{unsupportedActive.join(", ")}</span>.
+              </div>
+            )}
+            <SeenMoviesView view={view as "grid" | "list"} pageTitle={pageTitle} />
+          </>
+        );
+      })()}
 
       {/* Mixed results — when searching/filtering in "all" mode, interleave by relevance */}
       {!seenOnlyMode && isSearchMode && mixedResults.length > 0 && (

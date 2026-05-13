@@ -8,6 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Lightbulb, ThumbsUp, ThumbsDown, Plus, X, Clock, TrendingUp, MessageCircle, Trash2, Search, Film, Tv, Users, Award, Zap } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
 import ReportButton from "@/components/ReportButton";
+import ShareButton from "@/components/ShareButton";
 import AdUnit from "@/components/AdUnit";
 import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import { useFollowingIds } from "@/hooks/useFollowingIds";
@@ -166,14 +167,22 @@ export default function PitchesPage() {
           <Lightbulb className="w-6 h-6 text-emerald-400" />
           <h1 className="text-2xl font-bold text-white">Pitches</h1>
         </div>
-        {user && !showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Pitch an Idea
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <ShareButton
+            label="Share"
+            text="Pitches on The Ratist — vote on movie & TV ideas the community wants made"
+            url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/community/pitches`}
+            cardImageUrl="/api/og/pitches"
+          />
+          {user && !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Pitch an Idea
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Pitch your movie or TV show ideas. The community votes on what they&apos;d want to see made.</p>
 

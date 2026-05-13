@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "News", description: "The latest movi
 export const dynamic = "force-dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { Newspaper, Calendar, Eye, Film, Tv, Play } from "lucide-react";
+import { Newspaper, Calendar, Eye, Film, Tv, Play, Heart, MessageCircle } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import NewsTrailerCard from "@/components/NewsTrailerCard";
 import NavEntryRegister from "@/components/NavEntryRegister";
@@ -38,6 +38,24 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   ]);
 
   const totalPages = Math.ceil(total / perPage);
+
+  // Per-tile like + comment counts for the current page's items, fetched in
+  // two batch aggregations and looked up by id at render time.
+  const newsIds = items.map((i) => i.id);
+  const [likeRows, commentRows] = await Promise.all([
+    newsIds.length === 0 ? Promise.resolve([]) : prisma.postLike.groupBy({
+      by: ["targetId"],
+      where: { targetType: "news", targetId: { in: newsIds } },
+      _count: { _all: true },
+    }),
+    newsIds.length === 0 ? Promise.resolve([]) : prisma.comment.groupBy({
+      by: ["targetId"],
+      where: { targetType: "news", targetId: { in: newsIds } },
+      _count: { _all: true },
+    }),
+  ]);
+  const likeCountMap = new Map(likeRows.map((r) => [r.targetId, r._count._all]));
+  const commentCountMap = new Map(commentRows.map((r) => [r.targetId, r._count._all]));
 
   const itemListSchema = {
     "@context": "https://schema.org",
@@ -118,7 +136,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                     </div>
                     <h2 className="text-base sm:text-lg font-semibold text-white line-clamp-2 mb-1">{item.title}</h2>
                     {item.excerpt && <p className="text-sm text-[var(--foreground-muted)] line-clamp-2">{item.excerpt}</p>}
-                    <div className="flex items-center gap-3 mt-2 text-xs text-[var(--foreground-muted)]">
+                    <div className="flex items-center gap-3 mt-2 text-xs text-[var(--foreground-muted)] flex-wrap">
                       {item.showAuthor !== false && item.author && <span>by {item.author.name}</span>}
                       {item.publishedAt && (
                         <span className="flex items-center gap-1">
@@ -127,6 +145,8 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                         </span>
                       )}
                       <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {item.viewCount}</span>
+                      <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {likeCountMap.get(item.id) ?? 0}</span>
+                      <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {commentCountMap.get(item.id) ?? 0}</span>
                     </div>
                   </div>
                 </Link>

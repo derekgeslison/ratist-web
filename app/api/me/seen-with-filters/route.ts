@@ -29,12 +29,19 @@ export const dynamic = "force-dynamic";
 //   - search: case-insensitive title contains
 //   - sort: "popular" | "top_rated" | "newest" | "oldest" | "title_az" | "title_za" | "relevance"
 //   - page, perPage
+//   - cast: comma-separated TMDB person IDs (filters by MovieCast/TVShowCast)
+//   - companies: comma-separated TMDB studio IDs (movies only — TV has no
+//     studios in our schema, so any company filter forces an empty TV result)
+//   - language: ISO 639-1 code (movies only — TV has no originalLanguage)
+//   - providers: comma-separated TMDB provider IDs (resolved via the
+//     MediaProviderSnapshot sidecar — items currently on those services
+//     within the last 21 days)
 //
-// Filters that DON'T apply to the seen-list path (providers, companies,
-// keywords, releaseStatus, AI severity caps, castIds) are ignored — the
-// /movies UI surfaces them but they have no meaningful intersection
-// with "movies you've already seen". Caller pre-filters its filter pill
-// rendering accordingly.
+// Filters that STILL don't apply (keywords, releaseStatus, AI severity
+// caps) are silently ignored. keywords have no DB cache; releaseStatus is
+// largely meaningless for seen titles (upcoming is empty by definition,
+// now_playing is a niche subset); AI severity caps live in a separate
+// parents-guide cache that would need a join.
 
 interface SeenMovieRow {
   id: number;
@@ -157,9 +164,47 @@ export async function GET(req: NextRequest) {
   const perPage = [20, 50, 100].includes(Number(url.searchParams.get("perPage")))
     ? Number(url.searchParams.get("perPage"))
     : 20;
+  const castTmdbIds = parseList(url.searchParams.get("cast"))
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n));
+  const companyIds = parseList(url.searchParams.get("companies"))
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n));
+  const providerIds = parseList(url.searchParams.get("providers"))
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n));
+  const language = url.searchParams.get("language")?.trim() ?? "";
 
   const wantMovies = type === "all" || type === "movie";
-  const wantShows = type === "all" || type === "tv";
+  // Shows have no originalLanguage or studios in our schema, so if either
+  // filter is active we short-circuit shows to empty rather than ignoring
+  // the filter (which would mix matching movies with all your seen shows).
+  const tvLacksRequestedField = !!language || companyIds.length > 0;
+  const wantShows = (type === "all" || type === "tv") && !tvLacksRequestedField;
+
+  // Provider filter — resolve TMDB provider IDs to a set of tmdbIds via
+  // the daily MediaProviderSnapshot sidecar, then intersect with the seen
+  // query below. Window = last 21 days so a freshly-removed title doesn't
+  // disappear the moment a snapshot lands without it.
+  let providerMovieTmdbIds: Set<number> | null = null;
+  let providerShowTmdbIds: Set<number> | null = null;
+  if (providerIds.length > 0) {
+    const since = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000);
+    const snapshots = await prisma.mediaProviderSnapshot.findMany({
+      where: {
+        region: "US",
+        snapshotDate: { gte: since },
+        providerIds: { hasSome: providerIds },
+      },
+      select: { tmdbId: true, mediaType: true },
+    });
+    providerMovieTmdbIds = new Set(
+      snapshots.filter((s) => s.mediaType === "movie").map((s) => s.tmdbId)
+    );
+    providerShowTmdbIds = new Set(
+      snapshots.filter((s) => s.mediaType === "tv").map((s) => s.tmdbId)
+    );
+  }
 
   // ── Movie filters ──
   const movieWhere: Prisma.MovieWhereInput = {
@@ -181,6 +226,18 @@ export async function GET(req: NextRequest) {
   }
   if (search) {
     movieWhere.title = { contains: search, mode: "insensitive" };
+  }
+  if (castTmdbIds.length > 0) {
+    movieWhere.cast = { some: { celebrity: { tmdbId: { in: castTmdbIds } } } };
+  }
+  if (companyIds.length > 0) {
+    movieWhere.studios = { some: { studioId: { in: companyIds } } };
+  }
+  if (language) {
+    movieWhere.originalLanguage = language;
+  }
+  if (providerMovieTmdbIds) {
+    movieWhere.tmdbId = { in: [...providerMovieTmdbIds] };
   }
 
   // ── Show filters ──
@@ -211,6 +268,12 @@ export async function GET(req: NextRequest) {
   }
   if (search) {
     showWhere.name = { contains: search, mode: "insensitive" };
+  }
+  if (castTmdbIds.length > 0) {
+    showWhere.cast = { some: { celebrity: { tmdbId: { in: castTmdbIds } } } };
+  }
+  if (providerShowTmdbIds) {
+    showWhere.tmdbId = { in: [...providerShowTmdbIds] };
   }
 
   const [movies, shows] = await Promise.all([

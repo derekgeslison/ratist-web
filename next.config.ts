@@ -75,6 +75,9 @@ const nextConfig: NextConfig = {
       { source: "/pitches", destination: "/community/pitches", permanent: true },
       { source: "/recast", destination: "/community/recast", permanent: true },
       { source: "/oscar-picks", destination: "/community/oscar-picks", permanent: true },
+      // Plural→singular slip — users type /forums; canonical is /forum.
+      { source: "/forums", destination: "/forum", permanent: true },
+      { source: "/forums/:path*", destination: "/forum/:path*", permanent: true },
     ];
   },
 };

@@ -7,6 +7,7 @@ import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Trophy, CheckCircle2, Lock, MessageCircle, Plus, ThumbsUp, Search } from "lucide-react";
 import CommentSection from "@/components/CommentSection";
+import ShareButton from "@/components/ShareButton";
 import AdUnit from "@/components/AdUnit";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w92";
@@ -207,9 +208,17 @@ export default function OscarPicksPage() {
         <ArrowLeft className="w-4 h-4" /> Community Hub
       </Link>
 
-      <div className="flex items-center gap-3 mb-2">
-        <Trophy className="w-6 h-6 text-yellow-400" />
-        <h1 className="text-2xl font-bold text-white">Oscar Picks</h1>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <Trophy className="w-6 h-6 text-yellow-400" />
+          <h1 className="text-2xl font-bold text-white">Oscar Picks</h1>
+        </div>
+        <ShareButton
+          label="Share"
+          text="Oscar Picks on The Ratist — predict the winners before the ceremony"
+          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/community/oscar-picks`}
+          cardImageUrl="/api/og/oscar-picks"
+        />
       </div>
       <p className="text-[var(--foreground-muted)] mb-8">Vote for your picks before the ceremony. See how the community compares to the real winners.</p>
 
