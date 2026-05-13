@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sendPushToUser, type PushCategory } from "@/lib/push";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,24 @@ export async function notify(opts: NotifyOpts): Promise<void> {
         message: opts.message,
       },
     });
+
+    // Mirror to push. Fire-and-forget — push is best-effort and the
+    // in-app notification is the source of truth. The push gate on
+    // pushPrefs[category] is the second filter; notificationPrefs is
+    // already satisfied by getting here.
+    const pushKey = getPrefKey(opts.type);
+    if (pushKey) {
+      void sendPushToUser(
+        opts.recipientId,
+        {
+          title: "The Ratist",
+          body: opts.message,
+          url: opts.link ?? "/notifications",
+          tag: `${opts.type}:${opts.targetType}:${opts.targetId}`,
+        },
+        { category: pushKey as PushCategory },
+      );
+    }
   } catch {
     // Non-critical — don't break the main action
   }

@@ -45,7 +45,7 @@ model User {
   // 10-minute TTL fallback so an interrupted gen doesn't lock the
   // user out forever). One in-flight gen per user prevents a single
   // user from fanning out parallel requests.
-  companionGenStartedAt            DateTime? @map("companion_gen_started_at")
+  companionGenStartedAt DateTime? @map("companion_gen_started_at")
 
   ratings                       MovieRating[]
   tvShowRatings                 TVShowRating[]
@@ -131,6 +131,12 @@ model User {
   // one notification per day max, regardless of how many items launched.
   watchlistStreamingNotifs      Boolean                   @default(false) @map("watchlist_streaming_notifs")
   notificationPrefs             Json                      @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("notification_prefs")
+  // Push notification prefs mirror notificationPrefs categories. Each
+  // user opts in per-category. Default all true so when a user grants
+  // browser push permission they get the full set; they tune from
+  // there in Settings. Send-time gate: subscription must exist AND
+  // pushPrefs[category] === true.
+  pushPrefs                     Json                      @default("{\"commentOnContent\":true,\"likeOnContent\":true,\"commentReplies\":true,\"commentLikes\":true,\"milestones\":true,\"watchlistInvites\":true}") @map("push_prefs")
   emailOptOut                   Boolean                   @default(false) @map("email_opt_out") // legacy — use emailPrefs instead
   emailPrefs                    Json                      @default("{\"promotional\":true,\"subscription\":true,\"activity\":true}") @map("email_prefs")
   forYouOrder                   Json?                     @map("for_you_order") // Array of section keys for For You page ordering
@@ -177,6 +183,7 @@ model User {
   watchCompanionRatings          WatchCompanionRating[]
   companionFollows               CompanionFollow[]
   affiliateClicks                AffiliateClick[]
+  pushSubscriptions              PushSubscription[]
   streamingWatches               StreamingWatch[]
 
   // Soft delete
@@ -238,6 +245,28 @@ model UserBlock {
   @@unique([blockerId, blockedId])
   @@index([blockedId])
   @@map("user_blocks")
+}
+
+// Web Push subscription. One user → many subscriptions (multiple
+// devices, browsers, or PWA installs). `endpoint` is the unique
+// per-subscription URL the push service issued; `p256dh` + `auth`
+// are the keys used to encrypt push payloads end-to-end so the push
+// service can't read them. When a subscription returns 410/404 on
+// send, prune it — the browser revoked it.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String   @map("p256dh")
+  auth      String   @map("auth")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  lastUsed  DateTime @default(now()) @map("last_used")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model SiteConfig {
@@ -614,20 +643,20 @@ model EpisodeSeen {
 // NOT remove the EpisodeSeen — only an explicit unseen does. Unseen
 // is refused at the API layer when a rating exists for the episode.
 model EpisodeRating {
-  id            String   @id @default(cuid())
-  userId        String   @map("user_id")
-  showTmdbId    Int      @map("show_tmdb_id")
-  seasonNumber  Int      @map("season_number")
-  episodeNumber Int      @map("episode_number")
-  rating        Float    // 1–10 in 0.5 increments (matches the main rating sliders)
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  showTmdbId     Int       @map("show_tmdb_id")
+  seasonNumber   Int       @map("season_number")
+  episodeNumber  Int       @map("episode_number")
+  rating         Float // 1–10 in 0.5 increments (matches the main rating sliders)
   // Fraud-detection plumbing — mirrors MovieRating / TVShowRating.
   // Admin "exclude" action on a review-bomb flag flips these so the
   // row stops contributing to community-average aggregations.
   excluded       Boolean   @default(false)
   excludedAt     DateTime? @map("excluded_at")
   excludedReason String?   @map("excluded_reason")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1674,26 +1703,26 @@ enum ScreeningSessionStatus {
 }
 
 model ScreeningSession {
-  id         String                 @id @default(cuid())
-  hostId     String                 @map("host_id")
-  movieId    String?                @map("movie_id")
-  tmdbId     Int?                   @map("tmdb_id")
-  movieTitle String?                @map("movie_title")
-  posterPath String?                @map("poster_path")
-  mediaType  String                 @default("movie") @map("media_type")
-  status     ScreeningSessionStatus @default(LOBBY)
-  inviteCode String                 @unique @map("invite_code")
-  startedAt  DateTime?              @map("started_at")
-  finishedAt DateTime?              @map("finished_at")
+  id               String                 @id @default(cuid())
+  hostId           String                 @map("host_id")
+  movieId          String?                @map("movie_id")
+  tmdbId           Int?                   @map("tmdb_id")
+  movieTitle       String?                @map("movie_title")
+  posterPath       String?                @map("poster_path")
+  mediaType        String                 @default("movie") @map("media_type")
+  status           ScreeningSessionStatus @default(LOBBY)
+  inviteCode       String                 @unique @map("invite_code")
+  startedAt        DateTime?              @map("started_at")
+  finishedAt       DateTime?              @map("finished_at")
   // Per-minute chat-message counts captured when the host generates
   // highlights. ChatHighlight rows only persist the top-3 burst windows
   // (max 25 msgs each), which made the OG-card reaction timeline read
   // as sparse compared to the in-app heatmap. This array carries one
   // count per minute of the watch so the OG strip can rebucket at any
   // granularity and exactly mirror the post-watch chart.
-  chatBucketCounts Json?            @map("chat_bucket_counts")
-  createdAt  DateTime               @default(now()) @map("created_at")
-  updatedAt  DateTime               @updatedAt @map("updated_at")
+  chatBucketCounts Json?                  @map("chat_bucket_counts")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
 
   host           User                     @relation("screeningHost", fields: [hostId], references: [id], onDelete: Cascade)
   movie          Movie?                   @relation(fields: [movieId], references: [id])

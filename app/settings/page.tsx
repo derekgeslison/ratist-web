@@ -6,6 +6,7 @@ import { Check, Save, Upload, X, AlertTriangle, Download, Mail, Ticket } from "l
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile } from "firebase/auth";
 import AvatarCropModal from "@/components/AvatarCropModal";
+import PushNotificationsSection from "@/components/PushNotificationsSection";
 import TextareaWithEmoji from "@/components/TextareaWithEmoji";
 import { useUnsavedWarning } from "@/hooks/useUnsavedWarning";
 
@@ -691,6 +692,8 @@ export default function SettingsPage() {
           </Link>
         </div>
       </section>
+
+      <PushNotificationsSection />
 
       {/* ── Notification Preferences ── */}
       <section className="mb-10">
