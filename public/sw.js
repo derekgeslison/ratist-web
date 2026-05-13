@@ -5,11 +5,15 @@
 //   • /_next/static/*   → cache-first (immutable, fingerprinted)
 //   • Other GET assets  → stale-while-revalidate
 //   • /api/*            → network-only (never cache — auth + dynamic data)
+//   • /__/*             → NOT INTERCEPTED (Firebase auth handlers — any
+//                          touching breaks the OAuth popup→parent
+//                          postMessage flow on mobile)
+//   • /auth/*           → NOT INTERCEPTED (our sign-in pages)
 //
 // Bump CACHE_VERSION when changing this file's logic; old caches purge on
 // the next activate.
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const STATIC_CACHE = `ratist-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `ratist-runtime-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -61,6 +65,15 @@ self.addEventListener("fetch", (event) => {
 
   // API: always network. Caching auth-bound responses is a footgun.
   if (url.pathname.startsWith("/api/")) return;
+
+  // Firebase Auth handlers live at /__/auth/* on the app's own origin.
+  // Any SW interception breaks the popup → parent postMessage handshake
+  // and produces "auth/popup-closed-by-user" on mobile. Hands-off.
+  if (url.pathname.startsWith("/__/")) return;
+
+  // Our own auth pages (sign-in, password reset, email verify) — leave
+  // alone so the network is the source of truth during sign-in flows.
+  if (url.pathname.startsWith("/auth/")) return;
 
   // Next.js immutable static bundles: cache-first.
   if (url.pathname.startsWith("/_next/static/")) {
