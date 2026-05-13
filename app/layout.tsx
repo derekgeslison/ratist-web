@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -13,6 +13,7 @@ import TouchHint from "@/components/TouchHint";
 import ConsentBanner from "@/components/ConsentBanner";
 import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -30,6 +31,15 @@ export const metadata: Metadata = {
   description:
     "Discover movies and TV shows through deep, criteria-based ratings. Get personalized recommendations based on your unique taste profile.",
   metadataBase: new URL("https://www.theratist.com"),
+  applicationName: "The Ratist",
+  appleWebApp: {
+    capable: true,
+    title: "Ratist",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },
@@ -38,6 +48,13 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#cc1034",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -137,6 +154,7 @@ window.gtag('config', '${GA_ID}');`}
           <TouchHint />
           <ScrollToTopButton />
           <ConsentBanner />
+          <ServiceWorkerRegister />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">
