@@ -16,7 +16,7 @@ import {
   type User,
   getAdditionalUserInfo,
 } from "firebase/auth";
-import { auth, googleProvider, facebookProvider, appleProvider } from "@/lib/firebase";
+import { auth, googleProvider, appleProvider } from "@/lib/firebase";
 
 interface AccountStatus {
   type: "deleted" | "banned";
@@ -49,7 +49,6 @@ interface AuthContextValue {
    *  on every page mount (Navbar + AdUnit + page-level checks). */
   subscription: SubscriptionState;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
-  signInWithFacebook: () => Promise<{ isNewUser: boolean }>;
   signInWithApple: () => Promise<{ isNewUser: boolean }>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
@@ -208,25 +207,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signInWithFacebook() {
-    try {
-      const result = await signInWithPopup(auth, facebookProvider);
-      const info = getAdditionalUserInfo(result);
-      return { isNewUser: info?.isNewUser ?? false };
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-browser" || code === "auth/cancelled-popup-request" || code === "auth/internal-error") {
-        await signInWithRedirect(auth, facebookProvider);
-        return { isNewUser: false };
-      }
-      throw err;
-    }
-  }
-
   async function signInWithApple() {
     try {
       const result = await signInWithPopup(auth, appleProvider);
       const info = getAdditionalUserInfo(result);
+      // Apple sends the user's name ONLY on the very first sign-in (in the
+      // OAuth payload's `profile.name`). After that, `firebaseUser.displayName`
+      // would stay null forever — and our /api/auth/sync would fall back to
+      // splitting the email, which produces gibberish for "Hide My Email"
+      // accounts (e.g. `random123@privaterelay.appleid.com`).
+      // So we capture the name here on first sign-in and persist it via
+      // updateProfile so it sticks for every subsequent session.
+      if (info?.isNewUser && result.user && !result.user.displayName) {
+        const profile = info.profile as { name?: { firstName?: string; lastName?: string }; firstName?: string; lastName?: string } | null;
+        const first = profile?.name?.firstName ?? profile?.firstName;
+        const last = profile?.name?.lastName ?? profile?.lastName;
+        const composed = [first, last].filter(Boolean).join(" ").trim();
+        if (composed) {
+          try { await updateProfile(result.user, { displayName: composed }); } catch { /* non-fatal */ }
+        }
+      }
       return { isNewUser: info?.isNewUser ?? false };
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
@@ -296,7 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, tourDismissedAt, accountStatus, subscription, signInWithGoogle, signInWithFacebook, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, tourDismissedAt, accountStatus, subscription, signInWithGoogle, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
       {children}
     </AuthContext.Provider>
   );
