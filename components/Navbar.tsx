@@ -18,7 +18,7 @@ const READ_LINKS = [
 ];
 
 export default function Navbar() {
-  const { user, signOut } = useAuth();
+  const { user, dbUser, signOut } = useAuth();
   const { hasPass } = useSubscription();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -202,11 +202,16 @@ export default function Navbar() {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"
                 >
-                  {user.photoURL ? (
-                    <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full w-7 h-7 object-cover" />
+                  {/* Avatar pulls from DB (dbUser.avatarUrl), NOT from
+                      firebaseUser.photoURL — otherwise a user who signed
+                      up email/password then linked Google would see the
+                      Google avatar here while their /settings + /profile
+                      still show the (correctly preserved) DB value. */}
+                  {dbUser?.avatarUrl ? (
+                    <Image src={dbUser.avatarUrl} alt="" width={28} height={28} className="rounded-full w-7 h-7 object-cover" />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-[var(--ratist-red)] flex items-center justify-center text-white text-xs font-bold">
-                      {(user.displayName ?? user.email ?? "U")[0].toUpperCase()}
+                      {(dbUser?.name ?? user.displayName ?? user.email ?? "U")[0].toUpperCase()}
                     </div>
                   )}
                   <ChevronDown className="w-3 h-3" />

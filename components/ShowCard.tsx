@@ -23,7 +23,7 @@ interface Props {
 export default function ShowCard({ show, characterName, streaming, rent, certification }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
-  const { seen, watchlisted, ratistRating, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useShowUserState(show.id);
+  const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, markUnseen: persistUnseen, setWatchlistState } = useShowUserState(show.id);
   const [markingS, setMarkingS] = useState(false);
   const [seenError, setSeenError] = useState<string | null>(null);
 
@@ -119,7 +119,12 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
         <p className="text-xs text-[var(--foreground-muted)]">{show.first_air_date?.slice(0, 4) || "TBA"}</p>
         <div className="flex items-center gap-3 mt-0.5">
           <RatingBadge type="community" score={communityScore} size="sm" />
-          <RatingBadge type="ratist" score={ratistRating} size="sm" />
+          <RatingBadge
+            type="ratist"
+            score={ratistRating ?? estimatedRating}
+            isEstimate={ratistRating == null && estimatedRating != null}
+            size="sm"
+          />
         </div>
         {streaming && streaming.length > 0 ? (
           <div className="mt-0.5"><ProviderLogos providers={streaming} size={18} label="Stream" contentTitle={show.name} contentType="tv" /></div>

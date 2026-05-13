@@ -8,25 +8,27 @@ import { Check, ChevronRight, Film, Eye, Star, Upload } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 
+// Alphabetical by label — keep aligned with the same list in
+// app/settings/page.tsx and the canonical key set in lib/profile.ts.
 const GENRES = [
   { key: "genreAction", label: "Action / Adventure" },
-  { key: "genreHorror", label: "Horror" },
+  { key: "genreBiopic", label: "Biopic" },
+  { key: "genreBookAdapt", label: "Book Adaptation" },
+  { key: "genreComedy", label: "Comedy" },
+  { key: "genreCrime", label: "Crime" },
+  { key: "genreDocumentary", label: "Documentary" },
   { key: "genreDrama", label: "Drama" },
+  { key: "genreFamily", label: "Family" },
+  { key: "genreFantasy", label: "Fantasy" },
+  { key: "genreFilmNoir", label: "Film-Noir" },
+  { key: "genreHistorical", label: "Historical" },
+  { key: "genreHorror", label: "Horror" },
+  { key: "genreMusical", label: "Musical" },
+  { key: "genreMystery", label: "Mystery" },
+  { key: "genreRomance", label: "Romance" },
   { key: "genreScifi", label: "Sci-Fi" },
   { key: "genreThriller", label: "Thriller" },
-  { key: "genreComedy", label: "Comedy" },
-  { key: "genreFantasy", label: "Fantasy" },
-  { key: "genreRomance", label: "Romance" },
-  { key: "genreDocumentary", label: "Documentary" },
-  { key: "genreFamily", label: "Family" },
-  { key: "genreHistorical", label: "Historical" },
-  { key: "genreMusical", label: "Musical" },
-  { key: "genreBiopic", label: "Biopic" },
-  { key: "genreCrime", label: "Crime" },
-  { key: "genreFilmNoir", label: "Film-Noir" },
-  { key: "genreBookAdapt", label: "Book Adaptation" },
   { key: "genreWestern", label: "Western" },
-  { key: "genreMystery", label: "Mystery" },
 ];
 
 const COMPONENTS = [

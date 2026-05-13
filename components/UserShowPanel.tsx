@@ -55,6 +55,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
   const [userRating, setUserRating] = useState<UserRating | null>(null);
   const [ratingStatus, setRatingStatus] = useState<string | null>(null);
   const [communityAvg, setCommunityAvg] = useState<CommunityAvg | null>(null);
+  const [estimatedRating, setEstimatedRating] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [markingSeen, setMarkingSeen] = useState(false);
   const [showSeenModal, setShowSeenModal] = useState(false);
@@ -87,6 +88,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
       setUserRating(data.rating ?? null);
       setRatingStatus(data.ratingStatus ?? null);
       setCommunityAvg(data.communityAvg ?? null);
+      setEstimatedRating(data.estimatedRating ?? null);
     })
     .catch(() => {})
     .finally(() => { if (!cancelled) setLoaded(true); });
@@ -163,7 +165,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
       {/* Personal rating or estimate */}
       <div className="flex flex-col gap-1">
         <span className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider">
-          {displayScore != null ? "Your Rating" : "Your Score Estimate"}
+          {displayScore != null ? "Your Rating" : estimatedRating != null ? "Your Score Estimate" : "Ratist Rating"}
         </span>
         <div className="flex items-center gap-2">
           <Image src="/logo.png" alt="R" width={16} height={16} className="w-4 h-4 opacity-80" />
@@ -171,13 +173,20 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
             <span className="text-lg font-bold" style={{ color: scoreColor(displayScore) }}>
               {displayScore.toFixed(1)}
             </span>
+          ) : estimatedRating != null ? (
+            <span className="text-lg font-bold italic" style={{ color: scoreColor(estimatedRating) }}>
+              ~{estimatedRating.toFixed(1)}
+            </span>
           ) : (
-            <span className="text-lg font-bold text-[var(--foreground-muted)] cursor-help" title="Not enough Ratist reviews for this show to generate a personalized estimate yet">
+            <span className="text-lg font-bold text-[var(--foreground-muted)] cursor-help" title="Not enough Ratist data yet to generate a personalized estimate">
               –
             </span>
           )}
         </div>
-        {displayScore == null && (
+        {displayScore == null && estimatedRating != null && (
+          <span className="text-xs text-[var(--foreground-muted)] italic">Estimated for you · rate to lock it in</span>
+        )}
+        {displayScore == null && estimatedRating == null && (
           <span className="text-xs text-[var(--foreground-muted)]">Rate this show to get your real score</span>
         )}
       </div>

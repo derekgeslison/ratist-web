@@ -70,8 +70,11 @@ export default function VerifyEmailPage() {
           </div>
 
           <h1 className="text-xl font-bold text-white mb-2">Verify Your Email</h1>
-          <p className="text-sm text-[var(--foreground-muted)] mb-6">
+          <p className="text-sm text-[var(--foreground-muted)] mb-3">
             We sent a verification link to your email address. Click the link to verify your account, then come back and sign in.
+          </p>
+          <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-6">
+            <strong>Heads up:</strong> the verification email often lands in spam or promotions. Check there if you don&apos;t see it within a minute.
           </p>
 
           {sent ? (

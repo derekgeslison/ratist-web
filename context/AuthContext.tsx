@@ -33,10 +33,27 @@ interface SubscriptionState {
   loading: boolean;
 }
 
+interface DbUserSummary {
+  /** DB-side display name. Distinct from `firebaseUser.displayName`, which
+   *  comes from the OAuth provider — we never overwrite the DB value on
+   *  re-sign-in, so this is the authoritative one. */
+  name: string;
+  /** DB-side avatar. Same story — preserved across sign-in providers. */
+  avatarUrl: string | null;
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
   needsOnboarding: boolean;
+  /** Authoritative DB user identity (name + avatar). Read this — NOT
+   *  `firebaseUser.displayName` / `firebaseUser.photoURL` — when rendering
+   *  the viewer's own profile chrome anywhere on the site. Reason: a user
+   *  who signed up via email/password then later signed in via Google
+   *  has a `firebaseUser.photoURL` populated by Google, but their DB
+   *  avatarUrl is whatever they set (or null). The DB value is the one
+   *  we want everywhere so account-linking doesn't visually override it. */
+  dbUser: DbUserSummary | null;
   /** ISO string when the home tour banner was dismissed server-side
    *  (or the user took the tour). Null = banner still active. Mirrored
    *  here so client components can decide whether to render the banner
@@ -71,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [tourDismissedAt, setTourDismissedAt] = useState<string | null>(null);
   const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
+  const [dbUser, setDbUser] = useState<DbUserSummary | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionState>({
     hasPass: false,
     status: null,
@@ -134,6 +152,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccountStatus(null);
       setNeedsOnboarding(data.needsOnboarding === true);
       setTourDismissedAt(data.user?.tourDismissedAt ?? null);
+      // Capture authoritative DB-side name + avatar so consumers like
+      // the Navbar can render the user's actual chosen identity rather
+      // than whatever the current sign-in provider supplied.
+      if (data.user) {
+        setDbUser({
+          name: data.user.name ?? "User",
+          avatarUrl: data.user.avatarUrl ?? null,
+        });
+      }
       return true;
     }
     return true;
@@ -185,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setLoading(false);
         setAccountStatus(null);
+        setDbUser(null);
       }
     });
     return unsub;
@@ -296,7 +324,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, tourDismissedAt, accountStatus, subscription, signInWithGoogle, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
+    <AuthContext.Provider value={{ user, loading, dbUser, needsOnboarding, tourDismissedAt, accountStatus, subscription, signInWithGoogle, signInWithApple, signInWithEmail, signUpWithEmail, resetPassword, signOut, restoreAccount, startFresh, clearAccountStatus, completeOnboarding, markTourDismissed: () => setTourDismissedAt(new Date().toISOString()) }}>
       {children}
     </AuthContext.Provider>
   );

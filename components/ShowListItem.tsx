@@ -22,7 +22,7 @@ interface Props {
 export default function ShowListItem({ show, characterName, streaming, rent, certification }: Props) {
   const { user } = useAuth();
   const communityScore = show.vote_average > 0 ? show.vote_average : null;
-  const { seen, watchlisted, ratistRating, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
+  const { seen, watchlisted, ratistRating, estimatedRating, markSeen: persistSeen, setWatchlistState } = useShowUserState(show.id);
   const [markingS, setMarkingS] = useState(false);
 
   async function markSeen(e: React.MouseEvent) {
@@ -116,7 +116,12 @@ export default function ShowListItem({ show, characterName, streaming, rent, cer
 
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <RatingBadge type="community" score={communityScore} size="sm" />
-        <RatingBadge type="ratist" score={ratistRating} size="sm" />
+        <RatingBadge
+          type="ratist"
+          score={ratistRating ?? estimatedRating}
+          isEstimate={ratistRating == null && estimatedRating != null}
+          size="sm"
+        />
       </div>
     </Link>
   );
