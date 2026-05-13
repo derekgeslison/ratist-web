@@ -214,7 +214,7 @@ export default function SharedCastPage() {
           className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] disabled:opacity-50"
         />
         {searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-10 overflow-hidden max-h-72 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl z-30 overflow-hidden max-h-72 overflow-y-auto">
             {searchResults.map((r) => (
               <button key={`${r.id}-${(r as { media_type?: string }).media_type ?? "p"}`} onClick={() => addItem(r)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left">
                 {(r.poster_path || r.profile_path) ? (
@@ -315,6 +315,22 @@ export default function SharedCastPage() {
                 const years = movieResults.map((m) => parseInt(m.release_date?.slice(0, 4))).filter((y) => !isNaN(y)).sort();
                 if (years.length > 1 && years[0] !== years[years.length - 1]) yearRange = `${years[0]}–${years[years.length - 1]}`;
               }
+              // Top shared items (people for movies-to-people, movies for people-to-movies)
+              // for hero face / poster bridge in the OG card
+              const topShared = mode === "movies-to-people"
+                ? personResults.slice(0, 6).map((p) => ({ id: p.id, name: p.name, count: p.count }))
+                : movieResults.slice(0, 6).map((m) => ({ id: m.id, name: m.title, count: m.count }));
+              const sharedIdsParam = topShared.map((s) => s.id).join(",");
+              const sharedNamesParam = topShared.map((s) => s.name).join("|");
+              const sharedCountsParam = topShared.map((s) => s.count).join(",");
+              const typesParam = selected.map((s) => (s as { media_type?: string }).media_type ?? "movie").join(",");
+              // Tier breakdown: count results at each overlap level (e.g., "4:3,3:12,2:47")
+              const tierMap = new Map<number, number>();
+              for (const r of results) tierMap.set(r.count, (tierMap.get(r.count) ?? 0) + 1);
+              const tiersParam = Array.from(tierMap.entries())
+                .sort((a, b) => b[0] - a[0])
+                .map(([k, v]) => `${k}:${v}`)
+                .join(",");
               return (
                 <ShareButton
                   label="Share"
@@ -323,7 +339,7 @@ export default function SharedCastPage() {
                     : `${results.length} title${results.length !== 1 ? "s" : ""} featuring${overlapText} ${selected.map((s) => s.name ?? s.title).join(", ")} — found on The Ratist!`
                   }
                   url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/shared-cast`}
-                  cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&ids=${selected.map((s) => s.id).join(",")}&count=${results.length}&overlap=${minOverlap}&total=${selected.length}${callout ? `&callout=${encodeURIComponent(callout)}` : ""}${yearRange ? `&years=${encodeURIComponent(yearRange)}` : ""}`}
+                  cardImageUrl={`/api/og/shared-cast?mode=${mode}&names=${encodeURIComponent(selected.map((s) => s.title ?? s.name ?? "").join("|"))}&ids=${selected.map((s) => s.id).join(",")}&types=${typesParam}&count=${results.length}&overlap=${minOverlap}&total=${selected.length}&sharedIds=${sharedIdsParam}&sharedNames=${encodeURIComponent(sharedNamesParam)}&sharedCounts=${sharedCountsParam}&tiers=${tiersParam}${callout ? `&callout=${encodeURIComponent(callout)}` : ""}${yearRange ? `&years=${encodeURIComponent(yearRange)}` : ""}`}
                 />
               );
             })()}

@@ -25,10 +25,16 @@ interface CombinedCreditsResponse {
 // matches that aren't really "shared work" in any meaningful sense.
 const TV_GENRE_NEWS = 10763;
 const TV_GENRE_TALK = 10767;
+// Award ceremonies (Oscars, etc.) — celebs accumulate appearances across
+// years just by attending; not meaningful "shared work."
+const BLOCKED_TV_IDS = new Set<number>([27023]); // The Oscars
 function isTalkOrNewsTv(mediaType: string, genreIds?: number[]): boolean {
   if (mediaType !== "tv") return false;
   const ids = genreIds ?? [];
   return ids.includes(TV_GENRE_NEWS) || ids.includes(TV_GENRE_TALK);
+}
+function isBlocked(mediaType: string, id: number): boolean {
+  return mediaType === "tv" && BLOCKED_TV_IDS.has(id);
 }
 
 export async function POST(req: NextRequest) {
@@ -105,6 +111,7 @@ export async function POST(req: NextRequest) {
 
         for (const m of credits.cast) {
           if (isTalkOrNewsTv(m.media_type, m.genre_ids)) continue;
+          if (isBlocked(m.media_type, m.id)) continue;
           if (!seenForThisPerson.has(m.id)) {
             seenForThisPerson.add(m.id);
             const title = m.title ?? m.name ?? "";
@@ -116,6 +123,7 @@ export async function POST(req: NextRequest) {
         }
         for (const m of credits.crew) {
           if (isTalkOrNewsTv(m.media_type, m.genre_ids)) continue;
+          if (isBlocked(m.media_type, m.id)) continue;
           if (!seenForThisPerson.has(m.id)) {
             seenForThisPerson.add(m.id);
             const title = m.title ?? m.name ?? "";

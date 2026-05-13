@@ -50,6 +50,21 @@ export async function GET(req: NextRequest) {
     });
 
     const seenMovieTmdbIds = new Set(seenMovies.map((m) => m.tmdbId));
+    // Community averages — used by the share-card fallback when the user hasn't
+    // rated any of the actor's films. Threshold ≥2 ratings to skip noise.
+    const movieDbIds = seenMovies.map((m) => m.id);
+    const movieCommunityAgg = movieDbIds.length === 0 ? [] : await prisma.movieRating.groupBy({
+      by: ["movieId"],
+      where: { movieId: { in: movieDbIds }, ratistRating: { not: null } },
+      _avg: { ratistRating: true },
+      _count: { ratistRating: true },
+    });
+    const movieCommunityMap = new Map<string, number>(
+      movieCommunityAgg
+        .filter((c) => (c._count.ratistRating ?? 0) >= 1 && c._avg.ratistRating != null)
+        .map((c) => [c.movieId, c._avg.ratistRating as number])
+    );
+
     const movieResults = allMovieCredits
       .filter((m) => seenMovieTmdbIds.has(m.tmdbId))
       .map((m) => {
@@ -64,6 +79,12 @@ export async function GET(req: NextRequest) {
           character: (m as { character?: string }).character,
           job: (m as { job?: string }).job,
           ratistRating: dbMovie?.ratings?.[0]?.ratistRating ?? null,
+          // Prefer Ratist community avg; fall back to TMDB voteAverage so the
+          // share-card has a meaningful "community pick" even when Ratist
+          // hasn't accumulated multiple ratings on a film yet.
+          communityRating: dbMovie
+            ? (movieCommunityMap.get(dbMovie.id) ?? dbMovie.voteAverage ?? null)
+            : null,
         };
       });
 
@@ -103,6 +124,19 @@ export async function GET(req: NextRequest) {
       ...seenShows.map((s) => s.tmdbId),
       ...episodeSeenShowIds.map((e) => e.showTmdbId),
     ]);
+    const showDbIds = seenShows.map((s) => s.id);
+    const showCommunityAgg = showDbIds.length === 0 ? [] : await prisma.tVShowRating.groupBy({
+      by: ["tvShowId"],
+      where: { tvShowId: { in: showDbIds }, ratingScope: "series", ratistRating: { not: null } },
+      _avg: { ratistRating: true },
+      _count: { ratistRating: true },
+    });
+    const showCommunityMap = new Map<string, number>(
+      showCommunityAgg
+        .filter((c) => (c._count.ratistRating ?? 0) >= 1 && c._avg.ratistRating != null)
+        .map((c) => [c.tvShowId, c._avg.ratistRating as number])
+    );
+
     const showResults = allTVCredits
       .filter((s) => seenShowTmdbIds.has(s.tmdbId))
       .map((s) => {
@@ -114,6 +148,9 @@ export async function GET(req: NextRequest) {
           character: (s as { character?: string }).character,
           job: (s as { job?: string }).job,
           ratistRating: dbShow?.ratings?.[0]?.ratistRating ?? null,
+          communityRating: dbShow
+            ? (showCommunityMap.get(dbShow.id) ?? dbShow.voteAverage ?? null)
+            : null,
         };
       });
 

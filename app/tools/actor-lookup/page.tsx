@@ -13,7 +13,7 @@ import ShareButton from "@/components/ShareButton";
 interface PersonResult { id: number; name: string; profile_path: string | null; known_for_department: string }
 interface ContentSearchResult { id: number; title?: string; name?: string; poster_path: string | null; release_date?: string; first_air_date?: string; mediaType: "movie" | "tv" }
 interface CastMember { id: number; name: string; profile_path: string | null; character?: string; job?: string; known_for_department?: string }
-interface SeenItem { tmdbId: number; title: string; posterPath: string | null; character?: string; job?: string; ratistRating?: number | null; mediaType: "movie" | "tv" }
+interface SeenItem { tmdbId: number; title: string; posterPath: string | null; character?: string; job?: string; ratistRating?: number | null; communityRating?: number | null; mediaType: "movie" | "tv" }
 
 type SearchMode = "person" | "content";
 
@@ -231,6 +231,22 @@ function ActorLookupContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
+  // Self-heal stale sessionStorage: refetch once on mount if the restored
+  // seenItems are missing the latest field OR every item has communityRating
+  // null (which can happen if the cache was written after the field was
+  // added but before TMDB-voteAverage fallback — the values would all be
+  // empty since few films have multiple Ratist ratings yet).
+  useEffect(() => {
+    if (authLoading) return;
+    if (!hasRestoredPerson) return;
+    const items = restored.seenItems as SeenItem[] | undefined;
+    if (!items || items.length === 0) return;
+    const missingField = !("communityRating" in items[0]);
+    const allNull = items.every((i) => i.communityRating == null);
+    if (missingField || allNull) selectPerson(restored.selectedPerson);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading]);
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
@@ -340,12 +356,70 @@ function ActorLookupContent() {
                           {countText} you&apos;ve seen with {selectedPerson.name}
                           {avg != null && <> &middot; avg rating <span className="text-white font-semibold">{avg.toFixed(1)}</span></>}
                         </p>
-                        <ShareButton
-                          label="Share"
-                          text={`I've seen ${countText} with ${selectedPerson.name}${avg != null ? ` (avg rating ${avg.toFixed(1)})` : ""} on The Ratist!`}
-                          url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/actor-lookup?personId=${selectedPerson.id}&name=${encodeURIComponent(selectedPerson.name)}`}
-                          cardImageUrl={`/api/og/actor-lookup?personId=${selectedPerson.id}&name=${encodeURIComponent(selectedPerson.name)}&count=${seenItems.length}${avg != null ? `&avg=${avg.toFixed(1)}` : ""}`}
-                        />
+                        {(() => {
+                          // Two modes for hero/tail selection:
+                          //   - User has rated some: sort by user rating desc (unrated last)
+                          //   - User has rated none: sort by community rating desc (no community
+                          //     rating last). Hero = #1, tail = rest. Chips show whichever
+                          //     dimension we sorted by, so OG card stays internally consistent.
+                          const useCommunity = avg == null;
+                          const pickRating = (m: SeenItem) => (useCommunity ? m.communityRating : m.ratistRating);
+                          const sorted = [...seenItems].sort((a, b) => {
+                            const ra = pickRating(a);
+                            const rb = pickRating(b);
+                            if (ra != null && rb != null) return rb - ra;
+                            if (ra != null) return -1;
+                            if (rb != null) return 1;
+                            return 0;
+                          });
+                          const hero = sorted[0];
+                          const tail = sorted.slice(1, 14);
+                          // Truncate hero title to keep URL manageable + avoid runaway wrap
+                          const truncTitle = (s: string) => (s.length > 60 ? s.slice(0, 58) + "…" : s);
+                          const tailPosters = tail.map((t) => t.posterPath ?? "").join("|");
+                          const tailRatings = tail
+                            .map((t) => {
+                              const r = pickRating(t);
+                              return r != null ? r.toFixed(1) : "-";
+                            })
+                            .join(",");
+                          const heroPoster = hero?.posterPath ?? "";
+                          const heroTitle = hero ? truncTitle(hero.title) : "";
+                          const heroRatingNum = hero ? pickRating(hero) : null;
+                          const heroRating = heroRatingNum != null ? heroRatingNum.toFixed(1) : "";
+                          const heroType = hero?.mediaType === "tv" ? "t" : "m";
+                          const personPoster = selectedPerson.profile_path ?? "";
+                          const dept = selectedPerson.known_for_department ?? "Acting";
+                          const movieCountStr = seenItems.filter((m) => m.mediaType === "movie").length;
+                          const showCountStr = seenItems.filter((m) => m.mediaType === "tv").length;
+                          const ogParams = new URLSearchParams({
+                            personId: String(selectedPerson.id),
+                            name: selectedPerson.name,
+                            count: String(seenItems.length),
+                            movies: String(movieCountStr),
+                            shows: String(showCountStr),
+                            dept,
+                            personPoster,
+                            heroPoster,
+                            heroTitle,
+                            heroRating,
+                            heroType,
+                            heroIsCommunity: useCommunity ? "1" : "",
+                            tailPosters,
+                            tailRatings,
+                            tailHidden: String(Math.max(0, seenItems.length - 1 - tail.length)),
+                          });
+                          if (avg != null) ogParams.set("avg", avg.toFixed(1));
+                          if (user?.displayName) ogParams.set("userName", user.displayName);
+                          return (
+                            <ShareButton
+                              label="Share"
+                              text={`I've seen ${countText} with ${selectedPerson.name}${avg != null ? ` (avg rating ${avg.toFixed(1)})` : ""} on The Ratist!`}
+                              url={`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://theratist.com"}/tools/actor-lookup?personId=${selectedPerson.id}&name=${encodeURIComponent(selectedPerson.name)}`}
+                              cardImageUrl={`/api/og/actor-lookup?${ogParams.toString()}`}
+                            />
+                          );
+                        })()}
                       </div>
                     );
                   })()}

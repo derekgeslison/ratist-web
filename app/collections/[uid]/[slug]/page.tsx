@@ -83,14 +83,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = collection.description ??
     `A curated collection of ${collection.items.length} title${collection.items.length === 1 ? "" : "s"} by ${attribution} on The Ratist.`;
   const canonical = `/collections/${uid}/${slug}`;
-  // OG image: prefer the explicit cover, fall back to the first item's
-  // poster. Either way we get a recognizable preview when shared.
-  const firstPoster = collection.items.find((i) => i.posterPath)?.posterPath ?? null;
-  const ogImage = collection.coverPath
-    ? posterUrl(collection.coverPath, "w780")
-    : firstPoster
-      ? posterUrl(firstPoster, "w780")
-      : null;
+  // Custom OG card — branded layout with poster wall, curator, stats, tags.
+  // Falls back implicitly via the route's own error handling if the
+  // collection lookup fails inside the OG endpoint.
+  const ogImage = `${SITE_BASE}/api/og/collection?uid=${encodeURIComponent(uid)}&slug=${encodeURIComponent(slug)}`;
 
   return {
     title,
@@ -101,13 +97,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       type: "article",
       url: `${SITE_BASE}${canonical}`,
-      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+      images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {
-      card: ogImage ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title,
       description,
-      ...(ogImage ? { images: [ogImage] } : {}),
+      images: [ogImage],
     },
   };
 }
