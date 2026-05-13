@@ -776,6 +776,93 @@ export async function getBatchScoreEstimatesTv(
 }
 
 /**
+ * Per-season score estimates for one show. Mirrors getBatchScoreEstimatesTv
+ * but groups by seasonNumber and requires at least one full Ratist rating
+ * (plot != null) per season so the estimate is grounded in real category
+ * data, not on a few stray 1–10 ratings.
+ *
+ * Returns Map<seasonNumber, number | null>. Entries are present only for
+ * seasons that had >= 1 full Ratist rating; absent seasonNumbers should
+ * be treated as "no estimate yet" by the caller.
+ */
+export async function getSeasonScoreEstimatesTv(
+  userId: string,
+  tvShowId: string
+): Promise<Map<number, number | null>> {
+  const [profile, communityAvgs, show] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.tVShowRating.groupBy({
+      by: ["seasonNumber"],
+      where: {
+        tvShowId,
+        excluded: false,
+        ratingScope: "season",
+        plot: { not: null }, // gate: at least one full Ratist rating
+      },
+      _avg: {
+        plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
+        relatability: true, characterDev: true, dialogueScripting: true,
+        overallEmotion: true, meaning: true, movingness: true,
+        cinematography: true, artisticEffect: true, visualEffects: true,
+        locationCost: true, musicSound: true,
+        casting: true, actingQuality: true, blockingChoreo: true,
+        appeal: true,
+      },
+      _count: { ratistRating: true },
+    }),
+    prisma.tVShow.findUnique({
+      where: { id: tvShowId },
+      include: { genres: true },
+    }),
+  ]);
+
+  const result = new Map<number, number | null>();
+  if (!profile) return result;
+
+  const hasProfile = (Object.keys(FOCUSED_CATEGORIES) as FocusedKey[]).some(
+    (k) => (profile[k] as number) > 0
+  );
+  if (!hasProfile) return result;
+
+  // Genre score is constant across seasons of the same show — compute once.
+  let genreScore: number | null = null;
+  if (show) {
+    const genreScores: number[] = [];
+    for (const sg of show.genres) {
+      for (const profileKey of getProfileGenreKeys(sg.genreId)) {
+        genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
+      }
+    }
+    if (genreScores.length > 0) {
+      genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
+    }
+  }
+
+  for (const row of communityAvgs) {
+    if ((row._count.ratistRating ?? 0) === 0) continue;
+    const avg = row._avg as Record<string, number | null>;
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
+      const seasonCategoryScore = subFieldAvg(avg, fields);
+      const userPref = profile[cat] as number;
+      if (seasonCategoryScore != null && userPref > 0) {
+        weightedSum += seasonCategoryScore * userPref;
+        totalWeight += userPref;
+      }
+    }
+    if (totalWeight === 0) { result.set(row.seasonNumber, null); continue; }
+    const componentEstimate = weightedSum / totalWeight;
+    const estimate = genreScore != null
+      ? componentEstimate * 0.90 + genreScore * 0.10
+      : componentEstimate;
+    result.set(row.seasonNumber, Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10);
+  }
+
+  return result;
+}
+
+/**
  * Get predicted Ratist rating for a movie for a given user,
  * based on ratings from similar users.
  */

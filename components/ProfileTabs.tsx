@@ -252,6 +252,23 @@ export default function ProfileTabs({
     return () => { cancelled = true; };
   }, [user, profileFirebaseUid, isOwnProfile]);
 
+  // "Suggested for you" sections — fetched once when viewing someone
+  // else's profile while signed in. Lists movies the profile owner rated
+  // highly, gated by either shared component preferences (≥2 axes both
+  // ≥7.5) or shared genre preferences (≥1 axis both ≥7.0).
+  type SuggestionItem = { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; ratistRating: number; mediaType: "movie" | "tv" };
+  const [suggestions, setSuggestions] = useState<{ shared: { components: string[]; genres: string[] }; componentSuggestions: SuggestionItem[]; genreSuggestions: SuggestionItem[] } | null>(null);
+  useEffect(() => {
+    if (!user || isOwnProfile) { setSuggestions(null); return; }
+    let cancelled = false;
+    user.getIdToken()
+      .then((token) => fetch(`/api/profile/${profileFirebaseUid}/suggestions`, { headers: { Authorization: `Bearer ${token}` } }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (!cancelled && data && !data.error) setSuggestions(data); })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [user, profileFirebaseUid, isOwnProfile]);
+
   // Default all tabs to public, then apply user overrides
   const defaultPublic: Record<string, boolean> = { overview: true, ratings: true, diary: true, watchlist: true, stats: true, rankings: true };
   const tabVisibility: Record<string, boolean> = { ...defaultPublic, ...publicTabs };
@@ -619,6 +636,69 @@ export default function ProfileTabs({
                           <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
                         </div>
                       )}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Suggested for you — component-shared.
+                Only renders for visitors (not own profile) when both users
+                share at least 2 component "focused" preferences above 7.5
+                AND the owner has high-rated movies the viewer hasn't seen. */}
+            {!isOwnProfile && suggestions && suggestions.componentSuggestions.length > 0 && (
+              <section>
+                <h2 className="text-base font-semibold text-white mb-1">
+                  Suggested titles {profileUserName} rated highly that you may like
+                </h2>
+                <p className="text-xs text-[var(--foreground-muted)] mb-4">
+                  Based on the {suggestions.shared.components.length} component preferences you both score above 7.5, where {profileUserName}&apos;s rating scored above 7.5 in at least 2 of those shared dimensions.
+                </p>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {suggestions.componentSuggestions.map((m) => (
+                    <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
+                        <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                          {m.posterPath ? (
+                            <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
+                          )}
+                        </div>
+                      </PosterOverlay>
+                      <div className="flex justify-center mt-1">
+                        <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Suggested for you — genre-shared. */}
+            {!isOwnProfile && suggestions && suggestions.genreSuggestions.length > 0 && (
+              <section>
+                <h2 className="text-base font-semibold text-white mb-1">
+                  Suggested titles based on your shared genre preferences
+                </h2>
+                <p className="text-xs text-[var(--foreground-muted)] mb-4">
+                  In the {suggestions.shared.genres.length === 1 ? "genre" : `${suggestions.shared.genres.length} genres`} you both prefer (above 7.0), {profileUserName} rated these above 7.5.
+                </p>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {suggestions.genreSuggestions.map((m) => (
+                    <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
+                        <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
+                          {m.posterPath ? (
+                            <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs text-[var(--foreground-muted)]">?</div>
+                          )}
+                        </div>
+                      </PosterOverlay>
+                      <div className="flex justify-center mt-1">
+                        <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
+                      </div>
                     </Link>
                   ))}
                 </div>

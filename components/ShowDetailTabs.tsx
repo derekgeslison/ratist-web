@@ -161,6 +161,7 @@ function SeasonCard({
   userSeasonRating,
   canRateSeason,
   isAiring,
+  estimateForYou,
 }: {
   season: TMDBSeason;
   showTmdbId: number;
@@ -183,6 +184,10 @@ function SeasonCard({
    *  next_episode_to_air and last_episode_to_air resolve to this
    *  season. Drives the "Currently Airing" pill on the row header. */
   isAiring?: boolean;
+  /** Personalized score estimate for the viewer based on the community
+   *  category averages weighted against the viewer's taste profile.
+   *  Only set when at least one full Ratist rating exists for the season. */
+  estimateForYou?: number | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<TMDBEpisode[] | null>(null);
@@ -256,11 +261,33 @@ function SeasonCard({
               {season.air_date ? ` · ${season.air_date.slice(0, 4)}` : ""}
             </p>
             {aggregate && aggregate.avg.ratistRating != null && (
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <RatingBadge type="community" score={aggregate.avg.ratistRating} size="sm" />
                 <span className="text-[10px] text-[var(--foreground-muted)]">
                   ({aggregate.count} rating{aggregate.count !== 1 ? "s" : ""})
                 </span>
+                {/* Personalized estimate — only when at least one full
+                    Ratist rating exists for this season AND the viewer
+                    is signed in with a built taste profile. The tilde
+                    on the RatingBadge (isEstimate) signals "predicted,
+                    not actual" without needing a label. */}
+                {estimateForYou != null && (
+                  <>
+                    <span className="text-[10px] text-[var(--foreground-muted)]">·</span>
+                    <RatingBadge type="ratist" score={estimateForYou} size="sm" isEstimate />
+                  </>
+                )}
+                {/* Link to per-season breakdown on the reviews page —
+                    only appears when at least one full Ratist rating
+                    exists for this season (count is filtered to those
+                    server-side, so any positive count qualifies). */}
+                <Link
+                  href={`/shows/${showTmdbId}/reviews?sort=recent&scope=${season.season_number}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] text-[var(--ratist-red)] hover:underline"
+                >
+                  View breakdown →
+                </Link>
               </div>
             )}
           </div>
@@ -666,6 +693,27 @@ export default function ShowDetailTabs({
   // Map of seasonNumber → viewer's existing rating score. Drives the
   // "Rate" vs "Edit rating" pill on each season card.
   const [userSeasonRatings, setUserSeasonRatings] = useState<Map<number, number>>(new Map());
+  // Personalized score estimates per season for the current viewer.
+  // Map keyed by seasonNumber. Empty when signed out or when the viewer's
+  // taste profile hasn't been built yet (e.g. fresh accounts with 0 ratings).
+  const [seasonEstimates, setSeasonEstimates] = useState<Map<number, number>>(new Map());
+  useEffect(() => {
+    if (!user) { setSeasonEstimates(new Map()); return; }
+    let cancelled = false;
+    user.getIdToken()
+      .then((token) => fetch(`/api/shows/${show.id}/season-estimates`, { headers: { Authorization: `Bearer ${token}` } }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.estimates) return;
+        const m = new Map<number, number>();
+        for (const [k, v] of Object.entries(data.estimates as Record<string, number | null>)) {
+          if (v != null) m.set(Number(k), v);
+        }
+        setSeasonEstimates(m);
+      })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [user, show.id]);
 
   // Auto-dismiss the seen-block toast after a few seconds. The message
   // is short-lived UX feedback, not a persistent error state.
@@ -1217,6 +1265,7 @@ export default function ShowDetailTabs({
               isLoggedIn={isLoggedIn}
               aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === s.season_number)}
               userSeasonRating={userSeasonRatings.get(s.season_number) ?? null}
+              estimateForYou={seasonEstimates.get(s.season_number) ?? null}
               canRateSeason
               isAiring={
                 show.next_episode_to_air?.season_number === s.season_number
@@ -1242,6 +1291,7 @@ export default function ShowDetailTabs({
                 onRemoveRating={removeRating}
                 isLoggedIn={isLoggedIn}
                 aggregate={seasonAggregates.find((a) => a.ratingScope === "season" && a.seasonNumber === 0)}
+                estimateForYou={seasonEstimates.get(0) ?? null}
               />
             </>
           )}

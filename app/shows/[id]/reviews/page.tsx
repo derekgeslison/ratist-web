@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getShowDetails } from "@/lib/tmdb";
 import ReviewCard from "@/components/ReviewCard";
 import FollowingReviews from "@/components/FollowingReviews";
+import ShowBreakdownWithEstimate from "@/components/ShowBreakdownWithEstimate";
 
 export const dynamic = "force-dynamic";
 
@@ -153,6 +154,61 @@ export default async function ShowReviewsPage({ params, searchParams }: Props) {
     },
   });
 
+  // Per-scope community breakdown — series-level for "all" / "series",
+  // season-level when the user selected a specific season number. Only
+  // counts rows with the full Ratist rubric (plot != null) so the bars
+  // reflect actual category data, matching /api/shows/[id]/seen.
+  const breakdownScope: { ratingScope: string; seasonNumber?: number } =
+    scope !== "all" && scope !== "series" && !isNaN(Number(scope))
+      ? { ratingScope: "season", seasonNumber: Number(scope) }
+      : { ratingScope: "series" };
+  const breakdownAgg = await prisma.tVShowRating.aggregate({
+    where: {
+      tvShowId: dbShow.id,
+      ...breakdownScope,
+      ratistRating: { not: null },
+      plot: { not: null },
+      excluded: false,
+    },
+    _avg: {
+      ratistRating: true, storyScore: true, styleScore: true, emotiveScore: true, actingScore: true, entertainScore: true,
+      // Subfield averages — power the expandable view inside the breakdown.
+      plot: true, premiseOriginality: true, storytelling: true, characterDev: true, pacingClimax: true,
+      cinematography: true, locationCost: true, artisticEffect: true, visualEffects: true, musicSound: true,
+      overallEmotion: true, relatability: true, meaning: true, movingness: true,
+      casting: true, actingQuality: true, dialogueScripting: true, blockingChoreo: true,
+      appeal: true, superficialAllure: true, choreography: true,
+    },
+    _count: { ratistRating: true },
+  });
+  const breakdownAvg = {
+    ratistRating: breakdownAgg._avg.ratistRating,
+    storyScore: breakdownAgg._avg.storyScore,
+    styleScore: breakdownAgg._avg.styleScore,
+    emotiveScore: breakdownAgg._avg.emotiveScore,
+    actingScore: breakdownAgg._avg.actingScore,
+    entertainScore: breakdownAgg._avg.entertainScore,
+    count: breakdownAgg._count.ratistRating,
+    fields: {
+      plot: breakdownAgg._avg.plot, premiseOriginality: breakdownAgg._avg.premiseOriginality,
+      storytelling: breakdownAgg._avg.storytelling, characterDev: breakdownAgg._avg.characterDev,
+      pacingClimax: breakdownAgg._avg.pacingClimax,
+      cinematography: breakdownAgg._avg.cinematography, locationCost: breakdownAgg._avg.locationCost,
+      artisticEffect: breakdownAgg._avg.artisticEffect, visualEffects: breakdownAgg._avg.visualEffects,
+      musicSound: breakdownAgg._avg.musicSound,
+      overallEmotion: breakdownAgg._avg.overallEmotion, relatability: breakdownAgg._avg.relatability,
+      meaning: breakdownAgg._avg.meaning, movingness: breakdownAgg._avg.movingness,
+      casting: breakdownAgg._avg.casting, actingQuality: breakdownAgg._avg.actingQuality,
+      dialogueScripting: breakdownAgg._avg.dialogueScripting, blockingChoreo: breakdownAgg._avg.blockingChoreo,
+      appeal: breakdownAgg._avg.appeal, superficialAllure: breakdownAgg._avg.superficialAllure,
+      choreography: breakdownAgg._avg.choreography,
+    },
+  };
+  const breakdownHeading =
+    breakdownScope.ratingScope === "season"
+      ? `Season ${breakdownScope.seasonNumber} community breakdown`
+      : "Series community breakdown";
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Link
@@ -223,6 +279,25 @@ export default async function ShowReviewsPage({ params, searchParams }: Props) {
           </Link>
         ))}
       </div>
+
+      {/* Community breakdown for the active scope (series / season N).
+          Renders nothing when no full Ratist ratings exist for that scope.
+          Wrapper client-fetches the viewer's personalized estimate via
+          the matching auth endpoint and threads it through. */}
+      {breakdownAvg.count > 0 && (
+        <div className="mb-6">
+          <ShowBreakdownWithEstimate
+            tmdbId={Number(id)}
+            initialAvg={breakdownAvg}
+            heading={breakdownHeading}
+            scope={
+              breakdownScope.ratingScope === "season"
+                ? { season: breakdownScope.seasonNumber! }
+                : "series"
+            }
+          />
+        </div>
+      )}
 
       {sort === "following" ? (
         <FollowingReviews showTmdbId={Number(id)} />

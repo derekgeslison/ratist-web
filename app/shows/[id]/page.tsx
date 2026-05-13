@@ -19,6 +19,7 @@ import {
 } from "@/lib/tmdb";
 import UserShowPanel from "@/components/UserShowPanel";
 import ShowDetailTabs from "@/components/ShowDetailTabs";
+import CommunityBreakdown from "@/components/CommunityBreakdown";
 import { upsertTVShow } from "@/lib/tmdb-sync";
 import { prisma } from "@/lib/prisma";
 import { safeguardTMDBShows } from "@/lib/safe-content";
@@ -493,6 +494,13 @@ export default async function ShowDetailPage({ params }: Props) {
               seasons={seasons}
             />
           </div>
+        </div>
+
+        {/* Community ratings breakdown — full-width below the
+           poster row. Mirrors /movies/[id]/page.tsx; series-level
+           only here, season-level lives on the /reviews page. */}
+        <div className="mb-6">
+          <CommunityBreakdown tmdbId={show.id} mediaType="tv" />
         </div>
 
         {/* Currently-airing banner. Surfaces only while a season is
