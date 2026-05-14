@@ -15,23 +15,78 @@ interface Announcement {
 }
 
 const LS_KEY = "ratist:dismissed-announcements";
+// Pending list: dismissals the user clicked but whose server POST
+// hasn't been confirmed yet. We retry these on every mount. Without
+// this queue, a failed POST (auth blip, network hiccup, 5xx) used to
+// be silently swallowed — the user would see the banner reappear on
+// any other device until they eventually got a successful POST
+// through. Now every failure stays queued and retries indefinitely.
+const PENDING_KEY = "ratist:pending-announcement-dismissals";
 
-function readLocalDismissals(): string[] {
+function readJsonArray(key: string): string[] {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-function writeLocalDismissal(id: string) {
+function writeJsonArray(key: string, ids: string[]) {
   try {
-    const ids = readLocalDismissals();
-    if (!ids.includes(id)) ids.push(id);
-    localStorage.setItem(LS_KEY, JSON.stringify(ids));
+    localStorage.setItem(key, JSON.stringify(ids));
   } catch {
     /* private mode — best effort */
+  }
+}
+
+function readLocalDismissals(): string[] {
+  return readJsonArray(LS_KEY);
+}
+
+function writeLocalDismissal(id: string) {
+  const ids = readLocalDismissals();
+  if (!ids.includes(id)) {
+    ids.push(id);
+    writeJsonArray(LS_KEY, ids);
+  }
+}
+
+function readPending(): string[] {
+  return readJsonArray(PENDING_KEY);
+}
+
+function addPending(id: string) {
+  const ids = readPending();
+  if (!ids.includes(id)) {
+    ids.push(id);
+    writeJsonArray(PENDING_KEY, ids);
+  }
+}
+
+function removePending(id: string) {
+  const ids = readPending().filter((x) => x !== id);
+  writeJsonArray(PENDING_KEY, ids);
+}
+
+/** Post a single dismissal to the server. Returns true on 2xx, false
+ *  on any failure (network, auth, server 5xx, etc.). Caller decides
+ *  whether to leave the id in the pending queue or remove it. */
+async function postDismissal(token: string, spotlightId: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/me/spotlight-dismissals", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ spotlightId }),
+    });
+    if (!res.ok) {
+      console.warn("[AnnouncementBanner] dismissal POST failed", res.status, await res.text().catch(() => ""));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[AnnouncementBanner] dismissal POST threw", err);
+    return false;
   }
 }
 
@@ -39,6 +94,25 @@ export default function AnnouncementBanner() {
   const { user } = useAuth();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [dismissed, setDismissed] = useState(false);
+
+  // On mount: drain the pending dismissal queue (retry POSTs that
+  // failed on a prior visit) before deciding what banner to show.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const pending = readPending();
+      if (pending.length === 0) return;
+      let token: string;
+      try { token = await user.getIdToken(); } catch { return; }
+      for (const id of pending) {
+        if (cancelled) return;
+        const ok = await postDismissal(token, id);
+        if (ok) removePending(id);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,25 +166,30 @@ export default function AnnouncementBanner() {
     return () => { cancelled = true; };
   }, [user]);
 
-  function dismiss() {
+  async function dismiss() {
     if (!announcement) return;
-    // Always write localStorage — both anon and signed-in users get
-    // the same-device fast path on next visit.
-    writeLocalDismissal(announcement.id);
-
-    // Signed-in users also persist server-side. Fire-and-forget; the
-    // localStorage write is enough to hide the banner immediately.
-    if (user) {
-      user.getIdToken().then((token) =>
-        fetch("/api/me/spotlight-dismissals", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ spotlightId: announcement.id }),
-        }).catch(() => { /* localStorage already covers this device */ })
-      );
-    }
-
+    const id = announcement.id;
+    // Always write localStorage immediately — same-device dismissal
+    // is the fast path that lets the banner disappear without
+    // waiting for the network round-trip.
+    writeLocalDismissal(id);
     setDismissed(true);
+
+    // Signed-in users also persist server-side. If the POST fails
+    // (auth blip, server 5xx, anything), we keep the id on the
+    // pending queue and retry on every subsequent mount until it
+    // succeeds. This fixes the silent-loss bug where a single failed
+    // POST used to leave the user with no cross-device record at all.
+    if (user) {
+      addPending(id);
+      try {
+        const token = await user.getIdToken();
+        const ok = await postDismissal(token, id);
+        if (ok) removePending(id);
+      } catch {
+        // Token fetch failed — leave in pending, retry next mount.
+      }
+    }
   }
 
   if (!announcement || dismissed) return null;
