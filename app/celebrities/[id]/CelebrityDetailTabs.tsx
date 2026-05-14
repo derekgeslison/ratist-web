@@ -9,6 +9,7 @@ import CelebrityCreditsSection, { type Credit } from "./CelebrityCreditsSection"
 import CelebrityAwardsSection from "./CelebrityAwardsSection";
 import type { AwardBodyGroup } from "@/lib/awards";
 import DiscussionRow from "@/components/DiscussionRow";
+import ImageLightbox from "@/components/ImageLightbox";
 
 interface Discussion {
   id: string;
@@ -61,6 +62,7 @@ export default function CelebrityDetailTabs({
   }
 
   const [activeTab, setActiveTabState] = useState<Tab>(hashToTab);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   useEffect(() => {
     function sync() { setActiveTabState(hashToTab()); }
@@ -152,12 +154,12 @@ export default function CelebrityDetailTabs({
               <p className="text-xs text-[var(--foreground-muted)] mb-4">Click any image to view full size</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {photos.map((img, i) => (
-                  <a
+                  <button
                     key={i}
-                    href={`https://image.tmdb.org/t/p/original${img.file_path}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="relative aspect-[2/3] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors block"
+                    type="button"
+                    onClick={() => setLightboxSrc(`https://image.tmdb.org/t/p/original${img.file_path}`)}
+                    className="relative aspect-[2/3] rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors block cursor-zoom-in"
+                    aria-label={`View ${personName} photo ${i + 1} full size`}
                   >
                     <Image
                       src={`https://image.tmdb.org/t/p/w342${img.file_path}`}
@@ -166,9 +168,12 @@ export default function CelebrityDetailTabs({
                       sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 20vw"
                       className="object-cover object-top"
                     />
-                  </a>
+                  </button>
                 ))}
               </div>
+              {lightboxSrc && (
+                <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+              )}
             </>
           ) : (
             <p className="text-center py-16 text-[var(--foreground-muted)]">No photos available.</p>

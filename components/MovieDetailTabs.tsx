@@ -17,6 +17,7 @@ import AwardsTab from "./AwardsTab";
 import type { AwardBodyGroup } from "@/lib/awards";
 import DiscussionRow from "./DiscussionRow";
 import ReviewDigest from "./ReviewDigest";
+import ImageLightbox from "./ImageLightbox";
 import { MovieRankBadges } from "./box-office/MovieRankBadges";
 
 interface Review {
@@ -108,6 +109,7 @@ export default function MovieDetailTabs({
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllImages, setShowAllImages] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   useEffect(() => {
     function sync() { setActiveTabState(hashToTab()); }
@@ -461,12 +463,12 @@ export default function MovieDetailTabs({
               <p className="text-xs text-[var(--foreground-muted)] mb-4">Click any image to view full size</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {(showAllImages ? images : images.slice(0, 12)).map((img, i) => (
-                  <a
+                  <button
                     key={i}
-                    href={`https://image.tmdb.org/t/p/original${img.file_path}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="relative aspect-video rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors block"
+                    type="button"
+                    onClick={() => setLightboxSrc(`https://image.tmdb.org/t/p/original${img.file_path}`)}
+                    className="relative aspect-video rounded-lg overflow-hidden border border-[var(--border)] hover:border-[var(--ratist-red)] transition-colors block cursor-zoom-in"
+                    aria-label={`View still ${i + 1} full size`}
                   >
                     <Image
                       src={`https://image.tmdb.org/t/p/w780${img.file_path}`}
@@ -475,9 +477,12 @@ export default function MovieDetailTabs({
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       className="object-cover"
                     />
-                  </a>
+                  </button>
                 ))}
               </div>
+              {lightboxSrc && (
+                <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+              )}
               {images.length > 12 && (
                 <button
                   onClick={() => setShowAllImages((v) => !v)}
