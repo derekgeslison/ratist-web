@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import { FirebaseMessaging, type NotificationActionPerformedEvent } from "@capacitor-firebase/messaging";
 import { useAuth } from "@/context/AuthContext";
 
@@ -92,6 +93,48 @@ export default function NotificationDeepLink() {
             }
           },
         );
+        if (removed) await handle?.remove();
+      } catch { /* plugin not available — silent */ }
+    })();
+
+    return () => {
+      removed = true;
+      handle?.remove().catch(() => { /* already removed */ });
+    };
+  }, [router]);
+
+  // ── 3. Capacitor App Links (deep links) handler ──
+  // When a user taps a theratist.com link from another app (Messages,
+  // email, etc.) and the Ratist app is ALREADY running, Capacitor's
+  // App plugin fires `appUrlOpen`. Without this listener, the click
+  // brings the app to foreground but the WebView stays on whatever
+  // page it was last on. Cold-start (app not running) is handled by
+  // BridgeActivity automatically — the launching Intent's URL gets
+  // routed via the server.url bridge.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!Capacitor.isNativePlatform()) return;
+
+    let removed = false;
+    let handle: { remove: () => Promise<void> } | null = null;
+    (async () => {
+      try {
+        handle = await App.addListener("appUrlOpen", ({ url }) => {
+          if (typeof url !== "string") return;
+          // Only route same-origin URLs. External URLs would be a
+          // surprise security/UX bug — those should open in the
+          // system browser, which is the default behavior.
+          let parsed: URL;
+          try { parsed = new URL(url); } catch { return; }
+          const allowedHosts = ["www.theratist.com", "theratist.com"];
+          if (!allowedHosts.includes(parsed.hostname)) return;
+          const path = parsed.pathname + parsed.search + parsed.hash;
+          try {
+            router.push(path || "/");
+          } catch {
+            window.location.href = path || "/";
+          }
+        });
         if (removed) await handle?.remove();
       } catch { /* plugin not available — silent */ }
     })();
