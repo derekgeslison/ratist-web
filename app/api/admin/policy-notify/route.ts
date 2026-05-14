@@ -98,6 +98,12 @@ export async function POST(req: NextRequest) {
       linkUrl,
       linkLabel: `View ${policyName}`,
       type: "announcement",
+      // Explicit "all" so the policy banner is shown on every route
+      // until the user dismisses it. The placement default is
+      // "homepage" — fine for most spotlights, but a policy notice
+      // needs to follow the user wherever they navigate so it's
+      // hard to ignore.
+      placement: "all",
       isActive: true,
       sortOrder: -1, // show above other spotlights
       audience: "signed_in",
