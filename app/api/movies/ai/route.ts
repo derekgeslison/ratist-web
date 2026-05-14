@@ -3,9 +3,9 @@
 // /tools/recommend flow so behavior stays consistent, then maps the output
 // onto the /movies page's URL param conventions.
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { extractRecommendationFilters, type Mood } from "@/lib/ai/recommend-filters";
+import { sanitizeAiError } from "@/lib/ai/sanitize-error";
 import { expandMoods } from "@/lib/ai/mood-expand";
 import { checkAiToolsRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
 import { getGenres, getShowGenres, STREAMING_PROVIDERS } from "@/lib/tmdb";
@@ -200,16 +200,7 @@ export async function POST(req: NextRequest) {
     await logAiUsage(user.id, "movies_search");
     return NextResponse.json({ url, hiddenCount, filters: raw });
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      console.error("AI movies search — Anthropic auth failed:", err.message);
-      return NextResponse.json({ error: "AI service isn't configured — please contact an admin." }, { status: 500 });
-    }
-    if (err instanceof Anthropic.APIError) {
-      console.error(`AI movies search — Anthropic API error ${err.status}:`, err.message);
-      return NextResponse.json({ error: `AI error (${err.status}): ${err.message}` }, { status: 500 });
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("AI movies search — unexpected error:", message, err);
-    return NextResponse.json({ error: `AI extraction failed: ${message}` }, { status: 500 });
+    const { status, body } = sanitizeAiError(err, "movies-ai-search");
+    return NextResponse.json(body, { status });
   }
 }

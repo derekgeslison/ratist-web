@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { extractRecommendationFilters } from "@/lib/ai/recommend-filters";
 import { checkAiToolsRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
+import { sanitizeAiError } from "@/lib/ai/sanitize-error";
 
 export const dynamic = "force-dynamic";
 
@@ -27,16 +27,7 @@ export async function POST(req: NextRequest) {
     await logAiUsage(user.id, "recommend");
     return NextResponse.json({ filters });
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) {
-      console.error("AI recommend — Anthropic auth failed:", err.message);
-      return NextResponse.json({ error: "AI service isn't configured — please contact an admin." }, { status: 500 });
-    }
-    if (err instanceof Anthropic.APIError) {
-      console.error(`AI recommend — Anthropic API error ${err.status}:`, err.message);
-      return NextResponse.json({ error: `AI error (${err.status}): ${err.message}` }, { status: 500 });
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("AI recommend — unexpected error:", message, err);
-    return NextResponse.json({ error: `AI extraction failed: ${message}` }, { status: 500 });
+    const { status, body: errBody } = sanitizeAiError(err, "recommend");
+    return NextResponse.json(errBody, { status });
   }
 }

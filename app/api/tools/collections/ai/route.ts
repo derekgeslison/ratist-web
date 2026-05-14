@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getAuthedUser } from "@/lib/auth-helpers";
+import { sanitizeAiError } from "@/lib/ai/sanitize-error";
 import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
 import { extractCollectionFilters, SEVERITY_ORDER, type Severity } from "@/lib/ai/collection-filters";
@@ -558,12 +558,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ filters, items: finalItems });
   } catch (err) {
-    if (err instanceof Anthropic.APIError) {
-      console.error(`AI collection — Anthropic error ${err.status}:`, err.message);
-      return NextResponse.json({ error: `AI error (${err.status}): ${err.message}` }, { status: 500 });
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("AI collection error:", message, err);
-    return NextResponse.json({ error: `Collection generation failed: ${message}` }, { status: 500 });
+    const { status, body: errBody } = sanitizeAiError(err, "collections");
+    return NextResponse.json(errBody, { status });
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getAuthedUser } from "@/lib/auth-helpers";
+import { sanitizeAiError } from "@/lib/ai/sanitize-error";
 import { prisma } from "@/lib/prisma";
 import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-companion-generate";
 import { checkWatchCompanionRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
@@ -175,13 +175,8 @@ export async function POST(req: NextRequest) {
         await releaseLock();
         controller.close();
       } catch (err) {
-        const message = err instanceof Anthropic.APIError
-          ? `AI error (${err.status}): ${err.message}`
-          : err instanceof Error
-          ? err.message
-          : String(err);
-        console.error("Watch Companion (user) — generation stream error:", err);
-        try { send({ kind: "error", message }); } catch { /* already closed */ }
+        const { body: errBody } = sanitizeAiError(err, "watch-companion");
+        try { send({ kind: "error", message: errBody.error }); } catch { /* already closed */ }
         await releaseLock();
         try { controller.close(); } catch { /* already closed */ }
       }
