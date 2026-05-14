@@ -122,44 +122,23 @@ function RatingPreviewCard() {
   );
 }
 
-// Tongue-in-cheek faux movie poster. Pure CSS — no asset. The whole gag
-// is that "The Predicted One" is the placeholder film for the predicted-
-// rating concept, so the poster itself wears a "FAKE FILM" stamp.
+// Tongue-in-cheek faux movie poster for the "Ratist Rating for You"
+// explainer. Used to be a CSS composition with absolutely-positioned
+// text + SVG, but the credit line ("A FILM BY T. RATIST") kept
+// wrapping or clipping depending on font metrics + container width.
+// Rendered to a static PNG by scripts/generate-fake-poster.ts so the
+// layout is locked regardless of breakpoint. Regenerate the script
+// if the design needs to change.
 function FakePoster() {
   return (
-    <div className="shrink-0 w-20 sm:w-24 aspect-[2/3] rounded-lg overflow-hidden relative border border-[var(--border)] bg-gradient-to-b from-[#3a0e1c] via-[#1a0508] to-black">
-      {/* Top credit — "A FILM BY T. RATIST" — proper movie-poster flex.
-          whitespace-nowrap + tighter tracking on the smallest poster
-          variant so the credit stays on a single line. Without this,
-          at w-20 (mobile) the text wraps to two lines and pushes
-          down over the spotlight sun dot. */}
-      <p className="absolute top-1.5 left-0 right-0 text-center text-[5px] uppercase tracking-[0.18em] sm:tracking-[0.25em] text-white/60 whitespace-nowrap">
-        A Film By T. Ratist
-      </p>
-
-      {/* Spotlight glow */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full bg-amber-500/30 blur-xl" />
-      <div className="absolute top-[22%] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-amber-200" />
-
-      {/* Faux skyline / mountain silhouette */}
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="absolute bottom-[30%] left-0 right-0 w-full h-[28%]">
-        <polygon points="0,40 18,12 32,28 52,4 70,22 88,8 100,40" fill="rgba(0,0,0,0.7)" />
-      </svg>
-
-      {/* Foreground silhouette ground */}
-      <div className="absolute bottom-0 left-0 right-0 h-[18%] bg-gradient-to-t from-black to-transparent" />
-
-      {/* Title — stacked, big as it can be at this size */}
-      <div className="absolute inset-x-0 bottom-[20%] text-center px-1">
-        <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-wider text-white leading-[1.05] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-          The<br />Predicted<br />One
-        </p>
-      </div>
-
-      {/* Year in Roman numerals — proper poster flex */}
-      <p className="absolute bottom-1 left-0 right-0 text-center text-[5px] uppercase tracking-[0.25em] text-white/50">
-        MMXXIV
-      </p>
+    <div className="shrink-0 w-20 sm:w-24 aspect-[2/3] rounded-lg overflow-hidden relative border border-[var(--border)]">
+      <Image
+        src="/about/fake-poster.png"
+        alt="A film by T. Ratist — The Predicted One (MMXXIV)"
+        fill
+        sizes="(max-width: 640px) 80px, 96px"
+        className="object-cover"
+      />
     </div>
   );
 }

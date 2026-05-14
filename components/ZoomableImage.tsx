@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
-import { X, ZoomIn } from "lucide-react";
+import { ZoomIn } from "lucide-react";
+import ImageLightbox from "./ImageLightbox";
 
 interface Props {
   /** Source URL for the small (default) display. Already-sized at the
@@ -25,10 +26,10 @@ interface Props {
 /**
  * Wraps a poster/headshot in a button that opens a fullscreen lightbox
  * showing the same image at a larger size. Mobile-first: tap-friendly,
- * no hover dependency, dismisses on backdrop click or ESC. The small
- * render fills its parent (assumes a relatively-positioned wrapper, the
- * convention everywhere these are used today), so swapping a static
- * <Image> for <ZoomableImage> is a drop-in replacement at the call site.
+ * no hover dependency. Click-to-open behavior here; the actual viewer
+ * (with pinch-zoom + pan on touch, double-tap to 2× on desktop, ESC
+ * close, backdrop close, scroll lock) lives in ImageLightbox so all
+ * full-screen-image surfaces share one source of truth.
  */
 export default function ZoomableImage({
   src,
@@ -40,21 +41,6 @@ export default function ZoomableImage({
 }: Props) {
   const [open, setOpen] = useState(false);
   const fullSrc = zoomSrc ?? src;
-
-  // Lock the body scroll while the lightbox is up + dismiss on Esc.
-  // Without scroll-lock, swiping the lightbox on iOS scrolls the page
-  // underneath, which feels broken when you re-close.
-  useEffect(() => {
-    if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   return (
     <>
@@ -78,34 +64,7 @@ export default function ZoomableImage({
         </span>
       </button>
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
-          onClick={() => setOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Larger view of ${alt}`}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(false); }}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          {/* Click on the image itself doesn't close — only the backdrop.
-             Lets the user pinch-zoom or screenshot without dismissing. */}
-          <div
-            className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={fullSrc}
-              alt={alt}
-              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            />
-          </div>
-        </div>
+        <ImageLightbox src={fullSrc} alt={alt} onClose={() => setOpen(false)} />
       )}
     </>
   );
