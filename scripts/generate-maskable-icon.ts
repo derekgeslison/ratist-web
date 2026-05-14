@@ -19,7 +19,10 @@ const SRC = path.join(PUBLIC_DIR, "logo.png");
 const OUT = path.join(PUBLIC_DIR, "icon-512-maskable.png");
 
 const CANVAS = 512;
-const SAFE_PCT = 0.70;
+// 0.55 = 22.5% padding on each side. The first cut at 0.70 (15% padding)
+// still let some Android launchers clip the logo corners under the
+// circle mask. Adaptive icons recommend keeping the safe zone <= 60%.
+const SAFE_PCT = 0.55;
 const INNER = Math.round(CANVAS * SAFE_PCT);
 const BG = { r: 15, g: 15, b: 15, alpha: 1 };
 

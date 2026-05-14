@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { X, Ticket, Check, Star, Mic } from "lucide-react";
+import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 
 interface Props {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function BackstagePassPopup({ isOpen, onClose, type, standardReviewCount = 0 }: Props) {
+  const isNativeApp = useIsNativeApp();
   if (!isOpen) return null;
 
   return (
@@ -74,17 +76,26 @@ export default function BackstagePassPopup({ isOpen, onClose, type, standardRevi
             <p className="text-sm text-[var(--foreground-muted)]">Screenshot placeholder</p>
           </div>
 
-          {/* CTA */}
-          <div className="flex flex-col gap-2">
-            <Link href="/backstage-pass" onClick={onClose}
-              className="flex items-center justify-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors">
-              <Ticket className="w-4 h-4" /> Get the Backstage Pass
-            </Link>
-            <Link href="/backstage-pass/critics-mode" onClick={onClose}
-              className="text-center text-xs text-[var(--foreground-muted)] hover:text-amber-400 transition-colors">
-              Learn more about these features →
-            </Link>
-          </div>
+          {/* CTA — purchase action gated for native (reader-app rules). */}
+          {isNativeApp ? (
+            <div className="bg-[var(--surface-2)] border border-amber-400/30 rounded-xl p-4 text-center">
+              <p className="text-sm text-white mb-1">Subscribe on the web</p>
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Backstage Pass subscriptions are available at theratist.com on a web browser.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Link href="/backstage-pass" onClick={onClose}
+                className="flex items-center justify-center gap-2 px-5 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors">
+                <Ticket className="w-4 h-4" /> Get the Backstage Pass
+              </Link>
+              <Link href="/backstage-pass/critics-mode" onClick={onClose}
+                className="text-center text-xs text-[var(--foreground-muted)] hover:text-amber-400 transition-colors">
+                Learn more about these features →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

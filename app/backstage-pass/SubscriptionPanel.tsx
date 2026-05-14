@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 import SignInLink from "@/components/SignInLink";
 
 // All client-side subscription state lives here so the surrounding
@@ -15,6 +16,7 @@ import SignInLink from "@/components/SignInLink";
 export default function SubscriptionPanel() {
   const { user } = useAuth();
   const { hasPass, status, expiry, loading } = useSubscription();
+  const isNativeApp = useIsNativeApp();
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "annual">("annual");
   const [checkingOut, setCheckingOut] = useState(false);
   const [manageError, setManageError] = useState("");
@@ -91,23 +93,46 @@ export default function SubscriptionPanel() {
           ) : (
             <>
               <p className="text-sm text-[var(--foreground-muted)] mb-4">Enjoy all premium features.</p>
-              <button
-                onClick={handleManage}
-                disabled={manageLoading}
-                className="px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
-              >
-                {manageLoading ? "Opening..." : "Manage Subscription"}
-              </button>
-              {manageError && <p className="text-xs text-red-400 mt-2">{manageError}</p>}
+              {isNativeApp ? (
+                // Reader-app gating: don't link to Stripe billing
+                // portal from inside the native app — Apple treats
+                // that as an external purchase mechanism.
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Manage your subscription at theratist.com on a web browser.
+                </p>
+              ) : (
+                <>
+                  <button
+                    onClick={handleManage}
+                    disabled={manageLoading}
+                    className="px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-50"
+                  >
+                    {manageLoading ? "Opening..." : "Manage Subscription"}
+                  </button>
+                  {manageError && <p className="text-xs text-red-400 mt-2">{manageError}</p>}
+                </>
+              )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Reader-app gating (Apple Guideline 3.1.3): no in-app
+          purchase path or link to external purchase from inside the
+          native app. Show non-purchase notice instead. */}
+      {isNativeApp && !hasPass && (
+        <div className="bg-[var(--surface)] border border-amber-400/30 rounded-2xl p-8 text-center mb-10">
+          <p className="text-base font-semibold text-amber-400 mb-2">Subscribe on the web</p>
+          <p className="text-sm text-[var(--foreground-muted)]">
+            Backstage Pass subscriptions are available at theratist.com. Sign in there to subscribe, then your benefits will appear here automatically.
+          </p>
         </div>
       )}
 
       {/* Pricing toggle — for non-subscribers, OR admin-granted users
           whose free period is about to expire so they can subscribe
           without losing access. */}
-      {(() => {
+      {!isNativeApp && (() => {
         const expiryDate = expiry ? new Date(expiry) : null;
         const expiryInFuture = expiryDate && expiryDate.getTime() > Date.now();
         const showUpgrade = hasPass && status === "admin_granted" && expiryInFuture;
