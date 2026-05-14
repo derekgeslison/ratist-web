@@ -128,8 +128,12 @@ function RatingPreviewCard() {
 function FakePoster() {
   return (
     <div className="shrink-0 w-20 sm:w-24 aspect-[2/3] rounded-lg overflow-hidden relative border border-[var(--border)] bg-gradient-to-b from-[#3a0e1c] via-[#1a0508] to-black">
-      {/* Top credit — "A FILM BY T. RATIST" — proper movie-poster flex */}
-      <p className="absolute top-1.5 left-0 right-0 text-center text-[5px] uppercase tracking-[0.25em] text-white/60">
+      {/* Top credit — "A FILM BY T. RATIST" — proper movie-poster flex.
+          whitespace-nowrap + tighter tracking on the smallest poster
+          variant so the credit stays on a single line. Without this,
+          at w-20 (mobile) the text wraps to two lines and pushes
+          down over the spotlight sun dot. */}
+      <p className="absolute top-1.5 left-0 right-0 text-center text-[5px] uppercase tracking-[0.18em] sm:tracking-[0.25em] text-white/60 whitespace-nowrap">
         A Film By T. Ratist
       </p>
 

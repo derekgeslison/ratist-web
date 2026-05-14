@@ -294,7 +294,11 @@ function TopPickRow({ pick, rank }: { pick: TopPick; rank: number }) {
           <p className="text-xs text-[var(--foreground-muted)]">{pick.releaseDate?.slice(0, 4) ?? "—"}</p>
         </div>
       </Link>
-      <div className="flex items-center gap-2">
+      {/* Side-by-side eats ~90-100px of horizontal real estate and
+          forces long movie titles to truncate on phones. Stack the
+          two rating badges vertically below sm so the title gets the
+          breathing room; side-by-side on tablet+. */}
+      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-0.5 sm:gap-2">
         <RatingBadge type="community" score={pick.communityRatistAvg ?? pick.voteAverage ?? null} size="sm" />
         <RatingBadge type="ratist" score={pick.estimatedRating} isEstimate size="sm" />
       </div>

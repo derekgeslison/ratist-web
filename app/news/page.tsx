@@ -145,8 +145,17 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                         </span>
                       )}
                       <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {item.viewCount}</span>
-                      <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {likeCountMap.get(item.id) ?? 0}</span>
-                      <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {commentCountMap.get(item.id) ?? 0}</span>
+                      {/* Hide the heart + comment counters at zero —
+                          matches /posts behavior. A "0 likes" pill on
+                          a brand-new article reads as unloved content;
+                          omitting it entirely until someone engages
+                          looks cleaner. */}
+                      {(likeCountMap.get(item.id) ?? 0) > 0 && (
+                        <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {likeCountMap.get(item.id)}</span>
+                      )}
+                      {(commentCountMap.get(item.id) ?? 0) > 0 && (
+                        <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {commentCountMap.get(item.id)}</span>
+                      )}
                     </div>
                   </div>
                 </Link>
