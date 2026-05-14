@@ -286,8 +286,11 @@ export default function SeenPage() {
     });
   }, [entries, query, genreFilter, ratingFilter, mediaFilter, releaseYearFrom, releaseYearTo, watchDateFrom, watchDateTo, rewatchFilter]);
 
-  const datedEntries = useMemo(() => filtered.filter((m) => m.watchedDate != null), [filtered]);
-  const undatedEntries = useMemo(() => filtered.filter((m) => m.watchedDate == null), [filtered]);
+  // "dated" must mean watchedDate parses to a valid Date, not just
+  // that the field is non-null. An imported entry can have a string
+  // value that produces an Invalid Date — those belong with undated.
+  const datedEntries = useMemo(() => filtered.filter((m) => getWatchDate(m) != null), [filtered]);
+  const undatedEntries = useMemo(() => filtered.filter((m) => getWatchDate(m) == null), [filtered]);
 
   const monthEntries = useMemo(() => {
     return datedEntries.filter((m) => {
