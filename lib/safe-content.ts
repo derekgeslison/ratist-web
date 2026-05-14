@@ -235,6 +235,15 @@ export async function maskBlockedInResponse<T>(payload: T): Promise<T> {
 
   function process(o: unknown): unknown {
     if (!o || typeof o !== "object") return o;
+    // Preserve Date objects intact. Without this, the for-of below
+    // iterates Object.entries(date) — which returns [] because Date
+    // has no enumerable own properties — and we rebuild the field as
+    // {} instead of the Date. Then NextResponse.json serializes {}
+    // as an empty object, the client sees `watchedDate: {}` instead
+    // of an ISO string, and parsing falls over. Caused every dated
+    // diary entry on /seen to render as undated for any user whose
+    // payload triggered a non-no-op mask pass.
+    if (o instanceof Date) return o;
     if (Array.isArray(o)) {
       // Filter out hide-entirely items at the array level, then recurse.
       return o
