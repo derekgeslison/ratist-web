@@ -168,11 +168,15 @@ export async function sendPushToUser(
       const messaging = getMessaging(getAdminApp());
       const tokens = user.fcmTokens.map((t) => t.token);
       const url = payload.url ?? "/";
+      // Minimal payload — extra android.notification config (channelId,
+      // custom icon, etc.) can cause Android to silently drop the
+      // notification if the channel doesn't exist or the icon resource
+      // isn't bundled. The Capacitor Messaging plugin handles channels +
+      // icons via its own defaults, so we only specify what we strictly
+      // need (priority + the data payload for the click handler).
       const response = await messaging.sendEachForMulticast({
         tokens,
         notification: { title: payload.title, body: payload.body },
-        // Data payload is JSON-stringified to match what the
-        // notification tap handler reads on the client.
         data: {
           url,
           ...(payload.tag ? { tag: payload.tag } : {}),
@@ -182,22 +186,8 @@ export async function sendPushToUser(
               )
             : {}),
         },
-        android: {
-          priority: "high",
-          notification: {
-            icon: "ic_launcher",
-            color: "#cc1034",
-            channelId: "default",
-          },
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: "default",
-              badge: 1,
-            },
-          },
-        },
+        android: { priority: "high" },
+        apns: { payload: { aps: { sound: "default" } } },
       });
       response.responses.forEach((r, i) => {
         if (r.success) {
