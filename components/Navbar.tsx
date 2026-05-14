@@ -18,7 +18,13 @@ const READ_LINKS = [
 ];
 
 export default function Navbar() {
-  const { user, dbUser, signOut } = useAuth();
+  // Pulling `loading` so we can distinguish "user is signed out" from
+  // "we don't know yet". Without it, the Navbar renders the "Sign In"
+  // button during the brief auth-rehydration window on cold start —
+  // a signed-in user opens the app, sees "Sign In", and thinks
+  // something is broken. With it, we show a skeleton placeholder
+  // until Firebase Auth has resolved.
+  const { user, dbUser, loading: authLoading, signOut } = useAuth();
   const { hasPass } = useSubscription();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -182,7 +188,15 @@ export default function Navbar() {
               {mobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </button>
 
-            {user ? (
+            {authLoading ? (
+              // Skeleton while Firebase Auth is rehydrating. Same
+              // visual footprint as the signed-in cluster (bell +
+              // avatar) so the layout doesn't jump when it resolves.
+              <div className="flex items-center gap-3" aria-hidden>
+                <div className="w-5 h-5 rounded-full bg-[var(--surface-2)] animate-pulse" />
+                <div className="hidden sm:block w-8 h-8 rounded-full bg-[var(--surface-2)] animate-pulse" />
+              </div>
+            ) : user ? (
               <div className="flex items-center gap-3">
                 {/* Notification bell — visible at all breakpoints. On
                     mobile it sits next to the hamburger button so a
@@ -316,7 +330,16 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="border-t border-[var(--border)] my-1" />
-            {user ? (
+            {authLoading ? (
+              // Skeleton — three placeholder rows so the menu height
+              // doesn't suddenly grow when auth resolves and the
+              // signed-in items appear.
+              <div className="space-y-2 py-2" aria-hidden>
+                <div className="h-4 w-32 rounded bg-[var(--surface-2)] animate-pulse" />
+                <div className="h-4 w-28 rounded bg-[var(--surface-2)] animate-pulse" />
+                <div className="h-4 w-36 rounded bg-[var(--surface-2)] animate-pulse" />
+              </div>
+            ) : user ? (
               <>
                 <Link href={`/profile/${user.uid}`} onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><User className="w-4 h-4" /> My Profile</Link>
                 <Link href="/seen" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 py-2 text-sm text-[var(--foreground-muted)] hover:text-white transition-colors"><Eye className="w-4 h-4" /> Film Diary</Link>

@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.theratist.app",
       "sha256_cert_fingerprints": [
-        "7C:7E:49:23:C5:EA:5D:38:4F:78:38:75:26:67:50:4B:1E:DE:60:AB:9B:8C:75:D6:F2:55:C1:19:1E:75:67:75"
+        "7C:7E:49:23:C5:EA:5D:38:4F:78:38:75:26:67:50:4B:1E:DE:60:AB:9B:8C:75:D6:F2:55:C1:19:1E:75:67:75",
+        "ED:42:77:62:3B:3B:3A:0D:2C:C8:0D:AF:81:1A:1F:5D:1E:A4:75:B5:9E:72:3F:92:3B:9A:B9:F7:A6:9E:FD:CF"
       ]
     }
   }
