@@ -133,7 +133,7 @@ export async function notify(opts: NotifyOpts): Promise<void> {
     if (pushKey) {
       const baseUrl = opts.link ?? "/notifications";
       const url = appendNotifId(baseUrl, created.id);
-      void sendPushToUser(
+      sendPushToUser(
         opts.recipientId,
         {
           title: "The Ratist",
@@ -143,10 +143,18 @@ export async function notify(opts: NotifyOpts): Promise<void> {
           data: { notificationId: created.id },
         },
         { category: pushKey as PushCategory },
-      );
+      ).catch((err) => {
+        // Async failures inside sendPushToUser used to vanish because
+        // it was fired with `void`. Log them so we can actually see
+        // FCM transport problems in Vercel runtime logs.
+        console.error("[notify] sendPushToUser rejected:", err);
+      });
     }
-  } catch {
-    // Non-critical — don't break the main action
+  } catch (err) {
+    // Non-critical — don't break the main action. But do log so we
+    // can see if notify() itself is throwing (e.g. Prisma create
+    // failure) instead of dying silently.
+    console.error("[notify] failed:", err);
   }
 }
 

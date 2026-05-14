@@ -112,10 +112,14 @@ export async function sendPushToUser(
         },
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("[push] user lookup failed:", err);
     return { sent: 0, pruned: 0, skipped: 0 };
   }
-  if (!user) return { sent: 0, pruned: 0, skipped: 0 };
+  if (!user) {
+    console.warn("[push] user not found:", userId);
+    return { sent: 0, pruned: 0, skipped: 0 };
+  }
 
   if (opts.category && !shouldSendPush(user.pushPrefs, opts.category)) {
     return {
@@ -156,7 +160,11 @@ export async function sendPushToUser(
             err && typeof err === "object" && "statusCode" in err
               ? (err as { statusCode?: number }).statusCode
               : undefined;
-          if (status === 410 || status === 404) deadWebPushIds.push(sub.id);
+          if (status === 410 || status === 404) {
+            deadWebPushIds.push(sub.id);
+          } else {
+            console.error("[push] Web Push send failed:", status, err);
+          }
         }
       }),
     );
@@ -189,6 +197,12 @@ export async function sendPushToUser(
         android: { priority: "high" },
         apns: { payload: { aps: { sound: "default" } } },
       });
+      console.log("[push] FCM sendEachForMulticast", {
+        userId,
+        tokenCount: tokens.length,
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+      });
       response.responses.forEach((r, i) => {
         if (r.success) {
           sent += 1;
@@ -198,6 +212,14 @@ export async function sendPushToUser(
           // - messaging/invalid-registration-token
           // - messaging/invalid-argument (sometimes for unregistered)
           const code = r.error?.code;
+          // Log every non-success — code + message tell us exactly
+          // why FCM rejected, and lets us decide whether to add new
+          // codes to the prune list above.
+          console.error("[push] FCM per-token failure:", {
+            tokenFirst8: user.fcmTokens[i].token.slice(0, 8) + "...",
+            code,
+            message: r.error?.message,
+          });
           if (
             code === "messaging/registration-token-not-registered" ||
             code === "messaging/invalid-registration-token" ||
@@ -207,10 +229,18 @@ export async function sendPushToUser(
           }
         }
       });
-    } catch {
-      // Transport-level failure (e.g. Firebase admin not configured).
-      // Let live tokens stay so the next attempt can retry.
+    } catch (err) {
+      // Transport-level failure (e.g. Firebase admin not configured,
+      // Cloud Messaging API disabled, private key newline corruption).
+      // Logged with full stack — check Vercel runtime logs to diagnose.
+      // Live tokens stay so the next attempt can retry.
+      console.error("[push] FCM transport error (sendEachForMulticast threw):", err);
     }
+  } else if (user.fcmTokens.length > 0) {
+    // Defensive: this branch is unreachable today because the outer
+    // `if` already filters, but if someone ever refactors the gate
+    // and breaks it, we want a loud signal.
+    console.warn("[push] FCM tokens present but transport branch skipped?", { userId });
   }
 
   // ── Pruning ──
@@ -220,8 +250,8 @@ export async function sendPushToUser(
         where: { id: { in: deadWebPushIds } },
       });
       pruned += r.count;
-    } catch {
-      // Non-critical.
+    } catch (err) {
+      console.warn("[push] Web Push pruning failed:", err);
     }
   }
   if (deadFcmIds.length > 0) {
@@ -230,8 +260,8 @@ export async function sendPushToUser(
         where: { id: { in: deadFcmIds } },
       });
       pruned += r.count;
-    } catch {
-      // Non-critical.
+    } catch (err) {
+      console.warn("[push] FCM pruning failed:", err);
     }
   }
 
