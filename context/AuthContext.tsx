@@ -7,15 +7,20 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   sendEmailVerification,
   updateProfile,
+  GoogleAuthProvider,
+  OAuthProvider,
   type User,
   getAdditionalUserInfo,
 } from "firebase/auth";
+import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { auth, googleProvider, appleProvider } from "@/lib/firebase";
 
 interface AccountStatus {
@@ -219,8 +224,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [syncUser]);
 
   async function signInWithGoogle() {
+    // Native (Capacitor) path: use the @capacitor-firebase/authentication
+    // plugin so we get the OS account picker instead of an embedded
+    // WebView OAuth (which Google blocks for security). The plugin
+    // returns an OAuth credential we exchange with Firebase JS so the
+    // rest of the auth pipeline (onAuthStateChanged etc.) is unchanged.
+    if (Capacitor.isNativePlatform()) {
+      const result = await FirebaseAuthentication.signInWithGoogle();
+      const idToken = result.credential?.idToken;
+      const accessToken = result.credential?.accessToken;
+      if (!idToken && !accessToken) throw new Error("Google sign-in returned no credential");
+      const credential = GoogleAuthProvider.credential(idToken ?? null, accessToken ?? null);
+      const userCred = await signInWithCredential(auth, credential);
+      const info = getAdditionalUserInfo(userCred);
+      return { isNewUser: info?.isNewUser ?? false };
+    }
     try {
-      // Try popup first (works on most browsers)
+      // Web: try popup first (works on most browsers)
       const result = await signInWithPopup(auth, googleProvider);
       const info = getAdditionalUserInfo(result);
       return { isNewUser: info?.isNewUser ?? false };
@@ -236,6 +256,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signInWithApple() {
+    if (Capacitor.isNativePlatform()) {
+      // Native Sign in with Apple — uses ASAuthorizationAppleIDProvider
+      // on iOS / Sign in with Apple JS on Android via the plugin. The
+      // raw nonce is required so Firebase can verify the Apple token.
+      const result = await FirebaseAuthentication.signInWithApple({ scopes: ["email", "name"] });
+      const idToken = result.credential?.idToken;
+      const nonce = result.credential?.nonce;
+      if (!idToken) throw new Error("Apple sign-in returned no idToken");
+      const provider = new OAuthProvider("apple.com");
+      const credential = provider.credential({ idToken, rawNonce: nonce });
+      const userCred = await signInWithCredential(auth, credential);
+      // First-sign-in name capture (same rationale as the web path below)
+      const info = getAdditionalUserInfo(userCred);
+      if (info?.isNewUser && userCred.user && !userCred.user.displayName) {
+        const profile = result.additionalUserInfo?.profile as
+          | { name?: { firstName?: string; lastName?: string } }
+          | undefined;
+        const composed = [
+          result.user?.displayName,
+          profile?.name?.firstName,
+          profile?.name?.lastName,
+        ]
+          .filter((s) => typeof s === "string" && s.length > 0)
+          .join(" ")
+          .trim();
+        if (composed) {
+          try { await updateProfile(userCred.user, { displayName: composed }); } catch { /* non-fatal */ }
+        }
+      }
+      return { isNewUser: info?.isNewUser ?? false };
+    }
     try {
       const result = await signInWithPopup(auth, appleProvider);
       const info = getAdditionalUserInfo(result);
