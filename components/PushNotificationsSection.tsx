@@ -58,6 +58,7 @@ export default function PushNotificationsSection() {
   const { user } = useAuth();
   const { supported, isNative, permission, subscribed, busy, error, enable, disable } = usePush();
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [testDetail, setTestDetail] = useState<string>("");
   const [pushPrefs, setPushPrefs] = useState<PushPrefs>(DEFAULT_PREFS);
 
   // Load per-category push prefs from the user's profile.
@@ -84,17 +85,25 @@ export default function PushNotificationsSection() {
   async function sendTest() {
     if (!user) return;
     setTestStatus("sending");
+    setTestDetail("");
     try {
       const token = await user.getIdToken();
       const res = await fetch("/api/push/test", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
+      const body = await res.json().catch(() => ({}));
       setTestStatus(res.ok ? "sent" : "error");
-      setTimeout(() => setTestStatus("idle"), 3000);
-    } catch {
+      // Surface the response counts so we can diagnose silent failures
+      // (sent=0, all-pruned, all-skipped because of prefs, etc.).
+      setTestDetail(
+        `HTTP ${res.status}: sent=${body?.sent ?? "?"} pruned=${body?.pruned ?? "?"} skipped=${body?.skipped ?? "?"}${body?.error ? " err=" + body.error : ""}`,
+      );
+      setTimeout(() => { setTestStatus("idle"); setTestDetail(""); }, 8000);
+    } catch (e) {
       setTestStatus("error");
-      setTimeout(() => setTestStatus("idle"), 3000);
+      setTestDetail(e instanceof Error ? e.message : "Network error");
+      setTimeout(() => { setTestStatus("idle"); setTestDetail(""); }, 8000);
     }
   }
 
@@ -239,7 +248,10 @@ export default function PushNotificationsSection() {
                 <span className="text-xs text-green-400">Sent — check your notifications.</span>
               )}
               {testStatus === "error" && (
-                <span className="text-xs text-yellow-400">Couldn&apos;t send. Check console.</span>
+                <span className="text-xs text-yellow-400">Couldn&apos;t send.</span>
+              )}
+              {testDetail && (
+                <span className="text-[10px] font-mono text-[var(--foreground-muted)]">{testDetail}</span>
               )}
             </div>
           )}
