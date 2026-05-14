@@ -1,20 +1,30 @@
 import webpush from "web-push";
+import { getMessaging } from "firebase-admin/messaging";
 import { prisma } from "@/lib/prisma";
+import { getAdminApp } from "@/lib/firebase-admin";
 
-// Web Push wiring. Mirrors lib/email.ts shape: prefs gate + a single
+// Push wiring. Mirrors lib/email.ts shape: prefs gate + a single
 // fan-out send. Categories match the in-app notificationPrefs keys
 // (settings page exposes them under "Notification Preferences").
+//
+// Two transports, fanned out together:
+//   • Web Push (browser PWAs, desktop browsers) via VAPID/web-push
+//   • Firebase Cloud Messaging (Capacitor native Android/iOS apps)
+// A user with both a desktop browser install AND the native app
+// gets reached on both.
+
+// ─── Web Push (VAPID) configuration ─────────────────────────────────────────
 
 const PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 const SUBJECT = process.env.VAPID_SUBJECT ?? "mailto:noreply@theratist.com";
 
-let configured = false;
-function configure() {
-  if (configured) return true;
+let webpushConfigured = false;
+function configureWebPush() {
+  if (webpushConfigured) return true;
   if (!PUBLIC_KEY || !PRIVATE_KEY) return false;
   webpush.setVapidDetails(SUBJECT, PUBLIC_KEY, PRIVATE_KEY);
-  configured = true;
+  webpushConfigured = true;
   return true;
 }
 
@@ -77,9 +87,9 @@ interface SendOptions {
 }
 
 /**
- * Fan a push to every active subscription for a user. Prunes dead
- * subscriptions (410 Gone / 404 from the push service) on the fly so
- * the user_id index doesn't accumulate stale rows.
+ * Fan a push to every active subscription AND FCM token for a user.
+ * Prunes dead entries on the fly so the user_id indexes don't
+ * accumulate stale rows.
  *
  * Non-critical — never throws. Returns counts for observability.
  */
@@ -88,10 +98,6 @@ export async function sendPushToUser(
   payload: PushPayload,
   opts: SendOptions = {},
 ): Promise<{ sent: number; pruned: number; skipped: number }> {
-  if (!configure()) {
-    return { sent: 0, pruned: 0, skipped: 0 };
-  }
-
   let user;
   try {
     user = await prisma.user.findUnique({
@@ -101,6 +107,9 @@ export async function sendPushToUser(
         pushSubscriptions: {
           select: { id: true, endpoint: true, p256dh: true, auth: true },
         },
+        fcmTokens: {
+          select: { id: true, token: true, platform: true },
+        },
       },
     });
   } catch {
@@ -109,72 +118,146 @@ export async function sendPushToUser(
   if (!user) return { sent: 0, pruned: 0, skipped: 0 };
 
   if (opts.category && !shouldSendPush(user.pushPrefs, opts.category)) {
-    return { sent: 0, pruned: 0, skipped: user.pushSubscriptions.length };
-  }
-  if (user.pushSubscriptions.length === 0) {
-    return { sent: 0, pruned: 0, skipped: 0 };
+    return {
+      sent: 0,
+      pruned: 0,
+      skipped: user.pushSubscriptions.length + user.fcmTokens.length,
+    };
   }
 
-  const body = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
-    url: payload.url ?? "/",
-    tag: payload.tag,
-    icon: payload.icon,
-    data: payload.data,
-  });
+  const totalTargets = user.pushSubscriptions.length + user.fcmTokens.length;
+  if (totalTargets === 0) return { sent: 0, pruned: 0, skipped: 0 };
 
   let sent = 0;
-  const deadIds: string[] = [];
-
-  await Promise.all(
-    user.pushSubscriptions.map(async (sub) => {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          body,
-        );
-        sent += 1;
-      } catch (err: unknown) {
-        // 410 Gone / 404 Not Found = subscription expired or revoked.
-        // Anything else (network blip, server 5xx) we let live and try
-        // again on the next push.
-        const status =
-          err && typeof err === "object" && "statusCode" in err
-            ? (err as { statusCode?: number }).statusCode
-            : undefined;
-        if (status === 410 || status === 404) deadIds.push(sub.id);
-      }
-    }),
-  );
-
   let pruned = 0;
-  if (deadIds.length > 0) {
+  const deadWebPushIds: string[] = [];
+  const deadFcmIds: string[] = [];
+
+  // ── Web Push transport ──
+  if (user.pushSubscriptions.length > 0 && configureWebPush()) {
+    const wpBody = JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      url: payload.url ?? "/",
+      tag: payload.tag,
+      icon: payload.icon,
+      data: payload.data,
+    });
+    await Promise.all(
+      user.pushSubscriptions.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            wpBody,
+          );
+          sent += 1;
+        } catch (err: unknown) {
+          const status =
+            err && typeof err === "object" && "statusCode" in err
+              ? (err as { statusCode?: number }).statusCode
+              : undefined;
+          if (status === 410 || status === 404) deadWebPushIds.push(sub.id);
+        }
+      }),
+    );
+  }
+
+  // ── FCM transport (native Capacitor apps) ──
+  if (user.fcmTokens.length > 0) {
     try {
-      const r = await prisma.pushSubscription.deleteMany({
-        where: { id: { in: deadIds } },
+      const messaging = getMessaging(getAdminApp());
+      const tokens = user.fcmTokens.map((t) => t.token);
+      const url = payload.url ?? "/";
+      const response = await messaging.sendEachForMulticast({
+        tokens,
+        notification: { title: payload.title, body: payload.body },
+        // Data payload is JSON-stringified to match what the
+        // notification tap handler reads on the client.
+        data: {
+          url,
+          ...(payload.tag ? { tag: payload.tag } : {}),
+          ...(payload.data
+            ? Object.fromEntries(
+                Object.entries(payload.data).map(([k, v]) => [k, String(v)]),
+              )
+            : {}),
+        },
+        android: {
+          priority: "high",
+          notification: {
+            icon: "ic_launcher",
+            color: "#cc1034",
+            channelId: "default",
+          },
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+            },
+          },
+        },
       });
-      pruned = r.count;
+      response.responses.forEach((r, i) => {
+        if (r.success) {
+          sent += 1;
+        } else {
+          // Token no longer valid → prune. Known FCM error codes:
+          // - messaging/registration-token-not-registered
+          // - messaging/invalid-registration-token
+          // - messaging/invalid-argument (sometimes for unregistered)
+          const code = r.error?.code;
+          if (
+            code === "messaging/registration-token-not-registered" ||
+            code === "messaging/invalid-registration-token" ||
+            code === "messaging/invalid-argument"
+          ) {
+            deadFcmIds.push(user.fcmTokens[i].id);
+          }
+        }
+      });
     } catch {
-      // Pruning failure is fine — the next send pass will try again.
+      // Transport-level failure (e.g. Firebase admin not configured).
+      // Let live tokens stay so the next attempt can retry.
     }
   }
 
-  // Touch lastUsed so the user can see which devices are active in
-  // a future "manage devices" surface, and so we can later GC very
-  // stale subscriptions if browsers stop revoking them properly.
+  // ── Pruning ──
+  if (deadWebPushIds.length > 0) {
+    try {
+      const r = await prisma.pushSubscription.deleteMany({
+        where: { id: { in: deadWebPushIds } },
+      });
+      pruned += r.count;
+    } catch {
+      // Non-critical.
+    }
+  }
+  if (deadFcmIds.length > 0) {
+    try {
+      const r = await prisma.fcmToken.deleteMany({
+        where: { id: { in: deadFcmIds } },
+      });
+      pruned += r.count;
+    } catch {
+      // Non-critical.
+    }
+  }
+
+  // Touch lastUsed for any send that succeeded.
   if (sent > 0) {
     try {
-      await prisma.pushSubscription.updateMany({
-        where: {
-          userId,
-          id: { notIn: deadIds.length ? deadIds : ["__none__"] },
-        },
-        data: { lastUsed: new Date() },
-      });
+      await Promise.all([
+        prisma.pushSubscription.updateMany({
+          where: { userId, id: { notIn: deadWebPushIds.length ? deadWebPushIds : ["__none__"] } },
+          data: { lastUsed: new Date() },
+        }),
+        prisma.fcmToken.updateMany({
+          where: { userId, id: { notIn: deadFcmIds.length ? deadFcmIds : ["__none__"] } },
+          data: { lastUsed: new Date() },
+        }),
+      ]);
     } catch {
       // Non-critical.
     }

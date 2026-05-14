@@ -1,24 +1,85 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, BellOff, AlertCircle, Send } from "lucide-react";
 import { usePush } from "@/hooks/usePush";
 import { useAuth } from "@/context/AuthContext";
 
 /**
- * Settings-page surface for opting in to Web Push. The push categories
- * mirror the in-app `notificationPrefs` toggles — if you've turned off
- * "Likes on your content" in-app, you also won't be pushed for it.
- * That gate lives in `lib/notifications.ts`.
+ * Settings-page surface for opting in to push notifications.
  *
- * iOS quirk: Safari supports Web Push only when the site has been added
- * to the home screen as a PWA. On the regular Safari tab the API is
- * unsupported and we surface a hint pointing the user there.
+ * Two transports, one UI:
+ *   • Native Capacitor app → FCM (Firebase Cloud Messaging) push
+ *   • Web browser / PWA install → Web Push (VAPID)
+ * usePush hides the difference; this component just toggles enabled +
+ * surfaces per-category preferences.
+ *
+ * The 6 push categories are independent from the in-app notification
+ * preferences (which control the bell-icon feed). A user can leave a
+ * category ON in-app but OFF for push — or vice versa.
  */
+
+type PushCategory =
+  | "commentOnContent"
+  | "likeOnContent"
+  | "commentReplies"
+  | "commentLikes"
+  | "milestones"
+  | "watchlistInvites";
+
+interface PushPrefs {
+  commentOnContent: boolean;
+  likeOnContent: boolean;
+  commentReplies: boolean;
+  commentLikes: boolean;
+  milestones: boolean;
+  watchlistInvites: boolean;
+}
+
+const DEFAULT_PREFS: PushPrefs = {
+  commentOnContent: true,
+  likeOnContent: true,
+  commentReplies: true,
+  commentLikes: true,
+  milestones: true,
+  watchlistInvites: true,
+};
+
+const PREF_LABELS: { key: PushCategory; label: string; desc: string }[] = [
+  { key: "commentOnContent", label: "Comments on your content", desc: "When someone comments on your reviews, posts, or community items" },
+  { key: "likeOnContent", label: "Likes on your content", desc: "When someone likes your reviews or posts" },
+  { key: "commentReplies", label: "Replies to your comments", desc: "When someone replies to a comment you made" },
+  { key: "commentLikes", label: "Likes on your comments", desc: "When someone likes a comment you made" },
+  { key: "milestones", label: "Milestone alerts", desc: "Big like / comment milestones on your content (50, 100, 500+)" },
+  { key: "watchlistInvites", label: "Watchlist invites", desc: "When someone invites you to collaborate on a watchlist" },
+];
+
 export default function PushNotificationsSection() {
   const { user } = useAuth();
-  const { supported, permission, subscribed, busy, error, enable, disable } = usePush();
+  const { supported, isNative, permission, subscribed, busy, error, enable, disable } = usePush();
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [pushPrefs, setPushPrefs] = useState<PushPrefs>(DEFAULT_PREFS);
+
+  // Load per-category push prefs from the user's profile.
+  useEffect(() => {
+    if (!user || !subscribed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/profile/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.user?.pushPrefs && typeof data.user.pushPrefs === "object") {
+          setPushPrefs((prev) => ({ ...prev, ...data.user.pushPrefs }));
+        }
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user, subscribed]);
 
   async function sendTest() {
     if (!user) return;
@@ -37,7 +98,27 @@ export default function PushNotificationsSection() {
     }
   }
 
+  async function togglePref(key: PushCategory, value: boolean) {
+    if (!user) return;
+    const next: PushPrefs = { ...pushPrefs, [key]: value };
+    setPushPrefs(next); // optimistic
+    try {
+      const token = await user.getIdToken();
+      await fetch("/api/profile/me", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ pushPrefs: next }),
+      });
+    } catch {
+      // Best-effort — leave the optimistic state in place.
+    }
+  }
+
+  // iOS Safari (in a regular tab) can't receive Web Push — only the
+  // installed-to-home-screen PWA can. Detect that specific case so we
+  // can guide the user to install instead of just saying "unsupported".
   const isIOSSafariTab =
+    !isNative &&
     typeof window !== "undefined" &&
     /iPhone|iPad|iPod/.test(window.navigator.userAgent) &&
     !("standalone" in window.navigator && (window.navigator as Navigator & { standalone?: boolean }).standalone);
@@ -49,7 +130,9 @@ export default function PushNotificationsSection() {
         Push notifications
       </h2>
       <p className="text-sm text-[var(--foreground-muted)] mb-4">
-        Get notified on this device for the same things that appear in your bell icon.
+        {isNative
+          ? "Get notified on this device when things happen on The Ratist."
+          : "Get notified in your browser or installed PWA when things happen on The Ratist."}
       </p>
 
       {!supported && isIOSSafariTab && (
@@ -58,7 +141,7 @@ export default function PushNotificationsSection() {
           <div>
             <p className="text-sm text-white mb-1">Add Ratist to your Home Screen first</p>
             <p className="text-xs text-[var(--foreground-muted)]">
-              On iPhone, Web Push only works when you&apos;ve installed the site as an app: tap the Share button in Safari, then &quot;Add to Home Screen&quot;. Open Ratist from that icon and come back here.
+              On iPhone, push only works when you&apos;ve installed the site as an app: tap the Share button in Safari, then &quot;Add to Home Screen&quot;. Open Ratist from that icon and come back here.
             </p>
           </div>
         </div>
@@ -68,7 +151,9 @@ export default function PushNotificationsSection() {
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex gap-3">
           <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
           <p className="text-sm text-[var(--foreground-muted)]">
-            This browser doesn&apos;t support push notifications.
+            {isNative
+              ? "Push notifications aren't available on this device."
+              : "This browser doesn't support push notifications. Try Chrome, Edge, or Firefox."}
           </p>
         </div>
       )}
@@ -77,7 +162,9 @@ export default function PushNotificationsSection() {
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex gap-3 mb-3">
           <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
           <p className="text-sm text-[var(--foreground-muted)]">
-            You previously blocked notifications. Re-enable them in your browser&apos;s site settings, then refresh this page.
+            {isNative
+              ? "You blocked notifications for this app. Re-enable them in your phone's Settings → Apps → The Ratist → Notifications."
+              : "You blocked notifications for this site. Re-enable them in your browser's site settings, then refresh."}
           </p>
         </div>
       )}
@@ -87,12 +174,14 @@ export default function PushNotificationsSection() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-white">
-                {subscribed ? "Enabled on this device" : "Not enabled on this device"}
+                {subscribed
+                  ? isNative ? "Enabled for this app" : "Enabled for this device"
+                  : isNative ? "Not enabled for this app" : "Not enabled for this device"}
               </p>
               <p className="text-xs text-[var(--foreground-muted)] mt-1">
                 {subscribed
-                  ? "You'll get push notifications matching your notification preferences below."
-                  : "Click to allow notifications. You can turn them off anytime."}
+                  ? "Pick which categories you want to be pushed about below. Your in-app notifications stay independent of these."
+                  : "Tap to allow notifications. You can turn them off anytime."}
               </p>
             </div>
             <button
@@ -113,6 +202,29 @@ export default function PushNotificationsSection() {
               <AlertCircle className="w-3.5 h-3.5" /> {error}
             </p>
           )}
+
+          {subscribed && (
+            <div className="mt-5 pt-5 border-t border-[var(--border)] space-y-3">
+              <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1">
+                Push categories
+              </p>
+              {PREF_LABELS.map((row) => (
+                <label key={row.key} className="flex items-start gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={pushPrefs[row.key]}
+                    onChange={(e) => togglePref(row.key, e.target.checked)}
+                    className="mt-1 accent-[var(--ratist-red)]"
+                  />
+                  <div>
+                    <p className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors">{row.label}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">{row.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+
           {subscribed && (
             <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-center gap-3">
               <button
