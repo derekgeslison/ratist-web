@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Share2, X, Copy, Check, Download, Image as ImageIcon } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share as CapShare } from "@capacitor/share";
 
 interface Props {
   text: string;
@@ -30,6 +32,22 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl, 
   // markup is correct, then overwritten on mount with the live values.
   const [liveUrl, setLiveUrl] = useState(url);
   const [liveCardImageUrl, setLiveCardImageUrl] = useState(cardImageUrl);
+  // Mobile detection — native app OR mobile-browser-with-Web-Share-API.
+  // Drives whether the "More apps" escape hatch (system share sheet)
+  // gets rendered. Desktop browsers don't get it: their navigator.share
+  // is unreliable across vendors and a system share sheet there is
+  // basically a dropdown chooser of the same X / FB / Copy options.
+  const [hasNativeShare, setHasNativeShare] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isNative = Capacitor.isNativePlatform();
+    const isMobileWeb =
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function" &&
+      "ontouchstart" in window;
+    setHasNativeShare(isNative || isMobileWeb);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -73,6 +91,24 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl, 
       setCopiedText(true);
       setTimeout(() => setCopiedText(false), 2000);
     });
+  }
+
+  async function handleNativeShare() {
+    // Same routing as PageShare: prefer Capacitor's plugin when in
+    // the native app, fall back to navigator.share on touch browsers.
+    // We never reach this branch on non-touch desktop because the
+    // button isn't rendered there.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await CapShare.share({ title: text, text, url: liveUrl });
+      } catch { /* user cancelled */ }
+      return;
+    }
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: text, text, url: liveUrl });
+      } catch { /* user cancelled */ }
+    }
   }
 
   async function handleDownload() {
@@ -169,6 +205,22 @@ export default function ShareButton({ text, url, label = "Share", cardImageUrl, 
                 )}
               </button>
             </div>
+
+            {/* Native share — phone-only escape hatch. Shows above the
+                explicit X/FB/Copy grid because users who want the OS
+                drawer want it as the primary action, not buried at the
+                end of the grid. Hidden on desktop (no `ontouchstart`
+                + no Capacitor) — that experience already has the X /
+                FB / Copy options as the right primary actions. */}
+            {hasNativeShare && (
+              <button
+                onClick={handleNativeShare}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mb-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--ratist-red)] text-white text-sm font-medium transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                More apps
+              </button>
+            )}
 
             {/* Share targets */}
             <div className={`grid ${cardImageUrl ? "grid-cols-4" : "grid-cols-3"} gap-3`}>
