@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Share2, X, Copy, Check } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share as CapShare } from "@capacitor/share";
 
 interface Props {
   title: string;
@@ -37,13 +39,27 @@ export default function PageShare({ title, url }: Props) {
   async function handleNativeShare() {
     const live = readCurrentUrl();
     setShareUrl(live);
-    // Only attempt native share if the API exists AND we're likely on mobile
-    // (navigator.share exists on some desktop browsers too but behaves differently)
+
+    // Native Capacitor app: use the Capacitor Share plugin. This
+    // routes through the OS share sheet (Android system chooser /
+    // iOS UIActivityViewController) — the same one users see from
+    // every other native app. The WebView's navigator.share is
+    // unreliable inside Capacitor; the plugin is the supported path.
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await CapShare.share({ title: shareText, url: live });
+      } catch { /* user cancelled the sheet */ }
+      return;
+    }
+
+    // Web mobile: Web Share API, gated on touch so desktop browsers
+    // (some Edge versions expose navigator.share but it's a degraded
+    // dialog) skip it and use the in-app modal.
     if (typeof navigator !== "undefined" && typeof navigator.share === "function" && "ontouchstart" in window) {
       try {
         await navigator.share({ title: shareText, url: live });
       } catch { /* user cancelled */ }
-      return; // always return — don't also show the modal
+      return;
     }
     setOpen(true);
   }
