@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 
 interface Spotlight {
   id: string;
@@ -17,17 +18,32 @@ interface Spotlight {
 }
 
 export default function SpotlightCards({ placement }: { placement: string }) {
+  const { user } = useAuth();
   const [spotlights, setSpotlights] = useState<Spotlight[]>([]);
 
   useEffect(() => {
-    fetch(`/api/admin/spotlights?placement=${placement}`)
-      .then((r) => r.json())
-      .then((data) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // Pass auth so the server can apply audience + policy-cutoff
+        // filtering. Anonymous calls still return "everyone" / "signed_out"
+        // spotlights.
+        const headers: HeadersInit = {};
+        if (user) {
+          try {
+            const token = await user.getIdToken();
+            headers["Authorization"] = `Bearer ${token}`;
+          } catch { /* fall through */ }
+        }
+        const res = await fetch(`/api/admin/spotlights?placement=${placement}`, { headers });
+        const data = await res.json();
+        if (cancelled) return;
         const items = (data.spotlights ?? []).filter((s: { type: string }) => s.type !== "announcement");
         setSpotlights(items);
-      })
-      .catch(() => {});
-  }, [placement]);
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [placement, user]);
 
   if (spotlights.length === 0) return null;
 

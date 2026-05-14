@@ -24,7 +24,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ spotlights });
   }
 
-  // Public — active + within schedule + optional placement filter
+  // Public — active + within schedule + optional placement filter.
+  // Audience filtering is applied AFTER the DB query because the
+  // signed-in / signed-out check needs the request's auth state and
+  // the subscription / new-user gates need a Prisma lookup on the
+  // viewer.
   const now = new Date();
   const where: Record<string, unknown> = {
     isActive: true,
@@ -35,11 +39,69 @@ export async function GET(req: NextRequest) {
     where.placement = { in: [placement, "all"] };
   }
 
+  // Optional viewer lookup. Anonymous callers fall through with a
+  // null viewer; signed-in callers pass a Bearer token and we resolve
+  // the dbUser for audience filtering.
+  let viewer: {
+    id: string;
+    createdAt: Date;
+    subscriptionTier: string | null;
+    subscriptionStatus: string | null;
+    subscriptionExpiry: Date | null;
+  } | null = null;
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    try {
+      const decoded = await adminAuth.verifyIdToken(authHeader.slice(7));
+      viewer = await prisma.user.findUnique({
+        where: { firebaseUid: decoded.uid },
+        select: { id: true, createdAt: true, subscriptionTier: true, subscriptionStatus: true, subscriptionExpiry: true },
+      });
+    } catch { /* anonymous fallback */ }
+  }
+
+  function hasActivePass(u: NonNullable<typeof viewer>): boolean {
+    if (u.subscriptionStatus === "admin_granted") {
+      return u.subscriptionExpiry == null || u.subscriptionExpiry.getTime() > Date.now();
+    }
+    if (u.subscriptionTier !== "backstage_pass") return false;
+    return u.subscriptionStatus === "active" || u.subscriptionStatus === "past_due";
+  }
+
+  const NEW_USER_DAYS = 30;
+  const newUserCutoff = new Date(Date.now() - NEW_USER_DAYS * 24 * 60 * 60 * 1000);
+
   const spotlights = await prisma.siteSpotlight.findMany({
     where,
     orderBy: { sortOrder: "asc" },
   });
-  return NextResponse.json({ spotlights });
+
+  const filtered = spotlights.filter((s) => {
+    // Audience gate
+    switch (s.audience) {
+      case "signed_in":
+        if (!viewer) return false;
+        break;
+      case "signed_out":
+        if (viewer) return false;
+        break;
+      case "non_subscriber":
+        if (!viewer || hasActivePass(viewer)) return false;
+        break;
+      case "new_user":
+        if (!viewer || viewer.createdAt < newUserCutoff) return false;
+        break;
+      // "everyone" — no gate
+    }
+    // Policy banner cutoff: hide from users who signed up AFTER the
+    // policy effective date (they already agreed to the latest copy).
+    if (s.effectiveForUsersBefore && viewer && viewer.createdAt >= s.effectiveForUsersBefore) {
+      return false;
+    }
+    return true;
+  });
+
+  return NextResponse.json({ spotlights: filtered });
 }
 
 // POST — create a spotlight
@@ -48,7 +110,7 @@ export async function POST(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { title, description, linkUrl, linkLabel, imageUrl, type, placement, style, bgColor, audience, startDate, endDate } = body;
+  const { title, description, linkUrl, linkLabel, imageUrl, type, placement, style, bgColor, audience, startDate, endDate, effectiveForUsersBefore } = body;
   if (!title?.trim() || !linkUrl?.trim()) {
     return NextResponse.json({ error: "Title and link URL are required" }, { status: 400 });
   }
@@ -67,6 +129,7 @@ export async function POST(req: NextRequest) {
       audience: audience || "everyone",
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
+      effectiveForUsersBefore: effectiveForUsersBefore ? new Date(effectiveForUsersBefore) : null,
     },
   });
 
@@ -94,6 +157,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof data.audience === "string") update.audience = data.audience;
   if (data.startDate !== undefined) update.startDate = data.startDate ? new Date(data.startDate) : null;
   if (data.endDate !== undefined) update.endDate = data.endDate ? new Date(data.endDate) : null;
+  if (data.effectiveForUsersBefore !== undefined) update.effectiveForUsersBefore = data.effectiveForUsersBefore ? new Date(data.effectiveForUsersBefore) : null;
   if (typeof data.isActive === "boolean") update.isActive = data.isActive;
   if (typeof data.sortOrder === "number") update.sortOrder = data.sortOrder;
 

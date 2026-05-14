@@ -2234,6 +2234,12 @@ model SiteSpotlight {
   audience    String    @default("everyone") // "everyone" | "signed_in" | "signed_out" | "non_subscriber" | "new_user"
   startDate   DateTime? @map("start_date")
   endDate     DateTime? @map("end_date")
+  // For policy update banners: only show to users whose accounts
+  // pre-date this timestamp. New signups after the policy effective
+  // date already agreed to the latest version of the ToS/Privacy
+  // Policy at signup, so they don't need to see the change-notice
+  // banner. null = no cutoff (show to all eligible users by audience).
+  effectiveForUsersBefore DateTime? @map("effective_for_users_before")
   isActive    Boolean   @default(true) @map("is_active")
   sortOrder   Int       @default(0) @map("sort_order")
   createdAt   DateTime  @default(now()) @map("created_at")

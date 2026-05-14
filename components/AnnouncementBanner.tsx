@@ -68,7 +68,19 @@ export default function AnnouncementBanner() {
       const dismissedIds = new Set([...localIds, ...serverIds]);
 
       try {
-        const res = await fetch("/api/admin/spotlights");
+        // Pass auth token when signed in so the server can apply
+        // audience filtering ("signed_in" / "non_subscriber" /
+        // "new_user") and the effectiveForUsersBefore cutoff for
+        // policy banners. Anonymous fetches still work but only
+        // surface "everyone" + "signed_out" spotlights.
+        const headers: HeadersInit = {};
+        if (user) {
+          try {
+            const token = await user.getIdToken();
+            headers["Authorization"] = `Bearer ${token}`;
+          } catch { /* fall through with no auth */ }
+        }
+        const res = await fetch("/api/admin/spotlights", { headers });
         const data = await res.json();
         if (cancelled) return;
         const announcements = (data.spotlights ?? []).filter(

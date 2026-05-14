@@ -77,6 +77,20 @@ export async function POST(req: NextRequest) {
   // where the actual summary lives. Stuffing the description with the
   // first 200 chars of the summary made the banner feel like a
   // duplicate of the email; just the headline reads better.
+  //
+  // Three audience constraints, all enforced server-side in
+  // /api/admin/spotlights GET:
+  //   • audience: "signed_in" — anonymous visitors don't need to be
+  //     notified of policy changes they haven't agreed to.
+  //   • endDate: 30 days from now — standard industry exposure
+  //     window (no specific GDPR/CCPA mandate, but ~30 days is the
+  //     widely-cited "reasonable opportunity to review" baseline used
+  //     by Stripe / Google / etc.).
+  //   • effectiveForUsersBefore: now — users who sign up AFTER this
+  //     instant already agree to the latest policy text at signup
+  //     and don't need a change-notice banner.
+  const effectiveDate = new Date();
+  const banner_end = new Date(effectiveDate.getTime() + 30 * 24 * 60 * 60 * 1000);
   await prisma.siteSpotlight.create({
     data: {
       title: `We've updated our ${policyName}`,
@@ -86,6 +100,9 @@ export async function POST(req: NextRequest) {
       type: "announcement",
       isActive: true,
       sortOrder: -1, // show above other spotlights
+      audience: "signed_in",
+      endDate: banner_end,
+      effectiveForUsersBefore: effectiveDate,
     },
   });
 
