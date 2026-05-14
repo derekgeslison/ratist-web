@@ -41,6 +41,30 @@ export function usePush(): UsePushState {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Push fresh FCM token to the server. Used by both the launch-time
+  // refresh below and the tokenReceived listener. Idempotent (server
+  // upserts by token).
+  const registerToken = useCallback(
+    async (token: string) => {
+      if (!user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const platform = Capacitor.getPlatform();
+        const res = await fetch("/api/push/fcm/register", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ token, platform }),
+        });
+        if (res.ok) {
+          try { localStorage.setItem(NATIVE_TOKEN_KEY, token); } catch { /* non-fatal */ }
+        }
+      } catch {
+        // Non-fatal — next launch / next rotation will retry.
+      }
+    },
+    [user],
+  );
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const native = Capacitor.isNativePlatform();
@@ -51,16 +75,59 @@ export function usePush(): UsePushState {
       // FirebaseMessaging.checkPermissions(). "subscribed" means we
       // have an FCM token cached locally that the server knows about.
       setSupported(true);
-      FirebaseMessaging.checkPermissions()
-        .then((p) => setPermission((p.receive as PermissionState) ?? "default"))
-        .catch(() => setPermission("default"));
-      try {
-        const cached = localStorage.getItem(NATIVE_TOKEN_KEY);
+
+      let cancelled = false;
+      let tokenListener: { remove: () => Promise<void> } | null = null;
+
+      (async () => {
+        let perm: PermissionState = "default";
+        try {
+          const p = await FirebaseMessaging.checkPermissions();
+          perm = (p.receive as PermissionState) ?? "default";
+        } catch { /* keep default */ }
+        if (cancelled) return;
+        setPermission(perm);
+
+        let cached: string | null = null;
+        try { cached = localStorage.getItem(NATIVE_TOKEN_KEY); } catch { /* ignore */ }
         setSubscribed(!!cached);
-      } catch {
-        setSubscribed(false);
-      }
-      return;
+
+        // If permission is already granted on this device, refresh the
+        // FCM token from the OS and compare against the cached one.
+        // After an app update the OS may have rotated the token —
+        // without this re-check the server keeps the old, no-longer-
+        // valid token and every push fails with
+        // registration-token-not-registered.
+        if (perm === "granted" && user) {
+          try {
+            const { token: fresh } = await FirebaseMessaging.getToken();
+            if (!cancelled && fresh && fresh !== cached) {
+              await registerToken(fresh);
+              if (!cancelled) setSubscribed(true);
+            }
+          } catch { /* non-fatal — user can still re-enable manually */ }
+        }
+
+        // Subscribe to Firebase-initiated token rotations. The plugin
+        // fires this whenever FCM regenerates the registration token
+        // (periodically by Firebase, after app data clear, etc.).
+        try {
+          tokenListener = await FirebaseMessaging.addListener(
+            "tokenReceived",
+            (event: { token: string }) => {
+              if (cancelled) return;
+              const next = event?.token;
+              if (next) void registerToken(next);
+            },
+          );
+          if (cancelled) await tokenListener?.remove();
+        } catch { /* plugin not available */ }
+      })();
+
+      return () => {
+        cancelled = true;
+        tokenListener?.remove().catch(() => { /* already removed */ });
+      };
     }
 
     // Web: classic feature detect.
@@ -80,7 +147,7 @@ export function usePush(): UsePushState {
       .then((reg) => reg?.pushManager.getSubscription())
       .then((sub) => setSubscribed(!!sub))
       .catch(() => setSubscribed(false));
-  }, []);
+  }, [user, registerToken]);
 
   const enable = useCallback(async () => {
     if (!user) {
