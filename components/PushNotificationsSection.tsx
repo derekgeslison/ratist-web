@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, AlertCircle, Send } from "lucide-react";
+import { Bell, BellOff, AlertCircle } from "lucide-react";
 import { usePush } from "@/hooks/usePush";
 import { useAuth } from "@/context/AuthContext";
 
@@ -57,8 +57,6 @@ const PREF_LABELS: { key: PushCategory; label: string; desc: string }[] = [
 export default function PushNotificationsSection() {
   const { user } = useAuth();
   const { supported, isNative, permission, subscribed, busy, error, enable, disable } = usePush();
-  const [testStatus, setTestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [testDetail, setTestDetail] = useState<string>("");
   const [pushPrefs, setPushPrefs] = useState<PushPrefs>(DEFAULT_PREFS);
 
   // Load per-category push prefs from the user's profile.
@@ -81,31 +79,6 @@ export default function PushNotificationsSection() {
     })();
     return () => { cancelled = true; };
   }, [user, subscribed]);
-
-  async function sendTest() {
-    if (!user) return;
-    setTestStatus("sending");
-    setTestDetail("");
-    try {
-      const token = await user.getIdToken();
-      const res = await fetch("/api/push/test", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const body = await res.json().catch(() => ({}));
-      setTestStatus(res.ok ? "sent" : "error");
-      // Surface the response counts so we can diagnose silent failures
-      // (sent=0, all-pruned, all-skipped because of prefs, etc.).
-      setTestDetail(
-        `HTTP ${res.status}: sent=${body?.sent ?? "?"} pruned=${body?.pruned ?? "?"} skipped=${body?.skipped ?? "?"}${body?.error ? " err=" + body.error : ""}`,
-      );
-      setTimeout(() => { setTestStatus("idle"); setTestDetail(""); }, 8000);
-    } catch (e) {
-      setTestStatus("error");
-      setTestDetail(e instanceof Error ? e.message : "Network error");
-      setTimeout(() => { setTestStatus("idle"); setTestDetail(""); }, 8000);
-    }
-  }
 
   async function togglePref(key: PushCategory, value: boolean) {
     if (!user) return;
@@ -234,27 +207,6 @@ export default function PushNotificationsSection() {
             </div>
           )}
 
-          {subscribed && (
-            <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-center gap-3">
-              <button
-                type="button"
-                onClick={sendTest}
-                disabled={testStatus === "sending"}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-[var(--surface-2)] border border-[var(--border)] text-white hover:border-[var(--ratist-red)] transition-colors disabled:opacity-60"
-              >
-                <Send className="w-3.5 h-3.5" /> Send test notification
-              </button>
-              {testStatus === "sent" && (
-                <span className="text-xs text-green-400">Sent — check your notifications.</span>
-              )}
-              {testStatus === "error" && (
-                <span className="text-xs text-yellow-400">Couldn&apos;t send.</span>
-              )}
-              {testDetail && (
-                <span className="text-[10px] font-mono text-[var(--foreground-muted)]">{testDetail}</span>
-              )}
-            </div>
-          )}
         </div>
       )}
     </section>

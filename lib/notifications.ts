@@ -31,6 +31,20 @@ interface NotificationPrefs {
   watchlistInvites?: boolean;
 }
 
+// ─── Notification deep-link helper ──────────────────────────────────────────
+
+/** Append `?notif=<id>` to a relative URL, preserving any existing
+ *  query string and hash fragment. Used so the page that opens from
+ *  a push tap can auto-mark-as-read on load. */
+function appendNotifId(path: string, id: string): string {
+  // Find the hash and strip it off temporarily; we re-attach at the end.
+  const hashIdx = path.indexOf("#");
+  const hash = hashIdx >= 0 ? path.slice(hashIdx) : "";
+  const base = hashIdx >= 0 ? path.slice(0, hashIdx) : path;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}notif=${encodeURIComponent(id)}${hash}`;
+}
+
 // ─── Milestones ─────────────────────────────────────────────────────────────
 
 const MILESTONES = [10, 25, 50, 100, 200, 500, 1000, 2500, 5000, 10000];
@@ -92,7 +106,7 @@ export async function notify(opts: NotifyOpts): Promise<void> {
     });
     if (recent) return; // within cooldown window
 
-    await prisma.notification.create({
+    const created = await prisma.notification.create({
       data: {
         userId: opts.recipientId,
         type: opts.type,
@@ -108,15 +122,25 @@ export async function notify(opts: NotifyOpts): Promise<void> {
     // in-app notification is the source of truth. The push gate on
     // pushPrefs[category] is the second filter; notificationPrefs is
     // already satisfied by getting here.
+    //
+    // We append ?notif=<id> to the URL so that when the user taps the
+    // push and lands on the target page, a global client component
+    // can detect the param and mark the in-app notification as read
+    // automatically. Without this, the same notification would still
+    // show as unread in the bell-icon list after they viewed the
+    // underlying content via the push.
     const pushKey = getPrefKey(opts.type);
     if (pushKey) {
+      const baseUrl = opts.link ?? "/notifications";
+      const url = appendNotifId(baseUrl, created.id);
       void sendPushToUser(
         opts.recipientId,
         {
           title: "The Ratist",
           body: opts.message,
-          url: opts.link ?? "/notifications",
+          url,
           tag: `${opts.type}:${opts.targetType}:${opts.targetId}`,
+          data: { notificationId: created.id },
         },
         { category: pushKey as PushCategory },
       );

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Geist } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
@@ -15,6 +16,7 @@ import CookiePreferencesLink from "@/components/CookiePreferencesLink";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import FirstLaunchPushPrompt from "@/components/FirstLaunchPushPrompt";
+import NotificationDeepLink from "@/components/NotificationDeepLink";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -157,6 +159,9 @@ window.gtag('config', '${GA_ID}');`}
           <ConsentBanner />
           <ServiceWorkerRegister />
           <FirstLaunchPushPrompt />
+          <Suspense fallback={null}>
+            <NotificationDeepLink />
+          </Suspense>
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">
