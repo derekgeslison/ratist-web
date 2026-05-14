@@ -52,15 +52,25 @@ type ViewMode = "month" | "calendar" | "all";
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function isValidDate(d: Date | null | undefined): d is Date {
+  return d instanceof Date && !isNaN(d.getTime());
+}
+
 function getWatchDate(m: { watchedDate: string | null }): Date | null {
   const str = m.watchedDate;
   if (!str) return null; // no date = undated entry
-  if (str.length === 10 && str[4] === "-") return new Date(`${str}T12:00:00`);
-  return new Date(str);
+  const d = str.length === 10 && str[4] === "-" ? new Date(`${str}T12:00:00`) : new Date(str);
+  // Reject Invalid Date so callers can treat malformed timestamps the
+  // same as "undated" instead of rendering NaN.
+  return isValidDate(d) ? d : null;
 }
 
-function getWatchDateOrFallback(m: SeenEntry): Date {
-  return getWatchDate(m) ?? new Date(m.seenAt);
+function getWatchDateOrFallback(m: SeenEntry): Date | null {
+  const wd = getWatchDate(m);
+  if (wd) return wd;
+  if (!m.seenAt) return null;
+  const fb = new Date(m.seenAt);
+  return isValidDate(fb) ? fb : null;
 }
 
 const DIARY_KEY = "ratist-diary-state";
@@ -303,7 +313,7 @@ export default function SeenPage() {
     const arr = [...filtered];
     if (sort === "title") arr.sort((a, b) => a.title.localeCompare(b.title));
     else if (sort === "rating") arr.sort((a, b) => ((b.ratistRating ?? -1) - (a.ratistRating ?? -1)));
-    else arr.sort((a, b) => getWatchDateOrFallback(b).getTime() - getWatchDateOrFallback(a).getTime());
+    else arr.sort((a, b) => (getWatchDateOrFallback(b)?.getTime() ?? 0) - (getWatchDateOrFallback(a)?.getTime() ?? 0));
     return arr;
   }, [filtered, sort]);
 
@@ -812,8 +822,9 @@ export default function SeenPage() {
                     </div>
                     {mlist.map((m, idx) => {
                       const d = getWatchDate(m) ?? getWatchDateOrFallback(m);
-                      const prevDay = idx > 0 ? (getWatchDate(mlist[idx - 1]) ?? getWatchDateOrFallback(mlist[idx - 1])).getDate() : null;
-                      const showDay = idx === 0 || d.getDate() !== prevDay;
+                      const prev = idx > 0 ? (getWatchDate(mlist[idx - 1]) ?? getWatchDateOrFallback(mlist[idx - 1])) : null;
+                      const prevDay = prev ? prev.getDate() : null;
+                      const showDay = idx === 0 || (d ? d.getDate() : null) !== prevDay;
                       if (m._type === "episode") {
                         return (
                           <DiaryEpisodeRow
@@ -822,7 +833,7 @@ export default function SeenPage() {
                             title={m.title}
                             posterPath={m.posterPath}
                             year={m.year}
-                            dayNumber={showDay ? d.getDate() : null}
+                            dayNumber={showDay && d ? d.getDate() : null}
                             watchedDate={m.watchedDate}
                             seasonCount={m.seasonCount}
                             episodeCount={m.episodeCount}
@@ -845,7 +856,7 @@ export default function SeenPage() {
                           year={m.year}
                           ratistRating={m.ratistRating}
                           voteAverage={m.voteAverage}
-                          dayNumber={showDay ? d.getDate() : null}
+                          dayNumber={showDay && d ? d.getDate() : null}
                           editable
                           dateValue={dateVal}
                           onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
@@ -871,7 +882,7 @@ export default function SeenPage() {
                         title={m.title}
                         posterPath={m.posterPath}
                         year={m.year}
-                        dayNumber={d.getDate()}
+                        dayNumber={d ? d.getDate() : null}
                         watchedDate={m.watchedDate}
                         seasonCount={m.seasonCount}
                         episodeCount={m.episodeCount}
@@ -894,7 +905,7 @@ export default function SeenPage() {
                       year={m.year}
                       ratistRating={m.ratistRating}
                       voteAverage={m.voteAverage}
-                      dayNumber={d.getDate()}
+                      dayNumber={d ? d.getDate() : null}
                       editable
                       dateValue={dateVal}
                       onDateChange={(date) => updateWatchedDate(m.tmdbId, date)}
