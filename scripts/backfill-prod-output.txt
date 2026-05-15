@@ -1,0 +1,62 @@
+Backfill target: 50 TMDB pages × 20 movies = 1000 titles
+Endpoint: https://theratist.com/api/movies/<id>/parents-guide
+
+(node:25932) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+MovieParentsGuide cache before: 3 entries
+
+Collected 909 unique movie IDs from TMDB
+
+Skipping 3 already-cached titles; 906 remaining
+
+  25/906  (✓19 ∅6 ✗0)  0.9/s  ETA 951s
+  50/906  (✓37 ∅13 ✗0)  0.9/s  ETA 907s
+  75/906  (✓59 ∅16 ✗0)  0.9/s  ETA 897s
+  100/906  (✓78 ∅22 ✗0)  0.9/s  ETA 870s
+  125/906  (✓103 ∅22 ✗0)  0.9/s  ETA 850s
+  150/906  (✓126 ∅24 ✗0)  0.9/s  ETA 816s
+  175/906  (✓150 ∅25 ✗0)  0.9/s  ETA 794s
+  200/906  (✓170 ∅30 ✗0)  0.9/s  ETA 770s
+  225/906  (✓193 ∅32 ✗0)  0.9/s  ETA 748s
+  250/906  (✓214 ∅36 ✗0)  0.9/s  ETA 722s
+  275/906  (✓237 ∅38 ✗0)  0.9/s  ETA 693s
+  300/906  (✓258 ∅42 ✗0)  0.9/s  ETA 665s
+  325/906  (✓280 ∅45 ✗0)  0.9/s  ETA 636s
+  350/906  (✓302 ∅48 ✗0)  0.9/s  ETA 607s
+  375/906  (✓324 ∅51 ✗0)  0.9/s  ETA 589s
+  400/906  (✓345 ∅55 ✗0)  0.9/s  ETA 563s
+  425/906  (✓368 ∅57 ✗0)  0.9/s  ETA 535s
+  450/906  (✓390 ∅60 ✗0)  0.9/s  ETA 509s
+  475/906  (✓409 ∅66 ✗0)  0.9/s  ETA 486s
+  500/906  (✓431 ∅69 ✗0)  0.9/s  ETA 459s
+  525/906  (✓454 ∅71 ✗0)  0.9/s  ETA 429s
+  550/906  (✓473 ∅77 ✗0)  0.9/s  ETA 399s
+  575/906  (✓496 ∅79 ✗0)  0.9/s  ETA 370s
+  600/906  (✓517 ∅83 ✗0)  0.9/s  ETA 340s
+  625/906  (✓538 ∅87 ✗0)  0.9/s  ETA 312s
+  650/906  (✓558 ∅92 ✗0)  0.9/s  ETA 283s
+  675/906  (✓579 ∅96 ✗0)  0.9/s  ETA 254s
+  700/906  (✓602 ∅98 ✗0)  0.9/s  ETA 226s
+  725/906  (✓625 ∅100 ✗0)  0.9/s  ETA 198s
+  750/906  (✓646 ∅104 ✗0)  0.9/s  ETA 170s
+  775/906  (✓666 ∅109 ✗0)  0.9/s  ETA 142s
+  800/906  (✓691 ∅109 ✗0)  0.9/s  ETA 115s
+  825/906  (✓712 ∅113 ✗0)  0.9/s  ETA 88s
+  850/906  (✓734 ∅116 ✗0)  0.9/s  ETA 61s
+  875/906  (✓758 ∅117 ✗0)  0.9/s  ETA 34s
+  900/906  (✓780 ∅120 ✗0)  0.9/s  ETA 7s
+
+============================================================
+Done. Processed: 906
+  ✓ cached with data: 785
+  ∅ no DDD data: 121
+  ✗ errors: 0
+MovieParentsGuide cache after: 788 entries (was 3, added 785)
+Elapsed: 989s

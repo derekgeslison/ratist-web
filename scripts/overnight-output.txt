@@ -1,0 +1,658 @@
+Running 121 prompts through BOTH extractors
+Today's year (for relative dates) = 2026
+====================================================================================================
+
+### CATEGORY: SHORT
+
+[1] "sci-fi"
+    expect: SciFi genre
+    REC: mediaType=any  genres=["Science Fiction"]
+    COL: mediaType=movie  genres=["Science Fiction"]  seenFilter=unseen  suggestedName=Sci-Fi Movies
+
+[2] "movies"
+    expect: mediaType=movie, otherwise empty
+    REC: mediaType=movie
+    COL: mediaType=movie  seenFilter=unseen  suggestedName=Movies
+
+[3] "good shit"
+    expect: probably minRating=7.5 or empty
+    REC: mediaType=any
+    COL: mediaType=movie  minRating=7.5  seenFilter=unseen  suggestedName=Good Shit
+
+[4] "something fun"
+    expect: mood=funny/feel-good
+    REC: mediaType=any  genres=["Comedy"]  moods=["funny","feel-good"]
+    COL: mediaType=movie  genres=["Comedy"]  moods=["feel-good","funny"]  seenFilter=unseen  suggestedName=Fun & Funny Movies
+
+[5] "a comedy"
+    expect: genre=Comedy, mediaType=any
+    REC: mediaType=any  genres=["Comedy"]  moods=["funny"]
+    COL: mediaType=movie  genres=["Comedy"]  moods=["funny"]  seenFilter=unseen  suggestedName=Comedy Movies
+
+[6] "horror"
+    expect: genre=Horror (movies)
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  seenFilter=unseen  suggestedName=Horror Movies
+
+
+### CATEGORY: CASUAL
+
+[7] "what should i watch tonight after a long day"
+    expect: mood=feel-good or funny
+    REC: mediaType=any  moods=["feel-good"]
+    COL: mediaType=any  moods=["feel-good"]  seenFilter=unseen  suggestedName=Feel-Good Night In
+
+[8] "I'm bored and want something mindless"
+    expect: mood=funny maybe Action, light
+    REC: mediaType=any  genres=["Comedy","Action"]  moods=["funny"]
+    COL: mediaType=movie  genres=["Action"]  moods=["funny"]  seenFilter=unseen  suggestedName=Mindless Entertainment
+
+[9] "show me something my girlfriend would like"
+    expect: mood=romantic or Romance/Comedy
+    REC: mediaType=any  experience=["taste"]
+    COL: mediaType=any  seenFilter=unseen  suggestedName=For Your Girlfriend
+
+[10] "comfort TV for being sick"
+    expect: mediaType=tv, mood=feel-good
+    REC: mediaType=tv  genres=["Comedy","Drama"]  excludeGenres=["Horror","Thriller"]  moods=["feel-good"]  maxViolence=mild  maxScaryIntense=mild  maxSensitiveThemes=moderate
+    COL: mediaType=tv  genres=["Comedy"]  excludeGenres=["Horror","Crime","War"]  moods=["feel-good","funny"]  minRating=7  seenFilter=unseen  maxViolence=mild  maxSexualContent=mild-moderate  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=mild-moderate  suggestedName=Comfort TV for Sick Days
+
+[11] "something to put on in the background while I cook"
+    expect: light/casual, maybe feel-good
+    REC: mediaType=any  moods=["feel-good"]
+    COL: mediaType=any  genres=["Comedy"]  excludeGenres=["Horror","Thriller","War","Crime"]  moods=["feel-good","funny"]  minRating=6.5  seenFilter=unseen  maxViolence=mild  maxSexualContent=mild-moderate  maxLanguageSubstance=mild-moderate  maxScaryIntense=mild  maxSensitiveThemes=mild  suggestedName=Feel-Good Background Viewing
+
+[12] "movie for tonight after a shitty week at work"
+    expect: feel-good or funny
+    REC: mediaType=movie  moods=["feel-good"]
+    COL: mediaType=movie  genres=["Comedy"]  moods=["feel-good","funny"]  minRating=6.5  seenFilter=unseen  maxViolence=moderate  maxScaryIntense=mild  maxSensitiveThemes=moderate  suggestedName=Feel-Good Comedy Night
+
+[13] "i need a good cry"
+    expect: tearjerker mood
+    REC: mediaType=any  moods=["tearjerker"]
+    COL: mediaType=movie  genres=["Drama"]  moods=["tearjerker"]  minRating=7  seenFilter=unseen  suggestedName=Emotional Tearjerkers
+
+[14] "i want to laugh"
+    expect: funny + Comedy
+    REC: mediaType=any  genres=["Comedy"]  moods=["funny"]
+    COL: mediaType=any  genres=["Comedy"]  moods=["funny"]  seenFilter=unseen  suggestedName=Comedy Collection - Make Me Laugh
+
+
+### CATEGORY: COMPOUND
+
+[15] "Korean psychological thrillers from the 2010s, rated 8+, no gore"
+    expect: ko + 2010s + minRating=8 + maxViolence=mild + Thriller
+    REC: mediaType=any  genres=["Thriller","Drama"]  moods=["dark","edge-of-seat"]  originalLanguage=["ko"]  yearFrom=2010  yearTo=2019  minRating=8  maxViolence=mild
+    COL: mediaType=movie  genres=["Thriller","Crime","Drama"]  moods=["dark","mind-bending"]  originalLanguage=["ko"]  yearFrom=2010  yearTo=2019  minRating=8  textQuery=psychological  seenFilter=unseen  maxViolence=mild  suggestedName=Korean Psychological Thrillers (2010s)
+
+[16] "1970s Italian giallo films under 2 hours"
+    expect: yr=1970-79 + it + maybe keyword=giallo + runtime=short/feature
+    REC: mediaType=movie  genres=["Thriller","Mystery","Horror"]  moods=["dark"]  experience=["classic"]  originalLanguage=["it"]  yearFrom=1970  yearTo=1979  era=["70s"]  runtime=["short","feature"]
+    COL: mediaType=movie  genres=["Thriller"]  moods=["dark"]  originalLanguage=["it"]  yearFrom=1970  yearTo=1979  runtime=["short","feature"]  textQuery=giallo  keywords=["giallo"]  seenFilter=unseen  suggestedName=1970s Italian Giallo Classics
+
+[17] "animated features from Studio Ghibli or Pixar"
+    expect: Animation + movie; Ghibli/Pixar no schema
+    REC: mediaType=movie  genres=["Animation"]  originalLanguage=["ja"]  runtime=["feature"]
+    COL: mediaType=movie  genres=["Animation"]  textQuery=Studio Ghibli Pixar  seenFilter=unseen  suggestedName=Studio Ghibli & Pixar Animated Features
+
+[18] "slow-burn sci-fi like Annihilation or Arrival from the past decade"
+    expect: SciFi + yearFrom=2016 + maybe thought-provoking
+    REC: mediaType=any  genres=["Science Fiction"]  moods=["mind-bending","thought-provoking"]  yearFrom=2016
+    COL: mediaType=movie  genres=["Science Fiction"]  moods=["mind-bending","thought-provoking"]  yearFrom=2014  yearTo=2024  seenFilter=unseen  suggestedName=Slow-Burn Sci-Fi (2014–2024)
+
+[19] "a feel-good animated movie from the 90s, under 90 minutes"
+    expect: Animation + 90s + short + feel-good
+    REC: mediaType=movie  genres=["Animation"]  moods=["feel-good"]  era=["90s"]  runtime=["short"]
+    COL: mediaType=movie  genres=["Animation"]  moods=["feel-good"]  yearFrom=1990  yearTo=1999  runtime=["short"]  seenFilter=unseen  suggestedName=Feel-Good Animated Shorts from the 90s
+
+
+### CATEGORY: FRANCHISE
+
+[20] "Tom Hanks movies"
+    expect: no schema for cast — see what happens
+    REC: mediaType=movie
+    COL: mediaType=movie  textQuery=Tom Hanks  seenFilter=unseen  suggestedName=Tom Hanks Movies
+
+[21] "anything by Tarantino"
+    expect: no schema for director
+    REC: mediaType=movie  experience=["taste"]
+    COL: mediaType=movie  genres=["Crime"]  moods=["dark"]  textQuery=Tarantino  seenFilter=unseen  suggestedName=Tarantino Films
+
+[22] "Christopher Nolan films"
+    expect: no schema — maybe mind-bending mood
+    REC: mediaType=movie  moods=["mind-bending","epic"]  experience=["classic"]  originalLanguage=["en"]  minRating=7.5
+    COL: mediaType=movie  moods=["mind-bending","epic"]  textQuery=Christopher Nolan  seenFilter=unseen  suggestedName=Christopher Nolan Films
+
+[23] "Marvel movies"
+    expect: no schema — maybe Action+Adventure
+    REC: mediaType=movie  genres=["Action","Adventure","Science Fiction"]  moods=["epic"]  experience=["popular"]  originalLanguage=["en"]  runtime=["feature","long"]  mpaaRatings=["PG-13"]
+    COL: mediaType=movie  genres=["Action","Adventure","Science Fiction"]  moods=["epic"]  textQuery=superhero  seenFilter=unseen  suggestedName=Marvel Movies
+
+[24] "Star Wars"
+    expect: no schema
+    REC: mediaType=any  genres=["Science Fiction","Adventure","Action"]  moods=["epic"]  keywords=["space"]
+    COL: mediaType=movie  genres=["Science Fiction","Adventure"]  moods=["epic"]  textQuery=space opera  seenFilter=unseen  suggestedName=Space Opera Adventures Like Star Wars
+
+[25] "James Bond"
+    expect: no schema — maybe Action
+    REC: mediaType=movie  genres=["Action","Adventure"]  moods=["edge-of-seat"]  experience=["classic"]  era=["classic","70s","80s","90s","2000s","2010s","recent"]  runtime=["feature","long"]  keywords=["spy"]
+    COL: mediaType=movie  genres=["Action","Adventure"]  textQuery=James Bond  seenFilter=unseen  suggestedName=James Bond Movies
+
+[26] "Pixar movies"
+    expect: Animation + Family
+    REC: mediaType=movie  genres=["Animation"]  originalLanguage=["en"]  excludeAnime=true
+    COL: mediaType=movie  genres=["Animation"]  textQuery=pixar  seenFilter=unseen  suggestedName=Pixar Movies
+
+[27] "Studio Ghibli"
+    expect: Animation + ja
+    REC: mediaType=any  genres=["Animation"]  moods=["offbeat"]  experience=["classic"]  originalLanguage=["ja"]
+    COL: mediaType=movie  genres=["Animation"]  moods=["feel-good"]  originalLanguage=["ja"]  textQuery=Studio Ghibli  seenFilter=unseen  suggestedName=Studio Ghibli Classics
+
+[28] "Wes Anderson type stuff"
+    expect: mood=offbeat
+    REC: mediaType=any  moods=["offbeat"]  experience=["taste"]
+    COL: mediaType=movie  genres=["Comedy","Drama"]  moods=["offbeat","funny","thought-provoking"]  textQuery=quirky indie  seenFilter=unseen  suggestedName=Wes Anderson-Style Indie Comedies
+
+
+### CATEGORY: AWARDS
+
+[29] "Oscar winners"
+    expect: no schema — maybe minRating high
+    REC: mediaType=any  experience=["classic"]
+    COL: mediaType=movie  textQuery=oscar winner  seenFilter=unseen  suggestedName=Oscar Winners
+
+[30] "Cannes winners"
+    expect: no schema
+    REC: mediaType=any  experience=["classic"]
+    COL: mediaType=movie  textQuery=Cannes winner  seenFilter=unseen  suggestedName=Cannes Winners
+
+[31] "Best Picture winners"
+    expect: no schema
+    REC: mediaType=movie  experience=["classic"]
+    COL: mediaType=movie  textQuery=best picture winner  seenFilter=unseen  suggestedName=Best Picture Winners
+
+[32] "Criterion Collection stuff"
+    expect: no schema — offbeat/classic?
+    REC: mediaType=any  experience=["classic"]  minRating=7.5
+    COL: mediaType=movie  moods=["thought-provoking"]  minRating=7.5  textQuery=criterion collection  seenFilter=unseen  suggestedName=Criterion Collection Highlights
+
+
+### CATEGORY: PLATFORM
+
+[33] "what's on Netflix"
+    expect: providers=[Netflix]
+    REC: mediaType=any  providers=["Netflix"]
+
+[34] "only on Prime"
+    expect: providers=[Prime]
+    REC: mediaType=any  providers=["Prime"]
+
+[35] "HBO shows"
+    expect: mediaType=tv + providers=[Max]
+    REC: mediaType=tv  providers=["Max"]
+
+[36] "Disney+ kids stuff"
+    expect: providers=[Disney+] + Family
+    REC: mediaType=any  genres=["Family","Animation"]  moods=["feel-good"]  providers=["Disney+"]  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=mild
+
+[37] "Apple TV+ originals"
+    expect: providers=[Apple TV+]
+    REC: mediaType=any  providers=["Apple TV+"]
+
+
+### CATEGORY: TRICKY
+
+[38] "scary but feel-good"
+    expect: contradictory — what does AI do?
+    REC: mediaType=any  genres=["Horror"]  moods=["scary","feel-good"]
+    COL: mediaType=movie  moods=["scary","feel-good"]  seenFilter=unseen  minScaryIntense=moderate  suggestedName=Scary but Feel-Good
+
+[39] "violent but clean"
+    expect: contradictory
+    REC: mediaType=any  maxViolence=moderate  maxSexualContent=mild  maxLanguageSubstance=mild  minViolence=moderate
+    COL: mediaType=movie  genres=["Action"]  seenFilter=unseen  maxViolence=moderate  maxSexualContent=mild  maxLanguageSubstance=mild  minViolence=moderate  suggestedName=Violent but Clean Action
+
+[40] "long but not too long"
+    expect: probably runtime=long or feature
+    REC: mediaType=any  runtime=["long"]
+    COL: mediaType=movie  runtime=["long"]  seenFilter=unseen  suggestedName=Long but Not Too Long
+
+[41] "artsy but entertaining"
+    expect: offbeat + funny?
+    REC: mediaType=any  moods=["offbeat"]
+    COL: mediaType=movie  moods=["offbeat","thought-provoking"]  seenFilter=unseen  suggestedName=Artsy & Entertaining
+
+[42] "scary but not too scary"
+    expect: Horror + maxScaryIntense=moderate
+    REC: mediaType=any  moods=["scary"]  maxScaryIntense=moderate
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  seenFilter=unseen  maxScaryIntense=moderate  minScaryIntense=mild  suggestedName=Scary But Not Too Intense
+
+
+### CATEGORY: YEAR
+
+[43] "from this year"
+    expect: yearFrom=2026 yearTo=2026
+    REC: mediaType=any  yearFrom=2026
+    COL: mediaType=movie  yearFrom=2024  yearTo=2024  seenFilter=unseen  suggestedName=2024 Movies
+
+[44] "last 5 years"
+    expect: yearFrom=2021, yearTo=null
+    REC: mediaType=any  yearFrom=2021
+    COL: mediaType=movie  yearFrom=2020  yearTo=2025  seenFilter=unseen  suggestedName=Recent Movies (2020–2025)
+
+[45] "past decade"
+    expect: yearFrom=2016, yearTo=null
+    REC: mediaType=any  yearFrom=2016
+    COL: mediaType=any  yearFrom=2015  yearTo=2024  seenFilter=unseen  suggestedName=Past Decade
+
+[46] "pre-2000s"
+    expect: yearTo=1999
+    REC: mediaType=any  yearTo=1999  era=["classic","70s","80s","90s"]
+    COL: mediaType=movie  yearTo=1999  seenFilter=unseen  suggestedName=Pre-2000s Movies
+
+[47] "mid-90s to early 2000s"
+    expect: yearFrom ~1995 yearTo ~2003
+    REC: mediaType=any  yearFrom=1995  yearTo=2003
+    COL: mediaType=movie  yearFrom=1995  yearTo=2005  seenFilter=unseen  suggestedName=Mid-90s to Early 2000s Classics
+
+[48] "anything not from the last 20 years"
+    expect: yearTo ~2006
+    REC: mediaType=any  yearTo=2005
+    COL: mediaType=movie  yearTo=2004  seenFilter=unseen  suggestedName=Pre-2005 Movies
+
+[49] "released in 2022"
+    expect: yearFrom=2022 yearTo=2022
+    REC: mediaType=any  yearFrom=2022  yearTo=2022
+    COL: mediaType=movie  yearFrom=2022  yearTo=2022  seenFilter=unseen  suggestedName=Movies from 2022
+
+[50] "from the 80s"
+    expect: era=80s
+    REC: mediaType=any  era=["80s"]
+
+[51] "before 1980"
+    expect: yearTo=1979
+    REC: mediaType=any  yearTo=1979
+    COL: mediaType=movie  yearTo=1979  seenFilter=unseen  suggestedName=Movies Before 1980
+
+
+### CATEGORY: RUNTIME
+
+[52] "90-minute movies"
+    expect: runtime=[short, feature]
+    REC: mediaType=movie  runtime=["feature"]
+    COL: mediaType=movie  runtime=["feature"]  seenFilter=unseen  suggestedName=90-Minute Movies
+
+[53] "under 2 hours"
+    expect: runtime=[short, feature]
+    REC: mediaType=any  runtime=["short","feature"]
+    COL: mediaType=movie  runtime=["short","feature"]  seenFilter=unseen  suggestedName=Movies Under 2 Hours
+
+[54] "3-hour epics"
+    expect: runtime=[epic]
+    REC: mediaType=any  moods=["epic"]  runtime=["epic"]
+    COL: mediaType=movie  moods=["epic"]  runtime=["epic"]  seenFilter=unseen  suggestedName=3-Hour Epics
+
+[55] "movies I can finish during a nap"
+    expect: runtime=[short]
+    REC: mediaType=movie  runtime=["short"]
+    COL: mediaType=movie  moods=["feel-good"]  runtime=["short"]  seenFilter=unseen  suggestedName=Nap-Time Movies
+
+[56] "binge-able TV"
+    expect: mediaType=tv
+    REC: mediaType=tv
+    COL: mediaType=tv  moods=["edge-of-seat"]  minRating=7  seenFilter=unseen  suggestedName=Binge-Worthy TV Shows
+
+
+### CATEGORY: QUALITY
+
+[57] "highly rated"
+    expect: minRating=7.5
+    REC: mediaType=any  minRating=7.5
+    COL: mediaType=movie  minRating=7.5  seenFilter=unseen  suggestedName=Highly Rated Movies
+
+[58] "must be 8+"
+    expect: minRating=8
+    REC: mediaType=any  minRating=8
+    COL: mediaType=movie  minRating=8  seenFilter=unseen  suggestedName=Highly-Rated Movies (8.0+)
+
+[59] "great movies only"
+    expect: minRating=7.5
+    REC: mediaType=movie  experience=["popular"]  minRating=7.5
+    COL: mediaType=movie  minRating=7.5  seenFilter=unseen  suggestedName=Great Movies Only
+
+[60] "not garbage"
+    expect: maybe minRating=7
+    REC: mediaType=any  minRating=7
+    COL: mediaType=movie  minRating=7  seenFilter=unseen  suggestedName=Quality Movies
+
+[61] "critically acclaimed"
+    expect: minRating=7.5
+    REC: mediaType=any  experience=["classic"]  minRating=8
+    COL: mediaType=movie  minRating=7.5  seenFilter=unseen  suggestedName=Critically Acclaimed Movies
+
+[62] "hidden gems"
+    expect: experience=[hidden_gem]
+    REC: mediaType=any  experience=["hidden_gem"]
+
+
+### CATEGORY: LANGUAGE
+
+[63] "dubbed anime"
+    expect: ja + Animation
+    REC: mediaType=any  genres=["Animation"]  originalLanguage=["ja"]
+    COL: mediaType=any  genres=["Animation"]  originalLanguage=["ja"]  textQuery=dubbed  seenFilter=unseen  suggestedName=Dubbed Anime
+
+[64] "English subtitles required"
+    expect: no clear mapping — should maybe stay empty
+    REC: mediaType=any
+    COL: mediaType=any  seenFilter=unseen  suggestedName=English Subtitles Available
+
+[65] "no English"
+    expect: excludeOriginalLanguages=[en]
+    REC: mediaType=any  excludeOriginalLanguages=["en"]
+    COL: mediaType=movie  excludeOriginalLanguages=["en"]  seenFilter=unseen  suggestedName=Non-English Films
+
+[66] "any language"
+    expect: all empty
+    REC: mediaType=any
+    COL: mediaType=any  seenFilter=unseen  suggestedName=Any Language Collection
+
+[67] "Korean or Thai"
+    expect: originalLanguage=[ko, th]
+    REC: mediaType=any  originalLanguage=["ko","th"]
+    COL: mediaType=any  originalLanguage=["ko","th"]  seenFilter=unseen  suggestedName=Korean & Thai Cinema
+
+[68] "Latin American cinema"
+    expect: originalLanguage=[es, pt]
+    REC: mediaType=any  originalLanguage=["es","pt"]
+    COL: mediaType=movie  originalLanguage=["es","pt"]  seenFilter=unseen  suggestedName=Latin American Cinema
+
+[69] "only American"
+    expect: originalLanguage=[en]
+    REC: mediaType=any  originalLanguage=["en"]
+    COL: mediaType=movie  originalLanguage=["en"]  seenFilter=unseen  suggestedName=American Films
+
+
+### CATEGORY: RATING
+
+[70] "R-rated only"
+    expect: mpaa=[R]
+    REC: mediaType=any  mpaaRatings=["R"]
+    COL: mediaType=movie  seenFilter=unseen  suggestedName=R-Rated Movies
+
+[71] "nothing above PG-13"
+    expect: mpaa=[G,PG,PG-13]
+    REC: mediaType=any  mpaaRatings=["G","PG","PG-13"]
+    COL: mediaType=movie  seenFilter=unseen  maxViolence=moderate  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild-moderate  maxSensitiveThemes=mild-moderate  suggestedName=PG-13 and Under
+
+[72] "TV-14 max"
+    expect: mpaa=[TV-Y, TV-Y7, TV-G, TV-PG, TV-14]
+    REC: mediaType=any  mpaaRatings=["TV-14"]
+    COL: mediaType=movie  seenFilter=unseen  maxViolence=mild-moderate  maxSexualContent=mild-moderate  maxLanguageSubstance=mild-moderate  maxScaryIntense=mild-moderate  maxSensitiveThemes=mild-moderate  suggestedName=TV-14 Rated Collection
+
+[73] "mature content OK"
+    expect: probably empty
+    REC: mediaType=any
+    COL: mediaType=movie  seenFilter=unseen  suggestedName=Mature Content
+
+[74] "squeaky clean"
+    expect: all max caps=mild
+    REC: mediaType=any  moods=["feel-good"]  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=mild
+    COL: mediaType=movie  moods=["feel-good"]  seenFilter=unseen  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=mild  suggestedName=Squeaky Clean Movies
+
+
+### CATEGORY: SEVERITY
+
+[75] "extreme violence"
+    expect: minViolence=moderate-severe
+    REC: mediaType=any  moods=["dark"]  minViolence=severe
+    COL: mediaType=movie  genres=["Action"]  seenFilter=unseen  minViolence=severe  suggestedName=Extreme Violence
+
+[76] "steamy"
+    expect: minSexualContent=moderate
+    REC: mediaType=any  moods=["romantic"]  minSexualContent=moderate
+    COL: mediaType=movie  genres=["Romance"]  moods=["romantic"]  seenFilter=unseen  minSexualContent=moderate  suggestedName=Steamy Romance
+
+[77] "nothing triggering"
+    expect: maxSensitiveThemes=moderate
+    REC: mediaType=any  maxViolence=moderate  maxScaryIntense=moderate  maxSensitiveThemes=moderate
+    COL: mediaType=movie  seenFilter=unseen  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=moderate  suggestedName=Nothing Triggering
+
+[78] "no animal deaths"
+    expect: maxSensitiveThemes=moderate
+    REC: mediaType=any  maxSensitiveThemes=moderate
+    COL: mediaType=movie  seenFilter=unseen  maxSensitiveThemes=moderate  suggestedName=No Animal Deaths
+
+[79] "safe for my 10-year-old"
+    expect: ALL max caps=mild
+    REC: mediaType=any  moods=["feel-good"]  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=mild
+    COL: mediaType=movie  moods=["feel-good"]  seenFilter=unseen  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=mild  suggestedName=Safe for 10-Year-Olds
+
+[80] "no jumpscares"
+    expect: maxScaryIntense=mild
+    REC: mediaType=any  maxScaryIntense=mild
+    COL: mediaType=movie  seenFilter=unseen  maxScaryIntense=mild  suggestedName=No Jumpscares
+
+[81] "bloody horror"
+    expect: Horror + minViolence=moderate-severe
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  seenFilter=unseen  minViolence=moderate-severe  suggestedName=Bloody Horror
+
+[82] "slow burn no gore"
+    expect: maxViolence=mild + mood?
+    REC: mediaType=any  moods=["mind-bending"]  keywords=["slow burn"]  maxViolence=mild
+    COL: mediaType=movie  textQuery=slow burn  seenFilter=unseen  maxViolence=mild  suggestedName=Slow Burn, No Gore
+
+
+### CATEGORY: KEYWORDS
+
+[83] "time loop movies"
+    expect: keywords=[time loop]
+    REC: mediaType=movie  moods=["mind-bending"]  keywords=["time loop"]
+    COL: mediaType=movie  moods=["mind-bending"]  keywords=["time loop"]  seenFilter=unseen  suggestedName=Time Loop Movies
+
+[84] "post-apocalyptic"
+    expect: keywords=[post-apocalyptic]
+    REC: mediaType=any  keywords=["post-apocalyptic"]
+    COL: mediaType=movie  genres=["Science Fiction"]  keywords=["post-apocalyptic"]  seenFilter=unseen  suggestedName=Post-Apocalyptic Movies
+
+[85] "found footage"
+    expect: keywords=[found footage]
+    REC: mediaType=any  keywords=["found footage"]
+    COL: mediaType=movie  keywords=["found footage"]  seenFilter=unseen  suggestedName=Found Footage Films
+
+[86] "mockumentary"
+    expect: keywords=[mockumentary]
+    REC: mediaType=any  moods=["funny"]  keywords=["mockumentary"]
+    COL: mediaType=movie  genres=["Comedy"]  moods=["funny","offbeat"]  keywords=["mockumentary"]  seenFilter=unseen  suggestedName=Mockumentary Movies
+
+[87] "one-shot"
+    expect: keywords=[one-shot]
+    REC: mediaType=any  keywords=["one-shot"]
+    COL: mediaType=movie  keywords=["one-shot"]  seenFilter=unseen  suggestedName=One-Shot Films
+
+[88] "heist"
+    expect: keywords=[heist] + Crime
+    REC: mediaType=any  genres=["Crime"]  keywords=["heist"]
+    COL: mediaType=movie  genres=["Crime"]  keywords=["heist"]  seenFilter=unseen  suggestedName=Heist Movies
+
+[89] "christmas"
+    expect: keywords=[christmas]
+    REC: mediaType=any  moods=["feel-good"]  keywords=["christmas"]
+    COL: mediaType=movie  moods=["feel-good"]  keywords=["christmas"]  seenFilter=unseen  suggestedName=Christmas Movies
+
+[90] "road trip"
+    expect: keywords=[road trip]
+    REC: mediaType=any  keywords=["road trip"]
+    COL: mediaType=movie  moods=["feel-good"]  keywords=["road trip"]  seenFilter=unseen  suggestedName=Road Trip Movies
+
+[91] "wedding"
+    expect: keywords=[wedding]
+    REC: mediaType=any  moods=["feel-good"]  keywords=["wedding"]
+    COL: mediaType=movie  keywords=["wedding"]  seenFilter=unseen  suggestedName=Wedding Movies
+
+[92] "serial killer"
+    expect: keywords=[serial killer]
+    REC: mediaType=any  genres=["Crime","Thriller"]  moods=["dark","edge-of-seat"]  keywords=["serial killer"]
+    COL: mediaType=movie  genres=["Crime","Thriller"]  moods=["dark"]  keywords=["serial killer"]  seenFilter=unseen  suggestedName=Serial Killer Thrillers
+
+[93] "courtroom"
+    expect: keywords=[courtroom]
+    REC: mediaType=any  genres=["Drama"]  moods=["thought-provoking"]  keywords=["courtroom"]
+    COL: mediaType=movie  genres=["Drama"]  keywords=["courtroom"]  seenFilter=unseen  suggestedName=Courtroom Dramas
+
+[94] "zombies"
+    expect: Horror + maybe keywords=[zombie]
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]  keywords=["zombie"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  seenFilter=unseen  suggestedName=Zombie Movies
+
+[95] "vampires"
+    expect: Horror/Fantasy + maybe keywords=[vampire]
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]  keywords=["vampire"]
+    COL: mediaType=any  genres=["Horror"]  moods=["scary"]  keywords=["vampire"]  seenFilter=unseen  suggestedName=Vampire Movies & Shows
+
+
+### CATEGORY: TVMOOD
+
+[96] "a scary TV show"
+    expect: mediaType=tv + mood=[scary]
+    REC: mediaType=tv  genres=["Horror"]  moods=["scary"]
+    COL: mediaType=tv  moods=["scary"]  seenFilter=unseen  suggestedName=Scary TV Shows
+
+[97] "romantic TV"
+    expect: mediaType=tv + mood=[romantic]
+    REC: mediaType=tv  genres=["Romance"]  moods=["romantic"]
+    COL: mediaType=tv  moods=["romantic"]  seenFilter=unseen  suggestedName=Romantic TV Shows
+
+[98] "dark TV drama"
+    expect: mediaType=tv + Drama + mood=[dark]
+    REC: mediaType=tv  genres=["Drama"]  moods=["dark"]
+    COL: mediaType=tv  genres=["Drama"]  moods=["dark"]  seenFilter=unseen  suggestedName=Dark TV Dramas
+
+
+### CATEGORY: SEEN
+
+[99] "stuff I've already seen"
+    expect: seenFilter=seen_only
+    COL: mediaType=any  seenFilter=seen_only  suggestedName=Stuff I've Already Seen
+
+[100] "new to me"
+    expect: seenFilter=unseen
+    COL: mediaType=any  seenFilter=unseen  suggestedName=New to Me
+
+[101] "rewatchable favorites"
+    expect: seenFilter=seen_only
+    COL: mediaType=any  minRating=7.5  seenFilter=seen_only  suggestedName=Rewatchable Favorites
+
+[102] "what I haven't watched yet"
+    expect: seenFilter=unseen
+    COL: mediaType=any  seenFilter=unseen  suggestedName=Unwatched Titles
+
+[103] "best of what I've seen"
+    expect: seenFilter=seen_only
+    COL: mediaType=any  minRating=7.5  seenFilter=seen_only  suggestedName=Best of What I've Seen
+
+
+### CATEGORY: NICHE
+
+[104] "A24 vibes"
+    expect: offbeat mood
+    REC: mediaType=any  moods=["offbeat"]
+    COL: mediaType=movie  moods=["offbeat","dark","thought-provoking"]  textQuery=arthouse  seenFilter=unseen  suggestedName=A24 Vibes
+
+[105] "Blumhouse horror"
+    expect: Horror
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]  originalLanguage=["en"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  textQuery=Blumhouse  seenFilter=unseen  suggestedName=Blumhouse Horror
+
+[106] "Marvel Cinematic Universe"
+    expect: Action/Adventure
+    REC: mediaType=any  genres=["Action","Adventure","Science Fiction"]  moods=["epic"]  experience=["popular"]  originalLanguage=["en"]  minRating=7
+    COL: mediaType=movie  genres=["Action","Adventure"]  moods=["epic"]  textQuery=superhero MCU  seenFilter=unseen  suggestedName=Marvel Cinematic Universe
+
+
+### CATEGORY: TYPOS
+
+[107] "Korean horrer"
+    expect: ko + Horror
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]  originalLanguage=["ko"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  originalLanguage=["ko"]  seenFilter=unseen  suggestedName=Korean Horror
+
+[108] "movies frum the 90s"
+    expect: movie + era=90s
+    REC: mediaType=movie  era=["90s"]
+    COL: mediaType=movie  yearFrom=1990  yearTo=1999  seenFilter=unseen  suggestedName=90s Movies
+
+[109] "sci fi"
+    expect: Science Fiction
+    REC: mediaType=any  genres=["Science Fiction"]
+    COL: mediaType=movie  genres=["Science Fiction"]  seenFilter=unseen  suggestedName=Science Fiction Movies
+
+[110] "80's films"
+    expect: era=80s
+    REC: mediaType=movie  era=["80s"]
+    COL: mediaType=movie  yearFrom=1980  yearTo=1989  seenFilter=unseen  suggestedName=80's Films
+
+[111] "SCARY MOVIES PLEASE"
+    expect: Horror
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  seenFilter=unseen  minScaryIntense=moderate-severe  suggestedName=Scary Movies
+
+
+### CATEGORY: SEASONAL
+
+[112] "cozy fall movies"
+    expect: feel-good mood
+    REC: mediaType=movie  moods=["feel-good"]  keywords=["fall"]
+    COL: mediaType=movie  genres=["Comedy","Drama","Family"]  excludeGenres=["Horror","Thriller","War","Crime"]  moods=["feel-good"]  keywords=["autumn"]  seenFilter=unseen  maxViolence=mild  maxSexualContent=mild  maxLanguageSubstance=mild  maxScaryIntense=mild  maxSensitiveThemes=moderate  suggestedName=Cozy Fall Movies
+
+[113] "summer blockbusters"
+    expect: Action/Adventure, popular
+    REC: mediaType=movie  genres=["Action","Adventure","Science Fiction"]  moods=["epic"]  experience=["popular"]  era=["2010s"]  runtime=["feature","long","epic"]
+    COL: mediaType=movie  genres=["Action","Adventure"]  moods=["epic"]  minRating=6.5  seenFilter=unseen  suggestedName=Summer Blockbusters
+
+[114] "date night"
+    expect: romantic mood
+    REC: mediaType=any  genres=["Romance"]  moods=["romantic"]
+    COL: mediaType=movie  genres=["Romance","Comedy"]  moods=["romantic","feel-good"]  seenFilter=unseen  suggestedName=Date Night Movies
+
+[115] "after a breakup"
+    expect: tearjerker or feel-good
+    REC: mediaType=any  moods=["feel-good"]
+    COL: mediaType=any  genres=["Drama","Comedy"]  moods=["feel-good","tearjerker","inspiring"]  seenFilter=unseen  suggestedName=Post-Breakup Comfort Watch
+
+[116] "Halloween night"
+    expect: Horror + keywords=[halloween]
+    REC: mediaType=any  genres=["Horror"]  moods=["scary"]  keywords=["halloween"]
+    COL: mediaType=movie  genres=["Horror"]  moods=["scary"]  keywords=["halloween"]  seenFilter=unseen  suggestedName=Halloween Night
+
+
+### CATEGORY: GIBBERISH
+
+[117] "aaaa"
+    expect: empty filters
+    REC: mediaType=any
+    COL: mediaType=any  seenFilter=unseen  suggestedName=<UNKNOWN>
+
+[118] "help"
+    expect: empty filters
+    REC: mediaType=any
+    COL: mediaType=movie  seenFilter=unseen  suggestedName=Browse All
+
+[119] ".........."
+    expect: empty filters
+    REC: mediaType=any
+    COL: mediaType=movie  seenFilter=unseen  suggestedName=Broad Collection
+
+[120] "I dunno"
+    expect: empty filters
+    REC: mediaType=any
+    COL: mediaType=movie  seenFilter=unseen  suggestedName=Random Mix
+
+[121] "surprise me"
+    expect: empty filters, maybe experience=[popular]
+    REC: mediaType=any
+    COL: mediaType=any  minRating=6.5  seenFilter=unseen  suggestedName=Surprise Pick
+
+
+DONE — 841s elapsed, 121 prompts tested.
