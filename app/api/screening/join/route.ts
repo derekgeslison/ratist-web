@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       // Even on the already-joined path, re-mirror to RTDB in case the
       // RTDB entry has drifted (e.g. participant existed before this
       // mirror existed). Idempotent — set true over true is a no-op.
-      await addParticipantToRtdb(session.id, user.id);
+      await addParticipantToRtdb(session.id, user.firebaseUid);
       return NextResponse.json({ sessionId: session.id, alreadyJoined: true });
     }
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     // Mirror membership into RTDB so the database.rules.json gate
     // can identify them as a participant.
-    await addParticipantToRtdb(session.id, user.id);
+    await addParticipantToRtdb(session.id, user.firebaseUid);
 
     return NextResponse.json({ sessionId: session.id, alreadyJoined: false }, { status: 201 });
   } catch (err) {

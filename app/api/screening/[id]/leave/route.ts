@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Drop their membership from the RTDB mirror so the database.rules
     // gate stops allowing read/write to this session for them.
-    await removeParticipantFromRtdb(id, user.id);
+    await removeParticipantFromRtdb(id, user.firebaseUid);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

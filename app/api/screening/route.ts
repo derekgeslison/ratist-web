@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     // Mirror host membership into RTDB so the database.rules.json gate
     // identifies them as a participant. Logs + swallows errors so a
     // transient RTDB issue doesn't break session creation.
-    await addParticipantToRtdb(session.id, user.id);
+    await addParticipantToRtdb(session.id, user.firebaseUid);
 
     return NextResponse.json(session, { status: 201 });
   } catch (err) {

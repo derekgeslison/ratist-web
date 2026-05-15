@@ -26,18 +26,27 @@ async function main() {
   const { addParticipantToRtdb } = await import("../lib/screening-rtdb");
 
   console.log("[backfill] reading screening participants from Postgres...");
+  // Join through User to get firebaseUid — the RTDB rules check
+  // auth.uid (Firebase UID), not the Postgres User.id (cuid). Rows
+  // where the user has been soft-deleted (firebaseUid still present)
+  // are kept; truly missing users would skip below.
   const rows = await prisma.screeningParticipant.findMany({
-    select: { sessionId: true, userId: true },
+    select: {
+      sessionId: true,
+      user: { select: { firebaseUid: true } },
+    },
   });
   console.log(`[backfill] found ${rows.length} participant rows`);
 
-  let done = 0;
+  let done = 0, skipped = 0;
   for (const row of rows) {
-    await addParticipantToRtdb(row.sessionId, row.userId);
+    const firebaseUid = row.user?.firebaseUid;
+    if (!firebaseUid) { skipped++; continue; }
+    await addParticipantToRtdb(row.sessionId, firebaseUid);
     done++;
     if (done % 50 === 0) console.log(`[backfill] mirrored ${done}/${rows.length}...`);
   }
-  console.log(`[backfill] done — mirrored ${done} rows.`);
+  console.log(`[backfill] done — mirrored ${done} rows, skipped ${skipped}.`);
   process.exit(0);
 }
 
