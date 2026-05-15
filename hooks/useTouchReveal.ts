@@ -62,6 +62,19 @@ export function useTouchReveal() {
   // likely because Next.js Link wraps the prop chain in a way that
   // delays handling. A non-passive native listener calling
   // preventDefault closes that gap.
+  //
+  // We ALSO walk up to the nearest ancestor <a> and apply the same
+  // suppressions there. Some tile surfaces (profile suggestions,
+  // watchlist view, releases grid) wrap PosterOverlay in a Next.js
+  // Link rather than letting PosterOverlay own the link. Without
+  // this, the OS long-press behavior (iOS callout / Android
+  // "Open in new tab" menu) fires on the ancestor <a> BEFORE the
+  // browser ever delivers our contextmenu listener on the inner
+  // div — the user sees the OS menu, taps "Open in new tab", and
+  // the action-reveal never gets a chance to render. Pushing the
+  // suppression up to the <a> closes that gap without forcing
+  // every callsite to refactor onto MovieCard's containerProps-on-
+  // Link pattern.
   useEffect(() => {
     if (!containerEl) return;
     const handler = (e: Event) => {
@@ -71,7 +84,35 @@ export function useTouchReveal() {
       if (isTouchDevice) e.preventDefault();
     };
     containerEl.addEventListener("contextmenu", handler, { passive: false });
-    return () => containerEl.removeEventListener("contextmenu", handler);
+
+    // Find the nearest <a> ancestor (if any) and mirror the
+    // suppression onto it. `closest("a")` returns containerEl
+    // itself if it IS the anchor, so we guard against double-
+    // attaching on the MovieCard / ShowCard path where the hook is
+    // already on the <a>.
+    const ancestorAnchor =
+      containerEl instanceof HTMLAnchorElement
+        ? null
+        : (containerEl.closest("a") as HTMLAnchorElement | null);
+    if (ancestorAnchor) {
+      ancestorAnchor.addEventListener("contextmenu", handler, { passive: false });
+      ancestorAnchor.style.setProperty("-webkit-touch-callout", "none");
+      ancestorAnchor.style.setProperty("-webkit-user-select", "none");
+      ancestorAnchor.style.setProperty("user-select", "none");
+    }
+
+    return () => {
+      containerEl.removeEventListener("contextmenu", handler);
+      if (ancestorAnchor) {
+        ancestorAnchor.removeEventListener("contextmenu", handler);
+        // We deliberately leave the inline -webkit-touch-callout
+        // style in place on unmount — removing it would briefly
+        // re-enable the OS callout if the component remounts (e.g.
+        // a re-render during list virtualization) while a user is
+        // mid-gesture. The style is harmless when no touch is in
+        // progress.
+      }
+    };
   }, [containerEl]);
 
   const dismiss = useCallback(() => {
