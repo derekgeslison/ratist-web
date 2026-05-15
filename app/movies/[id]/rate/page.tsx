@@ -360,7 +360,11 @@ export default function RateMoviePage() {
       {/* Live Review tool (standard & critic modes, Backstage Pass required) */}
       {mode !== "basic" && !subLoading && (
         hasPass ? (
-          <LiveReview movieId={id} />
+          <LiveReview
+            movieId={id}
+            movieTitle={movie?.title}
+            posterPath={movie?.poster_path}
+          />
         ) : (
           <button
             type="button"

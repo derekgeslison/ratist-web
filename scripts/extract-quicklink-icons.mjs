@@ -30,7 +30,7 @@ const IOS_OUTPUT = path.join(REPO_ROOT, "mobile", "quicklink-icons-ios");
 // source uses kebab-case; Android resource names use snake_case.
 const ICONS = [
   ["bookmark", "bookmark"],
-  ["bar-chart-3", "bar_chart_3"],
+  ["list-ordered", "list_ordered"],  // Rankings (was bar-chart-3)
   ["star", "star"],
   ["layers", "layers"],
   ["monitor-play", "monitor_play"],

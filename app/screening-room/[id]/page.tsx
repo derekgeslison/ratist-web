@@ -395,6 +395,48 @@ export default function ScreeningSessionPage() {
     return () => clearInterval(interval);
   }, [session?.startedAt, session?.status, isPaused, totalPausedMsForRender]);
 
+  // iOS Live Activity: start when the screening enters WATCHING,
+  // update every minute with the elapsed minute count, end when
+  // the session leaves WATCHING or the component unmounts. The
+  // helpers no-op on web/Android/iOS-without-the-plugin so this is
+  // safe to ship before the Mac-side Swift code lands.
+  useEffect(() => {
+    if (!session?.startedAt || session.status !== "WATCHING") return;
+    const startedAtMs = new Date(session.startedAt).getTime();
+    let sessionId = session.id;
+    let active = true;
+
+    (async () => {
+      const liveActivity = await import("@/lib/live-activity");
+      if (!active) return;
+      await liveActivity.startScreeningRoomActivity({
+        sessionId,
+        movieTitle: session.movieTitle ?? "Screening Room",
+        posterUrl: session.posterPath ? `https://image.tmdb.org/t/p/w342${session.posterPath}` : undefined,
+        startedAt: startedAtMs,
+      });
+    })();
+
+    const tick = setInterval(async () => {
+      if (!active) return;
+      const minutesElapsed = Math.max(0, Math.floor((Date.now() - startedAtMs) / 60000));
+      const liveActivity = await import("@/lib/live-activity");
+      await liveActivity.updateActivity({
+        sessionId,
+        payload: { minutesElapsed },
+      });
+    }, 60_000);
+
+    return () => {
+      active = false;
+      clearInterval(tick);
+      // Fire-and-forget end; if the native side hasn't responded
+      // by the time the component unmounts, ActivityKit's staleness
+      // window auto-dismisses anyway.
+      void import("@/lib/live-activity").then((m) => m.endActivity(sessionId));
+    };
+  }, [session?.id, session?.startedAt, session?.status, session?.movieTitle, session?.posterPath]);
+
   // RTDB connection status listener
   useEffect(() => {
     if (!rtdb) return;

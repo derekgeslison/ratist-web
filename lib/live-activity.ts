@@ -56,18 +56,16 @@ interface LiveActivityPlugin {
   end(opts: { sessionId: string }): Promise<{ ok: boolean }>;
 }
 
-// Lazy-load the plugin only on iOS native — avoids hitting the
-// Capacitor bridge on web where it would just resolve to the
-// auto-generated web shim (which throws "not implemented").
+// Lazy-load the plugin on native platforms (iOS or Android).
+// Both ship a custom Capacitor plugin named "LiveActivity":
+//   - iOS implements via ActivityKit (Dynamic Island / Lock Screen)
+//   - Android implements via an ongoing notification posted from
+//     LiveActivityPlugin.java (status bar / lock screen)
+// On web, returns null so the helpers no-op.
 async function getPlugin(): Promise<LiveActivityPlugin | null> {
   if (typeof window === "undefined") return null;
   if (!Capacitor.isNativePlatform()) return null;
-  if (Capacitor.getPlatform() !== "ios") return null;
   try {
-    // The plugin is registered native-side; we reach it via the
-    // generic registerPlugin / Plugins map. Swift code returns
-    // `{ ok: true }` from each method so callers can treat them
-    // as best-effort.
     const { registerPlugin } = await import("@capacitor/core");
     return registerPlugin<LiveActivityPlugin>("LiveActivity");
   } catch {

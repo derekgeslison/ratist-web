@@ -37,6 +37,12 @@ function parseTime(str: string): number | null {
 
 interface Props {
   movieId: string; // tmdb ID for localStorage key
+  // Optional metadata threaded through to the iOS Live Activity so
+  // the Dynamic Island / Lock Screen tile shows the movie title +
+  // poster while the review session is active. Both are no-ops when
+  // omitted (the helper falls back to defaults / icon-only).
+  movieTitle?: string;
+  posterPath?: string | null;
 }
 
 // Initial cap on a Live Review session. Past 4 hours we assume the
@@ -66,7 +72,7 @@ function setRunningMovieId(movieId: string | null) {
   } catch { /* ignore */ }
 }
 
-export default function LiveReview({ movieId }: Props) {
+export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [running, setRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -153,6 +159,52 @@ export default function LiveReview({ movieId }: Props) {
   useEffect(() => {
     if (running) saveState();
   }, [elapsedSeconds, bookmarks, generalNotes, saveState, running]);
+
+  // Latest bookmarks/notes counts surfaced to the iOS Live Activity
+  // update tick. The tick fires every minute (not on every keystroke)
+  // so this ref-based pattern avoids re-running the parent effect
+  // — which would tear down + restart the activity on every bookmark.
+  const bookmarksLenRef = useRef(bookmarks.length);
+  useEffect(() => { bookmarksLenRef.current = bookmarks.length; }, [bookmarks.length]);
+
+  // iOS Live Activity lifecycle. Starts when the timer goes
+  // running, updates every minute with notesCount + minutesElapsed,
+  // ends on stop / pause-into-stop / component unmount. The
+  // import is dynamic so the JS bundle doesn't pay the helper cost
+  // on web (it's a tiny module but no need to pre-load on a page
+  // where 99% of users won't have an iOS app).
+  useEffect(() => {
+    if (!running) return;
+    const startedAtMs = startedAtRef.current ?? Date.now();
+    let active = true;
+
+    (async () => {
+      const liveActivity = await import("@/lib/live-activity");
+      if (!active) return;
+      await liveActivity.startLiveReviewActivity({
+        sessionId: movieId,
+        movieTitle: movieTitle ?? "Live Review",
+        posterUrl: posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : undefined,
+        startedAt: startedAtMs,
+      });
+    })();
+
+    const tick = setInterval(async () => {
+      if (!active) return;
+      const minutesElapsed = Math.max(0, Math.floor((Date.now() - startedAtMs) / 60000));
+      const liveActivity = await import("@/lib/live-activity");
+      await liveActivity.updateActivity({
+        sessionId: movieId,
+        payload: { minutesElapsed, notesCount: bookmarksLenRef.current },
+      });
+    }, 60_000);
+
+    return () => {
+      active = false;
+      clearInterval(tick);
+      void import("@/lib/live-activity").then((m) => m.endActivity(movieId));
+    };
+  }, [running, movieId, movieTitle, posterPath]);
 
   // Timer logic. The interval re-renders every second; the elapsed
   // value comes from wall-clock math against startedAtRef. A
