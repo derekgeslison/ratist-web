@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,21 @@ export async function GET(req: NextRequest) {
       personRes.ok ? personRes.json() : { results: [] },
     ]);
 
-    const rawMovies = (movieData.results ?? []).slice(0, 5);
-    const rawShows = (tvData.results ?? []).slice(0, 3);
+    // Apply the discovery safeguard before slicing: drops TMDB-adult-
+    // flagged titles entirely and stamps the blocked-poster sentinel on
+    // anything an admin has flagged. We slice to a slightly wider cap
+    // first so the safeguard's hide-pass doesn't drop the dropdown
+    // below its display count.
+    const safeMovies = await safeguardTMDBMovies(
+      (movieData.results ?? []).slice(0, 12) as { id: number; poster_path: string | null }[],
+      { stripBlockedPosters: true },
+    );
+    const safeShows = await safeguardTMDBShows(
+      (tvData.results ?? []).slice(0, 8) as { id: number; poster_path: string | null }[],
+      { stripBlockedPosters: true },
+    );
+    const rawMovies = (safeMovies as unknown as Record<string, unknown>[]).slice(0, 5);
+    const rawShows = (safeShows as unknown as Record<string, unknown>[]).slice(0, 3);
     const rawPeople = (personData.results ?? []).slice(0, 3);
 
     const movies = rawMovies.map((m: Record<string, unknown>) => ({
