@@ -275,7 +275,13 @@ export default function CineQPage() {
 
   // ─── Renders ───────────────────────────────────────────────────────────────
 
-  if (authLoading) return <div className="max-w-2xl mx-auto px-4 py-12 text-center text-[var(--foreground-muted)]">Loading...</div>;
+  if (authLoading) return (
+    <div className="max-w-2xl mx-auto px-4 py-16 flex flex-col items-center justify-center gap-4">
+      <Brain className="w-10 h-10 text-pink-400" />
+      <div className="w-8 h-8 border-2 border-[var(--ratist-red)] border-t-transparent rounded-full animate-spin" />
+      <p className="text-sm text-[var(--foreground-muted)]">Loading Cine-Q…</p>
+    </div>
+  );
   if (!user) return (
     <div className="max-w-2xl mx-auto px-4 py-12 text-center">
       <Brain className="w-10 h-10 text-[var(--ratist-red)] mx-auto mb-4" />

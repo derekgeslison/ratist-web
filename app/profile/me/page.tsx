@@ -22,8 +22,9 @@ export default function ProfileMeRedirect() {
   }, [user, loading, router]);
 
   return (
-    <div className="min-h-[40vh] flex items-center justify-center text-[var(--foreground-muted)] text-sm">
-      Loading profile…
+    <div className="min-h-[40vh] flex flex-col items-center justify-center gap-3">
+      <div className="w-8 h-8 border-2 border-[var(--ratist-red)] border-t-transparent rounded-full animate-spin" />
+      <p className="text-sm text-[var(--foreground-muted)]">Loading profile…</p>
     </div>
   );
 }
