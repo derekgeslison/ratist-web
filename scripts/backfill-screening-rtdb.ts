@@ -12,9 +12,11 @@
  * Reads from the same DATABASE_URL and Firebase admin creds the web
  * app uses. Idempotent — re-running is safe.
  *
- * Auth fingerprint: this script uses the firebase-admin SDK with the
- * service-account credentials in env. It bypasses RTDB rules, which
- * is exactly what we need here.
+ * NOTE: This script deliberately does NOT import `lib/screening-rtdb.ts`
+ * because that module ships with `import "server-only"` (which throws
+ * at module load outside Next.js's bundler). Inline-init firebase-admin
+ * and write directly to the participants ref instead — behavior must
+ * stay identical to addParticipantToRtdb() in screening-rtdb.ts.
  */
 
 import { config as dotenvConfig } from "dotenv";
@@ -23,13 +25,26 @@ dotenvConfig({ path: ".env" });
 
 async function main() {
   const { prisma } = await import("../lib/prisma");
-  const { addParticipantToRtdb } = await import("../lib/screening-rtdb");
+
+  // Inline firebase-admin init to avoid pulling in screening-rtdb.ts
+  // (which has `import "server-only"` and breaks tsx).
+  const adminApp = await import("firebase-admin/app");
+  const adminDb = await import("firebase-admin/database");
+  if (adminApp.getApps().length === 0) {
+    adminApp.initializeApp({
+      credential: adminApp.cert({
+        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      }),
+      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+    });
+  }
+  const database = adminDb.getDatabase();
 
   console.log("[backfill] reading screening participants from Postgres...");
   // Join through User to get firebaseUid — the RTDB rules check
-  // auth.uid (Firebase UID), not the Postgres User.id (cuid). Rows
-  // where the user has been soft-deleted (firebaseUid still present)
-  // are kept; truly missing users would skip below.
+  // auth.uid (Firebase UID), not the Postgres User.id (cuid).
   const rows = await prisma.screeningParticipant.findMany({
     select: {
       sessionId: true,
@@ -38,15 +53,24 @@ async function main() {
   });
   console.log(`[backfill] found ${rows.length} participant rows`);
 
-  let done = 0, skipped = 0;
+  let done = 0, skipped = 0, failed = 0;
   for (const row of rows) {
     const firebaseUid = row.user?.firebaseUid;
     if (!firebaseUid) { skipped++; continue; }
-    await addParticipantToRtdb(row.sessionId, firebaseUid);
-    done++;
-    if (done % 50 === 0) console.log(`[backfill] mirrored ${done}/${rows.length}...`);
+    try {
+      await database
+        .ref(`screening-rooms/${row.sessionId}/participants/${firebaseUid}`)
+        .set(true);
+      done++;
+    } catch (err) {
+      console.error("[backfill] write failed:", row.sessionId, firebaseUid, err);
+      failed++;
+    }
+    if ((done + skipped + failed) % 50 === 0) {
+      console.log(`[backfill] progress ${done + skipped + failed}/${rows.length}...`);
+    }
   }
-  console.log(`[backfill] done — mirrored ${done} rows, skipped ${skipped}.`);
+  console.log(`[backfill] done — mirrored ${done}, skipped ${skipped}, failed ${failed}.`);
   process.exit(0);
 }
 
