@@ -1,40 +1,32 @@
-// Wrapper around the custom Capacitor LiveActivity plugin (iOS-only).
+// Wrapper around the custom Capacitor LiveActivity plugin.
 //
-// Live Activities are iOS 16.1+ — Dynamic Island / Lock Screen ongoing
-// tiles that show real-time state from the app while it's backgrounded.
-// We use them for:
-//   1. Screening Room — shows the movie + minutes-into-screening while
-//      a session is active, so participants can leave the app and still
-//      see how far in they are.
-//   2. Live Review (Backstage Pass) — shows the rating-in-progress with
-//      a "+1" tap target the user can hit from the lock screen to add
-//      a timestamped note without unlocking.
+// We use this for:
+//   1. Screening Room — shows an ongoing notification (Android)
+//      or Live Activity tile (iOS, Dynamic Island / Lock Screen)
+//      while a session is active.
+//   2. Live Review (Backstage Pass) — same surface during an
+//      in-progress timestamped rating session.
 //
-// This module is a thin JS shim that calls into the native plugin when
-// it's available and silently no-ops everywhere else (web browsers,
-// Android, iOS without the plugin yet). That way the page-level code
-// can call startScreeningRoomActivity() unconditionally without
-// branching on platform — keeps the call sites readable.
-//
-// The native side is implemented in Swift inside the iOS app project.
-// See mobile/IOS_NATIVE_FEATURES_HANDOFF.md for the Swift contract.
+// This module is a thin shim that calls into the native plugin
+// when running inside the Capacitor app and silently no-ops
+// everywhere else (web browsers). The native side is implemented
+// in:
+//   - Android: mobile/android/app/src/main/java/com/theratist/app/
+//              liveactivity/LiveActivityPlugin.java
+//   - iOS:     spec'd in mobile/IOS_NATIVE_FEATURES_HANDOFF.md
+//              sections 2 + 3 (pending Mac-side implementation)
 
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 export interface ScreeningRoomActivityInput {
-  /** Unique session id — used as the activity correlation key. */
   sessionId: string;
   movieTitle: string;
-  /** Optional poster URL; if omitted the Dynamic Island shows a generic icon. */
   posterUrl?: string;
-  /** Unix ms when the screening started. The native side derives
-   *  elapsed time from this; the activity self-updates without
-   *  needing periodic update() calls. */
+  /** Unix ms when the screening started. */
   startedAt: number;
 }
 
 export interface LiveReviewActivityInput {
-  /** Unique session id for this in-progress rating. */
   sessionId: string;
   movieTitle: string;
   posterUrl?: string;
@@ -42,13 +34,10 @@ export interface LiveReviewActivityInput {
 }
 
 export interface ActivityUpdateInput {
-  /** Same sessionId passed to start(). */
   sessionId: string;
-  /** Free-form fields the activity model accepts. Typed in Swift. */
   payload: Record<string, unknown>;
 }
 
-/** Defines the surface of the native plugin we're calling into. */
 interface LiveActivityPlugin {
   startScreeningRoom(opts: ScreeningRoomActivityInput): Promise<{ ok: boolean }>;
   startLiveReview(opts: LiveReviewActivityInput): Promise<{ ok: boolean }>;
@@ -56,69 +45,64 @@ interface LiveActivityPlugin {
   end(opts: { sessionId: string }): Promise<{ ok: boolean }>;
 }
 
-// Lazy-load the plugin on native platforms (iOS or Android).
-// Both ship a custom Capacitor plugin named "LiveActivity":
-//   - iOS implements via ActivityKit (Dynamic Island / Lock Screen)
-//   - Android implements via an ongoing notification posted from
-//     LiveActivityPlugin.java (status bar / lock screen)
-// On web, returns null so the helpers no-op.
-async function getPlugin(): Promise<LiveActivityPlugin | null> {
-  if (typeof window === "undefined") return null;
-  if (!Capacitor.isNativePlatform()) return null;
-  try {
-    const { registerPlugin } = await import("@capacitor/core");
-    return registerPlugin<LiveActivityPlugin>("LiveActivity");
-  } catch {
-    return null;
-  }
+// IMPORTANT: registerPlugin MUST be at module level, NOT inside an
+// async function. The proxy it returns intercepts EVERY property
+// access — including `.then`. If you return the proxy from an
+// `async function`, the runtime's Promise.resolve unwrapping path
+// probes the resolved value's `.then` to check if it's thenable;
+// that probe trips through the proxy and gets sent to native as
+// a "then()" method call. Native doesn't implement `then`, so the
+// app throws "LiveActivity.then() is not implemented on android"
+// the moment any helper is awaited. Keeping the registration here
+// at module scope sidesteps the whole probe.
+const LiveActivity = registerPlugin<LiveActivityPlugin>("LiveActivity");
+
+function shouldCall(): boolean {
+  if (typeof window === "undefined") return false;
+  return Capacitor.isNativePlatform();
 }
 
 export async function startScreeningRoomActivity(
   input: ScreeningRoomActivityInput,
 ): Promise<void> {
-  const plugin = await getPlugin();
-  if (!plugin) return;
+  if (!shouldCall()) return;
   try {
-    await plugin.startScreeningRoom(input);
-  } catch {
-    // Activity-start can fail when the user has disabled Live
-    // Activities in Settings, or when ActivityKit hits its
-    // per-app activity cap. Non-critical — UI state is unaffected.
+    console.log("[LiveActivity] startScreeningRoom →", input.sessionId);
+    await LiveActivity.startScreeningRoom(input);
+  } catch (err) {
+    console.warn("[LiveActivity] startScreeningRoom failed:", err);
   }
 }
 
 export async function startLiveReviewActivity(
   input: LiveReviewActivityInput,
 ): Promise<void> {
-  const plugin = await getPlugin();
-  if (!plugin) return;
+  if (!shouldCall()) return;
   try {
-    await plugin.startLiveReview(input);
-  } catch {
-    // Same: non-critical.
+    console.log("[LiveActivity] startLiveReview →", input.sessionId);
+    await LiveActivity.startLiveReview(input);
+  } catch (err) {
+    console.warn("[LiveActivity] startLiveReview failed:", err);
   }
 }
 
 export async function updateActivity(
   input: ActivityUpdateInput,
 ): Promise<void> {
-  const plugin = await getPlugin();
-  if (!plugin) return;
+  if (!shouldCall()) return;
   try {
-    await plugin.update(input);
-  } catch {
-    // Updates that fail leave the previous activity state visible
-    // — better than tearing it down.
+    await LiveActivity.update(input);
+  } catch (err) {
+    console.warn("[LiveActivity] update failed:", err);
   }
 }
 
 export async function endActivity(sessionId: string): Promise<void> {
-  const plugin = await getPlugin();
-  if (!plugin) return;
+  if (!shouldCall()) return;
   try {
-    await plugin.end({ sessionId });
-  } catch {
-    // The system auto-ends activities after their staleness window
-    // (~8 hours by default), so a failed end() isn't critical.
+    console.log("[LiveActivity] end →", sessionId);
+    await LiveActivity.end({ sessionId });
+  } catch (err) {
+    console.warn("[LiveActivity] end failed:", err);
   }
 }
