@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ interface FeaturedCollection {
 }
 
 export default async function CollectionsFeaturePage() {
+  const initialIsNative = await detectNativeAppFromHeaders();
   // Real public featured collections, with up to 4 item posters each
   // for the cover-fallback grid. isOfficial-only here — community
   // curation gets surfaced via the feed screenshot below the
@@ -172,7 +174,7 @@ export default async function CollectionsFeaturePage() {
       </section>
 
       {/* ── CTA ── */}
-      <BackstagePassCTA featureName="Collections" />
+      <BackstagePassCTA featureName="Collections" initialIsNative={initialIsNative} />
     </div>
   );
 }

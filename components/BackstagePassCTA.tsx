@@ -10,6 +10,13 @@ import { useIsNativeApp } from "@/hooks/useIsNativeApp";
 interface Props {
   /** The feature this CTA is unlocking — e.g. "Movie Club", "Screening Room". */
   featureName: string;
+  /**
+   * Parent server components can pre-resolve native detection via
+   * `detectNativeAppFromHeaders()` and pass it here. Eliminates the
+   * hydration flash where iOS WebView users briefly see the web
+   * purchase CTA before the hook ticks (Apple Guideline 3.1.3).
+   */
+  initialIsNative?: boolean;
 }
 
 /**
@@ -19,10 +26,13 @@ interface Props {
  * difference is the feature name woven into the copy. Keeping this
  * shared means brand/price changes are one-file changes.
  */
-export default function BackstagePassCTA({ featureName }: Props) {
+export default function BackstagePassCTA({ featureName, initialIsNative }: Props) {
   const { user } = useAuth();
   const { hasPass } = useSubscription();
-  const isNativeApp = useIsNativeApp();
+  const isNativeApp = useIsNativeApp(initialIsNative);
+  // Treat unresolved (null) as native so we never flash the web
+  // purchase CTA in the iOS WebView before the hook resolves.
+  const showNativeUi = isNativeApp !== false;
 
   return (
     <div className="bg-[var(--surface)] border border-amber-400/30 rounded-2xl p-8 text-center">
@@ -35,7 +45,7 @@ export default function BackstagePassCTA({ featureName }: Props) {
         <>
           <Ticket className="w-8 h-8 text-amber-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-white mb-2">Unlock with the Backstage Pass</h2>
-          {isNativeApp ? (
+          {showNativeUi ? (
             // Reader-app gating (Apple Guideline 3.1.3): no in-app
             // purchase path and no link to external purchase from
             // inside the app. Plain-text notice only.

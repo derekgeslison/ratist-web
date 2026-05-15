@@ -13,6 +13,9 @@ interface Props {
 
 export default function BackstagePassPopup({ isOpen, onClose, type, standardReviewCount = 0 }: Props) {
   const isNativeApp = useIsNativeApp();
+  // Treat unresolved (null) as native so we never flash the web
+  // purchase CTA in the iOS WebView before the hook resolves.
+  const showNativeUi = isNativeApp !== false;
   if (!isOpen) return null;
 
   return (
@@ -77,7 +80,7 @@ export default function BackstagePassPopup({ isOpen, onClose, type, standardRevi
           </div>
 
           {/* CTA — purchase action gated for native (reader-app rules). */}
-          {isNativeApp ? (
+          {showNativeUi ? (
             <div className="bg-[var(--surface-2)] border border-amber-400/30 rounded-xl p-4 text-center">
               <p className="text-sm text-white mb-1">Subscribe on the web</p>
               <p className="text-xs text-[var(--foreground-muted)]">

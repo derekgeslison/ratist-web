@@ -7,6 +7,7 @@ import {
   ArrowLeft, Palette, Ticket, RefreshCw, ImagePlus, Eye, Sparkles, Star,
 } from "lucide-react";
 import { THEME_PRESETS, type ThemePreset } from "@/lib/themes";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -57,7 +58,8 @@ const FEATURES: { icon: React.ComponentType<{ className?: string }>; title: stri
   { icon: Eye,        title: "Visible to visitors",      desc: "Everyone who lands on your profile sees your theme, not just you." },
 ];
 
-export default function CustomThemesFeaturePage() {
+export default async function CustomThemesFeaturePage() {
+  const initialIsNative = await detectNativeAppFromHeaders();
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       {/* Back link */}
@@ -161,7 +163,7 @@ export default function CustomThemesFeaturePage() {
       </section>
 
       {/* ── CTA ── */}
-      <BackstagePassCTA featureName="Custom Themes" />
+      <BackstagePassCTA featureName="Custom Themes" initialIsNative={initialIsNative} />
     </div>
   );
 }

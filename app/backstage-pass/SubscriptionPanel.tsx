@@ -13,10 +13,20 @@ import SignInLink from "@/components/SignInLink";
 //   1. Already a subscriber — show "you're in" + manage button
 //   2. Logged-out / non-subscriber — show plan picker + checkout
 //   3. Loading — render nothing (parent shell still renders)
-export default function SubscriptionPanel() {
+//
+// `initialIsNative` — passed in by the parent server component after
+// reading the User-Agent header. Eliminates the hydration flash where
+// iOS WebView users would otherwise briefly see the web purchase UI
+// before the client hook resolves. Apple reviewers test for this
+// under Guideline 3.1.3.
+export default function SubscriptionPanel({ initialIsNative }: { initialIsNative?: boolean }) {
   const { user } = useAuth();
   const { hasPass, status, expiry, loading } = useSubscription();
-  const isNativeApp = useIsNativeApp();
+  const isNativeApp = useIsNativeApp(initialIsNative);
+  // Treat unresolved (null) as native so we never show the web
+  // purchase UI before the hook resolves. Fail-closed for App Store
+  // reviewer safety; web users get the right UI on next paint anyway.
+  const showNativeUi = isNativeApp !== false;
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "annual">("annual");
   const [checkingOut, setCheckingOut] = useState(false);
   const [manageError, setManageError] = useState("");
@@ -93,7 +103,7 @@ export default function SubscriptionPanel() {
           ) : (
             <>
               <p className="text-sm text-[var(--foreground-muted)] mb-4">Enjoy all premium features.</p>
-              {isNativeApp ? (
+              {showNativeUi ? (
                 // Reader-app gating: don't link to Stripe billing
                 // portal from inside the native app — Apple treats
                 // that as an external purchase mechanism.
@@ -120,7 +130,7 @@ export default function SubscriptionPanel() {
       {/* Reader-app gating (Apple Guideline 3.1.3): no in-app
           purchase path or link to external purchase from inside the
           native app. Show non-purchase notice instead. */}
-      {isNativeApp && !hasPass && (
+      {showNativeUi && !hasPass && (
         <div className="bg-[var(--surface)] border border-amber-400/30 rounded-2xl p-8 text-center mb-10">
           <p className="text-base font-semibold text-amber-400 mb-2">Subscribe on the web</p>
           <p className="text-sm text-[var(--foreground-muted)]">
@@ -132,7 +142,7 @@ export default function SubscriptionPanel() {
       {/* Pricing toggle — for non-subscribers, OR admin-granted users
           whose free period is about to expire so they can subscribe
           without losing access. */}
-      {!isNativeApp && (() => {
+      {!showNativeUi && (() => {
         const expiryDate = expiry ? new Date(expiry) : null;
         const expiryInFuture = expiryDate && expiryDate.getTime() > Date.now();
         const showUpgrade = hasPass && status === "admin_granted" && expiryInFuture;

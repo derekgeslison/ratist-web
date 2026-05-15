@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Ticket, Check, X, Star, BarChart3, MonitorPlay, Palette, Sparkles, Clapperboard, Layers } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { BACKSTAGE_FEATURES as FEATURES } from "@/lib/backstage-features";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import SubscriptionPanel from "./SubscriptionPanel";
 
 export const metadata: Metadata = {
@@ -97,6 +98,11 @@ function imageExists(publicPath: string): boolean {
 export default async function BackstagePassPage() {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Pre-resolve native-app detection on the server so SubscriptionPanel's
+  // first render in the iOS WebView already hides the purchase CTAs.
+  // Without this, Apple reviewers see the web pricing UI for ~50-200ms
+  // before the client hook ticks — an active Guideline 3.1.3 risk.
+  const initialIsNative = await detectNativeAppFromHeaders();
 
   // Live counters surfaced in the hero. Soft-failure: if any query
   // throws (e.g. transient DB blip), we just render zeros rather
@@ -153,7 +159,7 @@ export default async function BackstagePassPage() {
       </div>
 
       {/* Subscription state + plan picker + checkout (client) */}
-      <SubscriptionPanel />
+      <SubscriptionPanel initialIsNative={initialIsNative} />
 
       {/* Premium feature showcase — visual cards, mirrors the /tools
           card pattern (16:9 image, icon chip, title, description). */}

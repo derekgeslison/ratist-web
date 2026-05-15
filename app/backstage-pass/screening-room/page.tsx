@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -76,6 +77,7 @@ export default async function ScreeningRoomFeaturePage() {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const initialIsNative = await detectNativeAppFromHeaders();
 
   // Live snapshot. All queries individually .catch() so a transient
   // DB blip on one renders zeros instead of 500-ing the page.
@@ -250,7 +252,7 @@ export default async function ScreeningRoomFeaturePage() {
       )}
 
       {/* ── CTA ── */}
-      <BackstagePassCTA featureName="Screening Room" />
+      <BackstagePassCTA featureName="Screening Room" initialIsNative={initialIsNative} />
     </div>
   );
 }

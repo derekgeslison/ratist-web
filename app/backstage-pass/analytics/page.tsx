@@ -7,6 +7,7 @@ import {
   ArrowLeft, BarChart3, Ticket, Film, Users, Calendar, TrendingUp,
   Compass, Sparkles, Activity,
 } from "lucide-react";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -43,7 +44,8 @@ const FEATURES: { icon: React.ComponentType<{ className?: string }>; title: stri
   { icon: TrendingUp, title: "Custom reports",        desc: "Filter your viewing by genre, decade, director — generate a slice of your data and share it." },
 ];
 
-export default function AnalyticsFeaturePage() {
+export default async function AnalyticsFeaturePage() {
+  const initialIsNative = await detectNativeAppFromHeaders();
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       {/* Back link */}
@@ -136,7 +138,7 @@ export default function AnalyticsFeaturePage() {
       </section>
 
       {/* ── CTA ── */}
-      <BackstagePassCTA featureName="My Analytics" />
+      <BackstagePassCTA featureName="My Analytics" initialIsNative={initialIsNative} />
     </div>
   );
 }

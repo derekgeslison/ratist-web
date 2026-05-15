@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
 import { getSuperlatives, type Superlative } from "@/lib/movie-club";
 import { activeBackstageUserWhere } from "@/lib/subscription";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -94,6 +95,7 @@ const ROSTER: { label: string; desc: string }[] = [
 export default async function MovieClubFeaturePage() {
   const now = new Date();
   const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+  const initialIsNative = await detectNativeAppFromHeaders();
 
   // Live snapshot. All queries individually .catch() so a transient
   // DB blip on one renders zeros instead of 500-ing the page.
@@ -298,7 +300,7 @@ export default async function MovieClubFeaturePage() {
       </section>
 
       {/* ── CTA ── */}
-      <BackstagePassCTA featureName="Movie Club" />
+      <BackstagePassCTA featureName="Movie Club" initialIsNative={initialIsNative} />
     </div>
   );
 }

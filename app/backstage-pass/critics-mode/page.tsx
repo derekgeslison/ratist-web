@@ -7,6 +7,7 @@ import {
   ArrowLeft, Star, Mic, Newspaper, Ticket, Lock,
   Bookmark, Clock, Repeat, MessageSquare, FileText, Award, Scale,
 } from "lucide-react";
+import { detectNativeAppFromHeaders } from "@/lib/detect-native-app";
 import BackstagePassCTA from "@/components/BackstagePassCTA";
 
 export const metadata: Metadata = {
@@ -60,7 +61,8 @@ const PROGRESS: { count: number; label: string; final?: boolean }[] = [
   { count: 250, label: "Critics Mode", final: true },
 ];
 
-export default function CriticsModeFeaturePage() {
+export default async function CriticsModeFeaturePage() {
+  const initialIsNative = await detectNativeAppFromHeaders();
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       {/* Back link */}
@@ -142,7 +144,7 @@ export default function CriticsModeFeaturePage() {
       </section>
 
       {/* ── CTA ── */}
-      <BackstagePassCTA featureName="Live Review and Critics Mode" />
+      <BackstagePassCTA featureName="Live Review and Critics Mode" initialIsNative={initialIsNative} />
     </div>
   );
 }
