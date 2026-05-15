@@ -64,18 +64,27 @@ const nextConfig: NextConfig = {
   // completes the user SHOULD get bounced back into the native app
   // by the deep-link handler.
   async rewrites() {
-    return [
-      // Root of the subscribe subdomain → /backstage-pass with the
-      // from=app marker. Only matches "/" so /api/* (Stripe checkout
-      // creation), /_next/* (page assets), and the canonical
-      // /backstage-pass route itself all continue to resolve as
-      // normal on this host.
-      {
-        source: "/",
-        has: [{ type: "host", value: "subscribe.theratist.com" }],
-        destination: "/backstage-pass?from=app",
-      },
-    ];
+    // beforeFiles — runs BEFORE Next.js checks the filesystem for a
+    // matching page. The default rewrite array (afterFiles) runs after
+    // filesystem matching, which means `/` would resolve to
+    // app/page.tsx (the home page) before this rewrite ever fired,
+    // making the subdomain show the home page instead of the
+    // backstage-pass content. beforeFiles takes priority over the
+    // page route at /.
+    return {
+      beforeFiles: [
+        // Root of the subscribe subdomain → /backstage-pass with the
+        // from=app marker. Only matches "/" so /api/* (Stripe checkout
+        // creation), /_next/* (page assets), and the canonical
+        // /backstage-pass route itself all continue to resolve as
+        // normal on this host.
+        {
+          source: "/",
+          has: [{ type: "host", value: "subscribe.theratist.com" }],
+          destination: "/backstage-pass?from=app",
+        },
+      ],
+    };
   },
   // Permanent (308) redirects for stale Laravel-era URLs Google still
   // has in its index. Each one was reported by GSC as a 404 / noindex
