@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { addParticipantToRtdb } from "@/lib/screening-rtdb";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,10 @@ export async function POST(req: NextRequest) {
     // Already a participant?
     const already = session.participants.some((p) => p.userId === user.id);
     if (already) {
+      // Even on the already-joined path, re-mirror to RTDB in case the
+      // RTDB entry has drifted (e.g. participant existed before this
+      // mirror existed). Idempotent — set true over true is a no-op.
+      await addParticipantToRtdb(session.id, user.id);
       return NextResponse.json({ sessionId: session.id, alreadyJoined: true });
     }
 
@@ -36,6 +41,10 @@ export async function POST(req: NextRequest) {
     await prisma.screeningParticipant.create({
       data: { sessionId: session.id, userId: user.id },
     });
+
+    // Mirror membership into RTDB so the database.rules.json gate
+    // can identify them as a participant.
+    await addParticipantToRtdb(session.id, user.id);
 
     return NextResponse.json({ sessionId: session.id, alreadyJoined: false }, { status: 201 });
   } catch (err) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { checkBadges } from "@/lib/badges";
+import { purgeSessionFromRtdb } from "@/lib/screening-rtdb";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // Active sessions: host can cancel (full delete)
     if (session.status !== "COMPLETE" && session.hostId === user.id) {
       await prisma.screeningSession.delete({ where: { id } });
+      // Purge all RTDB state for this session (chat, polls, participants).
+      await purgeSessionFromRtdb(id);
       return NextResponse.json({ ok: true });
     }
 
@@ -174,6 +177,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     });
     if (visibleCount === 0) {
       await prisma.screeningSession.delete({ where: { id } });
+      // Last participant hid the session — purge RTDB state too.
+      await purgeSessionFromRtdb(id);
     }
 
     return NextResponse.json({ ok: true });

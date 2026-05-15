@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { generateInviteCode } from "@/lib/screening";
+import { addParticipantToRtdb } from "@/lib/screening-rtdb";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,11 @@ export async function POST(req: NextRequest) {
         participants: { include: { user: { select: { id: true, name: true, avatarUrl: true, firebaseUid: true } } } },
       },
     });
+
+    // Mirror host membership into RTDB so the database.rules.json gate
+    // identifies them as a participant. Logs + swallows errors so a
+    // transient RTDB issue doesn't break session creation.
+    await addParticipantToRtdb(session.id, user.id);
 
     return NextResponse.json(session, { status: 201 });
   } catch (err) {

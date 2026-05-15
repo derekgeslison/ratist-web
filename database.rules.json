@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "screening-rooms": {
+      "$sessionId": {
+        ".read":  "auth != null && data.child('participants').child(auth.uid).val() === true",
+        ".write": "auth != null && data.child('participants').child(auth.uid).val() === true",
+        "participants": { ".write": false }
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}

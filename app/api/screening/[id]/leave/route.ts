@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { removeParticipantFromRtdb } from "@/lib/screening-rtdb";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await prisma.screeningPrediction.deleteMany({
       where: { sessionId: id, userId: user.id },
     });
+
+    // Drop their membership from the RTDB mirror so the database.rules
+    // gate stops allowing read/write to this session for them.
+    await removeParticipantFromRtdb(id, user.id);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
