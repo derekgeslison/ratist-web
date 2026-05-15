@@ -85,7 +85,7 @@ export default function BackstagePassPopup({ isOpen, onClose, type, standardRevi
               <p className="text-sm text-white mb-3">Subscribe on the web</p>
               <button
                 onClick={() => {
-                  window.open("https://www.theratist.com/backstage-pass?from=ios", "_blank");
+                  window.open("https://subscribe.theratist.com/", "_blank");
                   onClose();
                 }}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg transition-colors"

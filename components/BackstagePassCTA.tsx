@@ -56,7 +56,7 @@ export default function BackstagePassCTA({ featureName, initialIsNative }: Props
                 Tap below to subscribe in your browser. The page will offer to return you here once you finish.
               </p>
               <button
-                onClick={() => window.open("https://www.theratist.com/backstage-pass?from=ios", "_blank")}
+                onClick={() => window.open("https://subscribe.theratist.com/", "_blank")}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors"
               >
                 <Ticket className="w-4 h-4" /> Open theratist.com to subscribe

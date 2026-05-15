@@ -146,13 +146,17 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
           </p>
           <button
             onClick={() => {
-              // window.open(url, "_blank") in Capacitor opens the URL
-              // in the system browser (Safari/Chrome), not an in-app
-              // WebView. That's required by Apple's external-purchase
-              // rules — SFSafariViewController doesn't count as "leaving
-              // the app." The from=ios flag identifies the origin so
-              // the success page can show the return-to-app button.
-              window.open("https://www.theratist.com/backstage-pass?from=ios", "_blank");
+              // subscribe.theratist.com is configured in Vercel as a
+              // 308 redirect to /backstage-pass?from=ios. It's NOT in
+              // the iOS Universal Link / Android App Link manifests,
+              // so the OS opens the URL in Safari / Chrome instead of
+              // intercepting it back into the WebView. After the
+              // redirect lands the user on www.theratist.com, they
+              // complete checkout there; the "Return to The Ratist
+              // app" link on the success page is a www.theratist.com
+              // anchor — the universal-link handler triggers on that
+              // explicit tap and switches back to the app.
+              window.open("https://subscribe.theratist.com/", "_blank");
             }}
             className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors"
           >
