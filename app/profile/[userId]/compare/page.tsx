@@ -8,7 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 
 interface SharedMovie {
   tmdbId: number;

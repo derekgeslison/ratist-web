@@ -25,7 +25,7 @@ import AwardsTab from "./AwardsTab";
 import ReviewCard from "./ReviewCard";
 import RatingBadge from "./RatingBadge";
 import type { AwardBodyGroup } from "@/lib/awards";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import DiscussionRow from "./DiscussionRow";
 import ReviewDigest from "./ReviewDigest";
 import ImageLightbox from "./ImageLightbox";

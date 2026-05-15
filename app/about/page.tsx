@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 import { AssetFrame } from "@/components/AssetFrame";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import { HeroPrimaryCTA, FinalPrimaryCTA } from "./_components/AuthAwareCTA";
 
 export const metadata: Metadata = {

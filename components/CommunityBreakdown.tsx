@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import RatingBadge from "./RatingBadge";
 
 interface CategoryAvg {

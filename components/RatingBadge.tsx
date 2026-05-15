@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 
 interface Props {
   type: "community" | "ratist";

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Copy, Check, UserPlus, UserCheck, Settings, Film, Tv, MoreHorizontal, Ban, UserX, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import CompareTasteButton from "./CompareTasteButton";
 import ShareButton from "./ShareButton";
 import BadgeTrophyCase from "./BadgeTrophyCase";

@@ -7,7 +7,7 @@ import Image from "next/image";
 import { Star, Eye, EyeOff, Check, Bookmark, BookmarkCheck, AlertCircle, Share2, RotateCcw, CalendarDays } from "lucide-react";
 import type { RatingStatus } from "@/lib/rating-status";
 import { useAuth } from "@/context/AuthContext";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import ShareButton from "./ShareButton";
 import TextareaWithEmoji from "./TextareaWithEmoji";
 import { useWatchlistFlow } from "./WatchlistFlow";

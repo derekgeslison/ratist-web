@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import MovieCard from "./MovieCard";
 import ShowCard from "./ShowCard";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import type { TMDBMovie, TMDBShow } from "@/lib/tmdb";
 
 interface FeedItem {

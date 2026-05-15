@@ -7,7 +7,7 @@ import SignInLink from "@/components/SignInLink";
 import { ArrowLeft, Star, TrendingUp, TrendingDown, Minus, Calendar, Flame, Award, Eye, Lock, Users, Sparkles, Heart, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
 import OwnerOnly from "@/components/OwnerOnly";

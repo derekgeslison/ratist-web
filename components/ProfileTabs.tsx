@@ -7,7 +7,7 @@ import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { Film, Tv } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import CategoryScoreBar from "./CategoryScoreBar";
 import RatingBadge from "./RatingBadge";
 import ShareButton from "./ShareButton";

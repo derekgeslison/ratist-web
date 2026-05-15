@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, AlertTriangle, MessageCircle } from "lucide-react";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import CommentSection from "./CommentSection";
 import PostLikeButton from "./PostLikeButton";
 import ReportButton from "./ReportButton";

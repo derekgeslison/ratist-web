@@ -1,13 +1,15 @@
-/**
- * Ratist Rating Algorithm
- *
- * Weighted categories:
- *   Story × 5 | Style × 3 | Emotive × 3 | Acting × 3 | Entertainment × 2
- *   Total weight: 16
- *
- * Final: (weighted_base + optional_overall) / 2
- * If no overall provided: weighted_base only
- */
+// Server-only. This module is the source of truth for the rating
+// math, weights, and thresholds that constitute the Ratist algorithm.
+// Importing this from a "use client" component would ship trade-secret
+// values to every visitor's browser. The `server-only` import (built
+// into Next.js App Router) throws at bundle time if the file is
+// reached from a client subtree.
+//
+// Client-safe helpers that USED to live here are now in:
+//   lib/score-color.ts        scoreColor()
+//
+// Anything you add here must remain server-only by construction.
+import "server-only";
 
 export interface RatingInput {
   // Story
@@ -127,20 +129,11 @@ export function computeRatistScores(input: RatingInput): ComputedScores {
   };
 }
 
-/** Color for a score 0-10: green (high) → yellow → red (low) */
-export function scoreColor(score: number): string {
-  if (score >= 8) return "#22c55e";   // green-500
-  if (score >= 6) return "#eab308";   // yellow-500
-  if (score >= 4) return "#f97316";   // orange-500
-  return "#ef4444";                    // red-500
-}
-
-/** Upscale profile scores so max = 10 when no strong signals exist */
 export function upscaleProfile<T extends Record<string, number>>(profile: T): T {
   const values = Object.values(profile) as number[];
   const max = Math.max(...values);
   if (max <= 0) return profile;
-  if (max >= 8.5) return profile; // already strong, no upscaling needed
+  if (max >= 8.5) return profile;
 
   const factor = 10 / max;
   return Object.fromEntries(
@@ -148,12 +141,10 @@ export function upscaleProfile<T extends Record<string, number>>(profile: T): T 
   ) as T;
 }
 
-/** Similarity between two users on a single dimension (0-1) */
 export function dimensionSimilarity(a: number, b: number): number {
   return (10 - Math.abs(a - b)) / 10;
 }
 
-/** Match score: 2 = strong, 1 = weak, 0 = no match */
 export function matchScore(similarity: number, preferenceScore: number, genreMode = false): 0 | 1 | 2 {
   const threshold = genreMode ? 7.0 : 7.5;
   if (similarity >= 0.8) {

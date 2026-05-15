@@ -6,7 +6,7 @@ import { BarChart3, Film, Clock, TrendingUp, Star, Users, Target, Zap, ChevronDo
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useSubscription } from "@/hooks/useSubscription";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import ShareButton from "@/components/ShareButton";
 
 /* ── Types ── */

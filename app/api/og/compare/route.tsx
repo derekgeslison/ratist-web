@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/prisma";
-import { dimensionSimilarity, scoreColor } from "@/lib/ratings";
+import { dimensionSimilarity } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import { getLogoBase64 } from "@/lib/og-helpers";
 
 export const dynamic = "force-dynamic";

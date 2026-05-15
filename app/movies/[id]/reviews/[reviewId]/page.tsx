@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import ReviewCard from "@/components/ReviewCard";
 
 export const dynamic = "force-dynamic";

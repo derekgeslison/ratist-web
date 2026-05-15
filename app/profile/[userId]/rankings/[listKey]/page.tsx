@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 
 export const dynamic = "force-dynamic";
 

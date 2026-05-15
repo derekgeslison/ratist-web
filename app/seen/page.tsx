@@ -12,7 +12,7 @@ import DiaryRow from "@/components/DiaryRow";
 import DiaryEpisodeRow from "@/components/DiaryEpisodeRow";
 import ShareButton from "@/components/ShareButton";
 import FirstVisitHint from "@/components/FirstVisitHint";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import { isYearInReviewUnlocked, unlockTeaser } from "@/lib/year-in-review/lock";
 
 interface SeenMovie {

@@ -1,6 +1,6 @@
 "use client";
 
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 
 interface ScreeningRatingData {
   id: string;

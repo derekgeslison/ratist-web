@@ -9,7 +9,7 @@ import { Star, Search, ArrowUpDown, Filter, Film, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 
 interface UserRating {
   id: string;

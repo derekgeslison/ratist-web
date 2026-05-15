@@ -7,7 +7,7 @@ import SignInLink from "@/components/SignInLink";
 import { posterUrl } from "@/lib/tmdb";
 import { prisma } from "@/lib/prisma";
 import { adminAuth } from "@/lib/firebase-admin";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import { dimensionSimilarity, matchScore } from "@/lib/ratings";
 import ShareButton from "@/components/ShareButton";
 

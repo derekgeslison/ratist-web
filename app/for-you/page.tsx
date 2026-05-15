@@ -8,7 +8,7 @@ import { Users, Sparkles, TrendingUp, Bookmark, BookmarkCheck, AlertCircle, Refr
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
 import RatingBadge from "@/components/RatingBadge";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import { useMovieUserState } from "@/hooks/useMovieUserState";
 import MovieCard from "@/components/MovieCard";
 import ShowCard from "@/components/ShowCard";

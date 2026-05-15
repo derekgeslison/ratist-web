@@ -17,7 +17,6 @@ type ReviewMode = "basic" | "standard" | "critic";
 const CRITERIA = {
   "Story": {
     key: "story",
-    weight: 5,
     fields: [
       { key: "plot", label: "Plot", required: true, desc: "Was the movie coherent? Were complexities executed well?" },
       { key: "premiseOriginality", label: "Premise / Originality", required: false, desc: "Was the premise well understood? Did the movie stand out?" },
@@ -28,7 +27,6 @@ const CRITERIA = {
   },
   "Production & Style": {
     key: "style",
-    weight: 3,
     fields: [
       { key: "cinematography", label: "Cinematography", required: true, desc: "Was the movie visually pleasing? Were there creative or beautiful shots?" },
       { key: "locationCost", label: "Location & Costuming", required: false, desc: "Did the location and costumes match the content and characters?" },
@@ -40,7 +38,6 @@ const CRITERIA = {
   },
   "Emotive Effect": {
     key: "emotive",
-    weight: 3,
     fields: [
       { key: "overallEmotion", label: "Overall Emotion", required: true, desc: "Did the movie create excitement, intrigue, or any strong emotion? How intense?" },
       { key: "relatability", label: "Relatability", required: true, desc: "Were you able to relate to characters or plot points?" },
@@ -50,7 +47,6 @@ const CRITERIA = {
   },
   "Acting & Casting": {
     key: "acting",
-    weight: 3,
     fields: [
       { key: "casting", label: "Casting & Subjects", required: true, desc: "Were the right people chosen for this film? Consider actors, voice talent, or documentary subjects." },
       { key: "actingQuality", label: "Performance Quality", required: true, desc: "How compelling were the performances? Consider acting, voice work, or on-screen presence." },
@@ -59,7 +55,6 @@ const CRITERIA = {
   },
   "Pure Entertainment": {
     key: "entertainment",
-    weight: 2,
     fields: [
       { key: "appeal", label: "Appeal", required: true, desc: "Was the movie overall appealing? Is it worth watching more than once?" },
       { key: "superficialAllure", label: "Superficial Allure", required: false, desc: "Is the appeal based heavily in sex appeal, action, or 'wow factor'? (Not included in score)" },
