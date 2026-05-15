@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { POSTER_BLOCKED_SENTINEL } from "@/lib/tmdb";
 import { scanPosterSafeSearch, shouldBlockPoster } from "@/lib/vision-safesearch";
+import { batchAdultKeywordCheck } from "@/lib/adult-detection";
 
 /**
  * Browse / discovery safety helpers. Two concerns wired up here:
@@ -38,6 +39,7 @@ interface MovieRow {
   posterBlocked: boolean;
   posterScannedAt: Date | null;
   isAdult: boolean;
+  adultKeywordsCheckedAt: Date | null;
 }
 
 async function runWithConcurrency<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
@@ -109,23 +111,61 @@ async function scanUnscannedNC17(rows: MovieRow[]): Promise<Map<number, MovieRow
 /**
  * Apply NC-17 filter + poster-block masking to a list of TMDB-shaped
  * movies. Pass `filterNC17: true` for public discovery rails; pass
- * `stripBlockedPosters: true` for any surface that renders posters.
- * Both are safe to call together.
+ * `stripBlockedPosters: true` for any surface that renders posters;
+ * pass `adultKeywordCheck: true` on popular / discovery rails where
+ * we want to catch softcore / erotic films that TMDB never flagged
+ * `adult: true`. All are safe to combine.
  */
 export async function safeguardTMDBMovies<T extends MovieLike>(
   items: T[],
-  opts: { filterNC17?: boolean; stripBlockedPosters?: boolean } = {},
+  opts: { filterNC17?: boolean; stripBlockedPosters?: boolean; adultKeywordCheck?: boolean } = {},
 ): Promise<T[]> {
   if (items.length === 0) return items;
   const tmdbIds = items.map((i) => i.id);
-  const rows = await prisma.movie.findMany({
+  let rows = await prisma.movie.findMany({
     where: { tmdbId: { in: tmdbIds } },
     select: {
       tmdbId: true, posterPath: true,
       mpaaRating: true, posterBlocked: true, posterScannedAt: true,
-      isAdult: true,
+      isAdult: true, adultKeywordsCheckedAt: true,
     },
   });
+
+  // Adult-keyword auto-detect pass for popular / discovery surfaces.
+  // Runs ONLY when the caller opts in via `adultKeywordCheck: true`.
+  // For any TMDB id that's either missing a Movie row or has
+  // never been keyword-checked, we fetch /movie/{id}/keywords
+  // concurrently, flag matches as isAdult, and stamp
+  // adultKeywordsCheckedAt so subsequent renders skip the round-trip.
+  // First-render hits pay the TMDB-keyword fetch latency; once the
+  // verdict is cached, future popular-rail renders are zero-cost.
+  if (opts.adultKeywordCheck) {
+    const checkedIds = new Set(
+      rows.filter((r) => r.adultKeywordsCheckedAt != null).map((r) => r.tmdbId),
+    );
+    const adultIds = new Set(rows.filter((r) => r.isAdult).map((r) => r.tmdbId));
+    const needCheck = tmdbIds.filter((id) => !checkedIds.has(id) && !adultIds.has(id));
+    if (needCheck.length > 0) {
+      try {
+        const newAdult = await batchAdultKeywordCheck(needCheck);
+        if (newAdult.size > 0) {
+          // Pull the updated rows so the existing isAdult-driven filter
+          // below sees them. We avoid a second findMany when nothing
+          // matched — the common case on cold-encounter rails.
+          rows = await prisma.movie.findMany({
+            where: { tmdbId: { in: tmdbIds } },
+            select: {
+              tmdbId: true, posterPath: true,
+              mpaaRating: true, posterBlocked: true, posterScannedAt: true,
+              isAdult: true, adultKeywordsCheckedAt: true,
+            },
+          });
+        }
+      } catch {
+        // Keyword check is best-effort; never let it crash the render.
+      }
+    }
+  }
 
   // Lazy auto-scan: any NC-17 movie that hasn't been through Vision
   // SafeSearch yet gets scanned on this render so the verdict applies

@@ -30,13 +30,15 @@ export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // `blocked` (poster) and `mediaBlocked` (Media tab images on movies)
-  // are independent toggles. Callers can pass either or both; absent
-  // fields leave the existing state alone. mediaBlocked is movie-only;
-  // it's ignored on TV rows since the show data model doesn't have it.
+  // `blocked` (poster), `mediaBlocked` (Media tab images on movies),
+  // and `hideEntirely` (isAdult — vanish from every list / search /
+  // discovery surface) are independent toggles. Callers can pass any
+  // combination; absent fields leave the existing state alone.
+  // mediaBlocked + hideEntirely are movie-only; both are ignored on
+  // TV rows since the show data model only carries posterBlocked.
   const body = await req.json().catch(() => null) as
-    | { mediaType: "movie" | "tv"; tmdbId: number; blocked?: boolean; mediaBlocked?: boolean }
-    | { items: Array<{ mediaType: "movie" | "tv"; tmdbId: number; blocked?: boolean; mediaBlocked?: boolean }> }
+    | { mediaType: "movie" | "tv"; tmdbId: number; blocked?: boolean; mediaBlocked?: boolean; hideEntirely?: boolean }
+    | { items: Array<{ mediaType: "movie" | "tv"; tmdbId: number; blocked?: boolean; mediaBlocked?: boolean; hideEntirely?: boolean }> }
     | null;
   if (!body) return NextResponse.json({ error: "Missing body" }, { status: 400 });
 
@@ -61,9 +63,23 @@ export async function POST(req: NextRequest) {
           await upsertMovie(tmdb);
         } catch { continue; }
       }
-      const data: { posterBlocked?: boolean; mediaBlocked?: boolean } = {};
+      const data: { posterBlocked?: boolean; mediaBlocked?: boolean; isAdult?: boolean } = {};
       if (typeof item.blocked === "boolean") data.posterBlocked = item.blocked;
       if (typeof item.mediaBlocked === "boolean") data.mediaBlocked = item.mediaBlocked;
+      // Full-hide: drive the same `isAdult` flag the TMDB-adult sync
+      // uses, so the existing safeguard pipeline vanishes the title
+      // from every list / search / discovery rail. Poster + media
+      // implicitly get masked too — we set them on-the-side so the
+      // detail page (admin-only access for isAdult titles is acceptable
+      // since admins can still surface the row from /admin) at least
+      // shows the placeholder if visited directly.
+      if (typeof item.hideEntirely === "boolean") {
+        data.isAdult = item.hideEntirely;
+        if (item.hideEntirely) {
+          data.posterBlocked = true;
+          data.mediaBlocked = true;
+        }
+      }
       if (Object.keys(data).length === 0) continue;
       await prisma.movie.update({ where: { tmdbId: item.tmdbId }, data });
       movieCount++;

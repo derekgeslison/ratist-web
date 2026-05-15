@@ -155,35 +155,110 @@ export default async function MoviesPage({ searchParams }: Props) {
   };
   const legacyDecade = params.decade ? DECADES[params.decade] : undefined;
 
-  // One extra TMDB page beyond what perPage requires, so the safeguard
-  // filter (adult-hide, NC-17 filter, etc.) has buffer to chew through
-  // without dropping the visible count below perPage. The final slice
-  // to perPage happens post-safeguard in the page body below.
-  const BUFFER_PAGES = 1;
+  // Initial parallel fetch covers what perPage needs plus a fixed buffer
+  // so the dedupe pass (TMDB occasionally repeats titles across consecutive
+  // popularity-sorted pages) and the downstream pruning passes
+  // (NC-17/adult hide, AI severity caps, TV cert post-filter, blocked
+  // posters) have headroom to absorb losses before we'd dip under perPage.
+  //
+  // After the parallel batch, a short serial top-up loop keeps fetching
+  // additional pages until we have at least `perPage * 1.5` distinct
+  // items, or hit the safety cap. This handles the rare heavy-duplication
+  // case (e.g., the tail of a sort) without unbounded latency.
+  const INITIAL_BUFFER_PAGES = 2;
+  const TOPUP_MIN_TARGET = Math.ceil(perPage * 1.5);
+  const TOPUP_MAX_PAGES = 5;
+  // TMDB caps discover/search at page 500. Past that, every request 422s.
+  const TMDB_PAGE_CAP = 500;
+
   async function fetchMoviePages(fetcher: (p: number) => Promise<MovieResult>): Promise<MovieResult> {
-    const responses = await Promise.all(
-      Array.from({ length: tmdbPagesNeeded + BUFFER_PAGES }, (_, i) => fetcher(tmdbStartPage + i))
+    const seen = new Set<number>();
+    const results: MovieResult["results"] = [];
+
+    function addUnique(data: MovieResult) {
+      for (const m of data.results) {
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        results.push(m);
+      }
+    }
+
+    const responses: MovieResult[] = await Promise.all(
+      Array.from(
+        { length: tmdbPagesNeeded + INITIAL_BUFFER_PAGES },
+        (_, i) => fetcher(tmdbStartPage + i),
+      ),
     );
+    for (const r of responses) addUnique(r);
+    const firstTotal = responses[0]?.total_results ?? 0;
+
+    let nextPage = tmdbStartPage + tmdbPagesNeeded + INITIAL_BUFFER_PAGES;
+    let topupAttempts = 0;
+    while (
+      results.length < TOPUP_MIN_TARGET
+      && topupAttempts < TOPUP_MAX_PAGES
+      && nextPage <= TMDB_PAGE_CAP
+    ) {
+      let data: MovieResult;
+      try { data = await fetcher(nextPage); } catch { break; }
+      if (data.results.length === 0) break;
+      addUnique(data);
+      nextPage++;
+      topupAttempts++;
+    }
+
     return {
-      results: responses.flatMap((r) => r.results),
-      total_results: responses[0]?.total_results ?? 0,
+      results,
+      total_results: firstTotal,
       total_pages: Math.min(
-        Math.ceil((responses[0]?.total_results ?? 0) / perPage),
-        Math.floor(500 / tmdbPagesNeeded)
+        Math.ceil(firstTotal / perPage),
+        Math.floor(TMDB_PAGE_CAP / tmdbPagesNeeded),
       ),
     };
   }
 
   async function fetchShowPages(fetcher: (p: number) => Promise<ShowResult>): Promise<ShowResult> {
-    const responses = await Promise.all(
-      Array.from({ length: tmdbPagesNeeded + BUFFER_PAGES }, (_, i) => fetcher(tmdbStartPage + i))
+    const seen = new Set<number>();
+    const results: ShowResult["results"] = [];
+
+    function addUnique(data: ShowResult) {
+      for (const s of data.results) {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        results.push(s);
+      }
+    }
+
+    const responses: ShowResult[] = await Promise.all(
+      Array.from(
+        { length: tmdbPagesNeeded + INITIAL_BUFFER_PAGES },
+        (_, i) => fetcher(tmdbStartPage + i),
+      ),
     );
+    for (const r of responses) addUnique(r);
+    const firstTotal = responses[0]?.total_results ?? 0;
+
+    let nextPage = tmdbStartPage + tmdbPagesNeeded + INITIAL_BUFFER_PAGES;
+    let topupAttempts = 0;
+    while (
+      results.length < TOPUP_MIN_TARGET
+      && topupAttempts < TOPUP_MAX_PAGES
+      && nextPage <= TMDB_PAGE_CAP
+    ) {
+      let data: ShowResult;
+      try { data = await fetcher(nextPage); } catch { break; }
+      if (data.results.length === 0) break;
+      addUnique(data);
+      nextPage++;
+      topupAttempts++;
+    }
+
     return {
-      results: responses.flatMap((r) => r.results),
-      total_results: responses[0]?.total_results ?? 0,
+      results,
+      total_results: firstTotal,
       total_pages: Math.min(
-        Math.ceil((responses[0]?.total_results ?? 0) / perPage),
-        Math.floor(500 / tmdbPagesNeeded)
+        Math.ceil(firstTotal / perPage),
+        Math.floor(TMDB_PAGE_CAP / tmdbPagesNeeded),
       ),
     };
   }
@@ -701,9 +776,14 @@ export default async function MoviesPage({ searchParams }: Props) {
   // remove items without dropping the visible count below the user's
   // selected perPage.
   if (movieResult) {
+    // Opt into the adult-keyword auto-detect on popular / browse rails.
+    // This catches softcore / erotic films TMDB never flagged
+    // adult: true. Pays the keyword-fetch cost only the first time
+    // each title surfaces; the verdict is cached on the Movie row.
     const safe = await safeguardTMDBMovies(movieResult.results, {
       filterNC17: true,
       stripBlockedPosters: true,
+      adultKeywordCheck: true,
     });
     movieResult.results = safe.slice(0, perPage);
   }

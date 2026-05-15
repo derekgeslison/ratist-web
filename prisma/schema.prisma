@@ -404,6 +404,12 @@ model Movie {
   // verdicts so the script doesn't re-scan them.
   posterScanResult   Json?     @map("poster_scan_result")
   posterScannedAt    DateTime? @map("poster_scanned_at")
+  // Set whenever the adult-content keyword detector has evaluated
+  // this title (clean or matched). Drives the discovery-rail
+  // auto-flag: the popular rails fetch TMDB keywords for unknown /
+  // unchecked rows, flip `isAdult` on matches, and stamp this
+  // timestamp so subsequent renders skip the TMDB round-trip.
+  adultKeywordsCheckedAt DateTime? @map("adult_keywords_checked_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 

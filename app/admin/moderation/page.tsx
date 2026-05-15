@@ -56,10 +56,13 @@ export default function ModerationPage() {
   const [banRemoveContent, setBanRemoveContent] = useState(true);
 
   // Manual poster-block tool. Admin pastes a movie TMDB id and
-  // optionally checks "Block media tab too". For the R-rated edge
-  // cases the auto-scan misses.
+  // optionally checks "Block media tab too" or "Hide movie entirely".
+  // "Hide entirely" flips `isAdult` to true, vanishing the title from
+  // every list / search / discovery surface (used for pornographic /
+  // softcore / erotic films that TMDB never flagged adult).
   const [manualBlockId, setManualBlockId] = useState("");
   const [manualBlockMediaToo, setManualBlockMediaToo] = useState(false);
+  const [manualBlockHideEntirely, setManualBlockHideEntirely] = useState(false);
   const [manualBlockBusy, setManualBlockBusy] = useState(false);
   const [manualBlockMessage, setManualBlockMessage] = useState<string | null>(null);
 
@@ -74,20 +77,29 @@ export default function ModerationPage() {
     setManualBlockMessage(null);
     try {
       const token = await user.getIdToken();
+      const body: Record<string, unknown> = { mediaType: "movie", tmdbId };
+      if (manualBlockHideEntirely) {
+        // hideEntirely is the catch-all for adult titles — the backend
+        // sets posterBlocked + mediaBlocked + isAdult together, so we
+        // don't need to also pass `blocked` / `mediaBlocked` here.
+        body.hideEntirely = true;
+      } else {
+        body.blocked = true;
+        if (manualBlockMediaToo) body.mediaBlocked = true;
+      }
       const res = await fetch("/api/admin/poster-block", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mediaType: "movie",
-          tmdbId,
-          blocked: true,
-          ...(manualBlockMediaToo ? { mediaBlocked: true } : {}),
-        }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
-        setManualBlockMessage(`Blocked poster${manualBlockMediaToo ? " + media tab" : ""} for TMDB ${tmdbId}.`);
+        const label = manualBlockHideEntirely
+          ? "Hid movie entirely (isAdult set)"
+          : `Blocked poster${manualBlockMediaToo ? " + media tab" : ""}`;
+        setManualBlockMessage(`${label} for TMDB ${tmdbId}.`);
         setManualBlockId("");
         setManualBlockMediaToo(false);
+        setManualBlockHideEntirely(false);
       } else {
         const data = await res.json().catch(() => ({}));
         setManualBlockMessage(data.error ?? "Block failed");
@@ -138,15 +150,23 @@ export default function ModerationPage() {
         <p className="text-sm text-[var(--foreground-muted)]">Review reported content from users.</p>
       </div>
 
-      {/* Manual poster-block tool. Catches the rated-R edge cases where
-          the auto-scan didn't flag the title but admin can confirm
-          visually. Same backend endpoint as the per-movie toggle. */}
+      {/* Manual poster-block / hide-entirely tool. Catches the rated-R
+          and unflagged-adult edge cases where the auto-detect didn't
+          catch the title but admin can confirm visually. Same backend
+          endpoint as the per-movie toggle.
+
+          "Hide movie entirely" is the strongest action — flips
+          isAdult to true so the title vanishes from every list /
+          search / discovery surface. For pornographic / softcore /
+          erotic films TMDB never flagged adult. */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
         <h3 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
-          <Ban className="w-4 h-4 text-red-400" /> Manual poster block
+          <Ban className="w-4 h-4 text-red-400" /> Manual block
         </h3>
         <p className="text-xs text-[var(--foreground-muted)] mb-3">
-          Paste a TMDB movie id to immediately block its poster (and optionally its Media tab images).
+          Paste a TMDB movie id. Block the poster (and optionally the Media tab images), or
+          hide the movie entirely (vanishes from lists / search / discovery — for adult films
+          TMDB didn&apos;t flag).
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -161,17 +181,34 @@ export default function ModerationPage() {
             <input
               type="checkbox"
               checked={manualBlockMediaToo}
+              disabled={manualBlockHideEntirely}
               onChange={(e) => setManualBlockMediaToo(e.target.checked)}
               className="accent-[var(--ratist-red)]"
             />
             Block media tab too
+          </label>
+          <label
+            className={`text-xs flex items-center gap-1.5 cursor-pointer select-none ${
+              manualBlockHideEntirely ? "text-red-400" : "text-[var(--foreground-muted)]"
+            }`}
+            title="Set isAdult — vanishes from every list / search / discovery surface"
+          >
+            <input
+              type="checkbox"
+              checked={manualBlockHideEntirely}
+              onChange={(e) => setManualBlockHideEntirely(e.target.checked)}
+              className="accent-red-500"
+            />
+            Hide movie entirely
           </label>
           <button
             onClick={manualPosterBlock}
             disabled={manualBlockBusy || !manualBlockId.trim()}
             className="text-xs font-semibold px-3 py-1.5 rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
           >
-            {manualBlockBusy ? "Blocking…" : "Block"}
+            {manualBlockBusy
+              ? (manualBlockHideEntirely ? "Hiding…" : "Blocking…")
+              : (manualBlockHideEntirely ? "Hide entirely" : "Block")}
           </button>
         </div>
         {manualBlockMessage && (

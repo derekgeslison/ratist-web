@@ -187,11 +187,16 @@ export default async function HomePage() {
     safePopular, safeTopRated, safeNowPlaying, safeUpcoming, safeTrendingMovies,
     safePopularShows, safeTrendingShows,
   ] = await Promise.all([
-    safeguardTMDBMovies(popular.results, { filterNC17: true, stripBlockedPosters: true }),
+    // Popular + trending rails opt into adult-keyword auto-detect so
+    // softcore / erotic films TMDB never flagged `adult: true` get
+    // caught before they hit the home page. The keyword fetch is cached
+    // per Movie row, so this only adds latency on first encounter of
+    // a previously-uncached title.
+    safeguardTMDBMovies(popular.results, { filterNC17: true, stripBlockedPosters: true, adultKeywordCheck: true }),
     safeguardTMDBMovies(topRated.results, { filterNC17: true, stripBlockedPosters: true }),
     safeguardTMDBMovies(nowPlaying.results, { filterNC17: true, stripBlockedPosters: true }),
     safeguardTMDBMovies(upcoming.results, { filterNC17: true, stripBlockedPosters: true }),
-    safeguardTMDBMovies(trendingMovies.results, { filterNC17: true, stripBlockedPosters: true }),
+    safeguardTMDBMovies(trendingMovies.results, { filterNC17: true, stripBlockedPosters: true, adultKeywordCheck: true }),
     safeguardTMDBShows(popularShows.results, { stripBlockedPosters: true }),
     safeguardTMDBShows(trendingShows.results, { stripBlockedPosters: true }),
   ]);
