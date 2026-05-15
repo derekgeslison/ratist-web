@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-const ALLOWED_PATHS = ["/onboarding", "/auth", "/terms", "/about", "/profile/import"];
+const ALLOWED_PATHS = ["/onboarding", "/auth", "/terms", "/privacy", "/about", "/profile/import"];
 
 export default function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { user, needsOnboarding, loading } = useAuth();

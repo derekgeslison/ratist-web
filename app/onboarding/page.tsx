@@ -157,7 +157,7 @@ function StepIndicator({ step }: { step: number }) {
 }
 
 export default function OnboardingPage() {
-  const { user, needsOnboarding, completeOnboarding } = useAuth();
+  const { user, loading: authLoading, needsOnboarding, completeOnboarding } = useAuth();
   const router = useRouter();
 
   // Read step from URL hash on mount
@@ -173,12 +173,24 @@ export default function OnboardingPage() {
     window.history.replaceState(null, "", `#step-${n}`);
   }
 
-  // If user already completed onboarding (came back via browser back), skip to step 2
+  // If user already completed onboarding (came back via browser back), skip to step 2.
+  //
+  // Guard on AuthContext loading so this DOESN'T fire during the initial
+  // AuthProvider mount, where `needsOnboarding` defaults to false before
+  // `syncUser` has had a chance to set the authoritative value from the
+  // server. A previous user-visible bug: tapping the Privacy / ToS link
+  // (plain <a href>) caused a hard nav. AuthProvider re-mounted with the
+  // false default. If the user tapped browser-back before syncUser
+  // finished, /onboarding re-mounted, the effect fired with the stale
+  // false default, and step jumped to 2 even though the user hadn't
+  // actually clicked Continue. Waiting for `authLoading` to clear closes
+  // the race — by then needsOnboarding reflects the real server state.
   useEffect(() => {
+    if (authLoading) return;
     if (!needsOnboarding && step === 1) {
       setStep(2);
     }
-  }, [needsOnboarding]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authLoading, needsOnboarding]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   const [componentScores, setComponentScores] = useState<Record<string, number>>(
