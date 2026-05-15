@@ -83,7 +83,7 @@ export default function ShowListItem({ show, characterName, streaming, rent, cer
             onClick={markSeen}
             disabled={markingS}
             title={seen ? "Already seen" : "Mark as seen"}
-            className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold pl-2 pr-0 group-hover:pr-2 py-1.5 rounded-full border gap-0 group-hover:gap-1.5 ${
+            className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold px-[5px] py-1.5 rounded-full border gap-0 group-hover:gap-1.5 ${
               seen
                 ? "border-green-500/50 text-green-400 bg-green-500/10 w-[26px] group-hover:w-[104px]"
                 : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-green-500/50 hover:text-green-400 w-[26px] group-hover:w-[104px]"
@@ -99,7 +99,7 @@ export default function ShowListItem({ show, characterName, streaming, rent, cer
             onClick={watchlistFlow.handleClick}
             disabled={watchlistFlow.busy}
             title={watchlisted ? "Manage watchlists" : "Add to watchlist"}
-            className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold pl-2 pr-0 group-hover:pr-2 py-1.5 rounded-full border gap-0 group-hover:gap-1.5 disabled:opacity-60 ${
+            className={`flex items-center overflow-hidden transition-all duration-200 text-xs font-semibold px-[5px] py-1.5 rounded-full border gap-0 group-hover:gap-1.5 disabled:opacity-60 ${
               watchlisted
                 ? "border-blue-500/50 text-blue-400 bg-blue-500/10 w-[26px] group-hover:w-[118px]"
                 : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-blue-400 hover:text-blue-300 w-[26px] group-hover:w-[118px]"
