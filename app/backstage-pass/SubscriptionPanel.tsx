@@ -32,16 +32,30 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
   const [manageError, setManageError] = useState("");
   const [manageLoading, setManageLoading] = useState(false);
 
-  // Detect ?from=app — set when either native app opened this page
-  // in the system browser via the "Subscribe on the web" link. We
-  // thread it through checkout so Stripe's success_url redirects
-  // back here with the same flag, and we use the flag on the success
-  // screen to render a "Return to The Ratist app" button (universal
-  // / app link). Applies to both iOS and Android — the routing
-  // problem (theratist.com being intercepted by the app) is the
-  // same on both platforms, and so is the subdomain workaround.
-  const fromApp = typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).get("from") === "app";
+  // Detect "user got here via the in-app Subscribe button" — set when
+  // either native app opened this page in the system browser via the
+  // "Subscribe on the web" link. We thread it through checkout so
+  // Stripe's success_url redirects back here with the same flag, and
+  // we use the flag on the success screen to render a "Return to
+  // The Ratist app" button (universal / app link). Applies to both
+  // iOS and Android — the routing problem (theratist.com being
+  // intercepted by the app) is the same on both platforms, and so
+  // is the subdomain workaround.
+  //
+  // Two paths set fromApp:
+  //   1. ?from=app in the URL — present on the canonical-host
+  //      success page after Stripe (Stripe's success_url carries
+  //      &from=app when we kicked off checkout with fromApp set).
+  //   2. Host is subscribe.theratist.com — the in-app button always
+  //      opens this subdomain in the system browser. We can't rely
+  //      on ?from=app in window.location.search here because the
+  //      Next.js host-rewrite that serves /backstage-pass on this
+  //      subdomain doesn't alter the visible URL, so the source URL
+  //      stays "/" even though the destination has ?from=app.
+  const fromApp = typeof window !== "undefined" && (
+    new URLSearchParams(window.location.search).get("from") === "app"
+    || window.location.hostname === "subscribe.theratist.com"
+  );
 
   async function handleCheckout() {
     if (!user) return;
@@ -149,17 +163,19 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
           </p>
           <button
             onClick={() => {
-              // subscribe.theratist.com is configured in Vercel as a
-              // 308 redirect to /backstage-pass?from=app. It's NOT in
-              // either app-link manifest (iOS Universal Links or
-              // Android App Links), so the OS opens the URL in the
-              // system browser (Safari / Chrome) instead of routing
-              // it back into the WebView. After the redirect lands
-              // the user on www.theratist.com, they complete checkout
-              // there; the "Return to The Ratist app" link on the
-              // success page is a www.theratist.com anchor — the
-              // app-link handler triggers on that explicit tap and
-              // switches back to the app.
+              // subscribe.theratist.com is NOT in either app-link
+              // manifest (iOS Universal Links or Android App Links),
+              // so the OS opens this URL in the system browser
+              // (Safari / Chrome) instead of routing it back into
+              // the WebView. The Next.js host-rewrite in next.config.ts
+              // serves /backstage-pass on this subdomain WITHOUT a
+              // visible redirect — the URL bar stays on
+              // subscribe.theratist.com, so the OS doesn't re-capture
+              // the request back into the app. The user completes
+              // Stripe checkout there; after success, Stripe redirects
+              // to www.theratist.com/backstage-pass?success=1&from=app,
+              // and the canonical-host app-link handler bounces the
+              // user back into the app.
               window.open("https://subscribe.theratist.com/", "_blank");
             }}
             className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors"

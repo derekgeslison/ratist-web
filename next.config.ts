@@ -40,27 +40,49 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // subscribe.theratist.com is the bypass subdomain the native apps
+  // (iOS + Android) open in the system browser. The subdomain is NOT
+  // in either app's app-link manifest (Universal Links / App Links),
+  // so the OS opens these URLs externally instead of routing them
+  // back into the WebView.
+  //
+  // The OLD behavior was a 308 redirect from subscribe.theratist.com/*
+  // → www.theratist.com/backstage-pass?from=app. That broke the bypass
+  // entirely: the external browser hit the 308 immediately, navigated
+  // to www.theratist.com (which IS in the app-link manifest), and the
+  // OS recaptured the URL straight back into the app — leaving the
+  // user looking at the same "Subscribe on web" button forever.
+  //
+  // The fix is a server-side rewrite (NOT a redirect). The user's
+  // browser URL stays on subscribe.theratist.com (outside the deep-
+  // link host), so the OS doesn't recapture; internally we serve the
+  // /backstage-pass route with ?from=app so the page knows to render
+  // the post-Stripe "Return to The Ratist app" CTA.
+  //
+  // Stripe's success_url / cancel_url still point at
+  // www.theratist.com/backstage-pass, intentionally — once checkout
+  // completes the user SHOULD get bounced back into the native app
+  // by the deep-link handler.
+  async rewrites() {
+    return [
+      // Root of the subscribe subdomain → /backstage-pass with the
+      // from=app marker. Only matches "/" so /api/* (Stripe checkout
+      // creation), /_next/* (page assets), and the canonical
+      // /backstage-pass route itself all continue to resolve as
+      // normal on this host.
+      {
+        source: "/",
+        has: [{ type: "host", value: "subscribe.theratist.com" }],
+        destination: "/backstage-pass?from=app",
+      },
+    ];
+  },
   // Permanent (308) redirects for stale Laravel-era URLs Google still
   // has in its index. Each one was reported by GSC as a 404 / noindex
   // hit; this lets crawl equity transfer to the current page rather
   // than getting silently dropped.
   async redirects() {
     return [
-      // subscribe.theratist.com is the bypass subdomain the native
-      // apps (iOS + Android) open in the system browser. It's NOT in
-      // either app's app-link manifest, so the OS opens it externally
-      // instead of routing back into the WebView. Any path on that
-      // host redirects to /backstage-pass?from=app on the canonical
-      // domain — the user is now in Safari/Chrome on www.theratist.com
-      // and can complete checkout normally. The 308 preserves the
-      // request method; the explicit query param survives because
-      // the destination is a full URL, not a pattern.
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "subscribe.theratist.com" }],
-        destination: "https://www.theratist.com/backstage-pass?from=app",
-        permanent: true,
-      },
       { source: "/home", destination: "/", permanent: true },
       { source: "/blogs", destination: "/posts?type=BLOG", permanent: true },
       // Listing-page consolidation — /blog, /movie-maps, /two-thumbs
