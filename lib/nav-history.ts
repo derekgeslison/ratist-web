@@ -155,6 +155,13 @@ export function inferTitleForPath(pathname: string): string | null {
   if (p.startsWith("/backstage-pass/")) return "Backstage Pass";
   if (p.startsWith("/tools/")) return "Tools";
   if (p.startsWith("/community/")) return "Community";
+  // /profile/[id] and its sub-routes (badges, compare, rankings, …).
+  // The /profile/[id] root page additionally registers an explicit
+  // "{name}'s profile" title via NavEntryRegister, which overrides
+  // this inferred label thanks to pushNavEntry's coalesce guard. The
+  // generic "Profile" string only surfaces on sub-routes that don't
+  // do their own explicit registration.
+  if (p.startsWith("/profile/")) return "Profile";
 
   return null;
 }

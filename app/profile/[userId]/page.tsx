@@ -12,6 +12,7 @@ import ProfileTabs from "@/components/ProfileTabs";
 import ProfileThemeWrapper from "@/components/ProfileThemeWrapper";
 import ProfileThemeButton from "@/components/ProfileThemeButton";
 import AdUnit from "@/components/AdUnit";
+import NavEntryRegister from "@/components/NavEntryRegister";
 import type { ProfileTheme } from "@/lib/themes";
 
 interface Props { params: Promise<{ userId: string }> }
@@ -439,6 +440,12 @@ export default async function ProfilePage({ params }: Props) {
   return (
     <ProfileThemeWrapper theme={theme}>
     <div>
+      {/* Register this profile in the per-tab breadcrumb so SmartBackLink
+         on detail pages (movie, show, celebrity) renders "Back to
+         {name}'s profile" instead of "Back to Home". Without this, the
+         auto-registrar in the root layout falls back to inferTitleForPath
+         and skips because /profile/[id] doesn't match a static label. */}
+      <NavEntryRegister title={`${user.name}'s profile`} />
       <h1 className="sr-only">{user.name} — The Ratist</h1>
       {/* Banner / Header area */}
       <div className="relative">
