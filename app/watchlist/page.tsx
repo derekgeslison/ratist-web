@@ -400,17 +400,27 @@ export default function WatchlistPage() {
         const inviteData = inviteRes.ok ? await inviteRes.json() : { invites: [] };
         setWatchlists(data.watchlists ?? []);
         setPendingInvites(inviteData.invites ?? []);
-        // Honor the sessionStorage-restored activeId so navigating to
-        // a movie/show from inside a custom list and coming back lands
-        // the user where they left off, not on the default list.
-        // Falls through to the default when there's nothing
-        // persisted, when the persisted ID is stale (list was deleted
-        // / collaborator removed), or when the user is loading the
-        // page for the first time.
+        // Priority order for which list to render first:
+        //   1. ?list=<id> in the URL — explicit intent from a deep
+        //      link (e.g. the Android Watchlist widget's header tap
+        //      includes the widget's configured list id so the user
+        //      lands on the same list the tile was showing).
+        //   2. sessionStorage activeId — so back-nav from a movie
+        //      inside a custom list comes back to that same list.
+        //   3. The user's default list as a final fallback.
+        // Stale IDs (deleted list, lost collaborator access) are
+        // skipped and we fall through to the next tier.
         const lists: WatchlistMeta[] = data.watchlists ?? [];
         const def = lists.find((w) => w.isDefault);
+        let fromUrl: WatchlistMeta | null = null;
+        if (typeof window !== "undefined") {
+          const urlListId = new URLSearchParams(window.location.search).get("list");
+          if (urlListId) {
+            fromUrl = lists.find((w) => w.id === urlListId) ?? null;
+          }
+        }
         const persisted = activeId ? lists.find((w) => w.id === activeId) : null;
-        const target = persisted ?? def ?? null;
+        const target = fromUrl ?? persisted ?? def ?? null;
         if (target) {
           if (target.isDefault) {
             setMovies(data.defaultMovies ?? []);
