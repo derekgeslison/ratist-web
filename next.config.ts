@@ -46,6 +46,21 @@ const nextConfig: NextConfig = {
   // than getting silently dropped.
   async redirects() {
     return [
+      // subscribe.theratist.com is the bypass subdomain the native
+      // apps (iOS + Android) open in the system browser. It's NOT in
+      // either app's app-link manifest, so the OS opens it externally
+      // instead of routing back into the WebView. Any path on that
+      // host redirects to /backstage-pass?from=app on the canonical
+      // domain — the user is now in Safari/Chrome on www.theratist.com
+      // and can complete checkout normally. The 308 preserves the
+      // request method; the explicit query param survives because
+      // the destination is a full URL, not a pattern.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "subscribe.theratist.com" }],
+        destination: "https://www.theratist.com/backstage-pass?from=app",
+        permanent: true,
+      },
       { source: "/home", destination: "/", permanent: true },
       { source: "/blogs", destination: "/posts?type=BLOG", permanent: true },
       // Listing-page consolidation — /blog, /movie-maps, /two-thumbs
