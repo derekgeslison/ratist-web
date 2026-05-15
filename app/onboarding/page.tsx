@@ -179,6 +179,7 @@ export default function OnboardingPage() {
       setStep(2);
     }
   }, [needsOnboarding]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   const [componentScores, setComponentScores] = useState<Record<string, number>>(
     Object.fromEntries(COMPONENTS.map((c) => [c.key, 5]))
@@ -202,12 +203,55 @@ export default function OnboardingPage() {
   const [componentsTouched, setComponentsTouched] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [tosAccepted, setTosAccepted] = useState(false);
+  // Step 1 captures a display name so the public-facing username is
+  // never derived from a leaked email. Prefilled from the provider's
+  // displayName when available (Google, Apple-with-name-shared); empty
+  // for Apple Hide-My-Email users who decline to share their name.
+  // The current DB row's name is also loaded so users who already
+  // completed onboarding see what they have today on the rare path
+  // where they revisit step 1.
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [displayNameLoaded, setDisplayNameLoaded] = useState(false);
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
+
+  // Prefill the display-name input on step 1 with whatever's on the
+  // DB row today. For brand-new users this is "User" (set by the
+  // safe-default in /api/auth/sync); they replace it with a real name.
+  // For users who somehow land back on step 1, they see their current
+  // name and can edit it.
+  useEffect(() => {
+    if (!user || displayNameLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch("/api/profile/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const dbName: string | undefined = data?.user?.name;
+        // Seed empty if the DB has the placeholder "User"; otherwise
+        // prefill with whatever's there so the user can confirm or edit.
+        setDisplayNameInput(dbName && dbName !== "User" ? dbName : "");
+        setDisplayNameLoaded(true);
+      } catch {
+        setDisplayNameLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, displayNameLoaded]);
 
   const allMovies = [...recentMovies, ...classicMovies];
 
-  // Fetch movies for step 3
+  // Fetch movies for step 4 (the "Which of these have you seen?" step).
+  // The variable names still say "step3" / "Step 3" from an earlier
+  // numbering; the actual user-facing step is now 4 because the ToS
+  // acceptance step was added as step 1.
   useEffect(() => {
-    if (step !== 3) return;
+    if (step !== 4) return;
+    if (recentMovies.length > 0 || classicMovies.length > 0) return;
     setMoviesLoading(true);
 
     Promise.all([
@@ -226,23 +270,25 @@ export default function OnboardingPage() {
       setClassicMovies(classics);
       setMoviesLoading(false);
     });
-  }, [step]);
+  }, [step, recentMovies.length, classicMovies.length]);
 
-  // Fetch shows for step 3
+  // Fetch shows for step 4's TV tab. Route through the server proxy
+  // endpoints — we used to call TMDB directly with NEXT_PUBLIC_TMDB_API_KEY,
+  // which broke when the key stopped being exposed publicly. Server-side
+  // proxy avoids the CORS / leaked-key surface entirely.
   useEffect(() => {
-    if (step !== 3 || step3Tab !== "shows") return;
+    if (step !== 4 || step3Tab !== "shows") return;
     if (recentShows.length > 0) return; // already loaded
     setShowsLoading(true);
 
-    const API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
     Promise.all([
-      fetch(`https://api.themoviedb.org/3/tv/popular?api_key=${API_KEY}&page=1`)
+      fetch("/api/tmdb/tv/popular")
         .then((r) => r.json())
         .then((d) => (d?.results as TMDBShow[] ?? []).slice(0, 15))
         .catch(() => [] as TMDBShow[]),
       Promise.all(
         CLASSIC_SHOW_IDS.map((id) =>
-          fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${API_KEY}`)
+          fetch(`/api/tmdb/tv/${id}`)
             .then((r) => r.ok ? r.json() : null)
             .catch(() => null)
         )
@@ -389,14 +435,33 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          {/* ── STEP 1: Genre preferences ── */}
-          {/* ── STEP 1: Terms of Service & Privacy Policy ── */}
+          {/* ── STEP 1: Display name + Terms of Service & Privacy Policy ── */}
           {step === 1 && (
             <div>
               <h2 className="text-xl font-bold text-white mb-2">Welcome to The Ratist</h2>
               <p className="text-sm text-[var(--foreground-muted)] mb-6">
-                Before we get started, please review and accept our Terms of Service and Privacy Policy.
+                Pick the name other Ratist users will see, and review our terms before continuing.
               </p>
+
+              {/* Display name — required. Persists separately from
+                  TOS acceptance so we never store the local part of
+                  an Apple Hide-My-Email relay address as a username. */}
+              <label className="block mb-5">
+                <span className="block text-sm font-medium text-white mb-1.5">Display name</span>
+                <input
+                  type="text"
+                  value={displayNameInput}
+                  onChange={(e) => setDisplayNameInput(e.target.value)}
+                  maxLength={50}
+                  placeholder="e.g. Sarah, MovieFan42"
+                  autoComplete="nickname"
+                  className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-white placeholder-[var(--foreground-muted)]/60 focus:outline-none focus:border-[var(--ratist-red)] transition-colors"
+                />
+                <span className="block text-xs text-[var(--foreground-muted)] mt-1.5">
+                  This is the name shown on your reviews and profile. You can change it anytime in Settings.
+                </span>
+              </label>
+
               <label className="flex items-start gap-2.5 mb-6 cursor-pointer group">
                 <input
                   type="checkbox"
@@ -418,15 +483,44 @@ export default function OnboardingPage() {
               <button
                 onClick={async () => {
                   if (!tosAccepted || !user) return;
-                  // Mark onboarding complete immediately — remaining steps are optional
+                  const trimmed = displayNameInput.trim();
+                  if (trimmed.length < 2) {
+                    setErrorMsg("Please choose a display name (at least 2 characters).");
+                    return;
+                  }
+                  setErrorMsg(null);
+                  setSavingDisplayName(true);
+                  try {
+                    const token = await user.getIdToken();
+                    const res = await fetch("/api/profile/me", {
+                      method: "PATCH",
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({ name: trimmed }),
+                    });
+                    if (!res.ok) {
+                      setErrorMsg("Couldn't save your display name. Please try again.");
+                      setSavingDisplayName(false);
+                      return;
+                    }
+                  } catch {
+                    setErrorMsg("Couldn't save your display name. Please try again.");
+                    setSavingDisplayName(false);
+                    return;
+                  }
+                  setSavingDisplayName(false);
+                  // Mark onboarding complete — remaining steps are optional
                   await completeOnboarding();
                   setStep(2);
                 }}
-                disabled={!tosAccepted}
+                disabled={!tosAccepted || displayNameInput.trim().length < 2 || savingDisplayName}
                 className="w-full py-3 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Continue <ChevronRight className="w-4 h-4" />
+                {savingDisplayName ? "Saving…" : (<>Continue <ChevronRight className="w-4 h-4" /></>)}
               </button>
+              {errorMsg && <p className="text-xs text-red-400 mt-3">{errorMsg}</p>}
             </div>
           )}
 

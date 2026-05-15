@@ -14,7 +14,11 @@ export async function POST(req: NextRequest) {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { plan } = await req.json(); // "monthly" | "annual"
+    // fromIos: set by SubscriptionPanel when the user arrived via the
+    // iOS app's "Subscribe on the web" link. We thread it through
+    // Stripe's success_url so the post-checkout landing page knows to
+    // render a "Return to The Ratist app" button.
+    const { plan, fromIos } = await req.json(); // "monthly" | "annual"
     const priceId = plan === "annual"
       ? process.env.STRIPE_PRICE_ANNUAL
       : process.env.STRIPE_PRICE_MONTHLY;
@@ -56,8 +60,8 @@ export async function POST(req: NextRequest) {
       customer: customerId,
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/backstage-pass?success=1`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/backstage-pass?canceled=1`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/backstage-pass?success=1${fromIos ? "&from=ios" : ""}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/backstage-pass?canceled=1${fromIos ? "&from=ios" : ""}`,
       metadata: { userId: user.id },
       ...(trialEnd ? { subscription_data: { trial_end: trialEnd } } : {}),
     });

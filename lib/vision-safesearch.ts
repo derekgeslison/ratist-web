@@ -55,6 +55,21 @@ export function shouldBlockPoster(v: SafeSearchVerdict): boolean {
 }
 
 /**
+ * True when the avatar crosses our explicit-content threshold.
+ *
+ * Mirrors the inline thresholds in /api/profile/avatar (LIKELY+ for
+ * adult/racy, VERY_LIKELY for violence) so a user-uploaded image and
+ * a Google/Apple auto-imported one go through the same filter.
+ */
+const VERY_LIKELY_ONLY: Likelihood[] = ["VERY_LIKELY"];
+export function shouldBlockAvatar(v: SafeSearchVerdict): boolean {
+  if (HIT.includes(v.adult)) return true;
+  if (HIT.includes(v.racy)) return true;
+  if (VERY_LIKELY_ONLY.includes(v.violence)) return true;
+  return false;
+}
+
+/**
  * Scan a single poster URL via Vision SafeSearch. Returns null when
  * the call fails — the caller should treat null as "skip, don't
  * update the row".

@@ -46,12 +46,22 @@ export default function BackstagePassCTA({ featureName, initialIsNative }: Props
           <Ticket className="w-8 h-8 text-amber-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-white mb-2">Unlock with the Backstage Pass</h2>
           {showNativeUi ? (
-            // Reader-app gating (Apple Guideline 3.1.3): no in-app
-            // purchase path and no link to external purchase from
-            // inside the app. Plain-text notice only.
-            <p className="text-sm text-[var(--foreground-muted)]">
-              Backstage Pass subscriptions are available on the web at theratist.com. Sign in there and your benefits will appear here.
-            </p>
+            // Native: open the system browser to /backstage-pass with
+            // ?from=ios so the success page knows to surface the
+            // return-to-app universal link after Stripe checkout.
+            // External-purchase route (matches what other reader apps
+            // do successfully under Guideline 3.1.3).
+            <>
+              <p className="text-sm text-[var(--foreground-muted)] mb-5">
+                Tap below to subscribe in your browser. The page will offer to return you here once you finish.
+              </p>
+              <button
+                onClick={() => window.open("https://www.theratist.com/backstage-pass?from=ios", "_blank")}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors"
+              >
+                <Ticket className="w-4 h-4" /> Open theratist.com to subscribe
+              </button>
+            </>
           ) : (
             <>
               <p className="text-sm text-[var(--foreground-muted)] mb-6">

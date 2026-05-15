@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
+import { scanPosterSafeSearch, shouldBlockAvatar } from "@/lib/vision-safesearch";
 
 function generateInviteCode(): string {
   return "R-" + crypto.randomBytes(4).toString("hex").slice(0, 7);
@@ -16,6 +17,18 @@ export async function POST(req: NextRequest) {
     const token = authorization.slice(7);
     const decoded = await adminAuth.verifyIdToken(token);
     const { name, email, avatarUrl, restoreAction } = await req.json();
+
+    // Defensive: even if the client falls back to an email-derived name
+    // for some reason, never persist the local part of an Apple Hide-My-
+    // Email relay address as the user's display name. That would leak
+    // the relay email to anyone who can see the username. Replace with
+    // a placeholder; onboarding will prompt for a real name on step 1.
+    let safeName: string | null = name ?? null;
+    const persistEmail = email ?? decoded.email ?? "";
+    if (safeName && persistEmail.toLowerCase().endsWith("@privaterelay.appleid.com")) {
+      const local = persistEmail.split("@")[0];
+      if (safeName === local) safeName = "User";
+    }
 
     // Check if user exists and is soft-deleted
     const existing = await prisma.user.findUnique({
@@ -91,13 +104,38 @@ export async function POST(req: NextRequest) {
     // key is firebaseUid, so the email captured at first sign-up is
     // the canonical one. If the user changes their auth email later
     // they'll need a separate flow to migrate.
+    // Google / Apple sign-in supplies a remote photoURL. We never
+    // ran SafeSearch on those, so explicit-content avatars could slip
+    // in via OAuth even though user-uploaded avatars are scanned.
+    // Scan the URL through Vision and drop it if it crosses the same
+    // threshold the upload route uses. Fail-open: a Vision timeout
+    // shouldn't block account creation. Only runs on new accounts
+    // (the update branch is empty by design).
+    let safeAvatarUrl: string | null = avatarUrl ?? null;
+    if (!existing && safeAvatarUrl) {
+      try {
+        const verdict = await scanPosterSafeSearch(safeAvatarUrl);
+        if (verdict && shouldBlockAvatar(verdict)) {
+          console.warn(
+            "[auth/sync] OAuth avatar blocked by SafeSearch; persisting null",
+            { uid: decoded.uid, verdict },
+          );
+          safeAvatarUrl = null;
+        }
+      } catch (err) {
+        // Don't block sign-up if Vision is down. Logged so we can
+        // see if the path is consistently failing.
+        console.warn("[auth/sync] SafeSearch on OAuth avatar threw; allowing:", err);
+      }
+    }
+
     const user = await prisma.user.upsert({
       where: { firebaseUid: decoded.uid },
       create: {
         firebaseUid: decoded.uid,
-        name: name ?? "User",
-        email: email ?? decoded.email ?? "",
-        avatarUrl: avatarUrl ?? null,
+        name: safeName ?? "User",
+        email: persistEmail,
+        avatarUrl: safeAvatarUrl,
         inviteCode: generateInviteCode(),
         profile: { create: {} },
       },

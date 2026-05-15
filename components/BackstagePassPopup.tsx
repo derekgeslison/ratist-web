@@ -79,13 +79,19 @@ export default function BackstagePassPopup({ isOpen, onClose, type, standardRevi
             <p className="text-sm text-[var(--foreground-muted)]">Screenshot placeholder</p>
           </div>
 
-          {/* CTA — purchase action gated for native (reader-app rules). */}
+          {/* CTA — native opens system browser, web stays in-app. */}
           {showNativeUi ? (
             <div className="bg-[var(--surface-2)] border border-amber-400/30 rounded-xl p-4 text-center">
-              <p className="text-sm text-white mb-1">Subscribe on the web</p>
-              <p className="text-xs text-[var(--foreground-muted)]">
-                Backstage Pass subscriptions are available at theratist.com on a web browser.
-              </p>
+              <p className="text-sm text-white mb-3">Subscribe on the web</p>
+              <button
+                onClick={() => {
+                  window.open("https://www.theratist.com/backstage-pass?from=ios", "_blank");
+                  onClose();
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg transition-colors"
+              >
+                <Ticket className="w-4 h-4" /> Open theratist.com
+              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-2">

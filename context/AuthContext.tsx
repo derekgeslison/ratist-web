@@ -134,11 +134,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncUser = useCallback(async (firebaseUser: User, restoreAction?: string) => {
     const token = await firebaseUser.getIdToken();
+    // Compute a safe default display name. If the provider gave us a
+    // displayName (Google / Apple-with-name-shared), use it. Otherwise
+    // we DO NOT fall back to the email's local part — that leaks the
+    // address for Apple Hide-My-Email users (anyone seeing the username
+    // can append @privaterelay.appleid.com to derive the relay email).
+    // Onboarding's step 1 prompts every user to set a real name, so
+    // "User" is a transient placeholder at worst.
+    const safeName = firebaseUser.displayName ?? "User";
     const res = await fetch("/api/auth/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        name: firebaseUser.displayName ?? firebaseUser.email?.split("@")[0] ?? "User",
+        name: safeName,
         email: firebaseUser.email,
         avatarUrl: firebaseUser.photoURL,
         restoreAction,

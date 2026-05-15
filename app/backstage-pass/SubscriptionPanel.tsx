@@ -32,6 +32,14 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
   const [manageError, setManageError] = useState("");
   const [manageLoading, setManageLoading] = useState(false);
 
+  // Detect ?from=ios — set when the iOS app opened this page in
+  // Safari via the "Subscribe on the web" link. We thread it through
+  // checkout so Stripe's success_url redirects back here with the
+  // same flag, and we use the flag on the success screen to render a
+  // "Return to The Ratist app" button (universal link).
+  const fromIos = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("from") === "ios";
+
   async function handleCheckout() {
     if (!user) return;
     setCheckingOut(true);
@@ -39,7 +47,7 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
     const res = await fetch("/api/subscription/checkout", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: selectedPlan }),
+      body: JSON.stringify({ plan: selectedPlan, fromIos }),
     });
     if (res.ok) {
       const { url } = await res.json();
@@ -127,15 +135,29 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
         </div>
       )}
 
-      {/* Reader-app gating (Apple Guideline 3.1.3): no in-app
-          purchase path or link to external purchase from inside the
-          native app. Show non-purchase notice instead. */}
+      {/* Native users get a real link that opens the system browser
+          (Safari/Chrome). They complete checkout on the web, then
+          return to the app via the universal link on the success page. */}
       {showNativeUi && !hasPass && (
         <div className="bg-[var(--surface)] border border-amber-400/30 rounded-2xl p-8 text-center mb-10">
           <p className="text-base font-semibold text-amber-400 mb-2">Subscribe on the web</p>
-          <p className="text-sm text-[var(--foreground-muted)]">
-            Backstage Pass subscriptions are available at theratist.com. Sign in there to subscribe, then your benefits will appear here automatically.
+          <p className="text-sm text-[var(--foreground-muted)] mb-5">
+            Tap below to open your browser. Once you finish signing up, the page will offer to return you here automatically.
           </p>
+          <button
+            onClick={() => {
+              // window.open(url, "_blank") in Capacitor opens the URL
+              // in the system browser (Safari/Chrome), not an in-app
+              // WebView. That's required by Apple's external-purchase
+              // rules — SFSafariViewController doesn't count as "leaving
+              // the app." The from=ios flag identifies the origin so
+              // the success page can show the return-to-app button.
+              window.open("https://www.theratist.com/backstage-pass?from=ios", "_blank");
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors"
+          >
+            Open theratist.com to subscribe
+          </button>
         </div>
       )}
 
@@ -206,8 +228,25 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
           redirect (?success=1). Lives in the client panel because it
           reads window.location. */}
       {justSubscribed && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 text-center text-emerald-400">
-          Welcome to the Backstage Pass! Your premium features are now active.
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 mb-8 text-center">
+          <p className="text-emerald-400 font-medium">
+            Welcome to the Backstage Pass! Your premium features are now active.
+          </p>
+          {/* When the user started checkout from the iOS app
+              (?from=ios threaded through Stripe's success_url),
+              surface an explicit return-to-app link. Tapping a
+              theratist.com link in Safari triggers iOS's universal-
+              link handler — the user gets the "Open in The Ratist
+              app" prompt and lands back in the app where they
+              started. */}
+          {fromIos && (
+            <a
+              href="https://www.theratist.com/backstage-pass?success=1"
+              className="inline-flex items-center gap-2 mt-4 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-colors"
+            >
+              Return to The Ratist app →
+            </a>
+          )}
         </div>
       )}
     </>
