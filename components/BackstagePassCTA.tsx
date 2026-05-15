@@ -46,11 +46,13 @@ export default function BackstagePassCTA({ featureName, initialIsNative }: Props
           <Ticket className="w-8 h-8 text-amber-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-white mb-2">Unlock with the Backstage Pass</h2>
           {showNativeUi ? (
-            // Native: open the system browser to /backstage-pass with
-            // ?from=ios so the success page knows to surface the
-            // return-to-app universal link after Stripe checkout.
-            // External-purchase route (matches what other reader apps
-            // do successfully under Guideline 3.1.3).
+            // Native (iOS + Android): open the system browser via
+            // the subscribe.theratist.com subdomain. The Vercel-side
+            // 308 redirect lands the user on /backstage-pass?from=app
+            // so the success page can surface the return-to-app link
+            // after Stripe checkout. External-purchase route (matches
+            // what other reader apps do successfully under Apple
+            // Guideline 3.1.3).
             <>
               <p className="text-sm text-[var(--foreground-muted)] mb-5">
                 Tap below to subscribe in your browser. The page will offer to return you here once you finish.

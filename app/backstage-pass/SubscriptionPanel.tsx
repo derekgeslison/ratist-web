@@ -32,13 +32,16 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
   const [manageError, setManageError] = useState("");
   const [manageLoading, setManageLoading] = useState(false);
 
-  // Detect ?from=ios — set when the iOS app opened this page in
-  // Safari via the "Subscribe on the web" link. We thread it through
-  // checkout so Stripe's success_url redirects back here with the
-  // same flag, and we use the flag on the success screen to render a
-  // "Return to The Ratist app" button (universal link).
-  const fromIos = typeof window !== "undefined"
-    && new URLSearchParams(window.location.search).get("from") === "ios";
+  // Detect ?from=app — set when either native app opened this page
+  // in the system browser via the "Subscribe on the web" link. We
+  // thread it through checkout so Stripe's success_url redirects
+  // back here with the same flag, and we use the flag on the success
+  // screen to render a "Return to The Ratist app" button (universal
+  // / app link). Applies to both iOS and Android — the routing
+  // problem (theratist.com being intercepted by the app) is the
+  // same on both platforms, and so is the subdomain workaround.
+  const fromApp = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("from") === "app";
 
   async function handleCheckout() {
     if (!user) return;
@@ -47,7 +50,7 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
     const res = await fetch("/api/subscription/checkout", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: selectedPlan, fromIos }),
+      body: JSON.stringify({ plan: selectedPlan, fromApp }),
     });
     if (res.ok) {
       const { url } = await res.json();
@@ -147,15 +150,16 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
           <button
             onClick={() => {
               // subscribe.theratist.com is configured in Vercel as a
-              // 308 redirect to /backstage-pass?from=ios. It's NOT in
-              // the iOS Universal Link / Android App Link manifests,
-              // so the OS opens the URL in Safari / Chrome instead of
-              // intercepting it back into the WebView. After the
-              // redirect lands the user on www.theratist.com, they
-              // complete checkout there; the "Return to The Ratist
-              // app" link on the success page is a www.theratist.com
-              // anchor — the universal-link handler triggers on that
-              // explicit tap and switches back to the app.
+              // 308 redirect to /backstage-pass?from=app. It's NOT in
+              // either app-link manifest (iOS Universal Links or
+              // Android App Links), so the OS opens the URL in the
+              // system browser (Safari / Chrome) instead of routing
+              // it back into the WebView. After the redirect lands
+              // the user on www.theratist.com, they complete checkout
+              // there; the "Return to The Ratist app" link on the
+              // success page is a www.theratist.com anchor — the
+              // app-link handler triggers on that explicit tap and
+              // switches back to the app.
               window.open("https://subscribe.theratist.com/", "_blank");
             }}
             className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl transition-colors"
@@ -236,14 +240,14 @@ export default function SubscriptionPanel({ initialIsNative }: { initialIsNative
           <p className="text-emerald-400 font-medium">
             Welcome to the Backstage Pass! Your premium features are now active.
           </p>
-          {/* When the user started checkout from the iOS app
-              (?from=ios threaded through Stripe's success_url),
+          {/* When the user started checkout from a native app
+              (?from=app threaded through Stripe's success_url),
               surface an explicit return-to-app link. Tapping a
-              theratist.com link in Safari triggers iOS's universal-
-              link handler — the user gets the "Open in The Ratist
-              app" prompt and lands back in the app where they
-              started. */}
-          {fromIos && (
+              theratist.com link in the system browser triggers
+              iOS's Universal Link / Android's App Link handler —
+              the user gets the "Open in The Ratist app" prompt
+              and lands back in the app where they started. */}
+          {fromApp && (
             <a
               href="https://www.theratist.com/backstage-pass?success=1"
               className="inline-flex items-center gap-2 mt-4 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl transition-colors"
