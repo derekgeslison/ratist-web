@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const [movies, shows] = await Promise.all([
+    const [movies, shows, totalMovies, totalShows] = await Promise.all([
       prisma.watchlistMovie.findMany({
         where: { watchlistId: id, isChecked: false },
         orderBy: { addedAt: "desc" },
@@ -74,7 +74,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         },
       }),
+      // totalCount counts EVERY item in the list (checked + unchecked)
+      // so the widget header shows "the size of your watchlist", not
+      // just the number of tiles being rendered (capped at 8 unchecked).
+      prisma.watchlistMovie.count({ where: { watchlistId: id } }),
+      prisma.watchlistShow.count({ where: { watchlistId: id } }),
     ]);
+    const totalCount = totalMovies + totalShows;
 
     type Item = {
       tmdbId: number;
@@ -112,7 +118,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const items = all.map(({ addedAt: _, ...rest }) => rest);
 
     return NextResponse.json({
-      watchlist: { id: watchlist.id, name: watchlist.name },
+      watchlist: { id: watchlist.id, name: watchlist.name, totalCount },
       items,
     });
   } catch (err) {
