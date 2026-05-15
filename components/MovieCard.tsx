@@ -83,7 +83,7 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
           className="object-cover group-hover:scale-105 transition-transform duration-300"
         />
         {user && (
-          <div className={`${overlayClass} absolute inset-0 bg-black/50 flex flex-col items-center justify-end gap-2 pb-3`}>
+          <div className={`${overlayClass} absolute inset-0 z-20 bg-black/50 flex flex-col items-center justify-end gap-2 pb-3`}>
             {seenError && (
               <div className="absolute top-2 left-2 right-2 bg-red-900/90 text-white text-[10px] rounded-lg px-2 py-1.5 text-center z-20">
                 {seenError}

@@ -80,7 +80,7 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
           <span className="text-[8px] font-bold leading-none">TV</span>
         </div>
         {user && (
-          <div className={`${overlayClass} absolute inset-0 bg-black/50 flex flex-col items-center justify-end gap-2 pb-3`}>
+          <div className={`${overlayClass} absolute inset-0 z-20 bg-black/50 flex flex-col items-center justify-end gap-2 pb-3`}>
             {seenError && (
               <div className="absolute top-2 left-2 right-2 bg-red-900/90 text-white text-[10px] rounded-lg px-2 py-1.5 text-center z-20">
                 {seenError}
