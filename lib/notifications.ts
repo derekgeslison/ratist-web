@@ -29,6 +29,7 @@ interface NotificationPrefs {
   commentLikes?: boolean;
   milestones?: boolean;
   watchlistInvites?: boolean;
+  follows?: boolean;
 }
 
 // ─── Notification deep-link helper ──────────────────────────────────────────
@@ -55,7 +56,13 @@ const COOLDOWN_MS = 5 * 60 * 1000;
 
 // ─── Pref key mapping ───────────────────────────────────────────────────────
 
-function getPrefKey(type: string): keyof NotificationPrefs | null {
+// In-app notification pref. Returning null means this type is NOT
+// gated by an in-app pref — the in-app notification always fires
+// when the upstream system (cron, follow gesture, etc.) calls notify().
+// Use this for types whose in-app source is governed elsewhere
+// (e.g. watch-companion notifications fire because the user follows
+// a season — unfollowing is the in-app off-switch).
+function getInAppPrefKey(type: string): keyof NotificationPrefs | null {
   switch (type) {
     case "comment": return "commentOnContent";
     case "post_like": return "likeOnContent";
@@ -64,6 +71,37 @@ function getPrefKey(type: string): keyof NotificationPrefs | null {
     case "milestone": return "milestones";
     case "watchlist_invite":
     case "invite_accepted": return "watchlistInvites";
+    case "follow":
+    case "follow_request":
+    case "follow_request_accepted": return "follows";
+    default: return null;
+  }
+}
+
+// Push delivery pref. Returning null means push is NOT attempted for
+// this type. The mapped key is checked against pushPrefs[key] inside
+// sendPushToUser; if disabled, push is suppressed while the in-app
+// notification still lives in the bell-icon feed.
+//
+// companionUpdates / streamingAlerts are push-only categories with
+// no in-app counterpart — see schema comment on pushPrefs.
+function getPushPrefKey(type: string): string | null {
+  switch (type) {
+    case "comment": return "commentOnContent";
+    case "post_like": return "likeOnContent";
+    case "reply": return "commentReplies";
+    case "comment_like": return "commentLikes";
+    case "milestone": return "milestones";
+    case "watchlist_invite":
+    case "invite_accepted": return "watchlistInvites";
+    case "follow":
+    case "follow_request":
+    case "follow_request_accepted": return "follows";
+    case "watch_companion_episode":
+    case "watch_companion_season_complete":
+    case "companion_ready": return "companionUpdates";
+    case "watchlist_streaming":
+    case "streaming_now_available": return "streamingAlerts";
     default: return null;
   }
 }
@@ -89,7 +127,7 @@ export async function notify(opts: NotifyOpts): Promise<void> {
     });
     if (recipient) {
       const prefs = (recipient.notificationPrefs ?? {}) as NotificationPrefs;
-      const key = getPrefKey(opts.type);
+      const key = getInAppPrefKey(opts.type);
       if (key && prefs[key] === false) return; // user opted out
     }
 
@@ -129,7 +167,7 @@ export async function notify(opts: NotifyOpts): Promise<void> {
     // automatically. Without this, the same notification would still
     // show as unread in the bell-icon list after they viewed the
     // underlying content via the push.
-    const pushKey = getPrefKey(opts.type);
+    const pushKey = getPushPrefKey(opts.type);
     if (pushKey) {
       const baseUrl = opts.link ?? "/notifications";
       const url = appendNotifId(baseUrl, created.id);

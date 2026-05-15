@@ -1396,15 +1396,19 @@ export default function RecommendPage() {
                                     {Math.round(Math.min(value * 10, 100))}% {suffix}
                                   </span>
                                 );
-                              })() : movie.matchScoreType === "genre-fallback" ? (
-                                // Genre-prefs fallback isn't a predicted score, just genre overlap.
-                                // Numeric % implies more precision than the math supports — show
-                                // a qualitative label instead so the user reads it accurately.
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400/90">
-                                  Matches your genres
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400">
+                              })() : (
+                                // Both prediction sources resolve to a real 1-10 match
+                                // signal — show the % consistently so the user gets a
+                                // single, comparable readout. Genre-fallback uses a
+                                // slightly muted shade so the visual hierarchy still
+                                // tells you which is the stronger signal at a glance.
+                                <span
+                                  className={
+                                    movie.matchScoreType === "genre-fallback"
+                                      ? "text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-400/80"
+                                      : "text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-500/15 text-green-400"
+                                  }
+                                >
                                   {Math.round(Math.min(movie.matchScore * 10, 100))}% match
                                 </span>
                               )

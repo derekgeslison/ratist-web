@@ -25,7 +25,10 @@ type PushCategory =
   | "commentReplies"
   | "commentLikes"
   | "milestones"
-  | "watchlistInvites";
+  | "watchlistInvites"
+  | "follows"
+  | "companionUpdates"
+  | "streamingAlerts";
 
 interface PushPrefs {
   commentOnContent: boolean;
@@ -34,6 +37,9 @@ interface PushPrefs {
   commentLikes: boolean;
   milestones: boolean;
   watchlistInvites: boolean;
+  follows: boolean;
+  companionUpdates: boolean;
+  streamingAlerts: boolean;
 }
 
 const DEFAULT_PREFS: PushPrefs = {
@@ -43,6 +49,9 @@ const DEFAULT_PREFS: PushPrefs = {
   commentLikes: true,
   milestones: true,
   watchlistInvites: true,
+  follows: true,
+  companionUpdates: true,
+  streamingAlerts: true,
 };
 
 const PREF_LABELS: { key: PushCategory; label: string; desc: string }[] = [
@@ -52,6 +61,9 @@ const PREF_LABELS: { key: PushCategory; label: string; desc: string }[] = [
   { key: "commentLikes", label: "Likes on your comments", desc: "When someone likes a comment you made" },
   { key: "milestones", label: "Milestone alerts", desc: "Big like / comment milestones on your content (50, 100, 500+)" },
   { key: "watchlistInvites", label: "Watchlist invites", desc: "When someone invites you to collaborate on a watchlist" },
+  { key: "follows", label: "Follows & follow requests", desc: "When someone follows you, requests to follow, or accepts your follow request" },
+  { key: "companionUpdates", label: "Watch companion updates", desc: "When a new episode's companion is ready for a season you follow, or when a companion you requested is approved" },
+  { key: "streamingAlerts", label: "Streaming alerts", desc: "When a movie or show you've subscribed to (or anything in your watchlist, if enabled) starts streaming" },
 ];
 
 export default function PushNotificationsSection() {

@@ -11,7 +11,7 @@ const QUALIFYING_RULES_6MO = [
   "You must be one of the first 1,000 users to complete the challenge.",
   "Write 10 full Ratist reviews using the Ratist rating rubric (not quick ratings or imports).",
   "Reviews must be for 10 different movies or TV shows.",
-  "Reviews must be genuine. Patterns that look like the rubric was filled in to game the promo — identical scores across every category, all-extreme ratings (only 1s, only 10s), or burst-rating dozens of titles within minutes of signing up — disqualify the account and remove any affected ratings from public averages.",
+  "Reviews must be genuine. Patterns that look like the rubric was filled in to game the promo will disqualify the account and remove any affected ratings from public averages.",
   "Your account must be in good standing (no bans, violations, or open moderation flags).",
   "The 6-month Backstage Pass will be automatically applied once you hit 10 qualifying reviews.",
   "This promotion can only be redeemed once per account.",
@@ -20,7 +20,7 @@ const QUALIFYING_RULES_6MO = [
 const QUALIFYING_RULES_LIFETIME = [
   "Write 100 full Ratist reviews using the Ratist rating rubric (not quick ratings or imports).",
   "Reviews must be for 100 different movies or TV shows.",
-  "Reviews must be genuine. Patterns that look like the rubric was filled in to game the promo (identical scores, all-extreme ratings, burst submissions) disqualify the account from the raffle and remove any affected ratings from public averages.",
+  "Reviews must be genuine. Patterns that look like the rubric was filled in to game the promo will disqualify the account from the raffle and remove any affected ratings from public averages.",
   "The raffle will be held once 1,000 users have each completed 10+ Ratist reviews and at least 10 users have completed 100+ reviews.",
   "10 winners will be randomly selected from all users with 100+ qualifying reviews.",
   "Winners receive a lifetime Backstage Pass — no subscription fee, ever.",

@@ -89,6 +89,23 @@ export async function notifyWatchlistLaunches(events: StreamingLaunchEvent[]): P
   for (const u of optedIn) {
     const matches: MatchedItem[] = [];
 
+    // Per-item StreamingWatch subscriptions take precedence: those get
+    // their own, more specific "Title is now streaming on Provider"
+    // notification via streaming-watch-sweep. Exclude any tmdbIds the
+    // user has an unfired subscription for from this digest so they
+    // don't receive both a per-item ping AND a digest line on the
+    // same day for the same title.
+    const activeWatches = await prisma.streamingWatch.findMany({
+      where: { userId: u.id, notifiedAt: null },
+      select: { tmdbId: true, mediaType: true },
+    });
+    const excludedMovieTmdbIds = new Set(
+      activeWatches.filter((w) => w.mediaType === "movie").map((w) => w.tmdbId),
+    );
+    const excludedShowTmdbIds = new Set(
+      activeWatches.filter((w) => w.mediaType === "tv").map((w) => w.tmdbId),
+    );
+
     if (movieIds.length > 0) {
       const wlMovies = await prisma.watchlistMovie.findMany({
         where: {
@@ -106,6 +123,7 @@ export async function notifyWatchlistLaunches(events: StreamingLaunchEvent[]): P
       for (const wm of wlMovies) {
         const m = movieById.get(wm.movieId);
         if (!m || seen.has(m.tmdbId)) continue;
+        if (excludedMovieTmdbIds.has(m.tmdbId)) continue;
         seen.add(m.tmdbId);
         const providerSet = providersByItem.get(`movie:${m.tmdbId}`) ?? new Set();
         const providerNames = Array.from(providerSet)
@@ -133,6 +151,7 @@ export async function notifyWatchlistLaunches(events: StreamingLaunchEvent[]): P
       for (const ws of wlShows) {
         const s = showById.get(ws.tvShowId);
         if (!s || seen.has(s.tmdbId)) continue;
+        if (excludedShowTmdbIds.has(s.tmdbId)) continue;
         seen.add(s.tmdbId);
         const providerSet = providersByItem.get(`tv:${s.tmdbId}`) ?? new Set();
         const providerNames = Array.from(providerSet)

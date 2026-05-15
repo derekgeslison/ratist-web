@@ -76,6 +76,7 @@ export default function SettingsPage() {
   const [notifPrefs, setNotifPrefs] = useState({
     commentOnContent: true, likeOnContent: true, commentReplies: true,
     commentLikes: true, milestones: true, watchlistInvites: true,
+    follows: true,
   });
   const [savingNotif, setSavingNotif] = useState(false);
   const [savedNotif, setSavedNotif] = useState(false);
@@ -707,6 +708,7 @@ export default function SettingsPage() {
             { key: "commentLikes" as const, label: "Likes on your comments", desc: "When someone likes a comment you made" },
             { key: "milestones" as const, label: "Milestone alerts", desc: "When your content reaches like/comment milestones (50, 100, 500, etc.)" },
             { key: "watchlistInvites" as const, label: "Watchlist invites", desc: "When someone invites you to collaborate on a watchlist" },
+            { key: "follows" as const, label: "Follows & follow requests", desc: "When someone follows you, requests to follow, or accepts your follow request" },
           ].map((pref) => (
             <label key={pref.key} className="flex items-start gap-3 cursor-pointer group">
               <input
