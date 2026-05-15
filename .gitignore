@@ -44,3 +44,8 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# Local secrets — Firebase service-account JSON, signing keystores, etc.
+# Never commit anything in here.
+/.local-secrets/
+/.local-secrets/**

@@ -111,7 +111,7 @@ export default function SeenMoviesView({
   if (!user) {
     return (
       <p className="text-[var(--foreground-muted)] text-center py-20">
-        <a href="/auth/sign-in" className="text-[var(--ratist-red)] hover:underline">Sign in</a>{" "}
+        <a href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</a>{" "}
         to filter by movies and shows you&apos;ve marked as seen.
       </p>
     );

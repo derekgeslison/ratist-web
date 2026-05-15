@@ -81,7 +81,7 @@ export default function PostIdeaSubmitModal({ type, label, onClose }: Props) {
           <div className="p-6 text-center space-y-4">
             <p className="text-sm text-[var(--foreground-muted)]">Sign in to submit an idea.</p>
             <Link
-              href={`/auth/sign-in?redirect=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`}
+              href={`/auth/signin?redirect=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`}
               className="inline-flex items-center gap-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors"
             >
               Sign In

@@ -78,6 +78,11 @@ const nextConfig: NextConfig = {
       // Plural→singular slip — users type /forums; canonical is /forum.
       { source: "/forums", destination: "/forum", permanent: true },
       { source: "/forums/:path*", destination: "/forum/:path*", permanent: true },
+      // Hyphenated variant some old links / typed-from-memory URLs use.
+      // Canonical is /auth/signin (single word). Dev log confirmed 404 hits.
+      { source: "/auth/sign-in", destination: "/auth/signin", permanent: true },
+      // Bare /auth had occasional 404 hits in dev log — send to signin.
+      { source: "/auth", destination: "/auth/signin", permanent: true },
     ];
   },
 };

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Star, Eye, Check, Bookmark, BookmarkCheck, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { scoreColor } from "@/lib/ratings";
+import { scoreColor } from "@/lib/score-color";
 import MarkSeenModal from "./MarkSeenModal";
 import { useWatchlistFlow } from "./WatchlistFlow";
 
@@ -248,7 +248,7 @@ export default function UserShowPanel({ tmdbId, showName, posterPath, tmdbScore,
             </div>
           </>) : (
             <p className="text-sm text-[var(--foreground-muted)]">
-              <a href="/auth/sign-in" className="text-[var(--ratist-red)] hover:underline">Sign in</a>{" "}to track shows you&apos;ve watched.
+              <a href="/auth/signin" className="text-[var(--ratist-red)] hover:underline">Sign in</a>{" "}to track shows you&apos;ve watched.
             </p>
           )}
         </>
