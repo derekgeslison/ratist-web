@@ -41,10 +41,10 @@ const ICONS = [
   ["message-square", "message_square"],
   ["newspaper", "newspaper"],
   ["film", "film"],
-  ["theater", "theater"],
-  ["circle-help", "help_circle"], // lucide v1 renamed help-circle → circle-help
+  ["brain", "brain"],            // Cine-Q (was help-circle)
   ["user-search", "user_search"],
-  ["book-open", "book_open"],
+  ["user-star", "user_star"],    // Celebrities (was theater)
+  ["eye", "eye"],                // Diary (was book-open)
   ["wrench", "wrench"],
 ];
 
