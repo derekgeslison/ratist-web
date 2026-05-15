@@ -3,13 +3,24 @@ import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { computeRatistScores } from "@/lib/ratings";
 import { checkBadges } from "@/lib/badges";
+import { isSubscriptionActive } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
-/** POST — submit a review for this week's movie */
+/** POST — submit a review for this week's movie (Backstage Pass required) */
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Movie Club is a Backstage Pass feature; the membership check
+  // below also catches non-members, but gating on subscription here
+  // closes the case where a lapsed subscriber still has a member row.
+  if (!user.isAdmin && !isSubscriptionActive(user)) {
+    return NextResponse.json(
+      { error: "Movie Club requires Backstage Pass" },
+      { status: 403 },
+    );
+  }
 
   const body = await req.json();
   const { weekId, rating, reviewText, reviewType, isRewatch } = body;

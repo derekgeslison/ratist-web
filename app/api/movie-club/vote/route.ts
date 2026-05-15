@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
+import { isSubscriptionActive } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 
-/** POST — nominate a movie for a community_vote week */
+/** POST — nominate a movie for a community_vote week (Backstage Pass required) */
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Movie Club is a Backstage Pass feature. Required here so a
+  // lapsed subscriber with an existing member row can't keep
+  // nominating / voting after their pass expires.
+  if (!user.isAdmin && !isSubscriptionActive(user)) {
+    return NextResponse.json(
+      { error: "Movie Club requires Backstage Pass" },
+      { status: 403 },
+    );
+  }
 
   const { weekId, tmdbId, title, posterPath, action } = await req.json();
   if (!weekId) return NextResponse.json({ error: "weekId required" }, { status: 400 });
