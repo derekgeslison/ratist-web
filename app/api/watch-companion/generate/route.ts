@@ -3,7 +3,7 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 import { sanitizeAiError } from "@/lib/ai/sanitize-error";
 import { prisma } from "@/lib/prisma";
 import { generateCompanionStream, type ProgressEvent } from "@/lib/ai/watch-companion-generate";
-import { checkWatchCompanionRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
+import { checkAndLogWatchCompanionRateLimit, RateLimitError } from "@/lib/ai/rate-limit";
 import { notifyCompanionRequesters } from "@/lib/watch-companion-notify";
 import { isCompanionEligible } from "@/lib/companion-eligibility";
 import { decideAiringTrigger, AIRING_BUFFER_DAYS } from "@/lib/companion-airing";
@@ -36,9 +36,18 @@ export async function POST(req: NextRequest) {
   });
   if (!userRecord) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
 
-  const rateLimitError = await checkWatchCompanionRateLimit(userRecord);
-  if (rateLimitError) {
-    return new Response(JSON.stringify({ error: rateLimitError, rateLimited: true }), { status: 429 });
+  // Atomic check + log at start of route. Logging up-front means a
+  // user who tab-closes mid-Sonnet-4.6-stream still has the gen count
+  // against their weekly cap — otherwise repeated cancel-and-retry
+  // would burn $0.50-1.00 in Anthropic spend per attempt without
+  // ever ticking the counter. Cost-amplification mitigation.
+  try {
+    await checkAndLogWatchCompanionRateLimit(userRecord);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return new Response(JSON.stringify({ error: err.userMessage, rateLimited: true }), { status: 429 });
+    }
+    throw err;
   }
 
   // Per-user concurrency lock — at most one in-flight Watch Companion
@@ -147,7 +156,7 @@ export async function POST(req: NextRequest) {
             return;
           }
           if (evt.kind === "complete") {
-            try { await logAiUsage(userId, "watch_companion_generate"); } catch { /* non-fatal */ }
+            // Usage already logged atomically at start of route.
             // Auto-publish user-triggered companions — admin review is
             // reserved for admin-triggered runs. Users who triggered their
             // own generation have effectively committed to it landing.

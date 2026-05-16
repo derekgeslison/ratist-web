@@ -7,7 +7,7 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 import { extractRecommendationFilters, type Mood } from "@/lib/ai/recommend-filters";
 import { sanitizeAiError } from "@/lib/ai/sanitize-error";
 import { expandMoods } from "@/lib/ai/mood-expand";
-import { checkAiToolsRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
+import { checkAndLogAiToolsRateLimit, RateLimitError } from "@/lib/ai/rate-limit";
 import { getGenres, getShowGenres, STREAMING_PROVIDERS } from "@/lib/tmdb";
 import { resolveKeywordsFull } from "@/lib/tmdb-keywords";
 import { resolveCastFull } from "@/lib/tmdb-cast";
@@ -50,8 +50,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Prompt is too long (max 500 characters)" }, { status: 400 });
   }
 
-  const rateLimitError = await checkAiToolsRateLimit(user);
-  if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
+  try {
+    await checkAndLogAiToolsRateLimit(user, "movies_search");
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: err.userMessage }, { status: 429 });
+    }
+    throw err;
+  }
 
   try {
     const raw = await extractRecommendationFilters(prompt);
@@ -197,7 +203,7 @@ export async function POST(req: NextRequest) {
       + severityFields.reduce((acc, f) => acc + (typeof raw[f] === "string" ? 1 : 0), 0);
 
     const url = `/movies${qp.toString() ? `?${qp.toString()}` : ""}`;
-    await logAiUsage(user.id, "movies_search");
+    // Usage already logged atomically at start of route by checkAndLogAiToolsRateLimit.
     return NextResponse.json({ url, hiddenCount, filters: raw });
   } catch (err) {
     const { status, body } = sanitizeAiError(err, "movies-ai-search");

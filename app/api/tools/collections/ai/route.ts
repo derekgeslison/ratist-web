@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isSubscriptionActive } from "@/lib/subscription";
 import { extractCollectionFilters, SEVERITY_ORDER, type Severity } from "@/lib/ai/collection-filters";
 import { expandMoods } from "@/lib/ai/mood-expand";
-import { checkAiToolsRateLimit, logAiUsage } from "@/lib/ai/rate-limit";
+import { checkAndLogAiToolsRateLimit, RateLimitError } from "@/lib/ai/rate-limit";
 import { discoverMovies, getGenres, getShowGenres, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
 import { resolveKeywords } from "@/lib/tmdb-keywords";
 import { resolveCast } from "@/lib/tmdb-cast";
@@ -113,8 +113,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Prompt is too long (max 500 characters)" }, { status: 400 });
   }
 
-  const rateLimitError = await checkAiToolsRateLimit(user);
-  if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
+  try {
+    await checkAndLogAiToolsRateLimit(user, "collection");
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: err.userMessage }, { status: 429 });
+    }
+    throw err;
+  }
 
   try {
     const rawFilters = await extractCollectionFilters(prompt);
@@ -259,7 +265,7 @@ export async function POST(req: NextRequest) {
           genreMatchCount: 0, // not tracked for seen_only — DB filter already enforces genres
         }));
       const collectedSeen: Item[] = [...aiSeeds, ...dbSeenItems].slice(0, filters.limit);
-      await logAiUsage(user.id, "collection");
+      // Usage already logged atomically at start of route.
       return NextResponse.json({ filters, items: collectedSeen });
     }
 
@@ -554,8 +560,7 @@ export async function POST(req: NextRequest) {
     }
     finalItems = [...aiSeedSurvivors, ...tiered].slice(0, filters.limit);
 
-    await logAiUsage(user.id, "collection");
-
+    // Usage already logged atomically at start of route.
     return NextResponse.json({ filters, items: finalItems });
   } catch (err) {
     const { status, body: errBody } = sanitizeAiError(err, "collections");
