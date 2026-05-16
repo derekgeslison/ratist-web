@@ -38,11 +38,11 @@ export default function DmcaPage() {
             <p className="text-white font-semibold mb-2">DMCA Designated Agent</p>
             <p>Derek Geslison</p>
             <p>The Ratist</p>
-            <p>2919 E 80 S</p>
-            <p>Spanish Fork, UT 84660</p>
+            <p>1285 N Canyon Creek Pkwy #1022</p>
+            <p>Spanish Fork, UT 84660-1319</p>
             <p>United States</p>
             <p className="mt-2">Email: theratistreview@gmail.com</p>
-            <p>Phone: (435) 744-7007</p>
+            <p>Phone: (385) 236-2952</p>
             <p className="mt-2 text-[var(--foreground-muted)]">USCO Registration: DMCA-1072811</p>
           </div>
           <p className="text-xs italic mt-2">
