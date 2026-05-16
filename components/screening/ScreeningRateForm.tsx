@@ -132,10 +132,14 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
         <div className="flex items-center gap-3">
           <input type="range" min={1} max={10} step={0.5} value={overallRating ?? 5}
             onChange={(e) => setOverallRating(parseFloat(e.target.value))}
-            className="flex-1 accent-[var(--ratist-red)]" />
+            onPointerDown={() => { if (overallRating == null) setOverallRating(5); }}
+            className={`flex-1 ${overallRating != null ? "accent-[var(--ratist-red)]" : "accent-gray-500"}`} />
           <span className="text-lg font-bold min-w-[40px] text-center" style={{ color: overallRating ? scoreColor(overallRating) : "white" }}>
             {overallRating?.toFixed(1) ?? "—"}
           </span>
+          {overallRating != null && (
+            <button type="button" onClick={() => setOverallRating(null)} className="text-[var(--foreground-muted)] hover:text-red-400 text-xs" title="Clear">✕</button>
+          )}
         </div>
       </div>
 
@@ -184,6 +188,9 @@ export default function ScreeningRateForm({ onSubmit, submitting, submitted, ini
                         <span className="text-xs font-bold min-w-[30px] text-center" style={{ color: values[f.key] ? scoreColor(values[f.key]!) : "#666" }}>
                           {values[f.key]?.toFixed(1) ?? "—"}
                         </span>
+                        {values[f.key] != null && (
+                          <button type="button" onClick={() => setField(f.key, null)} className="text-[var(--foreground-muted)] hover:text-red-400 text-xs" title="Clear">✕</button>
+                        )}
                       </div>
                     </div>
                   ))}
