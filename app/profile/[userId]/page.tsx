@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import Link from "next/link";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ import { getRatingStatus } from "@/lib/rating-status";
 import { prisma } from "@/lib/prisma";
 import { findSimilarUsers } from "@/lib/profile";
 import { isSubscriptionActive } from "@/lib/subscription";
+import { adminAuth } from "@/lib/firebase-admin";
 import ProfileTabs from "@/components/ProfileTabs";
 import ProfileThemeWrapper from "@/components/ProfileThemeWrapper";
 import ProfileThemeButton from "@/components/ProfileThemeButton";
@@ -72,6 +74,97 @@ export default async function ProfilePage({ params }: Props) {
   });
 
   if (!user || user.deletedAt) notFound();
+
+  // Resolve the current viewer from the __session cookie so we can
+  // gate private profiles BEFORE fetching their data. Without this
+  // server-side gate, the big Promise.all below runs unconditionally
+  // and ships every rating / watchlist / diary / ranking the user has
+  // ever logged into the page response — even when `isPrivate` is set.
+  // (Next.js serializes client-component props into the response
+  // payload; `ProfileTabs.tsx`'s tab-visibility filter happens client-
+  // side AFTER that payload is already on the wire.)
+  let viewerId: string | null = null;
+  let viewerIsAdmin = false;
+  try {
+    const token = (await cookies()).get("__session")?.value;
+    if (token) {
+      const decoded = await adminAuth.verifyIdToken(token);
+      const viewer = await prisma.user.findUnique({
+        where: { firebaseUid: decoded.uid },
+        select: { id: true, isAdmin: true, deletedAt: true, bannedAt: true },
+      });
+      // Banned / soft-deleted viewers fall through as anonymous.
+      if (viewer && !viewer.deletedAt && !viewer.bannedAt) {
+        viewerId = viewer.id;
+        viewerIsAdmin = viewer.isAdmin;
+      }
+    }
+  } catch { /* invalid token = anonymous */ }
+
+  const isOwner = viewerId === user.id;
+
+  // Private-profile gate: if the owner has isPrivate set and the viewer
+  // is not the owner/admin/accepted-follower, render the minimal
+  // private stub and stop. No data fetches, no payload leak.
+  let isAcceptedFollower = false;
+  if (user.isPrivate && !isOwner && !viewerIsAdmin && viewerId) {
+    const follow = await prisma.userFollow.findUnique({
+      where: { followerId_followingId: { followerId: viewerId, followingId: user.id } },
+      select: { status: true },
+    });
+    isAcceptedFollower = follow?.status === "accepted";
+  }
+  const canSeeFullProfile = !user.isPrivate || isOwner || viewerIsAdmin || isAcceptedFollower;
+
+  if (!canSeeFullProfile) {
+    const [followerCount, followingCount] = await Promise.all([
+      prisma.userFollow.count({ where: { followingId: user.id, status: "accepted" } }),
+      prisma.userFollow.count({ where: { followerId: user.id, status: "accepted" } }),
+    ]);
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <h1 className="sr-only">{user.name} — The Ratist</h1>
+        <div className="relative w-24 h-24 mx-auto mb-5 rounded-full overflow-hidden bg-[var(--surface-2)] border-2 border-[var(--border)]">
+          {user.avatarUrl ? (
+            <Image src={user.avatarUrl} alt={user.name} fill sizes="96px" className="object-cover" unoptimized />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-white bg-[var(--ratist-red)]">
+              {user.name[0]?.toUpperCase()}
+            </div>
+          )}
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-1">{user.name}</h2>
+        {user.bio && <p className="text-sm text-[var(--foreground-muted)] mb-4 max-w-md mx-auto">{user.bio}</p>}
+        <div className="flex items-center justify-center gap-5 text-sm text-[var(--foreground-muted)] mb-8">
+          <span><strong className="text-white">{followerCount.toLocaleString()}</strong> follower{followerCount === 1 ? "" : "s"}</span>
+          <span><strong className="text-white">{followingCount.toLocaleString()}</strong> following</span>
+        </div>
+        <div className="inline-block bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-8 max-w-md">
+          <p className="text-base font-semibold text-white mb-2">This profile is private</p>
+          <p className="text-sm text-[var(--foreground-muted)] mb-5">
+            {viewerId
+              ? `Follow ${user.name} to see their ratings, watchlists, and activity. They'll need to approve your request.`
+              : `Sign in and follow ${user.name} to see their ratings, watchlists, and activity.`}
+          </p>
+          {viewerId ? (
+            <Link
+              href={`/profile/${user.firebaseUid}#follow`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full text-sm transition-colors"
+            >
+              Request to follow
+            </Link>
+          ) : (
+            <Link
+              href={`/auth/signin?redirect=${encodeURIComponent(`/profile/${user.firebaseUid}`)}`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white font-semibold rounded-full text-sm transition-colors"
+            >
+              Sign in
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Fetch all profile data in parallel
   const currentYear = new Date().getFullYear().toString();
