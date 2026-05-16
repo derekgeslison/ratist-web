@@ -6,11 +6,11 @@
     },
     {
       "path": "/api/cron/movie-club",
-      "schedule": "0 6,7 * * 1"
+      "schedule": "0 14,15 * * 1"
     },
     {
       "path": "/api/cron/movie-club",
-      "schedule": "0 6,7 * * 3"
+      "schedule": "0 2,3 * * 4"
     },
     {
       "path": "/api/cron/movie-club",

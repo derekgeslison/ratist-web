@@ -5,7 +5,13 @@ import { getWatchProviders, getShowWatchProviders } from "@/lib/tmdb";
 
 export const dynamic = "force-dynamic";
 
-const STALE_DAYS = 7;
+// One day. Was 7 — but the streaming-watch-sweep cron makes LIVE TMDB
+// calls every day, so the watchlist UI was lagging the alert system by
+// up to a week. With a 1-day cache, both surfaces see the same data
+// freshness. Worst case impact on TMDB calls is ~30 per user per day
+// (a heavy user with 30+ watchlist items) which is well inside their
+// 50 req/sec limit.
+const STALE_DAYS = 1;
 
 interface ProviderInfo { name: string; logo: string }
 interface ProviderData { flatrate: ProviderInfo[]; rent: ProviderInfo[] }

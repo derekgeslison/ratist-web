@@ -244,9 +244,12 @@ export default function WatchCompanionView({
    *  auto-sync the companion view to the room's elapsed playback time
    *  so unlocked content tracks what everyone is actually watching. */
   externalSeconds?: number | null;
-  /** Hide the spoiler-position slider entirely. Pairs with
-   *  externalSeconds in driven contexts (e.g. Screening Room) where
-   *  manual scrubbing would conflict with the auto-sync. */
+  /** Hide the spoiler-position slider entirely, plus the "Slide as you
+   *  watch" hint and the "Was this companion helpful?" rating row.
+   *  Pairs with externalSeconds in driven contexts (e.g. Screening
+   *  Room) where manual scrubbing would conflict with the auto-sync
+   *  AND the embed should not surface companion-rating UI that
+   *  competes with the screening's own post-watch rating flow. */
   hideSpoilerSlider?: boolean;
 }) {
   const { user } = useAuth();
@@ -799,11 +802,13 @@ export default function WatchCompanionView({
          companion is going wrong. Counts are intentionally hidden from
          the front-end; only the admin page surfaces aggregates. Per-
          season scope on TV so a viewer can rate S1 and S2 independently. */}
-      <RateCompanion
-        companionId={data.id}
-        seasonNumber={mediaType === "tv" ? selectedSeason : 0}
-        seasonLabel={mediaType === "tv" ? `Season ${selectedSeason}` : null}
-      />
+      {!hideSpoilerSlider && (
+        <RateCompanion
+          companionId={data.id}
+          seasonNumber={mediaType === "tv" ? selectedSeason : 0}
+          seasonLabel={mediaType === "tv" ? `Season ${selectedSeason}` : null}
+        />
+      )}
 
       {/* Thin-content banner — fires when the currently-viewed season has
          fewer than 5 characters or fewer than 3 timeline beats. Indicates
@@ -821,14 +826,17 @@ export default function WatchCompanionView({
 
       {/* Spoiler slider hint — lives ABOVE the sticky cluster on purpose so it
          shows on first load but scrolls away, keeping the sticky header
-         compact on mobile. */}
-      <p className="text-[11px] text-[var(--foreground-muted)] leading-relaxed flex items-start gap-1.5 -mt-3">
-        <Lock className="w-3 h-3 shrink-0 mt-0.5" />
-        <span>
-          <span className="font-semibold text-white">Slide as you watch.</span>{" "}
-          Characters, relationships, timeline beats and glossary terms unlock as you move the slider forward so nothing gets spoiled.
-        </span>
-      </p>
+         compact on mobile. Hidden in driven contexts (Screening Room) where
+         the slider itself is hidden and position is externally controlled. */}
+      {!hideSpoilerSlider && (
+        <p className="text-[11px] text-[var(--foreground-muted)] leading-relaxed flex items-start gap-1.5 -mt-3">
+          <Lock className="w-3 h-3 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold text-white">Slide as you watch.</span>{" "}
+            Characters, relationships, timeline beats and glossary terms unlock as you move the slider forward so nothing gets spoiled.
+          </span>
+        </p>
+      )}
 
       {/* Season picker — non-sticky, lives above the sticky cluster so it
          scrolls away on mobile rather than eating vertical space. */}
