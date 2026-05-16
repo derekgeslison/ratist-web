@@ -458,10 +458,13 @@ export default async function MovieDetailPage({ params }: Props) {
                 </span>
               )}
               {movie.release_date && (
-                <span className="flex items-center gap-1">
+                <Link
+                  href={`/box-office/year/${movie.release_date.slice(0, 4)}`}
+                  className="flex items-center gap-1 hover:text-white transition-colors"
+                >
                   <Calendar className="w-3.5 h-3.5" />
                   {movie.release_date.slice(0, 4)}
-                </span>
+                </Link>
               )}
               {(movie.runtime ?? 0) > 0 && (
                 <span className="flex items-center gap-1">

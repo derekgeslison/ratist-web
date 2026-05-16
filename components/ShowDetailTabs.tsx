@@ -135,8 +135,8 @@ function EpisodeDescription({ text }: { text: string }) {
   );
 }
 
-function FactRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
+function FactRow({ label, value }: { label: string; value?: React.ReactNode }) {
+  if (value == null || value === "") return null;
   return (
     <div className="flex gap-2 text-sm">
       <span className="text-[var(--foreground-muted)] shrink-0 w-28">{label}</span>
@@ -1075,7 +1075,22 @@ export default function ShowDetailTabs({
                 {show.production_companies && show.production_companies.length > 0 && (
                   <FactRow
                     label="Studio"
-                    value={show.production_companies.slice(0, 3).map((c) => c.name).join(", ")}
+                    value={
+                      <>
+                        {show.production_companies.slice(0, 3).map((c, i) => (
+                          <span key={c.id ?? c.name}>
+                            {i > 0 && ", "}
+                            {c.id ? (
+                              <Link href={`/box-office/studios/${c.id}`} className="hover:text-[var(--ratist-red)] transition-colors">
+                                {c.name}
+                              </Link>
+                            ) : (
+                              c.name
+                            )}
+                          </span>
+                        ))}
+                      </>
+                    }
                   />
                 )}
                 {show.number_of_seasons && (

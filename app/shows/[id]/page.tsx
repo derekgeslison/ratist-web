@@ -442,11 +442,14 @@ export default async function ShowDetailPage({ params }: Props) {
                   {contentRating}
                 </span>
               )}
-              {yearDisplay && (
-                <span className="flex items-center gap-1">
+              {yearDisplay && startYear && (
+                <Link
+                  href={`/box-office/year/${startYear}`}
+                  className="flex items-center gap-1 hover:text-white transition-colors"
+                >
                   <Calendar className="w-3.5 h-3.5" />
                   {yearDisplay}
-                </span>
+                </Link>
               )}
               {show.number_of_seasons && (
                 <span>{show.number_of_seasons} season{show.number_of_seasons !== 1 ? "s" : ""}</span>
