@@ -395,15 +395,16 @@ export default function ScreeningSessionPage() {
     return () => clearInterval(interval);
   }, [session?.startedAt, session?.status, isPaused, totalPausedMsForRender]);
 
-  // iOS Live Activity: start when the screening enters WATCHING,
-  // update every minute with the elapsed minute count, end when
-  // the session leaves WATCHING or the component unmounts. The
-  // helpers no-op on web/Android/iOS-without-the-plugin so this is
-  // safe to ship before the Mac-side Swift code lands.
+  // Live Activity: start when the screening enters WATCHING and push
+  // per-minute elapsed updates. This effect's cleanup does NOT end
+  // the activity — the ongoing notification needs to survive in-app
+  // navigation so the user can browse other pages and tap the
+  // notification to come back. The activity is ended in a SEPARATE
+  // effect below that watches for the session leaving WATCHING.
   useEffect(() => {
     if (!session?.startedAt || session.status !== "WATCHING") return;
     const startedAtMs = new Date(session.startedAt).getTime();
-    let sessionId = session.id;
+    const sessionId = session.id;
     let active = true;
 
     (async () => {
@@ -428,14 +429,27 @@ export default function ScreeningSessionPage() {
     }, 60_000);
 
     return () => {
+      // JS-side cleanup only. The native activity persists across
+      // navigation and is ended by the status-transition effect.
       active = false;
       clearInterval(tick);
-      // Fire-and-forget end; if the native side hasn't responded
-      // by the time the component unmounts, ActivityKit's staleness
-      // window auto-dismisses anyway.
-      void import("@/lib/live-activity").then((m) => m.endActivity(sessionId));
     };
   }, [session?.id, session?.startedAt, session?.status, session?.movieTitle, session?.posterPath]);
+
+  // End the activity ONLY when the session transitions OUT of
+  // WATCHING (paused, post-watch, complete). NOT on component
+  // unmount — that's what allows the notification to survive in-app
+  // navigation.
+  const prevSessionStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevSessionStatusRef.current;
+    const curr = session?.status;
+    prevSessionStatusRef.current = curr;
+    if (prev === "WATCHING" && curr && curr !== "WATCHING" && session?.id) {
+      const sessionId = session.id;
+      void import("@/lib/live-activity").then((m) => m.endActivity(sessionId));
+    }
+  }, [session?.id, session?.status]);
 
   // RTDB connection status listener
   useEffect(() => {

@@ -16,7 +16,22 @@ interface LiveReviewState {
   bookmarks: BookmarkEntry[];
   generalNotes: string;
   isPaused: boolean;
+  // Wall-clock anchors — saved so an in-app navigation away and back
+  // resumes from the real current elapsed time, not the value frozen
+  // at the last tick before unmount. lastSavedAt gates the "still
+  // active" check on rehydrate: only resume RUNNING if the save is
+  // recent; otherwise we fall back to the existing pause-on-rehydrate
+  // behavior for the "user came back days later" case.
+  startedAtMs?: number;
+  totalPausedMs?: number;
+  lastSavedAt?: number;
 }
+
+// Saved-state freshness window — within this many ms, a rehydrated
+// LiveReview restores its running state with wall-clock-accurate
+// elapsed. Older saves rehydrate paused so a stale timer doesn't
+// silently keep counting after a long absence.
+const RESUME_FRESHNESS_MS = 5 * 60 * 1000;
 
 function formatTime(totalSec: number): string {
   const h = Math.floor(totalSec / 3600);
@@ -117,41 +132,84 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
     return Math.max(0, Math.floor(elapsedMs / 1000));
   }, []);
 
-  // Load saved state from localStorage. We always rehydrate in the
-  // paused state so a user re-opening days later doesn't accidentally
-  // resume a long-stale timer; if they were mid-movie they hit Resume.
+  // Load saved state from localStorage. Two rehydration modes:
+  //   1. Fresh save (lastSavedAt within RESUME_FRESHNESS_MS) AND saved
+  //      isPaused === false — the user just navigated away within the
+  //      app. Restore the running state with wall-clock-accurate
+  //      elapsed so the timer continues counting from where it actually
+  //      is right now, not where it was at the moment of unmount.
+  //   2. Stale save (older than RESUME_FRESHNESS_MS) OR saved as
+  //      paused — fall back to paused rehydrate. Avoids silently
+  //      continuing a timer the user forgot about days ago; they hit
+  //      Resume explicitly.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const state: LiveReviewState = JSON.parse(saved);
         const seconds = state.elapsedSeconds ?? 0;
-        setElapsedSeconds(seconds);
         setBookmarks(state.bookmarks ?? []);
         setGeneralNotes(state.generalNotes ?? "");
-        setIsPaused(true);
-        if (seconds > 0) {
-          // Reconstruct the anchors so Resume picks up cleanly from
-          // here without a visible jump or re-zeroing.
-          startedAtRef.current = Date.now() - seconds * 1000;
-          totalPausedMsRef.current = 0;
-          pauseStartedAtRef.current = Date.now();
+
+        const lastSavedAt = state.lastSavedAt ?? 0;
+        const savedStartedAt = state.startedAtMs ?? null;
+        const savedTotalPausedMs = state.totalPausedMs ?? 0;
+        const isFreshAndRunning =
+          state.isPaused === false &&
+          savedStartedAt !== null &&
+          (Date.now() - lastSavedAt) < RESUME_FRESHNESS_MS;
+
+        if (isFreshAndRunning) {
+          // Continue the timer — wall-clock elapsed since the original
+          // start, minus accumulated paused time. No re-anchoring; the
+          // saved startedAtMs is the source of truth.
+          startedAtRef.current = savedStartedAt;
+          totalPausedMsRef.current = savedTotalPausedMs;
+          pauseStartedAtRef.current = null;
+          const liveElapsed = Math.max(
+            0,
+            Math.floor((Date.now() - savedStartedAt - savedTotalPausedMs) / 1000),
+          );
+          setElapsedSeconds(liveElapsed);
+          setIsPaused(false);
           setRunning(true);
           setExpanded(true);
+        } else {
+          setElapsedSeconds(seconds);
+          setIsPaused(true);
+          if (seconds > 0) {
+            // Reconstruct the anchors so Resume picks up cleanly from
+            // here without a visible jump or re-zeroing.
+            startedAtRef.current = Date.now() - seconds * 1000;
+            totalPausedMsRef.current = 0;
+            pauseStartedAtRef.current = Date.now();
+            setRunning(true);
+            setExpanded(true);
+          }
+          // Only stale rehydrates clear the global-running pointer — a
+          // fresh-running rehydrate KEEPS the pointer so this tab/page
+          // properly owns the in-progress session.
+          if (readRunningMovieId() === movieId) setRunningMovieId(null);
         }
       }
-      // We always rehydrate as paused, so this movie isn't actually
-      // running anymore. Clear the global-running pointer if it was
-      // stuck on this movie from a previous tab session — otherwise
-      // a stale tab would block all future starts indefinitely.
-      if (readRunningMovieId() === movieId) setRunningMovieId(null);
     } catch { /* ignore */ }
   }, [storageKey, movieId]);
 
-  // Auto-save to localStorage
+  // Auto-save to localStorage. Includes wall-clock anchors so an
+  // in-app navigation away (component unmount) can restore the running
+  // timer at the correct current elapsed when the user comes back —
+  // not the snapshot frozen at the last tick.
   const saveState = useCallback(() => {
     try {
-      const state: LiveReviewState = { elapsedSeconds, bookmarks, generalNotes, isPaused };
+      const state: LiveReviewState = {
+        elapsedSeconds,
+        bookmarks,
+        generalNotes,
+        isPaused,
+        startedAtMs: startedAtRef.current ?? undefined,
+        totalPausedMs: totalPausedMsRef.current,
+        lastSavedAt: Date.now(),
+      };
       localStorage.setItem(storageKey, JSON.stringify(state));
     } catch { /* ignore */ }
   }, [elapsedSeconds, bookmarks, generalNotes, isPaused, storageKey]);
@@ -167,12 +225,14 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
   const bookmarksLenRef = useRef(bookmarks.length);
   useEffect(() => { bookmarksLenRef.current = bookmarks.length; }, [bookmarks.length]);
 
-  // iOS Live Activity lifecycle. Starts when the timer goes
-  // running, updates every minute with notesCount + minutesElapsed,
-  // ends on stop / pause-into-stop / component unmount. The
-  // import is dynamic so the JS bundle doesn't pay the helper cost
-  // on web (it's a tiny module but no need to pre-load on a page
-  // where 99% of users won't have an iOS app).
+  // Live Activity lifecycle. Starts when the timer goes running and
+  // pushes a per-minute update with notesCount + minutesElapsed. The
+  // import is dynamic so the JS bundle doesn't pay the helper cost on
+  // web. This effect's cleanup does NOT end the activity — that lives
+  // in a separate effect below, so an in-app navigation away (component
+  // unmount) leaves the ongoing notification on screen and the timer
+  // counting via the native chronometer. The activity ends only when
+  // running explicitly flips to false (user paused/stopped/finished).
   useEffect(() => {
     if (!running) return;
     const startedAtMs = startedAtRef.current ?? Date.now();
@@ -200,11 +260,24 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
     }, 60_000);
 
     return () => {
+      // Only clean up the JS-side timer. The native activity persists
+      // across navigation and is ended by the running→false effect.
       active = false;
       clearInterval(tick);
-      void import("@/lib/live-activity").then((m) => m.endActivity(movieId));
     };
   }, [running, movieId, movieTitle, posterPath]);
+
+  // End the activity ONLY when running explicitly flips from true to
+  // false (user paused/stopped/finished). NOT on component unmount —
+  // that's what enables the notification to survive in-app navigation.
+  const prevRunningRef = useRef(false);
+  useEffect(() => {
+    const wasRunning = prevRunningRef.current;
+    prevRunningRef.current = running;
+    if (wasRunning && !running) {
+      void import("@/lib/live-activity").then((m) => m.endActivity(movieId));
+    }
+  }, [running, movieId]);
 
   // Timer logic. The interval re-renders every second; the elapsed
   // value comes from wall-clock math against startedAtRef. A
