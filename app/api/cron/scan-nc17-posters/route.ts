@@ -29,7 +29,7 @@ const TMDB_POSTER_BASE = "https://image.tmdb.org/t/p/w500";
  * Auth: CRON_SECRET as Bearer token, matching the other cron jobs.
  */
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
+  const secret = req.headers.get("authorization")?.replace(/^Bearers+/i, "");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

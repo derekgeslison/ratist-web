@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Prunes headlines older than 30 days. Runs every 6 hours via Vercel Cron.
  */
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
+  const secret = req.headers.get("authorization")?.replace(/^Bearers+/i, "");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

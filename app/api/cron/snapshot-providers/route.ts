@@ -43,7 +43,7 @@ const BIG_EIGHT_PROVIDER_IDS = new Set<number>(
  * Auth: CRON_SECRET via Bearer header (matches other crons).
  */
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
+  const secret = req.headers.get("authorization")?.replace(/^Bearers+/i, "");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

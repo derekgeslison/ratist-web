@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Also prunes auto-generated trailers older than 60 days to keep the feed fresh.
  */
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
+  const secret = req.headers.get("authorization")?.replace(/^Bearers+/i, "");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

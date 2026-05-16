@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { Bookmark, Lock, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { posterUrl } from "@/lib/tmdb";
+import { adminAuth } from "@/lib/firebase-admin";
 
 import PosterOverlay from "@/components/PosterOverlay";
 import CopyWatchlistButton from "@/components/CopyWatchlistButton";
@@ -57,14 +59,41 @@ export default async function PublicWatchlistPage({ params }: Props) {
   });
 
   if (!watchlist) notFound();
+
   if (watchlist.isPrivate) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-20 text-center">
-        <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--foreground-muted)] opacity-30" />
-        <h1 className="text-xl font-bold text-white mb-2">Private List</h1>
-        <p className="text-[var(--foreground-muted)]">This watchlist is private and can only be viewed by its owner and collaborators.</p>
-      </div>
-    );
+    // Server-side viewer detection. Previously the lock screen showed
+    // for everyone — including the OWNER and accepted collaborators
+    // who legitimately want to preview the shared URL. Now we read the
+    // __session cookie, identify the viewer, and let through owner /
+    // accepted-collab / admin. Anyone else still sees the lock.
+    let viewerCanSee = false;
+    try {
+      const token = (await cookies()).get("__session")?.value;
+      if (token) {
+        const decoded = await adminAuth.verifyIdToken(token);
+        const viewer = await prisma.user.findUnique({
+          where: { firebaseUid: decoded.uid },
+          select: { id: true, isAdmin: true, deletedAt: true, bannedAt: true },
+        });
+        if (viewer && !viewer.deletedAt && !viewer.bannedAt) {
+          if (viewer.isAdmin) viewerCanSee = true;
+          else if (watchlist.userId === viewer.id) viewerCanSee = true;
+          else if (watchlist.collaborators.some((c) => c.userId === viewer.id && c.status === "accepted")) {
+            viewerCanSee = true;
+          }
+        }
+      }
+    } catch { /* invalid token = treat as anon */ }
+
+    if (!viewerCanSee) {
+      return (
+        <div className="max-w-3xl mx-auto px-4 py-20 text-center">
+          <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--foreground-muted)] opacity-30" />
+          <h1 className="text-xl font-bold text-white mb-2">Private List</h1>
+          <p className="text-[var(--foreground-muted)]">This watchlist is private and can only be viewed by its owner and collaborators.</p>
+        </div>
+      );
+    }
   }
 
   const checkedCount = watchlist.movies.filter((m) => m.isChecked).length + watchlist.shows.filter((s) => s.isChecked).length;

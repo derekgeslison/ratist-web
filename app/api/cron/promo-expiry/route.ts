@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 const REMINDER_DAYS = [30, 7, 1];
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization")?.replace("Bearer ", "");
+  const secret = req.headers.get("authorization")?.replace(/^Bearers+/i, "");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -22,6 +22,26 @@ export async function POST(req: NextRequest) {
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   if (!code) return NextResponse.json({ error: "Code required" }, { status: 400 });
 
+  // Anti-enumeration rate limit. Invite codes are 7 hex chars
+  // (~268M keyspace). Without a limit, a script with parallel
+  // requests could scan a meaningful chunk of the namespace and
+  // map valid codes → names/avatars. 60 lookups/hour kills the
+  // attack while staying generous for legitimate friend-picker
+  // use (rarely more than 5 per session). Tracked in AiUsageLog
+  // because we already index it by (userId, feature, createdAt).
+  if (!me.isAdmin) {
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentCount = await prisma.aiUsageLog.count({
+      where: { userId: me.id, feature: "invite_code_lookup", createdAt: { gte: hourAgo } },
+    });
+    if (recentCount >= 60) {
+      return NextResponse.json({ error: "No user with that code" }, { status: 404 });
+    }
+    await prisma.aiUsageLog.create({
+      data: { userId: me.id, feature: "invite_code_lookup" },
+    }).catch(() => {});
+  }
+
   const target = await prisma.user.findUnique({
     where: { inviteCode: code },
     select: {
@@ -35,11 +55,11 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  if (!target || target.deletedAt) {
-    return NextResponse.json({ error: "No user with that code" }, { status: 404 });
-  }
-  if (target.bannedAt) {
-    // Banned users shouldn't be addable to a group session.
+  // Same 404 shape for "not found", "deleted", "banned", and
+  // "rate-limited" so timing/response-shape comparison can't
+  // distinguish valid-but-unavailable codes from genuinely-invalid
+  // ones during enumeration probes.
+  if (!target || target.deletedAt || target.bannedAt) {
     return NextResponse.json({ error: "No user with that code" }, { status: 404 });
   }
 
