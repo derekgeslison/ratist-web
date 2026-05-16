@@ -307,7 +307,7 @@ export default function Navbar() {
         // +24px tail ensures the last list item still has breathing
         // room above whatever the OS draws over the bottom edge.
         <div
-          className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 max-h-[calc(100dvh-64px)] overflow-y-auto"
+          className="md:hidden bg-[var(--surface)] border-t border-[var(--border)] px-4 max-h-[calc(100dvh-64px)] overflow-y-auto overscroll-contain"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
         >
           <div className="pt-3 pb-2">
