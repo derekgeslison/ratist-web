@@ -5,6 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { TypingGuardProvider } from "@/context/TypingGuardContext";
+import { isStrictConsentRegion, readConsentCookie } from "@/lib/eu-detection";
 import Navbar from "@/components/Navbar";
 import AccountStatusBanner from "@/components/AccountStatusBanner";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
@@ -61,7 +62,19 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // ePrivacy / GDPR strict gating: in EU/EEA/UK/CH, GA4 and AdSense
+  // scripts are not rendered at all until the user grants consent via
+  // the ConsentBanner. Outside those countries we keep the current
+  // default-permissive load + Consent Mode v2 default-denied flow.
+  // Consent Mode v2 alone is defensible under Google's compliance
+  // guidance but contested by some EU regulators (CNIL etc.); not
+  // loading the scripts at all sidesteps that argument entirely.
+  const strictRegion = await isStrictConsentRegion();
+  const consent = await readConsentCookie();
+  const allowAnalyticsScripts = !strictRegion || (consent.known && consent.analytics);
+  const allowAdScripts = !strictRegion || (consent.known && consent.advertising);
+
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <head>
@@ -126,7 +139,7 @@ try {
   }
 } catch (e) { /* localStorage blocked — defaults stay denied */ }`}
         </Script>
-        {ADSENSE_ID && (
+        {ADSENSE_ID && allowAdScripts && (
           <Script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_ID}`}
@@ -134,7 +147,7 @@ try {
             strategy="afterInteractive"
           />
         )}
-        {GA_ID && (
+        {GA_ID && allowAnalyticsScripts && (
           <>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
@@ -167,7 +180,7 @@ window.gtag('config', '${GA_ID}');`}
           <Suspense fallback={null}>
             <NotificationDeepLink />
           </Suspense>
-          <NativeAuthTokenSync />
+          {/* <NativeAuthTokenSync /> — temporarily disabled while debugging the loop */}
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">

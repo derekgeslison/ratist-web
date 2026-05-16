@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const STORAGE_KEY = "ratist:consent-v1";
+const COOKIE_KEY = "ratist-consent-v1";
 const OPEN_EVENT = "ratist:open-cookie-prefs";
 
 interface ConsentState {
@@ -66,6 +67,17 @@ function readStored(): ConsentState | null {
 
 function writeStored(state: ConsentState) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* private mode etc. */ }
+  // Mirror into a server-readable cookie so the root layout can decide
+  // whether to render GA4 / AdSense scripts on the next request — needed
+  // for strict-consent regions (EU/EEA/UK/CH) where we don't load Google
+  // scripts at all until the user grants consent. Format keeps the
+  // payload < 30 bytes so we stay well under cookie size limits.
+  try {
+    const value = `a:${state.analytics ? 1 : 0},d:${state.advertising ? 1 : 0}`;
+    const oneYear = 365 * 24 * 60 * 60;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${COOKIE_KEY}=${value}; path=/; max-age=${oneYear}; SameSite=Lax${secure}`;
+  } catch { /* cookies disabled — site degrades gracefully to "no consent" */ }
 }
 
 function hasGPC(): boolean {
@@ -122,10 +134,22 @@ export default function ConsentBanner() {
 
   function commit(next: { analytics: boolean; advertising: boolean }) {
     const state: ConsentState = { ...next, ts: Date.now(), v: 1 };
+    const hadCookieBefore = document.cookie.includes(`${COOKIE_KEY}=`);
     writeStored(state);
     applyToGtag(state);
     setOpen(false);
     setShowCustomize(false);
+    // In strict-consent regions (EU/EEA/UK/CH) GA4 + AdSense scripts are
+    // NOT rendered on first paint until the cookie is present. Once the
+    // user grants consent we reload so the next request's layout includes
+    // them. Detection uses a header we can't see client-side, so the
+    // heuristic is "we had no cookie before AND user granted something."
+    // A reload in non-EU is harmless (scripts were already loaded; the
+    // gtag consent state was updated in place).
+    const grantedSomething = next.analytics || next.advertising;
+    if (!hadCookieBefore && grantedSomething) {
+      setTimeout(() => { window.location.reload(); }, 50);
+    }
   }
 
   function acceptAll() {
