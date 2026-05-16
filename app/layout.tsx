@@ -180,7 +180,7 @@ window.gtag('config', '${GA_ID}');`}
           <Suspense fallback={null}>
             <NotificationDeepLink />
           </Suspense>
-          {/* <NativeAuthTokenSync /> — temporarily disabled while debugging the loop */}
+          <NativeAuthTokenSync />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">
