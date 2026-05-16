@@ -738,6 +738,7 @@ function ReleaseCard({ item, accent }: { item: UnifiedRelease; accent?: boolean 
         voteAverage={item.vote_average}
         mediaType={item.mediaType}
         watchlistOnly
+        showRatings
       >
       <div className="relative aspect-[2/3] bg-[var(--background)]">
         <Image
