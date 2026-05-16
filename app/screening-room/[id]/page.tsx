@@ -1126,14 +1126,35 @@ export default function ScreeningSessionPage() {
     return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-[var(--foreground-muted)]">Sign in to join this screening room.</div>;
   }
   if (loading) return <div className="max-w-4xl mx-auto px-4 py-20 text-center text-[var(--foreground-muted)]">Loading...</div>;
-  if (error) return (
-    <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-      <MonitorPlay className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
-      <h2 className="text-lg font-bold text-white mb-2">Session Unavailable</h2>
-      <p className="text-sm text-[var(--foreground-muted)] mb-4">This screening room may have been cancelled by the host or is no longer available.</p>
-      <Link href="/screening-room" className="text-sm text-[var(--ratist-red)] hover:underline">← Back to Screening Rooms</Link>
-    </div>
-  );
+  if (error) {
+    // Differentiate the error path so the user (and a debug pass)
+    // can tell what actually happened. The generic "Session
+    // Unavailable" was the same string for every error code, which
+    // hid 403-not-a-participant + 401-unauthorized inside the same
+    // "session deleted" copy.
+    const heading = error === "Not a participant"
+      ? "You're not in this screening"
+      : error === "Not found"
+        ? "This screening room is gone"
+        : error === "Unauthorized"
+          ? "Sign in to view this screening"
+          : "Session Unavailable";
+    const body = error === "Not a participant"
+      ? "You'd need an invite from the host to join. If you used to be in this room, the host or another participant may have removed you."
+      : error === "Not found"
+        ? "It was cancelled by the host or deleted after everyone hid it. Your prior screenings (if you have any) are listed below."
+        : error === "Unauthorized"
+          ? "Your session may have expired. Sign in again to view this screening."
+          : `This screening room may have been cancelled or is no longer available. (${error})`;
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        <MonitorPlay className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
+        <h2 className="text-lg font-bold text-white mb-2">{heading}</h2>
+        <p className="text-sm text-[var(--foreground-muted)] mb-4">{body}</p>
+        <Link href="/screening-room" className="text-sm text-[var(--ratist-red)] hover:underline">← Back to Screening Rooms</Link>
+      </div>
+    );
+  }
   if (!session) return null;
 
   const me = session.participants.find((p) => p.userId === myUserId);
