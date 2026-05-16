@@ -208,6 +208,25 @@ export default function ScreeningSessionPage() {
   const [chatToast, setChatToast] = useState<{ id: number; userName: string; text: string } | null>(null);
 
   const getToken = useCallback(async () => (user ? user.getIdToken() : null), [user]);
+
+  // Fire-and-forget call to the server-side notification fan-out.
+  // The server reads each room member's presence + mute state from
+  // RTDB and pushes FCM to anyone who isn't currently in the room.
+  // Throwing here would block the chat send / pause request UX, so
+  // we silently swallow failures (the in-room ding + RTDB write is
+  // the user-facing source of truth — push is just the offline-
+  // reach-out layer).
+  const fireNotifyServer = useCallback(async (kind: "chat" | "poll" | "pause", message: string) => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      await fetch(`/api/screening/${id}/notify-event`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, message }),
+      });
+    } catch { /* non-critical */ }
+  }, [id, getToken]);
   const myUserId = session?.participants.find((p) => p.user.firebaseUid === user?.uid)?.userId ?? "";
   const myUserIdRef = useRef(myUserId);
   useEffect(() => { myUserIdRef.current = myUserId; }, [myUserId]);
@@ -494,6 +513,25 @@ export default function ScreeningSessionPage() {
     });
     return () => off(sugOpenRef, "value", unsub);
   }, [id, session?.status]);
+
+  // Presence heartbeat — writes lastSeenAt + muted to RTDB every 10s
+  // so the server-side notify-event fan-out can tell who's actively
+  // in the room (skip the push) vs who's offline or backgrounded
+  // (send the push). The muted value mirrors the in-room ping toggle
+  // — server-side chat fan-out skips muted recipients.
+  useEffect(() => {
+    if (!rtdb || !myUserId) return;
+    const presenceRef = ref(rtdb, rtdbPaths.userPresence(id, myUserId));
+    const writeHeartbeat = () => {
+      void set(presenceRef, { lastSeenAt: Date.now(), muted: !pingOnMessage });
+    };
+    writeHeartbeat(); // immediate write on mount + on mute toggle
+    const tick = setInterval(writeHeartbeat, 10_000);
+    return () => clearInterval(tick);
+    // pingOnMessage in the deps re-runs the effect on toggle so the
+    // muted flag in RTDB updates immediately, not on the next 10s
+    // beat.
+  }, [id, myUserId, pingOnMessage]);
 
   // RTDB listeners for ready-up
   useEffect(() => {
@@ -882,6 +920,13 @@ export default function ScreeningSessionPage() {
     if (emoji) msg.emoji = emoji;
     try {
       await push(ref(rtdb, rtdbPaths.chat(id)), msg);
+      // Server-side push fan-out (FCM/Web Push) for absent
+      // participants. Skips members in the room (fresh presence
+      // heartbeat). Per-recipient 30s throttle for chat — server
+      // enforces. The text-only body is intentional; emoji shows
+      // as text in most notification trays.
+      const preview = text || (emoji ? `(${emoji})` : "");
+      if (preview) void fireNotifyServer("chat", preview);
     } catch (err) {
       console.error("[ScreeningRoom] chat send failed:", err);
     }
@@ -909,6 +954,9 @@ export default function ScreeningSessionPage() {
       text: `${user.displayName ?? "Someone"} is requesting a pause!`,
       timestamp: Date.now(), system: true,
     });
+    // Server-side push to absent members. Bypasses the chat-only
+    // mute + 30s throttle (pause requests always ping).
+    void fireNotifyServer("pause", `${user.displayName ?? "Someone"} is requesting a pause`);
   }
 
   async function acceptPause() {
@@ -1028,6 +1076,9 @@ export default function ScreeningSessionPage() {
         timestamp: Date.now(), system: true,
       });
     }
+    // Server-side push to absent members. Bypasses the chat-only
+    // mute + 30s throttle (polls always ping).
+    void fireNotifyServer("poll", `New poll: ${pollQuestion}`);
     setPollQuestion("");
     setPollOptions(["", ""]);
     setShowPollForm(false);

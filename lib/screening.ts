@@ -29,7 +29,28 @@ export const rtdbPaths = {
   pauseActive: (id: string) => `screening-rooms/${id}/pauseActive`,
   resumeReady: (id: string) => `screening-rooms/${id}/resumeReady`,
   userResumeReady: (id: string, userId: string) => `screening-rooms/${id}/resumeReady/${userId}`,
+  // Per-participant presence — lastSeenAt (ms) + chat-mute flag.
+  // Drives the server-side push fan-out: participants whose heartbeat
+  // is stale (> PRESENCE_STALE_MS) receive an FCM ping for chat /
+  // polls / pause requests; in-room participants are skipped. The
+  // muted flag suppresses chat pings only — polls + pause requests
+  // ignore it (matches existing in-room behavior).
+  presence: (id: string) => `screening-rooms/${id}/presence`,
+  userPresence: (id: string, userId: string) => `screening-rooms/${id}/presence/${userId}`,
+  // Per-recipient last-push timestamp (ms) — used to enforce the 30s
+  // chat-ping rate limit on the server. Polls + pauses don't update
+  // this and aren't gated by it.
+  userLastChatPushAt: (id: string, userId: string) => `screening-rooms/${id}/lastChatPushAt/${userId}`,
 };
+
+/** How long a presence record stays "fresh" before the server treats
+ *  the user as not-in-room and starts sending push notifications. The
+ *  client writes a heartbeat every 10 seconds, so 30s gives ~3
+ *  heartbeats of slack before a flaky connection earns a push. */
+export const PRESENCE_STALE_MS = 30 * 1000;
+
+/** Per-recipient throttle for chat pings. Polls + pauses bypass. */
+export const CHAT_PUSH_THROTTLE_MS = 30 * 1000;
 
 /** Shared AudioContext — created lazily on first user interaction */
 let _audioCtx: AudioContext | null = null;

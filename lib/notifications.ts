@@ -106,6 +106,9 @@ function getPushPrefKey(type: string): string | null {
     case "movieclub_announced":
     case "movieclub_voting_closed":
     case "movieclub_discussion_open": return "movieClub";
+    case "screening_chat":
+    case "screening_poll":
+    case "screening_pause": return "screeningRoom";
     default: return null;
   }
 }

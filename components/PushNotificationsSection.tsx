@@ -29,7 +29,8 @@ type PushCategory =
   | "follows"
   | "companionUpdates"
   | "streamingAlerts"
-  | "movieClub";
+  | "movieClub"
+  | "screeningRoom";
 
 interface PushPrefs {
   commentOnContent: boolean;
@@ -42,6 +43,7 @@ interface PushPrefs {
   companionUpdates: boolean;
   streamingAlerts: boolean;
   movieClub: boolean;
+  screeningRoom: boolean;
 }
 
 const DEFAULT_PREFS: PushPrefs = {
@@ -55,6 +57,7 @@ const DEFAULT_PREFS: PushPrefs = {
   companionUpdates: true,
   streamingAlerts: true,
   movieClub: true,
+  screeningRoom: true,
 };
 
 const PREF_GROUPS: {
@@ -89,6 +92,12 @@ const PREF_GROUPS: {
     title: "Movie Club",
     items: [
       { key: "movieClub", label: "Movie Club week updates", desc: "When voting opens, the week's pick is announced, or discussion opens. Membership is the opt-in — leaving the club stops the pings entirely." },
+    ],
+  },
+  {
+    title: "Screening Room",
+    items: [
+      { key: "screeningRoom", label: "Screening Room activity", desc: "Chat, polls, and pause requests during a screening you're in — sent only when the app is closed or backgrounded. Chat pings are throttled to once every 30 seconds; polls and pause requests aren't throttled. Mute via the in-room toggle still suppresses chat pings here." },
     ],
   },
 ];
