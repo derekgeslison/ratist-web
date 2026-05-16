@@ -35,7 +35,21 @@ export interface LiveReviewActivityInput {
 
 export interface ActivityUpdateInput {
   sessionId: string;
-  payload: Record<string, unknown>;
+  payload: {
+    /** Number of bookmarks / notes captured so far. */
+    notesCount?: number;
+    /** Wall-clock minutes elapsed, rounded down. */
+    minutesElapsed?: number;
+    /** Live Review pause flag. When true the native side stops the
+     *  chronometer and freezes the timer line. */
+    paused?: boolean;
+    /** Wall-clock-correct elapsed in seconds (already accounting for
+     *  paused time). The native side anchors its chronometer to
+     *  `now - elapsedSeconds` so the running display matches the
+     *  in-app timer even after a pause/resume cycle, and uses this
+     *  value verbatim as the "Paused · MM:SS" content text. */
+    elapsedSeconds?: number;
+  } & Record<string, unknown>;
 }
 
 interface LiveActivityPlugin {

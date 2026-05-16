@@ -218,15 +218,19 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
     if (running) saveState();
   }, [elapsedSeconds, bookmarks, generalNotes, saveState, running]);
 
-  // Latest bookmarks/notes counts surfaced to the iOS Live Activity
-  // update tick. The tick fires every minute (not on every keystroke)
-  // so this ref-based pattern avoids re-running the parent effect
-  // — which would tear down + restart the activity on every bookmark.
+  // Latest bookmarks/notes counts + pause state surfaced to the
+  // Live Activity update tick. The tick fires every minute (not on
+  // every keystroke / pause) so this ref-based pattern avoids
+  // re-running the parent effect — which would tear down + restart
+  // the activity on every bookmark or pause toggle.
   const bookmarksLenRef = useRef(bookmarks.length);
   useEffect(() => { bookmarksLenRef.current = bookmarks.length; }, [bookmarks.length]);
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   // Live Activity lifecycle. Starts when the timer goes running and
-  // pushes a per-minute update with notesCount + minutesElapsed. The
+  // pushes a per-minute update with the wall-clock-correct elapsed
+  // (already net of paused time), pause state, and notes count. The
   // import is dynamic so the JS bundle doesn't pay the helper cost on
   // web. This effect's cleanup does NOT end the activity — that lives
   // in a separate effect below, so an in-app navigation away (component
@@ -251,11 +255,21 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
 
     const tick = setInterval(async () => {
       if (!active) return;
-      const minutesElapsed = Math.max(0, Math.floor((Date.now() - startedAtMs) / 60000));
+      // Use computeElapsedSec so the value matches what the user sees
+      // in-app. Plain wall-clock from startedAtMs would over-count
+      // when the user paused — the notification's "12 min" line would
+      // diverge from the in-app "10:32" line.
+      const elapsedSeconds = computeElapsedSec();
+      const minutesElapsed = Math.floor(elapsedSeconds / 60);
       const liveActivity = await import("@/lib/live-activity");
       await liveActivity.updateActivity({
         sessionId: movieId,
-        payload: { minutesElapsed, notesCount: bookmarksLenRef.current },
+        payload: {
+          minutesElapsed,
+          notesCount: bookmarksLenRef.current,
+          paused: isPausedRef.current,
+          elapsedSeconds,
+        },
       });
     }, 60_000);
 
@@ -265,7 +279,39 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
       active = false;
       clearInterval(tick);
     };
-  }, [running, movieId, movieTitle, posterPath]);
+  }, [running, movieId, movieTitle, posterPath, computeElapsedSec]);
+
+  // Push an IMMEDIATE update when the user toggles pause/resume. The
+  // per-minute tick above eventually catches up, but waiting up to 60s
+  // for the notification to reflect a pause makes the timer feel
+  // out-of-sync. This effect bypasses that latency. It only fires
+  // after first paint — the initial undefined→current comparison is
+  // ignored so we don't push an update before the activity has even
+  // been started.
+  const prevIsPausedRef = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (!running) {
+      prevIsPausedRef.current = isPaused;
+      return;
+    }
+    const prev = prevIsPausedRef.current;
+    prevIsPausedRef.current = isPaused;
+    if (prev === undefined) return; // skip the initial render
+    if (prev === isPaused) return;
+    const elapsedSeconds = computeElapsedSec();
+    const minutesElapsed = Math.floor(elapsedSeconds / 60);
+    void import("@/lib/live-activity").then((m) =>
+      m.updateActivity({
+        sessionId: movieId,
+        payload: {
+          minutesElapsed,
+          notesCount: bookmarksLenRef.current,
+          paused: isPaused,
+          elapsedSeconds,
+        },
+      }),
+    );
+  }, [isPaused, running, movieId, computeElapsedSec]);
 
   // End the activity ONLY when running explicitly flips from true to
   // false (user paused/stopped/finished). NOT on component unmount —
