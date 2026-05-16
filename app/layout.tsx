@@ -183,6 +183,17 @@ window.gtag('config', '${GA_ID}');`}
           <NativeAuthTokenSync />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
+            {/* FTC Endorsement Guides (16 CFR Part 255) require "clear and
+                conspicuous" disclosure on pages with affiliate links. Some
+                streaming-provider buttons + Amazon Associates links live
+                on movie/show pages; the disclosure is in the global footer
+                so it's visible on every page that could contain them. */}
+            <p className="text-xs mt-2 max-w-2xl mx-auto px-4">
+              As an Amazon Associate The Ratist earns from qualifying purchases. Some
+              streaming-provider and retailer links elsewhere on the site are also affiliate
+              links — at no extra cost to you, we may earn a small commission if you make a
+              purchase through them.
+            </p>
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3">
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
               <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
