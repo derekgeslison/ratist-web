@@ -71,8 +71,13 @@ export function warmUpAudio() {
   getAudioCtx();
 }
 
-/** Play a notification sound using Web Audio API */
-export function playDing(frequency = 880, duration = 0.15) {
+/** Play a notification sound using Web Audio API. The third argument
+ *  is the peak gain (0–1). Default 0.7 — the previous 0.3 read as
+ *  "barely audible" once the phone was face-down or in a pocket.
+ *  Sine waves at lower frequencies sound disproportionately quieter
+ *  than higher ones at the same gain, so callers using lower-pitch
+ *  pings should also bump duration to compensate. */
+export function playDing(frequency = 880, duration = 0.15, peakGain = 0.7) {
   const ctx = getAudioCtx();
   if (!ctx) return;
   try {
@@ -82,7 +87,7 @@ export function playDing(frequency = 880, duration = 0.15) {
     gain.connect(ctx.destination);
     osc.frequency.value = frequency;
     osc.type = "sine";
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.setValueAtTime(peakGain, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.start();
     osc.stop(ctx.currentTime + duration);

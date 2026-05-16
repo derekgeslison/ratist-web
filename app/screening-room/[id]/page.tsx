@@ -455,20 +455,26 @@ export default function ScreeningSessionPage() {
     };
   }, [session?.id, session?.startedAt, session?.status, session?.movieTitle, session?.posterPath]);
 
-  // End the activity ONLY when the session transitions OUT of
-  // WATCHING (paused, post-watch, complete). NOT on component
-  // unmount — that's what allows the notification to survive in-app
-  // navigation.
-  const prevSessionStatusRef = useRef<string | undefined>(undefined);
+  // End the activity whenever the session ISN'T in WATCHING — covers
+  // four cases:
+  //   1. Status transition while mounted (WATCHING → POST_WATCH /
+  //      COMPLETE / etc.).
+  //   2. Fresh mount where the session is already past WATCHING
+  //      (user taps a lingering notification after the screening
+  //      ended; without this, the notification would stay alive
+  //      even though the room is over).
+  //   3. Fresh mount where the session 404s (host cancelled, all
+  //      participants hid → session deleted). We still want to
+  //      clean up the stale notification keyed on the URL id.
+  //   4. Lobby / countdown phases — no-op since the activity hasn't
+  //      been started in those states.
+  // endActivity is idempotent at the native layer, so calling it on
+  // an already-cancelled or never-started notification is harmless.
   useEffect(() => {
-    const prev = prevSessionStatusRef.current;
-    const curr = session?.status;
-    prevSessionStatusRef.current = curr;
-    if (prev === "WATCHING" && curr && curr !== "WATCHING" && session?.id) {
-      const sessionId = session.id;
-      void import("@/lib/live-activity").then((m) => m.endActivity(sessionId));
-    }
-  }, [session?.id, session?.status]);
+    if (!id) return;
+    if (session?.status === "WATCHING") return;
+    void import("@/lib/live-activity").then((m) => m.endActivity(id));
+  }, [id, session?.status, error]);
 
   // RTDB connection status listener
   useEffect(() => {
@@ -559,10 +565,14 @@ export default function ScreeningSessionPage() {
           // Polls always ding (no throttle)
           playDing(880, 0.15);
         } else if (pingOnMessageRef.current && msg.userId !== myUserIdRef.current && msg.userId !== "system") {
-          // Throttle regular message pings to once per 30 seconds
+          // Throttle regular message pings to once per 30 seconds.
+          // 800Hz × 0.18s @ 0.9 gain — pitched + lengthened so it's
+          // audible on a phone in a pocket. The previous 600Hz × 0.08s
+          // chirp was so short + low that users reported missing it
+          // entirely.
           const now = Date.now();
           if (now - lastPingTimeRef.current >= PING_THROTTLE_MS) {
-            playDing(600, 0.08);
+            playDing(800, 0.18, 0.9);
             lastPingTimeRef.current = now;
           }
         }
