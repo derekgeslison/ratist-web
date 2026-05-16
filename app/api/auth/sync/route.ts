@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
     const token = authorization.slice(7);
     const decoded = await adminAuth.verifyIdToken(token);
-    const { name, email, avatarUrl, restoreAction, captchaToken } = await req.json();
+    const { name, email, avatarUrl, restoreAction, captchaToken, confirmDelete } = await req.json();
 
     // Defensive: even if the client falls back to an email-derived name
     // for some reason, never persist the local part of an Apple Hide-My-
@@ -68,7 +68,19 @@ export async function POST(req: NextRequest) {
         const user = await prisma.user.findUnique({ where: { id: existing.id } });
         return NextResponse.json({ user, restored: true });
       } else if (restoreAction === "fresh") {
-        // User chose to start fresh — delete old data and recreate
+        // User chose to start fresh — delete old data and recreate.
+        // Second factor: require an explicit confirmDelete value matching
+        // the Firebase UID being acted on. Prevents a stolen token from
+        // nuking a user's history with a single one-field POST — the
+        // attacker would also need to know (and supply) the correct
+        // firebaseUid, which they wouldn't easily have access to in a
+        // typical token-theft scenario.
+        if (confirmDelete !== decoded.uid) {
+          return NextResponse.json(
+            { error: "fresh requires confirmDelete matching the Firebase UID" },
+            { status: 400 },
+          );
+        }
         await prisma.user.delete({ where: { id: existing.id } });
         // Fall through to create new account below
       } else {

@@ -21,6 +21,7 @@ function SignInForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showVerifyLink, setShowVerifyLink] = useState(false);
@@ -193,6 +194,18 @@ function SignInForm() {
                 </div>
               )}
             </div>
+            {mode === "signup" && (
+              <label className="flex items-start gap-2 text-xs text-[var(--foreground-muted)] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={ageConfirmed}
+                  onChange={(e) => setAgeConfirmed(e.target.checked)}
+                  required
+                  className="mt-0.5 accent-[var(--ratist-red)]"
+                />
+                <span>I confirm I am 13 years of age or older.</span>
+              </label>
+            )}
             {mode === "signup" && captchaActive && (
               <div ref={captchaRef} className="flex justify-center" />
             )}

@@ -244,10 +244,12 @@ export default function PrivacyPolicyPage() {
             or other directly-identifying personal information in the prompt body.
           </p>
           <p className="mt-2">
-            Anthropic, our current AI provider, processes the prompt to generate the response. Their retention
-            policy is governed by Anthropic&apos;s privacy policy linked in Section 7. The Ratist itself does
-            not retain prompt content beyond the lifetime of the request, except where required to investigate
-            abuse or rate-limit violations.
+            Anthropic, our current AI provider, processes the prompt to generate the response. Per Anthropic&apos;s
+            API policy, they may retain prompt and response content for up to 30 days for abuse-detection and
+            policy-enforcement purposes; we do not include your account email, user ID, or other directly-identifying
+            personal information in the prompt body. Their retention is governed by Anthropic&apos;s privacy policy
+            linked in Section 7. The Ratist itself does not retain prompt content beyond the lifetime of the request,
+            except where required to investigate abuse or rate-limit violations.
           </p>
           <p className="mt-2">
             We retain a per-call audit log (user, feature, timestamp — not prompt content) for up to 30 days

@@ -150,6 +150,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: firebaseUser.email,
         avatarUrl: firebaseUser.photoURL,
         restoreAction,
+        // Second factor on the fresh-delete path. Server requires this
+        // to match decoded.uid before running prisma.user.delete; sending
+        // it unconditionally is harmless on non-fresh paths.
+        ...(restoreAction === "fresh" ? { confirmDelete: firebaseUser.uid } : {}),
       }),
     });
     if (res.ok) {
