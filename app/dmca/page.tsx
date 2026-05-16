@@ -36,12 +36,14 @@ export default function DmcaPage() {
           </p>
           <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 font-mono text-xs leading-relaxed not-prose">
             <p className="text-white font-semibold mb-2">DMCA Designated Agent</p>
+            <p>Derek Geslison</p>
             <p>The Ratist</p>
-            <p>Attn: DMCA Agent</p>
-            <p>[STREET ADDRESS LINE 1]</p>
-            <p>[STREET ADDRESS LINE 2 — CITY, STATE, ZIP]</p>
-            <p>Email: dmca@theratist.com</p>
-            <p>Phone: [PHONE NUMBER]</p>
+            <p>2919 E 80 S</p>
+            <p>Spanish Fork, UT 84660</p>
+            <p>United States</p>
+            <p className="mt-2">Email: theratistreview@gmail.com</p>
+            <p>Phone: (435) 744-7007</p>
+            <p className="mt-2 text-[var(--foreground-muted)]">USCO Registration: DMCA-1072811</p>
           </div>
           <p className="text-xs italic mt-2">
             Email is the fastest channel and is generally preferred. Notices delivered by other
