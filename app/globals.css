@@ -33,6 +33,30 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* ─── Focus-visible: keyboard-only outline on interactive elements ──────
+   WCAG 2.1 SC 2.4.7 (Focus Visible) is a Level AA requirement and an
+   ADA Title III compliance baseline — sites that omit it have faced
+   demand letters. Tailwind v4 ships with default focus styles but
+   they're easy to disable on a per-component basis, and many of our
+   custom button classes set `focus:outline-none` without a replacement
+   ring. This block puts the floor back: any focusable element that
+   reaches `:focus-visible` (keyboard nav, not mouse click) gets a
+   high-contrast ring that's compatible with our dark theme.
+   `:focus-visible` (rather than `:focus`) means mouse users don't see
+   a ring when they click — only keyboard tab-through does. */
+:where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--ratist-red);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* For checkboxes / radios where outline doesn't render cleanly, use
+   a box-shadow ring instead so the indicator is visible. */
+:where(input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ratist-red), 0 0 0 4px var(--background);
+}
+
 /* ─── Tile action overlay (movie/show cards, watchlist tiles) ──────────────
    Hover-reveal on devices with a real pointing device, long-press-reveal
    on touch via JS-set `.revealed`. Tailwind v4's `hover` variant is gated
