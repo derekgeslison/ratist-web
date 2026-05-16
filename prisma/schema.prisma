@@ -349,70 +349,70 @@ model UserProfile {
 }
 
 model Movie {
-  id                 String    @id @default(cuid())
-  tmdbId             Int       @unique @map("tmdb_id")
-  imdbId             String?   @unique @map("imdb_id")
-  title              String
-  overview           String?
-  posterPath         String?   @map("poster_path")
-  backdropPath       String?   @map("backdrop_path")
-  releaseDate        String?   @map("release_date")
-  runtime            Int?
-  mpaaRating         String?   @map("mpaa_rating")
-  tagline            String?
-  budget             BigInt?
-  revenue            BigInt?
-  popularity         Float?
-  voteAverage        Float?    @map("vote_average")
-  voteCount          Int?      @map("vote_count")
-  trailerKey         String?   @map("trailer_key")
-  status             String?
-  watchProviders     Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
-  providersUpdatedAt DateTime? @map("providers_updated_at")
+  id                     String    @id @default(cuid())
+  tmdbId                 Int       @unique @map("tmdb_id")
+  imdbId                 String?   @unique @map("imdb_id")
+  title                  String
+  overview               String?
+  posterPath             String?   @map("poster_path")
+  backdropPath           String?   @map("backdrop_path")
+  releaseDate            String?   @map("release_date")
+  runtime                Int?
+  mpaaRating             String?   @map("mpaa_rating")
+  tagline                String?
+  budget                 BigInt?
+  revenue                BigInt?
+  popularity             Float?
+  voteAverage            Float?    @map("vote_average")
+  voteCount              Int?      @map("vote_count")
+  trailerKey             String?   @map("trailer_key")
+  status                 String?
+  watchProviders         Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
+  providersUpdatedAt     DateTime? @map("providers_updated_at")
   // TMDB belongs_to_collection — drives franchise aggregations on
   // /box-office/franchises. Stored inline rather than via a separate
   // Collection table; we only need id + name for grouping and label
   // rendering, and TMDB collection metadata is otherwise unused.
-  tmdbCollectionId   Int?      @map("tmdb_collection_id")
-  tmdbCollectionName String?   @map("tmdb_collection_name")
+  tmdbCollectionId       Int?      @map("tmdb_collection_id")
+  tmdbCollectionName     String?   @map("tmdb_collection_name")
   // TMDB original_language — ISO 639-1 (e.g. "en", "ko", "fr").
   // Drives the language filter on /box-office/all so users can scope
   // leaderboards to non-English releases without us having to query
   // TMDB Discover at runtime.
-  originalLanguage   String?   @map("original_language")
-  cachedAt           DateTime? @map("cached_at")
+  originalLanguage       String?   @map("original_language")
+  cachedAt               DateTime? @map("cached_at")
   // Admin-set poster block. Some NC-17 / adult-leaning films ship
   // posters containing explicit nudity that we don't want appearing
   // in browse/discovery surfaces. Renders fall back to a placeholder
   // when this is true; the movie itself is still accessible.
-  posterBlocked      Boolean   @default(false) @map("poster_blocked")
+  posterBlocked          Boolean   @default(false) @map("poster_blocked")
   // Suppress the Media tab images on this movie. NC-17 is auto-
   // suppressed at the page level even when this is false (those
   // are almost always explicit); admins can additionally flip this
   // for NR / unrated movies whose Media tab is reported.
-  mediaBlocked       Boolean   @default(false) @map("media_blocked")
+  mediaBlocked           Boolean   @default(false) @map("media_blocked")
   // Mirrors TMDB's `adult` boolean. Drives the hide-entirely
   // policy: any row with isAdult: true vanishes from every list /
   // search / detail / filmography surface. TMDB reserves the
   // adult flag for commercial porn-industry releases regardless
   // of MPAA rating, so mainstream NC-17 (Clockwork Orange,
   // Showgirls, etc.) carries adult: false and stays browsable.
-  isAdult            Boolean   @default(false) @map("is_adult")
+  isAdult                Boolean   @default(false) @map("is_adult")
   // Automated poster scan via Google Cloud Vision SafeSearch. We
   // scan NC-17 posters in batch (cheaper than scanning the whole
   // catalog) and store the verdict so we can re-tune thresholds
   // without re-fetching. posterScannedAt is set even on "clean"
   // verdicts so the script doesn't re-scan them.
-  posterScanResult   Json?     @map("poster_scan_result")
-  posterScannedAt    DateTime? @map("poster_scanned_at")
+  posterScanResult       Json?     @map("poster_scan_result")
+  posterScannedAt        DateTime? @map("poster_scanned_at")
   // Set whenever the adult-content keyword detector has evaluated
   // this title (clean or matched). Drives the discovery-rail
   // auto-flag: the popular rails fetch TMDB keywords for unknown /
   // unchecked rows, flip `isAdult` on matches, and stamp this
   // timestamp so subsequent renders skip the TMDB round-trip.
   adultKeywordsCheckedAt DateTime? @map("adult_keywords_checked_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   genres            MovieGenre[]
   cast              MovieCast[]
@@ -785,6 +785,15 @@ model TVShowRating {
   tvShow TVShow @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tvShowId, ratingScope, seasonNumber])
+  // Community-average aggregation hits this table filtered by
+  // (tv_show_id, ratistRating not null, plot not null, ratingScope)
+  // on every /shows/[id] page load. Without an index the planner
+  // does seq scans that get worse as the table grows.
+  @@index([tvShowId, ratingScope, ratistRating])
+  @@index([tvShowId, ratingScope, plot])
+  // For-you feed + profile diary read "recent ratings by user X" —
+  // a (userId, createdAt) composite is the natural fit.
+  @@index([userId, createdAt])
   @@map("tv_show_ratings")
 }
 
@@ -873,6 +882,15 @@ model MovieRating {
   movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   @@unique([userId, movieId])
+  // Community-average aggregation hits this table filtered by
+  // (movie_id, ratistRating not null, plot not null, excluded false)
+  // on every /movies/[id] page load. The two indexes below cover
+  // both the ratistRating and plot filters.
+  @@index([movieId, ratistRating])
+  @@index([movieId, plot])
+  // For-you feed + profile diary read "recent ratings by user X" —
+  // a (userId, createdAt) composite is the natural fit.
+  @@index([userId, createdAt])
   @@map("movie_ratings")
 }
 
@@ -2235,29 +2253,29 @@ model AiUsageLog {
 }
 
 model SiteSpotlight {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  linkUrl     String    @map("link_url")
-  linkLabel   String    @default("Read more") @map("link_label")
-  imageUrl    String?   @map("image_url")
-  type        String    @default("general") // "blog" | "punch_and_judy" | "feature" | "announcement" | "general"
-  placement   String    @default("homepage") // "homepage" | "for_you" | "movies" | "community" | "all"
-  style       String    @default("subtle") // "subtle" | "bold" | "gradient"
-  bgColor     String?   @map("bg_color") // custom hex accent color, null = default red
-  audience    String    @default("everyone") // "everyone" | "signed_in" | "signed_out" | "non_subscriber" | "new_user"
-  startDate   DateTime? @map("start_date")
-  endDate     DateTime? @map("end_date")
+  id                      String    @id @default(cuid())
+  title                   String
+  description             String?
+  linkUrl                 String    @map("link_url")
+  linkLabel               String    @default("Read more") @map("link_label")
+  imageUrl                String?   @map("image_url")
+  type                    String    @default("general") // "blog" | "punch_and_judy" | "feature" | "announcement" | "general"
+  placement               String    @default("homepage") // "homepage" | "for_you" | "movies" | "community" | "all"
+  style                   String    @default("subtle") // "subtle" | "bold" | "gradient"
+  bgColor                 String?   @map("bg_color") // custom hex accent color, null = default red
+  audience                String    @default("everyone") // "everyone" | "signed_in" | "signed_out" | "non_subscriber" | "new_user"
+  startDate               DateTime? @map("start_date")
+  endDate                 DateTime? @map("end_date")
   // For policy update banners: only show to users whose accounts
   // pre-date this timestamp. New signups after the policy effective
   // date already agreed to the latest version of the ToS/Privacy
   // Policy at signup, so they don't need to see the change-notice
   // banner. null = no cutoff (show to all eligible users by audience).
   effectiveForUsersBefore DateTime? @map("effective_for_users_before")
-  isActive    Boolean   @default(true) @map("is_active")
-  sortOrder   Int       @default(0) @map("sort_order")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  isActive                Boolean   @default(true) @map("is_active")
+  sortOrder               Int       @default(0) @map("sort_order")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   dismissals SpotlightDismissal[]
 
