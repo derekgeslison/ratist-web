@@ -31,14 +31,6 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-  /* Stop scroll chaining out of scrollable children (hamburger menu,
-     modals, etc.) into the page body — fixes the "scrolling up inside
-     a popup triggers Android pull-to-refresh" bug inside the Capacitor
-     WebView. Ratist has no pull-to-refresh feature, so disabling the
-     chain at the body level has no functional downside; mobile
-     browsers lose pull-to-refresh on Ratist pages (acceptable — none
-     of our pages need it). */
-  overscroll-behavior-y: contain;
 }
 
 /* ─── Focus-visible: keyboard-only outline on interactive elements ──────
