@@ -197,6 +197,13 @@ model User {
   // Soft delete
   deletedAt DateTime? @map("deleted_at")
   deletedBy String?   @map("deleted_by") // "self" or admin user ID
+  // Snapshot of identity fields (name, avatarUrl, bio) captured at
+  // soft-delete time. The user row is anonymized immediately on delete
+  // so their name doesn't keep displaying across the site during the
+  // 30-day soft-delete window; this snapshot lets the restore flow
+  // put their original identity back if they change their mind.
+  // Wiped to null on restore and on 30-day purge (cascade).
+  deletedSnapshot Json? @map("deleted_snapshot")
 
   // Ban/block
   bannedAt    DateTime? @map("banned_at")

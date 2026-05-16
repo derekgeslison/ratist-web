@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { scanPosterSafeSearch, shouldBlockAvatar } from "@/lib/vision-safesearch";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 
 function generateInviteCode(): string {
   return "R-" + crypto.randomBytes(4).toString("hex").slice(0, 7);
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
     const token = authorization.slice(7);
     const decoded = await adminAuth.verifyIdToken(token);
-    const { name, email, avatarUrl, restoreAction } = await req.json();
+    const { name, email, avatarUrl, restoreAction, captchaToken } = await req.json();
 
     // Defensive: even if the client falls back to an email-derived name
     // for some reason, never persist the local part of an Apple Hide-My-
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Check if user exists and is soft-deleted
     const existing = await prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
-      select: { id: true, deletedAt: true, bannedAt: true, bannedUntil: true, banReason: true },
+      select: { id: true, deletedAt: true, deletedSnapshot: true, bannedAt: true, bannedUntil: true, banReason: true },
     });
 
     if (existing?.deletedAt) {
@@ -45,10 +47,21 @@ export async function POST(req: NextRequest) {
         await prisma.user.delete({ where: { id: existing.id } });
         // Fall through to create new account below
       } else if (restoreAction === "restore") {
-        // User chose to restore their old account
+        // User chose to restore their old account. Put snapshotted
+        // identity fields back so their name/avatar/bio return to what
+        // they were before deletion (the soft-delete path anonymized
+        // them to "Deleted user" / null on day 0).
+        const snap = existing.deletedSnapshot as { name?: string; avatarUrl?: string | null; bio?: string | null } | null;
         await prisma.user.update({
           where: { id: existing.id },
-          data: { deletedAt: null, deletedBy: null },
+          data: {
+            deletedAt: null,
+            deletedBy: null,
+            deletedSnapshot: Prisma.JsonNull,
+            ...(snap?.name ? { name: snap.name } : {}),
+            ...(snap && "avatarUrl" in snap ? { avatarUrl: snap.avatarUrl ?? null } : {}),
+            ...(snap && "bio" in snap ? { bio: snap.bio ?? null } : {}),
+          },
         });
         // Re-enable Firebase account
         try { await adminAuth.updateUser(decoded.uid, { disabled: false }); } catch { /* ignore */ }
@@ -126,6 +139,23 @@ export async function POST(req: NextRequest) {
         // Don't block sign-up if Vision is down. Logged so we can
         // see if the path is consistently failing.
         console.warn("[auth/sync] SafeSearch on OAuth avatar threw; allowing:", err);
+      }
+    }
+
+    // First-time account create only: verify the reCAPTCHA token.
+    // Sign-ins (existing rows) and Google/Apple SSO signups skip the
+    // gate — SSO carries its own fraud signal, and rotating users
+    // across devices shouldn't re-trigger captcha. Identified via
+    // Firebase's provider data: email/password creations have
+    // sign_in_provider === "password".
+    if (!existing && decoded.firebase?.sign_in_provider === "password") {
+      const verdict = await verifyRecaptchaToken(captchaToken);
+      if (!verdict.ok) {
+        console.warn("[auth/sync] reCAPTCHA blocked signup:", { uid: decoded.uid, reason: verdict.reason });
+        return NextResponse.json(
+          { error: "We couldn't verify you're human. Please try the check again." },
+          { status: 403 },
+        );
       }
     }
 

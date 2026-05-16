@@ -95,7 +95,7 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
           <div className="relative aspect-video bg-[var(--surface-2)] overflow-hidden">
             <img
               src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
-              alt=""
+              alt={`${title} trailer`}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
             <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] font-bold uppercase px-1.5 py-0.5 rounded">
@@ -133,7 +133,7 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
             <button onClick={() => setOpen(true)} className="relative flex-1 aspect-video bg-[var(--surface-2)] group/play">
               <img
                 src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
-                alt=""
+                alt={`${title} trailer`}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 flex items-center justify-center">
@@ -190,7 +190,7 @@ export default function NewsTrailerCard({ youtubeKey, title, publishedAt, author
           <button onClick={() => setOpen(true)} className="relative w-48 aspect-video rounded-lg overflow-hidden bg-[var(--surface-2)] shrink-0 group/play">
             <img
               src={`https://img.youtube.com/vi/${youtubeKey}/mqdefault.jpg`}
-              alt=""
+              alt={`${title} trailer`}
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 flex items-center justify-center">

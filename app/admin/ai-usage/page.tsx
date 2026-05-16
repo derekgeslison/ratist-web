@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
-import { Cpu, Ban, Check, AlertCircle } from "lucide-react";
+import { Cpu, Ban, Check, AlertCircle, DollarSign } from "lucide-react";
 
 type WindowKey = "24h" | "7d" | "30d";
 
@@ -21,6 +21,8 @@ interface TopUser {
   totalCalls: number;
   lastCall: string | null;
   byFeature: Record<string, number>;
+  // Server-computed estimated USD spend for this user across the window.
+  estimatedCost: number;
   // Server-computed: per-feature count of calendar days in the current
   // window where the user hit their plan's daily cap for that feature.
   daysAtCap: Record<string, number>;
@@ -35,8 +37,15 @@ interface UsageResponse {
   feature: string | null;
   totalCalls: number;
   uniqueUsers: number;
-  byFeature: { feature: string; count: number }[];
+  byFeature: { feature: string; count: number; estimatedCost: number }[];
+  estimatedTotalCost: number;
   topUsers: TopUser[];
+}
+
+function formatUsd(amount: number): string {
+  if (amount < 0.01) return "<$0.01";
+  if (amount < 100) return `$${amount.toFixed(2)}`;
+  return `$${Math.round(amount).toLocaleString()}`;
 }
 
 const WINDOW_OPTIONS: { key: WindowKey; label: string }[] = [
@@ -176,10 +185,17 @@ export default function AdminAiUsagePage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <p className="text-xs text-[var(--foreground-muted)] mb-1">Total AI calls</p>
           <p className="text-2xl font-bold text-white">{data.totalCalls.toLocaleString()}</p>
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--foreground-muted)] mb-1 flex items-center gap-1">
+            <DollarSign className="w-3 h-3" /> Estimated spend
+          </p>
+          <p className="text-2xl font-bold text-white">{formatUsd(data.estimatedTotalCost)}</p>
+          <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">approximate, per-feature avg</p>
         </div>
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
           <p className="text-xs text-[var(--foreground-muted)] mb-1">Users shown</p>
@@ -193,11 +209,39 @@ export default function AdminAiUsagePage() {
             {data.byFeature.map((b) => (
               <p key={b.feature} className="text-xs text-white">
                 {b.feature}: <span className="text-[var(--foreground-muted)]">{b.count}</span>
+                <span className="text-[var(--foreground-muted)]"> · {formatUsd(b.estimatedCost)}</span>
               </p>
             ))}
           </div>
         </div>
       </div>
+
+      {/* Top spenders panel */}
+      {data.topUsers.some((u) => u.estimatedCost >= 1) && (
+        <div className="bg-[var(--surface)] border border-amber-400/30 rounded-xl p-4">
+          <h3 className="font-semibold text-white text-sm mb-2 flex items-center gap-1.5">
+            <DollarSign className="w-4 h-4 text-amber-400" /> Top spenders
+          </h3>
+          <div className="space-y-1">
+            {[...data.topUsers]
+              .sort((a, b) => b.estimatedCost - a.estimatedCost)
+              .slice(0, 5)
+              .filter((u) => u.estimatedCost >= 1)
+              .map((u) => (
+                <div key={u.userId} className="flex items-center justify-between text-xs">
+                  <span className="text-white">
+                    {u.firebaseUid ? (
+                      <Link href={`/profile/${u.firebaseUid}`} target="_blank" className="hover:text-[var(--ratist-red)]">{u.name}</Link>
+                    ) : u.name}
+                    {u.isAdmin && <span className="text-purple-400 ml-1">(admin)</span>}
+                    {u.hasPass && !u.isAdmin && <span className="text-amber-400 ml-1">(BSP)</span>}
+                  </span>
+                  <span className="text-amber-400 font-semibold tabular-nums">{formatUsd(u.estimatedCost)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Top users table */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
@@ -216,6 +260,7 @@ export default function AdminAiUsagePage() {
                 <th className="px-5 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">User</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Plan</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Calls</th>
+                <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Est. cost</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Breakdown</th>
                 <th className="px-4 py-3 text-xs text-[var(--foreground-muted)] font-medium uppercase tracking-wider">Last call</th>
                 <th className="px-4 py-3" />
@@ -264,7 +309,10 @@ export default function AdminAiUsagePage() {
                       })()}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-white font-semibold">{u.totalCalls.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-white font-semibold tabular-nums">{u.totalCalls.toLocaleString()}</td>
+                  <td className={`px-4 py-3 font-semibold tabular-nums ${u.estimatedCost >= 10 ? "text-amber-400" : "text-white"}`}>
+                    {formatUsd(u.estimatedCost)}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="space-y-0.5">
                       {Object.entries(u.byFeature).map(([feat, count]) => (
@@ -304,6 +352,7 @@ export default function AdminAiUsagePage() {
           <p><strong className="text-white">Caps in place:</strong> Recommend + Movies AI search — free users 20/day per feature, Backstage Pass 50/day per feature. Collections — Backstage Pass only, capped at 20/day (free users are blocked by the subscription gate).</p>
           <p>Users flagged as <strong className="text-white">AI disabled</strong> cannot use any AI feature regardless of plan. Admins bypass all caps. Sign-in is required for every AI feature.</p>
           <p><strong className="text-white">Heat flag:</strong> since the caps are hard blocks at the API layer (no one can exceed them), the flag tracks sustained cap-hitting patterns instead of totals. A user shows <span className="text-amber-400">🔥 Nd at cap</span> when they've hit their daily cap on the worst feature for at least <em>N</em> calendar days in the current window — thresholds are <strong>1/1 for 24h</strong>, <strong>4/7 for 7-day</strong>, and <strong>15/30 for 30-day</strong>. This highlights users who are consistently pegged at the cap and may warrant manual review.</p>
+          <p><strong className="text-white">Est. cost:</strong> per-feature USD average × calls in window. Approximate, not invoiced — useful for trend-spotting outlier users. Recalibrate the constants in <code>lib/ai/cost-estimates.ts</code> against actual Anthropic invoice line items. Highlighted amber when a single user&apos;s estimated spend ≥ $10.</p>
         </div>
       </div>
     </div>

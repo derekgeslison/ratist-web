@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import {
+  isRecaptchaConfigured,
+  renderRecaptchaWidget,
+  getRecaptchaResponse,
+  resetRecaptcha,
+} from "@/lib/recaptcha-client";
 
 function SignInForm() {
   const { signInWithGoogle, signInWithApple, signInWithEmail, signUpWithEmail } = useAuth();
@@ -18,6 +24,22 @@ function SignInForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showVerifyLink, setShowVerifyLink] = useState(false);
+
+  // reCAPTCHA v2 widget (signup mode only). The site key being unset
+  // makes this a no-op; signup still works but without the gate.
+  const captchaRef = useRef<HTMLDivElement>(null);
+  const captchaWidgetIdRef = useRef<number | null>(null);
+  const captchaActive = isRecaptchaConfigured();
+
+  useEffect(() => {
+    if (mode !== "signup" || !captchaActive || !captchaRef.current) return;
+    if (captchaWidgetIdRef.current != null) return;
+    let cancelled = false;
+    renderRecaptchaWidget(captchaRef.current).then((id) => {
+      if (!cancelled) captchaWidgetIdRef.current = id;
+    });
+    return () => { cancelled = true; };
+  }, [mode, captchaActive]);
 
   async function handleGoogle() {
     setError("");
@@ -51,7 +73,16 @@ function SignInForm() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        await signUpWithEmail(email, password, name);
+        let captchaToken: string | null = null;
+        if (captchaActive) {
+          captchaToken = getRecaptchaResponse(captchaWidgetIdRef.current);
+          if (!captchaToken) {
+            setError("Please complete the “I'm not a robot” check.");
+            setLoading(false);
+            return;
+          }
+        }
+        await signUpWithEmail(email, password, name, captchaToken);
         router.push("/auth/verify-email");
       } else {
         await signInWithEmail(email, password);
@@ -70,6 +101,8 @@ function SignInForm() {
       } else {
         setError(msg);
       }
+      // Reset captcha so the user can retry without a stale token.
+      if (mode === "signup" && captchaActive) resetRecaptcha(captchaWidgetIdRef.current);
     } finally {
       setLoading(false);
     }
@@ -160,6 +193,9 @@ function SignInForm() {
                 </div>
               )}
             </div>
+            {mode === "signup" && captchaActive && (
+              <div ref={captchaRef} className="flex justify-center" />
+            )}
             {error && (
               <div>
                 <p className="text-sm text-red-400">{error}</p>

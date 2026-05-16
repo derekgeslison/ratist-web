@@ -262,7 +262,41 @@ export async function getFullRatistCount(userId: string): Promise<number> {
  */
 const LIKED_THRESHOLD = 7.5;
 
+// Per-process in-flight guard. Suppresses concurrent rebuilds for the same
+// user within one warm lambda; cross-instance coalescing is handled by the
+// updatedAt DB check below.
+const inFlightRebuilds = new Set<string>();
+
+// Soft debounce: skip a rebuild if the user's profile was rebuilt within
+// this window. Rapid-fire rate edits (rate → undo → rate) used to fire 3+
+// full rebuilds; this collapses bursts into one. Trade-off: a rating
+// landed inside the window doesn't propagate into the persona until the
+// NEXT rating triggers a rebuild outside the window. 5s is short enough
+// that the trailing rating's contribution will land naturally on the
+// next user action, and matches the user-perception threshold for "did
+// the site react to what I just did."
+const REBUILD_DEBOUNCE_MS = 5_000;
+
 export async function rebuildUserProfile(userId: string) {
+  if (inFlightRebuilds.has(userId)) return;
+
+  const existing = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { updatedAt: true },
+  });
+  if (existing?.updatedAt && Date.now() - existing.updatedAt.getTime() < REBUILD_DEBOUNCE_MS) {
+    return;
+  }
+
+  inFlightRebuilds.add(userId);
+  try {
+    await rebuildUserProfileImpl(userId);
+  } finally {
+    inFlightRebuilds.delete(userId);
+  }
+}
+
+async function rebuildUserProfileImpl(userId: string) {
   const [movieRatings, tvRatings] = await Promise.all([
     prisma.movieRating.findMany({ where: { userId } }),
     prisma.tVShowRating.findMany({ where: { userId, ratingScope: "series" } }),

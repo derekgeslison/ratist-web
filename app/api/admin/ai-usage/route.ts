@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { isSubscriptionActive } from "@/lib/subscription";
 import { FEATURE_CAPS, WEEKLY_FEATURE_CAPS } from "@/lib/ai/rate-limit";
+import { estimateCallCost, estimateTotalCost } from "@/lib/ai/cost-estimates";
 
 /** ISO-week key (YYYY-Www) so a daily log entry maps deterministically
  *  to a 7-day bucket. Used by the weekly-cap abuse heuristic for
@@ -148,6 +149,7 @@ export async function GET(req: NextRequest) {
     const u = userMap.get(g.userId);
     const hasPass = u?.subscriptionTier === "backstage_pass" &&
       (u?.subscriptionStatus === "active" || u?.subscriptionStatus === "trialing" || u?.subscriptionStatus === "admin_granted");
+    const byFeature = featureBreakdownMap.get(g.userId) ?? {};
     return {
       userId: g.userId,
       name: u?.name ?? "(unknown)",
@@ -160,9 +162,12 @@ export async function GET(req: NextRequest) {
       subscriptionStatus: u?.subscriptionStatus ?? null,
       totalCalls: g._count.id,
       lastCall: g._max.createdAt?.toISOString() ?? null,
-      byFeature: featureBreakdownMap.get(g.userId) ?? {},
+      byFeature,
       daysAtCap: daysAtCapByUser.get(g.userId) ?? {},
       weeksAtCap: weeksAtCapByUser.get(g.userId) ?? {},
+      // Estimated USD spend for this user across the window. Approximate —
+      // per-feature averages, not invoiced amounts. See lib/ai/cost-estimates.ts.
+      estimatedCost: estimateTotalCost(byFeature),
     };
   });
 
@@ -171,7 +176,15 @@ export async function GET(req: NextRequest) {
     feature: featureFilter,
     totalCalls,
     uniqueUsers: topUserGroups.length, // actually top-50 users; fine as a signal
-    byFeature: byFeature.map((b) => ({ feature: b.feature, count: b._count.id })),
+    byFeature: byFeature.map((b) => ({
+      feature: b.feature,
+      count: b._count.id,
+      estimatedCost: estimateCallCost(b.feature) * b._count.id,
+    })),
+    estimatedTotalCost: byFeature.reduce(
+      (sum, b) => sum + estimateCallCost(b.feature) * b._count.id,
+      0,
+    ),
     topUsers,
   });
 }

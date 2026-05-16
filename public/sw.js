@@ -1,7 +1,8 @@
 // The Ratist — service worker
 //
 // Strategy:
-//   • HTML navigations  → network-first, offline fallback to /offline
+//   • HTML navigations  → network-first; cache PUBLIC paths so offline
+//                          users can re-open recently-viewed pages
 //   • /_next/static/*   → cache-first (immutable, fingerprinted)
 //   • Other GET assets  → stale-while-revalidate
 //   • /api/*            → network-only (never cache — auth + dynamic data)
@@ -10,13 +11,41 @@
 //                          postMessage flow on mobile)
 //   • /auth/*           → NOT INTERCEPTED (our sign-in pages)
 //
+// HTML cache is ONLY populated for paths that don't depend on viewer
+// identity (movie/show details, news, blog, posts, releases, box office,
+// homepage). Anything that renders viewer-specific state (profile,
+// settings, watchlist, seen, for-you, ratings, connections, admin) is
+// excluded — otherwise a cached page could show user A's private state
+// to user B (e.g. on a shared device after sign-out).
+//
 // Bump CACHE_VERSION when changing this file's logic; old caches purge on
 // the next activate.
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `ratist-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `ratist-runtime-${CACHE_VERSION}`;
+const HTML_CACHE = `ratist-html-${CACHE_VERSION}`;
+const HTML_CACHE_MAX_ENTRIES = 20;
 const OFFLINE_URL = "/offline";
+
+// Paths the HTML cache is allowed to populate. Match must be public-
+// only — viewer-specific renders MUST NOT be added to this list.
+function isPublicCacheablePath(pathname) {
+  if (pathname === "/") return true;
+  if (pathname === "/movies" || pathname === "/shows") return true;
+  if (pathname === "/news" || pathname === "/blog" || pathname === "/two-thumbs") return true;
+  if (pathname === "/releases" || pathname === "/box-office") return true;
+  if (pathname === "/community") return true;
+  // Detail pages (slugged or id'd) — all public:
+  if (/^\/movies\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/shows\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/news\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/blog\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/two-thumbs\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/posts\/[^/]+\/?$/.test(pathname)) return true;
+  if (/^\/box-office\//.test(pathname)) return true;
+  return false;
+}
 
 const STATIC_ASSETS = [
   OFFLINE_URL,
@@ -44,7 +73,7 @@ self.addEventListener("activate", (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
+          .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE && key !== HTML_CACHE)
           .map((key) => caches.delete(key))
       );
       await self.clients.claim();
@@ -116,14 +145,42 @@ async function staleWhileRevalidate(request, cacheName) {
 }
 
 async function networkFirstHTML(request) {
+  const url = new URL(request.url);
+  const cacheable = isPublicCacheablePath(url.pathname);
   try {
     const response = await fetch(request);
+    if (cacheable && response.ok && response.status === 200) {
+      // Clone before consuming — caches.put consumes the body stream.
+      const copy = response.clone();
+      caches.open(HTML_CACHE)
+        .then((cache) => cache.put(request, copy))
+        .then(() => trimHtmlCache())
+        .catch(() => {});
+    }
     return response;
   } catch {
+    // Offline path. Try the per-URL cache first (recently-visited public
+    // pages), then fall back to the static offline page.
+    if (cacheable) {
+      const htmlCache = await caches.open(HTML_CACHE);
+      const cached = await htmlCache.match(request);
+      if (cached) return cached;
+    }
     const cache = await caches.open(STATIC_CACHE);
     const offline = await cache.match(OFFLINE_URL);
     return offline || new Response("Offline", { status: 503 });
   }
+}
+
+// Cap the HTML cache so it doesn't grow unbounded. Oldest entries (by
+// insertion order, which Cache API preserves via keys()) are evicted
+// first. Runs after each new insert; cheap enough to not need debouncing.
+async function trimHtmlCache() {
+  const cache = await caches.open(HTML_CACHE);
+  const keys = await cache.keys();
+  if (keys.length <= HTML_CACHE_MAX_ENTRIES) return;
+  const toDelete = keys.slice(0, keys.length - HTML_CACHE_MAX_ENTRIES);
+  await Promise.all(toDelete.map((k) => cache.delete(k)));
 }
 
 // ─── Push notifications ───────────────────────────────────────────────────

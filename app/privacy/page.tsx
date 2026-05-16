@@ -125,6 +125,7 @@ export default function PrivacyPolicyPage() {
             <li><strong className="text-white">Stripe</strong> — payment processing for subscriptions. <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Stripe Privacy</a></li>
             <li><strong className="text-white">The Movie Database (TMDB)</strong> — movie and TV show metadata. <a href="https://www.themoviedb.org/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">TMDB Privacy</a></li>
             <li><strong className="text-white">Google AdSense</strong> &amp; <strong className="text-white">Google Analytics 4</strong> — advertising and analytics. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Google Privacy</a></li>
+            <li><strong className="text-white">Google reCAPTCHA</strong> — bot protection on email/password account creation. Loads on the sign-up form only. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Google Privacy</a></li>
             <li><strong className="text-white">Resend</strong> — email delivery. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Resend Privacy</a></li>
             <li><strong className="text-white">Vercel</strong> — application hosting and edge-network delivery. <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Vercel Privacy</a></li>
             <li><strong className="text-white">Neon</strong> — managed PostgreSQL database. <a href="https://neon.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[var(--ratist-red)] hover:underline">Neon Privacy</a></li>
@@ -138,7 +139,10 @@ export default function PrivacyPolicyPage() {
           <p>
             We retain your account data for as long as your account is active. If you delete your account,
             your data enters a 30-day soft-delete period during which you can recover the account by signing
-            in. After 30 days, your data is permanently deleted from our systems.
+            in. During this window your display name, avatar, and bio are immediately replaced with a generic
+            &ldquo;Deleted user&rdquo; placeholder on all public surfaces (comments, reviews, forum posts, etc.)
+            so your identity stops being shown; the original values are preserved only as an internal restore
+            snapshot. After 30 days, your data is permanently deleted from our systems.
           </p>
           <p className="mt-2">
             Anonymized or aggregated data (such as community rating averages, popularity metrics, and rating

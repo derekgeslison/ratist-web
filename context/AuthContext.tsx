@@ -73,7 +73,7 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
   signInWithApple: () => Promise<{ isNewUser: boolean }>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, name: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name: string, captchaToken: string | null) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   restoreAccount: () => Promise<void>;
@@ -335,20 +335,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signUpWithEmail(email: string, password: string, name: string) {
+  async function signUpWithEmail(email: string, password: string, name: string, captchaToken: string | null) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
     // Send verification email (non-blocking — don't fail signup if this errors)
     await sendEmailVerification(cred.user).catch((err) => {
       console.warn("Failed to send verification email:", err?.code ?? err);
     });
-    // Sync user to DB so they exist, but sign them out until verified
+    // Sync user to DB so they exist, but sign them out until verified.
+    // captchaToken: reCAPTCHA v2 response, verified server-side on the
+    // first-time create path in /api/auth/sync. Google/Apple SSO signups
+    // skip captcha — they already pass through provider fraud detection.
     const token = await cred.user.getIdToken();
-    await fetch("/api/auth/sync", {
+    const syncRes = await fetch("/api/auth/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name, email, avatarUrl: null }),
+      body: JSON.stringify({ name, email, avatarUrl: null, captchaToken }),
     });
+    if (!syncRes.ok) {
+      // Sync failed — likely captcha rejection. Roll back the Firebase
+      // user so the email is reusable; surface the error to the form.
+      try { await cred.user.delete(); } catch { /* ignore */ }
+      const err = await syncRes.json().catch(() => ({}));
+      throw new Error(err?.error ?? "Sign-up failed. Please try again.");
+    }
     await firebaseSignOut(auth);
   }
 
