@@ -9,6 +9,14 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
   forumThread: { max: 5, windowDays: 1 },
   postIdea: { max: 3, windowDays: 7 },
   collection: { max: 3, windowDays: 1 },
+  // Anti-abuse on /api/reports — without this, a single user can
+  // spam 1000 reports/day across the moderation queue. Per-day cap
+  // is generous for legitimate reporters; abuse patterns hit it fast.
+  report: { max: 10, windowDays: 1 },
+  // Anti-abuse on /api/users/[id]/follow — caps follow-bomb attacks
+  // (mass-follow → mass notification emails). Realistic legitimate
+  // use is single-digit follows/day; 50/day leaves room for a binge.
+  follow: { max: 50, windowDays: 1 },
 };
 
 /**
@@ -19,7 +27,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
 export async function checkCommunityRateLimit(
   userId: string,
   isAdmin: boolean,
-  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread" | "postIdea" | "collection"
+  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread" | "postIdea" | "collection" | "report" | "follow"
 ): Promise<string | null> {
   if (isAdmin) return null;
 
@@ -73,6 +81,14 @@ export async function checkCommunityRateLimit(
         publishedAt: { gte: windowStart, not: null },
       },
     });
+  } else if (featureType === "report") {
+    recentCount = await prisma.report.count({
+      where: { reporterId: userId, createdAt: { gte: windowStart } },
+    });
+  } else if (featureType === "follow") {
+    recentCount = await prisma.userFollow.count({
+      where: { followerId: userId, createdAt: { gte: windowStart } },
+    });
   }
 
   if (recentCount >= limits.max) {
@@ -84,6 +100,8 @@ export async function checkCommunityRateLimit(
       forumThread: "forum threads",
       postIdea: "idea submissions",
       collection: "public collections",
+      report: "reports",
+      follow: "follows",
     };
     if (featureType === "forumThread") {
       return `You can create up to ${limits.max} forum threads per day.`;
@@ -93,6 +111,12 @@ export async function checkCommunityRateLimit(
     }
     if (featureType === "collection") {
       return `You can publish up to ${limits.max} public collections per day. Private collections don't count — keep iterating and publish when you're ready.`;
+    }
+    if (featureType === "report") {
+      return `You've submitted ${limits.max} reports today — that's the daily cap. Each report is reviewed; if you're seeing widespread abuse, email contact@theratist.com.`;
+    }
+    if (featureType === "follow") {
+      return `You've followed ${limits.max} people in the last day — that's the daily cap. Try again tomorrow.`;
     }
     return `To prevent spam, we limit users to ${limits.max} ${featureNames[featureType]} every ${limits.windowDays} days. Your submissions are also more likely to get engagement if you spread them out.`;
   }

@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { checkBadges, recheckBadges } from "@/lib/badges";
 import { isMutuallyBlocked } from "@/lib/blocks";
+import { checkCommunityRateLimit } from "@/lib/rate-limit";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -13,7 +14,7 @@ async function getUser(req: NextRequest) {
   if (!auth?.startsWith("Bearer ")) return null;
   const decoded = await adminAuth.verifyIdToken(auth.slice(7)).catch(() => null);
   if (!decoded) return null;
-  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, firebaseUid: true, name: true } });
+  return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, firebaseUid: true, name: true, isAdmin: true } });
 }
 
 // GET: check current user's follow state with target, plus counts.
@@ -109,6 +110,13 @@ export async function POST(req: NextRequest, { params }: Props) {
     const followerCount = await prisma.userFollow.count({ where: { followingId: target.id, status: "accepted" } });
     return NextResponse.json({ followStatus: "none", following: false, followerCount });
   } else {
+    // Anti-abuse: cap follow creations/day. Mass-follow campaigns
+    // (and the subsequent flood of notification emails to followed
+    // users) are the single biggest spam vector this endpoint has.
+    // Unfollowing isn't capped — the delete branch above runs first.
+    const rateLimitError = await checkCommunityRateLimit(user.id, user.isAdmin, "follow");
+    if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
+
     const status = target.isPrivate ? "pending" : "accepted";
     await prisma.userFollow.create({
       data: { followerId: user.id, followingId: target.id, status },
