@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { postingBlockResponse } from "@/lib/posting-block";
+import { getMutualBlockedIds } from "@/lib/blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -112,8 +113,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const status = searchParams.get("status") ?? "pending";
   const validStatus = status === "approved" || status === "dismissed" || status === "pending" ? status : "pending";
 
+  // Pull viewer + their mutual-blocks set up-front so we can both
+  // filter suggestions and load the user's vote state in one auth pass.
+  const user = await getAuthedUser(req);
+  const blockedIds = await getMutualBlockedIds(user?.id);
+
   const suggestions = await prisma.companionSuggestion.findMany({
-    where: { companionId: id, status: validStatus },
+    where: {
+      companionId: id,
+      status: validStatus,
+      ...(blockedIds.size > 0 ? { submitterId: { notIn: [...blockedIds] } } : {}),
+    },
     orderBy: [{ upvoteScore: "desc" }, { createdAt: "desc" }],
     include: {
       submitter: { select: { id: true, name: true, avatarUrl: true } },
@@ -122,7 +132,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   });
 
   // If signed in, also return this user's votes so UI can show current state
-  const user = await getAuthedUser(req);
   let myVotes: Record<string, number> = {};
   if (user && suggestions.length > 0) {
     const votes = await prisma.companionSuggestionVote.findMany({

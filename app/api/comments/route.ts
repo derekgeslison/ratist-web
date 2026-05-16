@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink, getCommentTargetLink } from "@/lib/notifications";
 import { postingBlockResponse } from "@/lib/posting-block";
+import { getMutualBlockedIds } from "@/lib/blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,24 @@ export async function GET(req: NextRequest) {
 
     const user = await getAuthedUser(req);
 
+    // Pull mutual-blocks ONCE per request and use it to drop comments
+    // by users the viewer (or their blockers) shouldn't see. We do this
+    // at the row-fetch level via a `userId not in [...]` filter rather
+    // than post-fetch so a thread with 200 comments where 50 are by
+    // blocked users doesn't waste payload + render cycles.
+    //
+    // Replies stay visible if their author isn't blocked even if the
+    // parent author is — the post-fetch tree-build below skips orphans
+    // (parentId not in commentMap) naturally, which keeps thread
+    // structure sane.
+    const blockedIds = await getMutualBlockedIds(user?.id);
+
     const allComments = await prisma.comment.findMany({
-      where: { targetType, targetId },
+      where: {
+        targetType,
+        targetId,
+        ...(blockedIds.size > 0 ? { userId: { notIn: [...blockedIds] } } : {}),
+      },
       include: {
         user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
         _count: { select: { likes: true } },

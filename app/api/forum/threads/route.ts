@@ -5,6 +5,7 @@ import { checkCommunityRateLimit } from "@/lib/rate-limit";
 import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
 import { postingBlockResponse } from "@/lib/posting-block";
 import { maskBlockedInResponse } from "@/lib/safe-content";
+import { getMutualBlockedIds } from "@/lib/blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +39,19 @@ export async function GET(req: NextRequest) {
     const followingOnly = searchParams.get("following") === "true";
     const page = Math.max(1, Number(searchParams.get("page") ?? 1));
 
-    // Get current user for following filter
-    let currentUserId: string | null = null;
-    if (followingOnly) {
-      const user = await getUser(req);
-      currentUserId = user?.id ?? null;
-      if (!currentUserId) return NextResponse.json({ threads: [], total: 0 });
+    // Get current user for following filter + block-list filtering.
+    // We always need them for the blocks lookup; following filter is
+    // a separate opt-in.
+    const viewer = await getUser(req);
+    const currentUserId: string | null = viewer?.id ?? null;
+    if (followingOnly && !currentUserId) {
+      return NextResponse.json({ threads: [], total: 0 });
     }
+
+    // Threads authored by users mutually blocked with the viewer get
+    // dropped at the DB query level — keeps payload small and the
+    // pagination cursor honest.
+    const blockedIds = await getMutualBlockedIds(currentUserId);
 
     // Build where clause
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +60,7 @@ export async function GET(req: NextRequest) {
     if (followingOnly && currentUserId) {
       where.followers = { some: { userId: currentUserId } };
     }
+    if (blockedIds.size > 0) where.authorId = { notIn: [...blockedIds] };
     if (tag) where.tags = { some: { tag } };
     const authorId = searchParams.get("authorId");
     if (authorId) where.authorId = authorId;

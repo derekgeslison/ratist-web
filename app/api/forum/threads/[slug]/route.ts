@@ -6,6 +6,7 @@ import { notify } from "@/lib/notifications";
 import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
 import { postingBlockResponse } from "@/lib/posting-block";
 import { maskBlockedInResponse } from "@/lib/safe-content";
+import { getMutualBlockedIds, filterOutBlocked } from "@/lib/blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest, { params }: Props) {
 
   if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Get current user for view dedup + poll/debate votes
+  // Get current user for view dedup + poll/debate votes + block filter
   let viewerId: string | null = null;
   let userPollVote: string | null = null;
   let userDebateVote: string | null = null;
@@ -97,6 +98,16 @@ export async function GET(req: NextRequest, { params }: Props) {
       }
     } catch { /* not logged in */ }
   }
+
+  // Block-list filtering. If the thread's AUTHOR is in the viewer's
+  // mutual-blocks set, hide the whole thread (404 — don't reveal that
+  // it exists). For threads that aren't author-blocked, drop any
+  // replies authored by other blocked users below.
+  const blockedIds = await getMutualBlockedIds(viewerId);
+  if (blockedIds.has(thread.authorId)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  const visiblePosts = filterOutBlocked(thread.posts, blockedIds, (p) => p.authorId);
 
   // Increment view count with 3-minute per-user cooldown (fire-and-forget)
   (async () => {
@@ -133,8 +144,9 @@ export async function GET(req: NextRequest, { params }: Props) {
     opponent: thread.debateVotes.filter((v) => v.side === "opponent").length,
   } : null;
 
-  // Aggregate reactions per post
-  const postsWithAggregatedReactions = thread.posts.map((post) => {
+  // Aggregate reactions per post (visiblePosts already filters out
+  // posts by blocked users above).
+  const postsWithAggregatedReactions = visiblePosts.map((post) => {
     const reactionCounts: Record<string, number> = {};
     const userReactions: string[] = [];
     for (const r of post.reactions) {

@@ -6,6 +6,7 @@ import { checkBadges } from "@/lib/badges";
 import { getCriticUserIds } from "@/lib/critics";
 import { postingBlockResponse } from "@/lib/posting-block";
 import { maskBlockedInResponse } from "@/lib/safe-content";
+import { getMutualBlockedIds } from "@/lib/blocks";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,12 @@ async function getUser(req: NextRequest) {
   return prisma.user.findUnique({ where: { firebaseUid: decoded.uid }, select: { id: true, isAdmin: true, firebaseUid: true, name: true } });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const viewer = await getUser(req);
+    const blockedIds = await getMutualBlockedIds(viewer?.id);
     const items = await prisma.recast.findMany({
+      where: blockedIds.size > 0 ? { creatorId: { notIn: [...blockedIds] } } : undefined,
       include: {
         creator: { select: { name: true, firebaseUid: true } },
         votes: { select: { value: true, user: { select: { firebaseUid: true } } } },

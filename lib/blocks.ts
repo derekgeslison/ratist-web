@@ -39,3 +39,26 @@ export async function isMutuallyBlocked(userIdA: string, userIdB: string): Promi
   });
   return !!block;
 }
+
+/**
+ * Drop items authored by anyone in `blockedIds`. Pure / non-mutating.
+ *
+ * `getUserId` selects the owner field on each item — different surfaces
+ * use different names (userId, authorId, creatorId, submitterId) so the
+ * caller passes a small accessor instead of forcing a convention.
+ *
+ * Returns the original array reference (no allocation) when the
+ * blocked set is empty — that's the anon-traffic and no-blocks-set
+ * hot path and the most common case.
+ */
+export function filterOutBlocked<T>(
+  items: T[],
+  blockedIds: Set<string>,
+  getUserId: (item: T) => string | null | undefined,
+): T[] {
+  if (blockedIds.size === 0) return items;
+  return items.filter((item) => {
+    const uid = getUserId(item);
+    return uid == null || !blockedIds.has(uid);
+  });
+}
