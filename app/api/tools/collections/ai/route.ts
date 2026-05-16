@@ -88,7 +88,10 @@ async function discoverTvShows(params: {
   if (params.excludeKeywords) qp.without_keywords = params.excludeKeywords;
   if (params.companies) qp.with_companies = params.companies;
   const url = new URL("https://api.themoviedb.org/3/discover/tv");
-  url.searchParams.set("api_key", process.env.TMDB_API_KEY ?? "0a8b11e67dd3e6ee739bb736777f4695");
+  // No hardcoded fallback — if TMDB_API_KEY is missing, fail loud
+  // rather than silently sharing a leaked key from git history.
+  if (!process.env.TMDB_API_KEY) throw new Error("TMDB_API_KEY env var is not set");
+  url.searchParams.set("api_key", process.env.TMDB_API_KEY);
   for (const [k, v] of Object.entries(qp)) url.searchParams.set(k, v);
   const res = await fetch(url.toString());
   if (!res.ok) return { results: [], page: 1, total_pages: 0 };

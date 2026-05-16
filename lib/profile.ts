@@ -1,3 +1,11 @@
+// Server-only. lib/profile.ts holds the persona algorithm — weighted
+// component prefs, LIKED_THRESHOLD, the 70/30 component-vs-genre blend,
+// the detractor-dampening on community-loved titles, onboarding-blend
+// curves, rebuildUserProfile, score estimators. None of this should
+// ever ship to the client bundle. `import "server-only"` makes the
+// Next.js bundler fail at build time if any "use client" component
+// transitively reaches this file.
+import "server-only";
 import { prisma } from "./prisma";
 import { upscaleProfile, dimensionSimilarity, matchScore } from "./ratings";
 
