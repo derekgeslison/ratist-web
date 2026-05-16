@@ -14,6 +14,7 @@ import { useUnsavedWarning } from "@/hooks/useUnsavedWarning";
 // app/onboarding/page.tsx and the canonical key set in lib/profile.ts.
 const GENRES = [
   { key: "genreAction", label: "Action / Adventure" },
+  { key: "genreAnimation", label: "Animation" },
   { key: "genreBiopic", label: "Biopic" },
   { key: "genreBookAdapt", label: "Book Adaptation" },
   { key: "genreComedy", label: "Comedy" },

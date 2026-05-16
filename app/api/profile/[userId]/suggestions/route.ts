@@ -29,7 +29,7 @@ const GENRE_KEYS = [
   "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
   "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
   "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
-  "genreCrime", "genreWestern", "genreMystery",
+  "genreCrime", "genreWestern", "genreMystery", "genreAnimation",
 ] as const;
 
 // Component → subfield names. Mirrors lib/profile.ts FOCUSED_CATEGORIES.
@@ -64,6 +64,7 @@ const PROFILE_TO_TMDB_MOVIE: Record<string, number[]> = {
   genreCrime:       [80],
   genreWestern:     [37],
   genreMystery:     [9648],
+  genreAnimation:   [16],
 };
 
 // TV equivalents — TMDB uses combo categories for TV (Action & Adventure,

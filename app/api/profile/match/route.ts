@@ -12,7 +12,7 @@ const GENRE_KEYS = [
   "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
   "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
   "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
-  "genreCrime", "genreWestern", "genreMystery",
+  "genreCrime", "genreWestern", "genreMystery", "genreAnimation",
 ] as const;
 
 // GET /api/profile/match?targetUserId=...

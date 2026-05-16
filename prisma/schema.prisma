@@ -336,6 +336,7 @@ model UserProfile {
   genreCrime       Float @default(0) @map("genre_crime")
   genreWestern     Float @default(0) @map("genre_western")
   genreMystery     Float @default(0) @map("genre_mystery")
+  genreAnimation   Float @default(0) @map("genre_animation")
 
   // Preserved copy of user's explicit onboarding/settings preferences
   // Used for blending with rating-derived scores until 10 full Ratist ratings

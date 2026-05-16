@@ -24,12 +24,13 @@ export const MAX_GROUP_SIZE = 5;
 // solo + group scoring stay aligned. If a new genre pref column lands
 // in UserProfile, both places need to learn about it.
 const GENRE_PREF_KEYS: Record<string, string> = {
-  genreAction: "Action", genreHorror: "Horror", genreDrama: "Drama",
-  genreScifi: "Science Fiction", genreThriller: "Thriller", genreComedy: "Comedy",
-  genreFantasy: "Fantasy", genreRomance: "Romance", genreDocumentary: "Documentary",
-  genreFamily: "Family", genreHistorical: "History", genreMusical: "Music",
-  genreCrime: "Crime", genreWestern: "Western", genreMystery: "Mystery",
-  genreBookAdapt: "Adventure", genreFilmNoir: "Thriller", genreBiopic: "Drama",
+  genreAction: "Action", genreAnimation: "Animation", genreHorror: "Horror",
+  genreDrama: "Drama", genreScifi: "Science Fiction", genreThriller: "Thriller",
+  genreComedy: "Comedy", genreFantasy: "Fantasy", genreRomance: "Romance",
+  genreDocumentary: "Documentary", genreFamily: "Family", genreHistorical: "History",
+  genreMusical: "Music", genreCrime: "Crime", genreWestern: "Western",
+  genreMystery: "Mystery", genreBookAdapt: "Adventure", genreFilmNoir: "Thriller",
+  genreBiopic: "Drama",
 };
 
 export interface MemberPrefs {

@@ -32,7 +32,7 @@ const GENRE_KEYS = [
   "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
   "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
   "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
-  "genreCrime", "genreWestern", "genreMystery",
+  "genreCrime", "genreWestern", "genreMystery", "genreAnimation",
 ] as const;
 
 interface Props {
@@ -158,12 +158,12 @@ export default async function ComparePage({ params }: Props) {
 
   // Build genre preference maps from each user's profile
   const GENRE_PROFILE_KEYS: Record<string, string> = {
-    "Action": "genreAction", "Adventure": "genreAction", "Comedy": "genreComedy",
-    "Crime": "genreCrime", "Documentary": "genreDocumentary", "Drama": "genreDrama",
-    "Family": "genreFamily", "Fantasy": "genreFantasy", "History": "genreHistorical",
-    "Horror": "genreHorror", "Music": "genreMusical", "Mystery": "genreMystery",
-    "Romance": "genreRomance", "Science Fiction": "genreScifi", "Thriller": "genreThriller",
-    "War": "genreHistorical", "Western": "genreWestern",
+    "Action": "genreAction", "Adventure": "genreAction", "Animation": "genreAnimation",
+    "Comedy": "genreComedy", "Crime": "genreCrime", "Documentary": "genreDocumentary",
+    "Drama": "genreDrama", "Family": "genreFamily", "Fantasy": "genreFantasy",
+    "History": "genreHistorical", "Horror": "genreHorror", "Music": "genreMusical",
+    "Mystery": "genreMystery", "Romance": "genreRomance", "Science Fiction": "genreScifi",
+    "Thriller": "genreThriller", "War": "genreHistorical", "Western": "genreWestern",
   };
   const p1 = user1.profile ? (user1.profile as unknown as Record<string, number>) : null;
   const p2 = user2.profile ? (user2.profile as unknown as Record<string, number>) : null;

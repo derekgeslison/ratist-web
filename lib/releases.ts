@@ -476,6 +476,7 @@ export async function classifyLaunchEvents(
  *  we use the most representative TMDB id for each. */
 const PROFILE_TO_TMDB_GENRES: Array<{ key: string; tmdbId: number }> = [
   { key: "genreAction",      tmdbId: 28 },
+  { key: "genreAnimation",   tmdbId: 16 },
   { key: "genreComedy",      tmdbId: 35 },
   { key: "genreCrime",       tmdbId: 80 },
   { key: "genreDocumentary", tmdbId: 99 },

@@ -29,7 +29,7 @@ const FOCUSED_CATEGORIES = {
 type FocusedKey = keyof typeof FOCUSED_CATEGORIES;
 
 const TMDB_GENRE_TO_PROFILE: Record<number, string> = {
-  28: "genreAction", 12: "genreBookAdapt", 16: "genreFamily", 35: "genreComedy",
+  28: "genreAction", 12: "genreAction", 16: "genreAnimation", 35: "genreComedy",
   80: "genreCrime", 99: "genreDocumentary", 18: "genreDrama", 10751: "genreFamily",
   14: "genreFantasy", 36: "genreHistorical", 27: "genreHorror", 10402: "genreMusical",
   9648: "genreMystery", 10749: "genreRomance", 878: "genreScifi", 53: "genreThriller",

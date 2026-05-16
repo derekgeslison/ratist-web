@@ -5,6 +5,7 @@ import { upscaleProfile, dimensionSimilarity, matchScore } from "./ratings";
 export const TMDB_GENRE_TO_PROFILE: Record<number, string> = {
   28:    "genreAction",      // Action
   12:    "genreAction",      // Adventure
+  16:    "genreAnimation",   // Animation
   35:    "genreComedy",      // Comedy
   80:    "genreCrime",       // Crime
   99:    "genreDocumentary", // Documentary
@@ -37,8 +38,47 @@ const GENRE_KEYS = [
   "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
   "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
   "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
-  "genreCrime", "genreWestern", "genreMystery",
+  "genreCrime", "genreWestern", "genreMystery", "genreAnimation",
 ] as const;
+
+/**
+ * Compute the genre-score contribution used to blend with componentEstimate.
+ *
+ * Returns null when the title has no recognizable genres. Otherwise averages
+ * the user's per-genre prefs (via getProfileGenreKeys to handle TV multi-
+ * mappings), with one twist:
+ *
+ *   When the community ratistRating average is >= 8.0, "detractor" genres
+ *   (prefs < 5.0, i.e. genres the user generally dislikes) have their
+ *   distance below 5.0 halved. A 0.00 becomes 2.50, a 2.72 becomes 3.86,
+ *   etc. Prefs >= 5.0 are unchanged.
+ *
+ * Rationale: when the community endorses a film strongly (>= 8.0), exceptional
+ * cinema in a disliked genre should be partially rescued from the genre
+ * penalty without erasing it. Mediocre films in disliked genres (community
+ * < 8.0) get the full penalty.
+ */
+function computeGenreScore(
+  profile: Record<string, number>,
+  titleGenres: { genreId: number }[],
+  communityRatistAvg: number | null,
+): number | null {
+  const prefs: number[] = [];
+  for (const tg of titleGenres) {
+    for (const profileKey of getProfileGenreKeys(tg.genreId)) {
+      prefs.push(profile[profileKey] ?? 0);
+    }
+  }
+  if (prefs.length === 0) return null;
+
+  const dampen = communityRatistAvg != null && communityRatistAvg >= 8.0;
+  const adjusted = prefs.map((p) => (dampen && p < 5 ? 5 - (5 - p) * 0.5 : p));
+  return adjusted.reduce((a, b) => a + b, 0) / adjusted.length;
+}
+
+/** The component/genre blend used by all score estimators. */
+const COMPONENT_WEIGHT = 0.70;
+const GENRE_WEIGHT = 0.30;
 
 /**
  * Genre-prefs-only score fallback. Averages the user's profile preferences
@@ -460,7 +500,7 @@ export async function findSimilarUsers(userId: string, limit = 10) {
     "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
     "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
     "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
-    "genreCrime", "genreWestern", "genreMystery",
+    "genreCrime", "genreWestern", "genreMystery", "genreAnimation",
   ] as const;
 
   const results = allProfiles.map((profile) => {
@@ -495,15 +535,15 @@ export async function findSimilarUsers(userId: string, limit = 10) {
 }
 
 /**
- * Estimate how much a user would enjoy a movie, based on:
- *   1. Community sub-field averages → movie's score per focused category
- *   2. User's focused category preferences as weights
- *   3. Genre adjustment (25% blend)
+ * Estimate how much a user would enjoy a movie.
  *
  * Formula:
  *   componentEstimate = Σ(movieCategoryScore × userPref) / Σ(userPref)
- *   genreScore        = avg(userGenrePref for each of the movie's genres)
- *   estimate          = componentEstimate × 0.75 + genreScore × 0.25
+ *   genreScore        = computeGenreScore(profile, movie.genres, communityRatistAvg)
+ *   estimate          = componentEstimate × 0.70 + genreScore × 0.30
+ *
+ * The genre score applies detractor dampening when the community average
+ * ratistRating is >= 8.0 — see computeGenreScore for details.
  */
 export async function getScoreEstimate(userId: string, movieId: string): Promise<number | null> {
   const [profile, communityAvg, movie] = await Promise.all([
@@ -511,6 +551,7 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
     prisma.movieRating.aggregate({
       where: { movieId, excluded: false },
       _avg: {
+        ratistRating: true,
         plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
         relatability: true, characterDev: true, dialogueScripting: true,
         overallEmotion: true, meaning: true, movingness: true,
@@ -528,10 +569,8 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
   ]);
 
   if (!profile) return null;
-  // Need community ratings to compute an estimate
   if (communityAvg._count.ratistRating === 0) return null;
 
-  // Check profile has been built (at least one non-zero category)
   const hasProfile = (Object.keys(FOCUSED_CATEGORIES) as FocusedKey[]).some(
     (k) => (profile[k] as number) > 0
   );
@@ -539,10 +578,8 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
 
   const avg = communityAvg._avg as Record<string, number | null>;
 
-  // Component estimate: preference-weighted average of movie's category scores
   let weightedSum = 0;
   let totalWeight = 0;
-
   for (const [cat, fields] of Object.entries(FOCUSED_CATEGORIES) as [FocusedKey, readonly string[]][]) {
     const movieCategoryScore = subFieldAvg(avg, fields);
     const userPref = profile[cat] as number;
@@ -551,25 +588,19 @@ export async function getScoreEstimate(userId: string, movieId: string): Promise
       totalWeight += userPref;
     }
   }
-
   if (totalWeight === 0) return null;
   const componentEstimate = weightedSum / totalWeight;
 
-  // Genre adjustment: blend in user's affinity for the movie's genres
-  const genreScores: number[] = [];
-  if (movie) {
-    for (const mg of movie.genres) {
-      const profileKey = TMDB_GENRE_TO_PROFILE[mg.genreId];
-      if (profileKey) {
-        genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
-      }
-    }
-  }
-
   let estimate = componentEstimate;
-  if (genreScores.length > 0) {
-    const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
-    estimate = componentEstimate * 0.90 + genreScore * 0.10;
+  if (movie) {
+    const genreScore = computeGenreScore(
+      profile as unknown as Record<string, number>,
+      movie.genres,
+      avg.ratistRating ?? null,
+    );
+    if (genreScore != null) {
+      estimate = componentEstimate * COMPONENT_WEIGHT + genreScore * GENRE_WEIGHT;
+    }
   }
 
   return Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10;
@@ -591,6 +622,7 @@ export async function getBatchScoreEstimates(
       by: ["movieId"],
       where: { movieId: { in: movieIds }, excluded: false },
       _avg: {
+        ratistRating: true,
         plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
         relatability: true, characterDev: true, dialogueScripting: true,
         overallEmotion: true, meaning: true, movingness: true,
@@ -650,19 +682,13 @@ export async function getBatchScoreEstimates(
     const movie = movieMap.get(movieId);
     let estimate = componentEstimate;
     if (movie) {
-      const genreScores: number[] = [];
-      for (const mg of movie.genres) {
-        // getProfileGenreKeys handles multi-mapping (e.g. one TV ID
-        // splits across two profile keys). Almost all movie genres
-        // map 1:1, but using the same helper as rebuildUserProfile
-        // keeps movie and TV scoring symmetrical.
-        for (const profileKey of getProfileGenreKeys(mg.genreId)) {
-          genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
-        }
-      }
-      if (genreScores.length > 0) {
-        const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
-        estimate = componentEstimate * 0.90 + genreScore * 0.10;
+      const genreScore = computeGenreScore(
+        profile as unknown as Record<string, number>,
+        movie.genres,
+        avg.ratistRating ?? null,
+      );
+      if (genreScore != null) {
+        estimate = componentEstimate * COMPONENT_WEIGHT + genreScore * GENRE_WEIGHT;
       }
     }
 
@@ -693,6 +719,7 @@ export async function getBatchScoreEstimatesTv(
       // most often, which isn't representative of the show as a whole.
       where: { tvShowId: { in: tvShowIds }, excluded: false, ratingScope: "series" },
       _avg: {
+        ratistRating: true,
         plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
         relatability: true, characterDev: true, dialogueScripting: true,
         overallEmotion: true, meaning: true, movingness: true,
@@ -752,20 +779,13 @@ export async function getBatchScoreEstimatesTv(
     const show = showMap.get(tvShowId);
     let estimate = componentEstimate;
     if (show) {
-      const genreScores: number[] = [];
-      for (const sg of show.genres) {
-        // Use getProfileGenreKeys so TV-only genre IDs (Action &
-        // Adventure, Sci-Fi & Fantasy, War & Politics, Kids) actually
-        // contribute. TMDB_GENRE_TO_PROFILE on its own doesn't know
-        // about those, so without this helper the 10% genre nudge
-        // silently dropped for most shows.
-        for (const profileKey of getProfileGenreKeys(sg.genreId)) {
-          genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
-        }
-      }
-      if (genreScores.length > 0) {
-        const genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
-        estimate = componentEstimate * 0.90 + genreScore * 0.10;
+      const genreScore = computeGenreScore(
+        profile as unknown as Record<string, number>,
+        show.genres,
+        avg.ratistRating ?? null,
+      );
+      if (genreScore != null) {
+        estimate = componentEstimate * COMPONENT_WEIGHT + genreScore * GENRE_WEIGHT;
       }
     }
 
@@ -800,6 +820,7 @@ export async function getSeasonScoreEstimatesTv(
         plot: { not: null }, // gate: at least one full Ratist rating
       },
       _avg: {
+        ratistRating: true,
         plot: true, storytelling: true, pacingClimax: true, premiseOriginality: true,
         relatability: true, characterDev: true, dialogueScripting: true,
         overallEmotion: true, meaning: true, movingness: true,
@@ -824,20 +845,6 @@ export async function getSeasonScoreEstimatesTv(
   );
   if (!hasProfile) return result;
 
-  // Genre score is constant across seasons of the same show — compute once.
-  let genreScore: number | null = null;
-  if (show) {
-    const genreScores: number[] = [];
-    for (const sg of show.genres) {
-      for (const profileKey of getProfileGenreKeys(sg.genreId)) {
-        genreScores.push((profile as unknown as Record<string, number>)[profileKey] ?? 0);
-      }
-    }
-    if (genreScores.length > 0) {
-      genreScore = genreScores.reduce((a, b) => a + b, 0) / genreScores.length;
-    }
-  }
-
   for (const row of communityAvgs) {
     if ((row._count.ratistRating ?? 0) === 0) continue;
     const avg = row._avg as Record<string, number | null>;
@@ -853,9 +860,20 @@ export async function getSeasonScoreEstimatesTv(
     }
     if (totalWeight === 0) { result.set(row.seasonNumber, null); continue; }
     const componentEstimate = weightedSum / totalWeight;
-    const estimate = genreScore != null
-      ? componentEstimate * 0.90 + genreScore * 0.10
-      : componentEstimate;
+
+    // Detractor dampening is community-rating dependent, so genre score
+    // varies by season even though the show's genre tags don't.
+    let estimate = componentEstimate;
+    if (show) {
+      const genreScore = computeGenreScore(
+        profile as unknown as Record<string, number>,
+        show.genres,
+        avg.ratistRating ?? null,
+      );
+      if (genreScore != null) {
+        estimate = componentEstimate * COMPONENT_WEIGHT + genreScore * GENRE_WEIGHT;
+      }
+    }
     result.set(row.seasonNumber, Math.round(Math.min(10, Math.max(1, estimate)) * 10) / 10);
   }
 

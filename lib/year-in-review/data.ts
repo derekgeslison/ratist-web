@@ -786,7 +786,7 @@ export async function getYearInReview(userId: string, year: number): Promise<Yea
       "genreAction", "genreHorror", "genreDrama", "genreHistorical", "genreScifi",
       "genreThriller", "genreComedy", "genreBookAdapt", "genreFantasy", "genreRomance",
       "genreDocumentary", "genreFamily", "genreFilmNoir", "genreMusical", "genreBiopic",
-      "genreCrime", "genreWestern", "genreMystery",
+      "genreCrime", "genreWestern", "genreMystery", "genreAnimation",
     ] as const;
     const vp = viewerProfile as unknown as Record<string, number>;
     let best: { firebaseUid: string; name: string; avatarUrl: string | null; similarity: number } | null = null;

@@ -11,7 +11,7 @@ async function main() {
     const u = await prisma.user.findFirst({ where: { name }, include: { profile: true } });
     if (!u?.profile) { console.log(name, "no profile"); continue; }
     const p = u.profile as unknown as Record<string, number | null>;
-    const genreKeys = ["genreAction","genreHorror","genreDrama","genreHistorical","genreScifi","genreThriller","genreComedy","genreBookAdapt","genreFantasy","genreRomance","genreDocumentary","genreFamily","genreFilmNoir","genreMusical","genreBiopic","genreCrime","genreWestern","genreMystery"];
+    const genreKeys = ["genreAction","genreHorror","genreDrama","genreHistorical","genreScifi","genreThriller","genreComedy","genreBookAdapt","genreFantasy","genreRomance","genreDocumentary","genreFamily","genreFilmNoir","genreMusical","genreBiopic","genreCrime","genreWestern","genreMystery","genreAnimation"];
     console.log(`\n=== ${name} ===`);
     let nz = 0;
     for (const k of genreKeys) {

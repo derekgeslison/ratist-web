@@ -19,6 +19,7 @@ const COMPONENT_LABELS: Record<string, string> = {
 
 const GENRE_LABELS: Record<string, string> = {
   genreAction: "Action / Adventure",
+  genreAnimation: "Animation",
   genreHorror: "Horror",
   genreDrama: "Drama",
   genreHistorical: "Historical",

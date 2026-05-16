@@ -27,12 +27,13 @@ const COMPONENT_LABELS: Record<string, string> = {
 };
 
 const GENRE_LABELS: Record<string, string> = {
-  genreAction: "Action / Adventure", genreHorror: "Horror", genreDrama: "Drama",
-  genreHistorical: "Historical", genreScifi: "Sci-Fi", genreThriller: "Thriller",
-  genreComedy: "Comedy", genreBookAdapt: "Book Adaptation", genreFantasy: "Fantasy",
-  genreRomance: "Romance", genreDocumentary: "Documentary", genreFamily: "Family",
-  genreFilmNoir: "Film-Noir", genreMusical: "Musical", genreBiopic: "Biopic",
-  genreCrime: "Crime", genreWestern: "Western", genreMystery: "Mystery",
+  genreAction: "Action / Adventure", genreAnimation: "Animation", genreHorror: "Horror",
+  genreDrama: "Drama", genreHistorical: "Historical", genreScifi: "Sci-Fi",
+  genreThriller: "Thriller", genreComedy: "Comedy", genreBookAdapt: "Book Adaptation",
+  genreFantasy: "Fantasy", genreRomance: "Romance", genreDocumentary: "Documentary",
+  genreFamily: "Family", genreFilmNoir: "Film-Noir", genreMusical: "Musical",
+  genreBiopic: "Biopic", genreCrime: "Crime", genreWestern: "Western",
+  genreMystery: "Mystery",
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
