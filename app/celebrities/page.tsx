@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Celebrities", description: "Actor and director filmographies, roles across movies and TV shows, awards, and photos. Explore who's in what — from A-list stars to directors you should know.", alternates: { canonical: "/celebrities" } };
-import { Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { UserStar, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
@@ -374,7 +374,7 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <NavEntryRegister title="All celebrities" />
       <div className="flex items-center gap-3 mb-2">
-        <Users className="w-6 h-6 text-[var(--ratist-red)]" />
+        <UserStar className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Celebrities</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-4">

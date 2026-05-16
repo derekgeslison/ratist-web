@@ -102,6 +102,10 @@ function getPushPrefKey(type: string): string | null {
     case "companion_ready": return "companionUpdates";
     case "watchlist_streaming":
     case "streaming_now_available": return "streamingAlerts";
+    case "movieclub_voting_open":
+    case "movieclub_announced":
+    case "movieclub_voting_closed":
+    case "movieclub_discussion_open": return "movieClub";
     default: return null;
   }
 }

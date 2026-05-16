@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import path from "node:path";
 import fs from "node:fs";
-import { Wrench, Users, Film, Map, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp, Layers } from "lucide-react";
+import { Wrench, GitFork, UserRoundSearch, Map, Swords, BarChart3, Sparkles, MonitorPlay, TrendingUp, Layers } from "lucide-react";
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 import { getTopGrossing } from "@/lib/box-office-queries";
@@ -94,7 +94,7 @@ export default async function ToolsPage() {
   const TOOLS: Tool[] = [
     {
       href: "/tools/shared-cast",
-      icon: Users,
+      icon: GitFork,
       title: "Shared Cast & Crew",
       desc: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share. Filter by minimum overlap.",
       image: "/tools/shared-cast.png",
@@ -102,7 +102,7 @@ export default async function ToolsPage() {
     },
     {
       href: "/tools/actor-lookup",
-      icon: Film,
+      icon: UserRoundSearch,
       title: "What Else Do I Know Them From?",
       desc: "Search an actor or director and see only the movies and shows you've personally seen or rated.",
       image: "/tools/actor-lookup.png",

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import SignInLink from "@/components/SignInLink";
 import { useSearchParams } from "next/navigation";
-import { Search, Film, Users, ExternalLink, Tv } from "lucide-react";
+import { Search, UserRoundSearch, Users, ExternalLink, Tv } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
@@ -250,7 +250,7 @@ function ActorLookupContent() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
-        <Film className="w-6 h-6 text-[var(--ratist-red)]" />
+        <UserRoundSearch className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">What Else Do I Know Them From?</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Search an actor or director to see only the movies and shows you&apos;ve seen or rated.</p>

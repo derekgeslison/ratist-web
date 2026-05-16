@@ -41,9 +41,11 @@ export type PushCategory =
   // Push-only categories — see schema comment on pushPrefs. No
   // matching key exists on notificationPrefs; the in-app side is
   // governed by the upstream opt-in (companion follow,
-  // watchlistStreamingNotifs, StreamingWatch row).
+  // watchlistStreamingNotifs, StreamingWatch row, Movie Club
+  // membership).
   | "companionUpdates"
-  | "streamingAlerts";
+  | "streamingAlerts"
+  | "movieClub";
 
 export interface PushPrefs {
   commentOnContent: boolean;
@@ -55,6 +57,7 @@ export interface PushPrefs {
   follows: boolean;
   companionUpdates: boolean;
   streamingAlerts: boolean;
+  movieClub: boolean;
 }
 
 const DEFAULT_PUSH_PREFS: PushPrefs = {
@@ -67,6 +70,7 @@ const DEFAULT_PUSH_PREFS: PushPrefs = {
   follows: true,
   companionUpdates: true,
   streamingAlerts: true,
+  movieClub: true,
 };
 
 export function parsePushPrefs(raw: unknown): PushPrefs {

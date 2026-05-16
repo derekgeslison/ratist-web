@@ -28,7 +28,8 @@ type PushCategory =
   | "watchlistInvites"
   | "follows"
   | "companionUpdates"
-  | "streamingAlerts";
+  | "streamingAlerts"
+  | "movieClub";
 
 interface PushPrefs {
   commentOnContent: boolean;
@@ -40,6 +41,7 @@ interface PushPrefs {
   follows: boolean;
   companionUpdates: boolean;
   streamingAlerts: boolean;
+  movieClub: boolean;
 }
 
 const DEFAULT_PREFS: PushPrefs = {
@@ -52,18 +54,43 @@ const DEFAULT_PREFS: PushPrefs = {
   follows: true,
   companionUpdates: true,
   streamingAlerts: true,
+  movieClub: true,
 };
 
-const PREF_LABELS: { key: PushCategory; label: string; desc: string }[] = [
-  { key: "commentOnContent", label: "Comments on your content", desc: "When someone comments on your reviews, posts, or community items" },
-  { key: "likeOnContent", label: "Likes on your content", desc: "When someone likes your reviews or posts" },
-  { key: "commentReplies", label: "Replies to your comments", desc: "When someone replies to a comment you made" },
-  { key: "commentLikes", label: "Likes on your comments", desc: "When someone likes a comment you made" },
-  { key: "milestones", label: "Milestone alerts", desc: "Big like / comment milestones on your content (50, 100, 500+)" },
-  { key: "watchlistInvites", label: "Watchlist invites", desc: "When someone invites you to collaborate on a watchlist" },
-  { key: "follows", label: "Follows & follow requests", desc: "When someone follows you, requests to follow, or accepts your follow request" },
-  { key: "companionUpdates", label: "Watch companion updates", desc: "When a new episode's companion is ready for a season you follow, or when a companion you requested is approved" },
-  { key: "streamingAlerts", label: "Streaming alerts", desc: "When a movie or show you've subscribed to (or anything in your watchlist, if enabled) starts streaming" },
+const PREF_GROUPS: {
+  title: string;
+  items: { key: PushCategory; label: string; desc: string }[];
+}[] = [
+  {
+    title: "Engagement on your content",
+    items: [
+      { key: "commentOnContent", label: "Comments on your content", desc: "When someone comments on your reviews, posts, or community items" },
+      { key: "likeOnContent", label: "Likes on your content", desc: "When someone likes your reviews or posts" },
+      { key: "commentReplies", label: "Replies to your comments", desc: "When someone replies to a comment you made" },
+      { key: "commentLikes", label: "Likes on your comments", desc: "When someone likes a comment you made" },
+      { key: "milestones", label: "Milestone alerts", desc: "Big like / comment milestones on your content (50, 100, 500+)" },
+    ],
+  },
+  {
+    title: "People",
+    items: [
+      { key: "follows", label: "Follows & follow requests", desc: "When someone follows you, requests to follow, or accepts your follow request" },
+      { key: "watchlistInvites", label: "Watchlist invites", desc: "When someone invites you to collaborate on a watchlist" },
+    ],
+  },
+  {
+    title: "Updates & releases",
+    items: [
+      { key: "companionUpdates", label: "Watch companion updates", desc: "When a new episode's companion is ready for a season you follow, or when a companion you requested is approved" },
+      { key: "streamingAlerts", label: "Streaming alerts", desc: "When a movie or show you've subscribed to (or anything in your watchlist, if enabled) starts streaming" },
+    ],
+  },
+  {
+    title: "Movie Club",
+    items: [
+      { key: "movieClub", label: "Movie Club week updates", desc: "When voting opens, the week's pick is announced, or discussion opens. Membership is the opt-in — leaving the club stops the pings entirely." },
+    ],
+  },
 ];
 
 export default function PushNotificationsSection() {
@@ -198,23 +225,27 @@ export default function PushNotificationsSection() {
           )}
 
           {subscribed && (
-            <div className="mt-5 pt-5 border-t border-[var(--border)] space-y-3">
-              <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider mb-1">
-                Push categories
-              </p>
-              {PREF_LABELS.map((row) => (
-                <label key={row.key} className="flex items-start gap-3 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={pushPrefs[row.key]}
-                    onChange={(e) => togglePref(row.key, e.target.checked)}
-                    className="mt-1 accent-[var(--ratist-red)]"
-                  />
-                  <div>
-                    <p className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors">{row.label}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">{row.desc}</p>
-                  </div>
-                </label>
+            <div className="mt-5 pt-5 border-t border-[var(--border)] space-y-5">
+              {PREF_GROUPS.map((group) => (
+                <div key={group.title} className="space-y-3">
+                  <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wider">
+                    {group.title}
+                  </p>
+                  {group.items.map((row) => (
+                    <label key={row.key} className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={pushPrefs[row.key]}
+                        onChange={(e) => togglePref(row.key, e.target.checked)}
+                        className="mt-1 accent-[var(--ratist-red)]"
+                      />
+                      <div>
+                        <p className="text-sm text-white group-hover:text-[var(--ratist-red)] transition-colors">{row.label}</p>
+                        <p className="text-xs text-[var(--foreground-muted)]">{row.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               ))}
             </div>
           )}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Users, Sparkles, TrendingUp, Brain,
+  GitFork, Sparkles, TrendingUp, Brain,
   MonitorPlay, Swords, MessageSquare,
   type LucideIcon,
 } from "lucide-react";
@@ -23,7 +23,7 @@ interface Tool {
 // copy looks careless when a user clicks through.
 const DEFAULT_TOOLS: Tool[] = [
   {
-    icon: Users,
+    icon: GitFork,
     title: "Shared Cast & Crew",
     description: "Select 2–4 movies or shows to find actors and directors they share, or select 2–6 people to find titles they share. Filter by minimum overlap.",
     href: "/tools/shared-cast",

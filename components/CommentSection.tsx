@@ -5,36 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SignInLink from "@/components/SignInLink";
-import { Heart, Reply, Trash2, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Heart, Reply, Trash2, ChevronDown, ChevronUp, X, ListStart } from "lucide-react";
 import ReportButton from "./ReportButton";
 import EmojiButton from "./EmojiButton";
 import GifButton from "./GifButton";
 import { useAuth } from "@/context/AuthContext";
 import { posterUrl } from "@/lib/tmdb";
-
-// Custom icon: stacked horizontal lines (a list) with a back-pointing
-// reply arrow overlay. Distinguishes the "reply with your own list" CTA
-// from "add to watchlist" which uses a plus.
-function ListReplyIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <line x1="14" y1="6"  x2="21" y2="6" />
-      <line x1="14" y1="12" x2="21" y2="12" />
-      <line x1="14" y1="18" x2="21" y2="18" />
-      <polyline points="9 17 4 12 9 7" />
-      <path d="M4 12 H10" />
-    </svg>
-  );
-}
 
 interface CommentUser {
   id: string;
@@ -673,7 +649,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
     if (!linked) return null;
     return (
       <div className="flex items-center gap-2 mb-1.5 px-2 py-1 bg-[var(--surface-2)] rounded-lg border border-[var(--border)] text-xs">
-        <ListReplyIcon className="w-3 h-3 text-[var(--ratist-red)]" />
+        <ListStart className="w-3 h-3 text-[var(--ratist-red)]" />
         <span className="text-white truncate flex-1">{linked.name}</span>
         <button type="button" onClick={() => setLinked(null)} className="text-[var(--foreground-muted)] hover:text-white" title="Remove linked collection">
           <X className="w-3 h-3" />
@@ -697,7 +673,7 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
           isOpen ? "bg-[var(--surface-2)] text-white" : "text-[var(--foreground-muted)] hover:text-white hover:bg-[var(--surface-2)]"
         }`}
       >
-        <ListReplyIcon className="w-4 h-4" />
+        <ListStart className="w-4 h-4" />
       </button>
     );
   }

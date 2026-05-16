@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, X, Users, Tv } from "lucide-react";
+import { Search, X, GitFork, Tv } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import ShareButton from "@/components/ShareButton";
 
@@ -185,7 +185,7 @@ export default function SharedCastPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center gap-3 mb-2">
-        <Users className="w-6 h-6 text-[var(--ratist-red)]" />
+        <GitFork className="w-6 h-6 text-[var(--ratist-red)]" />
         <h1 className="text-2xl font-bold text-white">Shared Cast & Crew</h1>
       </div>
       <p className="text-[var(--foreground-muted)] mb-6">Discover connections between movies, TV shows, and the people who made them.</p>

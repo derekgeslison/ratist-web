@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { UserRoundSearch } from "lucide-react";
 import PageShare from "@/components/PageShare";
 import ShareNudge from "@/components/ShareNudge";
 import ZoomableImage from "@/components/ZoomableImage";
@@ -525,7 +525,7 @@ export default async function CelebrityPage({ params }: Props) {
             href={`/tools/actor-lookup?personId=${person.id}&name=${encodeURIComponent(person.name)}`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-sm text-[var(--foreground-muted)] hover:text-white hover:border-[var(--ratist-red)] transition-colors mb-4"
           >
-            <Search className="w-3.5 h-3.5" />
+            <UserRoundSearch className="w-3.5 h-3.5" />
             Where do I know them from?
           </Link>
 
