@@ -203,6 +203,14 @@ export default function PrivacyPolicyPage() {
             To exercise any of these rights, see Section 10. We will not discriminate against you for exercising
             any of your CCPA rights.
           </p>
+          <p className="mt-2">
+            <strong className="text-white">To request correction</strong> of personal data we hold about you
+            that you cannot edit yourself via the Settings page, email{" "}
+            <a href="mailto:theratistreview@gmail.com" className="text-[var(--ratist-red)] hover:underline">
+              theratistreview@gmail.com
+            </a>
+            {" "}with the specific item you&apos;d like corrected. We&apos;ll respond within 45 days as required by CPRA.
+          </p>
         </section>
 
         <section>

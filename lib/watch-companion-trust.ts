@@ -16,7 +16,14 @@ export const CRITIC_VOTE_WEIGHT = 3;
 export const REGULAR_VOTE_WEIGHT = 1;
 
 export const APPROVE_SCORE_THRESHOLD = 5;
-export const APPROVE_MIN_REGULAR_VOTES = 5;
+// Raised from 5 → 8 to make sock-puppet auto-approve attacks harder.
+// 5 was just barely enough that a coordinated 5-account cluster could
+// auto-approve fake content. 8 means an attacker needs nearly double
+// the sock-puppet investment; combined with the new-account-age
+// gating we want to add separately, this gets a lot more expensive.
+// Single critic upvote still auto-approves on its own — that's the
+// trusted-curator fast path.
+export const APPROVE_MIN_REGULAR_VOTES = 8;
 export const DISMISS_SCORE_THRESHOLD = -3;
 export const DISMISS_MIN_VOTES = 3;
 

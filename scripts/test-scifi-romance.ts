@@ -1,11 +1,10 @@
 // Replicate the recommend route's tmdbGetGenreAware logic for sci-fi+romance
 // to see what the user is actually getting.
 const TMDB_BASE = "https://api.themoviedb.org/3";
-const API_KEY = process.env.TMDB_API_KEY ?? process.env.NEXT_PUBLIC_TMDB_API_KEY;
-if (!API_KEY) {
+const API_KEY: string = process.env.TMDB_API_KEY ?? process.env.NEXT_PUBLIC_TMDB_API_KEY ?? (() => {
   console.error("Set TMDB_API_KEY or NEXT_PUBLIC_TMDB_API_KEY before running.");
   process.exit(1);
-}
+})();
 
 async function tmdbGet(path: string, params: Record<string, string>) {
   const url = new URL(`${TMDB_BASE}${path}`);

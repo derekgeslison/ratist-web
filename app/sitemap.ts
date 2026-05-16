@@ -1,6 +1,11 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 
+// Sitemap data changes daily at most (new movies / shows / posts).
+// Without this revalidate, every Google fetch re-runs all 11 Prisma
+// queries from scratch. 1h cache is plenty fresh for crawler use.
+export const revalidate = 3600;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://www.theratist.com";
 
@@ -63,7 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     safe(() => prisma.blogPost.findMany({
       where: { published: true, publishedAt: { lte: new Date() }, type: "BLOG" },
       select: { slug: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { updatedAt: "desc" }, take: 5000,
     })),
     safe(() => prisma.newsItem.findMany({
       where: { published: true, publishedAt: { lte: new Date() } },
@@ -73,12 +78,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     safe(() => prisma.blogPost.findMany({
       where: { published: true, publishedAt: { lte: new Date() }, type: "MOVIE_MAP" },
       select: { slug: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { updatedAt: "desc" }, take: 5000,
     })),
     safe(() => prisma.blogPost.findMany({
       where: { published: true, publishedAt: { lte: new Date() }, type: "PUNCH_AND_JUDY" },
       select: { slug: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: { updatedAt: "desc" }, take: 5000,
     })),
     safe(() => prisma.celebrity.findMany({
       select: { tmdbId: true, cachedAt: true },

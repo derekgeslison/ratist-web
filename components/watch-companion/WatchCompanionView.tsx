@@ -2058,6 +2058,28 @@ export default function WatchCompanionView({
         mode="suggest"
         companionId={data.id}
       />
+
+      {/* Source attribution. Watch Companion grounding draws from
+          Wikipedia (CC BY-SA 4.0) and OpenSubtitles SRT data; both
+          require visible credit on any surface that displays adapted
+          content. The CC BY-SA clause is the binding one here —
+          Wikipedia text needs author + license link. */}
+      <p className="mt-8 pt-4 border-t border-[var(--border)]/40 text-[10px] text-[var(--foreground-muted)] text-center leading-relaxed">
+        Some companion content is adapted from{" "}
+        <a href="https://en.wikipedia.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">
+          Wikipedia
+        </a>
+        {" "}(
+        <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">
+          CC BY-SA 4.0
+        </a>
+        ) and{" "}
+        <a href="https://www.opensubtitles.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-white transition-colors">
+          OpenSubtitles
+        </a>
+        . Recaps, character notes, and timelines may include phrasing
+        derived from these sources.
+      </p>
     </div>
   );
 }

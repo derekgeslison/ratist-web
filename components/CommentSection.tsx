@@ -511,10 +511,21 @@ export default function CommentSection({ targetType, targetId, disabled, isAdmin
               </p>
             )}
             {comment.gifUrl && (
-              <a href={comment.gifUrl} target="_blank" rel="noopener noreferrer" className="block mt-1.5 max-w-[260px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={comment.gifUrl} alt="GIF" className="rounded-lg border border-[var(--border)]/40 max-w-full h-auto" loading="lazy" />
-              </a>
+              <div className="mt-1.5 max-w-[260px]">
+                <a href={comment.gifUrl} target="_blank" rel="noopener noreferrer" className="block">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={comment.gifUrl} alt="GIF" className="rounded-lg border border-[var(--border)]/40 max-w-full h-auto" loading="lazy" />
+                </a>
+                {/* GIPHY brand guidelines require attribution visible
+                    wherever their content renders, not just in the
+                    picker. Small inline credit keeps us compliant. */}
+                <p className="text-[10px] text-[var(--foreground-muted)] mt-0.5">
+                  via{" "}
+                  <a href="https://giphy.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors underline decoration-dotted">
+                    GIPHY
+                  </a>
+                </p>
+              </div>
             )}
             {comment.linkedCollection && <LinkedCollectionTile linked={comment.linkedCollection} />}
 
