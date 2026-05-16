@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { notifyMovieClubTransition } from "@/lib/movie-club-notify";
+import { pregenWatchCompanionForWeek } from "@/lib/movie-club-companion-pregen";
 
 const API_KEY = process.env.TMDB_API_KEY;
 
@@ -127,10 +128,26 @@ export async function runStatusTransitions(): Promise<void> {
       continue;
     }
 
-    // Community vote: voting → watching (Wed 2am ET or later — catches missed crons)
+    // Community vote: voting → watching (Wed-evening cron, catches missed runs)
     if (week.status === "voting" && (dayOfWeek >= 3 || dayOfWeek === 0) && (dayOfWeek > 3 || dayOfWeek === 0 || hour >= 2)) {
-      await resolveVoteAndStartWatching(week.id);
-      await notifyMovieClubTransition(week.id, week.status, week.movieTitle);
+      // 1. Pick the winning movie (sets movieId on the week, leaves
+      //    status as "voting" so we can pregen before transitioning).
+      await resolveVoteWinner(week.id);
+      // 2. Pre-generate the Watch Companion synchronously so it's live
+      //    by the time the announce notification reaches participants
+      //    (per spec: "delay the notification until after the gen is
+      //    complete"). Non-fatal: a failed/ineligible/already-exists
+      //    pregen shouldn't block the announce. ~5min on the wall
+      //    clock — Vercel cron ceiling is 300s, no headroom for
+      //    additional work in this branch.
+      await pregenWatchCompanionForWeek(week.id).catch((err) => {
+        console.error("[movie-club] pregen failed during vote resolve:", err);
+      });
+      // 3. Flip status + notify. Re-read the week to get the updated
+      //    movieTitle (resolveVoteWinner stamps it onto the row).
+      const resolved = await prisma.movieClubWeek.findUnique({ where: { id: week.id }, select: { movieTitle: true } });
+      await prisma.movieClubWeek.update({ where: { id: week.id }, data: { status: "watching" } });
+      await notifyMovieClubTransition(week.id, "voting", resolved?.movieTitle ?? null);
       continue;
     }
 
@@ -194,7 +211,7 @@ export async function pickRandomMovie(filters?: Record<string, string> | null): 
   }
 }
 
-async function pickRandomAndAssign(weekId: string, filters: Record<string, string> | null): Promise<void> {
+export async function pickRandomAndAssign(weekId: string, filters: Record<string, string> | null): Promise<void> {
   const picked = await pickRandomMovie(filters);
   if (!picked) return;
 
@@ -236,40 +253,6 @@ export async function resolveVoteWinner(weekId: string): Promise<void> {
   await prisma.movieClubWeek.update({
     where: { id: weekId },
     data: { movieId: movie.id, movieTmdbId: winner.tmdbId, movieTitle: winner.title, moviePoster: winner.posterPath },
-  });
-}
-
-async function resolveVoteAndStartWatching(weekId: string): Promise<void> {
-  // Count votes per nomination
-  const nominations = await prisma.movieClubNomination.findMany({
-    where: { weekId },
-    include: { _count: { select: { votes: true } } },
-  });
-
-  if (nominations.length === 0) {
-    // No nominations — fall back to random
-    await pickRandomAndAssign(weekId, null);
-  } else {
-    // Sort by votes desc, then random for ties
-    const sorted = nominations.sort((a, b) => b._count.votes - a._count.votes || Math.random() - 0.5);
-    const winner = sorted[0];
-
-    const movie = await prisma.movie.upsert({
-      where: { tmdbId: winner.tmdbId },
-      create: { tmdbId: winner.tmdbId, title: winner.title, posterPath: winner.posterPath },
-      update: {},
-    });
-
-    await prisma.movieClubWeek.update({
-      where: { id: weekId },
-      data: { movieId: movie.id, movieTmdbId: winner.tmdbId, movieTitle: winner.title, moviePoster: winner.posterPath, status: "watching" },
-    });
-    return;
-  }
-
-  await prisma.movieClubWeek.update({
-    where: { id: weekId },
-    data: { status: "watching" },
   });
 }
 

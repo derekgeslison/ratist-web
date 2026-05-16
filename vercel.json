@@ -5,6 +5,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/movie-club-companion-pregen",
+      "schedule": "0 13 * * 1"
+    },
+    {
       "path": "/api/cron/movie-club",
       "schedule": "0 14,15 * * 1"
     },
