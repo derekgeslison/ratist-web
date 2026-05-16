@@ -218,112 +218,72 @@ export default function LiveReview({ movieId, movieTitle, posterPath }: Props) {
     if (running) saveState();
   }, [elapsedSeconds, bookmarks, generalNotes, saveState, running]);
 
-  // Latest bookmarks/notes counts + pause state surfaced to the
-  // Live Activity update tick. The tick fires every minute (not on
-  // every keystroke / pause) so this ref-based pattern avoids
-  // re-running the parent effect — which would tear down + restart
-  // the activity on every bookmark or pause toggle.
+  // Latest bookmarks count surfaced to the per-minute update tick.
+  // Refs so a fresh note doesn't tear down + restart the parent effect.
   const bookmarksLenRef = useRef(bookmarks.length);
   useEffect(() => { bookmarksLenRef.current = bookmarks.length; }, [bookmarks.length]);
-  const isPausedRef = useRef(isPaused);
-  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-  // Live Activity lifecycle. Starts when the timer goes running and
-  // pushes a per-minute update with the wall-clock-correct elapsed
-  // (already net of paused time), pause state, and notes count. The
-  // import is dynamic so the JS bundle doesn't pay the helper cost on
-  // web. This effect's cleanup does NOT end the activity — that lives
-  // in a separate effect below, so an in-app navigation away (component
-  // unmount) leaves the ongoing notification on screen and the timer
-  // counting via the native chronometer. The activity ends only when
-  // running explicitly flips to false (user paused/stopped/finished).
+  // Live Activity lifecycle — simple "show while actively going" model.
+  //
+  // The native chronometer can't actually pause (setUsesChronometer
+  // ticks forward from setWhen forever). Instead of trying to render
+  // a frozen "Paused · MM:SS" state, we just end the activity entirely
+  // when the user pauses, and start a fresh one on resume. That side-
+  // steps the chronometer-pause problem AND naturally fixes the
+  // jump-to-time + resume case: the resume call re-anchors setWhen
+  // to (now - currentElapsed), so the notification counter picks up
+  // wherever the in-app timer is post-jump.
+  //
+  // Transitions handled:
+  //   running=true,  isPaused=false → start activity (fresh anchor)
+  //   running=true,  isPaused=true  → end activity (user paused)
+  //   running=false                 → end activity (stopped/finished)
+  //
+  // Component unmount does NOT end the activity — when the user
+  // navigates away with the timer running, the notification stays
+  // alive so they can tap it to come back.
+  const prevActivityVisibleRef = useRef(false);
   useEffect(() => {
-    if (!running) return;
-    const startedAtMs = startedAtRef.current ?? Date.now();
-    let active = true;
+    const shouldShow = running && !isPaused;
+    const wasShowing = prevActivityVisibleRef.current;
+    prevActivityVisibleRef.current = shouldShow;
 
-    (async () => {
-      const liveActivity = await import("@/lib/live-activity");
-      if (!active) return;
-      await liveActivity.startLiveReviewActivity({
-        sessionId: movieId,
-        movieTitle: movieTitle ?? "Live Review",
-        posterUrl: posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : undefined,
-        startedAt: startedAtMs,
-      });
-    })();
+    if (shouldShow && !wasShowing) {
+      // Anchor the chronometer to the in-app timer's CURRENT elapsed
+      // (already net of paused intervals AND any setElapsedTo jumps).
+      // The native plugin's setWhen(startedAt) + setUsesChronometer(true)
+      // then ticks forward from this point, matching the in-app value.
+      const elapsedSeconds = computeElapsedSec();
+      const startedAtMs = Date.now() - elapsedSeconds * 1000;
+      void import("@/lib/live-activity").then((m) =>
+        m.startLiveReviewActivity({
+          sessionId: movieId,
+          movieTitle: movieTitle ?? "Live Review",
+          posterUrl: posterPath ? `https://image.tmdb.org/t/p/w342${posterPath}` : undefined,
+          startedAt: startedAtMs,
+        }),
+      );
+    } else if (!shouldShow && wasShowing) {
+      void import("@/lib/live-activity").then((m) => m.endActivity(movieId));
+    }
+  }, [running, isPaused, movieId, movieTitle, posterPath, computeElapsedSec]);
 
+  // Per-minute update tick for notesCount — only while the activity
+  // is visible. Restarts cleanly when isPaused flips (the effect re-
+  // runs and re-installs its interval).
+  useEffect(() => {
+    if (!running || isPaused) return;
     const tick = setInterval(async () => {
-      if (!active) return;
-      // Use computeElapsedSec so the value matches what the user sees
-      // in-app. Plain wall-clock from startedAtMs would over-count
-      // when the user paused — the notification's "12 min" line would
-      // diverge from the in-app "10:32" line.
       const elapsedSeconds = computeElapsedSec();
       const minutesElapsed = Math.floor(elapsedSeconds / 60);
       const liveActivity = await import("@/lib/live-activity");
       await liveActivity.updateActivity({
         sessionId: movieId,
-        payload: {
-          minutesElapsed,
-          notesCount: bookmarksLenRef.current,
-          paused: isPausedRef.current,
-          elapsedSeconds,
-        },
+        payload: { minutesElapsed, notesCount: bookmarksLenRef.current },
       });
     }, 60_000);
-
-    return () => {
-      // Only clean up the JS-side timer. The native activity persists
-      // across navigation and is ended by the running→false effect.
-      active = false;
-      clearInterval(tick);
-    };
-  }, [running, movieId, movieTitle, posterPath, computeElapsedSec]);
-
-  // Push an IMMEDIATE update when the user toggles pause/resume. The
-  // per-minute tick above eventually catches up, but waiting up to 60s
-  // for the notification to reflect a pause makes the timer feel
-  // out-of-sync. This effect bypasses that latency. It only fires
-  // after first paint — the initial undefined→current comparison is
-  // ignored so we don't push an update before the activity has even
-  // been started.
-  const prevIsPausedRef = useRef<boolean | undefined>(undefined);
-  useEffect(() => {
-    if (!running) {
-      prevIsPausedRef.current = isPaused;
-      return;
-    }
-    const prev = prevIsPausedRef.current;
-    prevIsPausedRef.current = isPaused;
-    if (prev === undefined) return; // skip the initial render
-    if (prev === isPaused) return;
-    const elapsedSeconds = computeElapsedSec();
-    const minutesElapsed = Math.floor(elapsedSeconds / 60);
-    void import("@/lib/live-activity").then((m) =>
-      m.updateActivity({
-        sessionId: movieId,
-        payload: {
-          minutesElapsed,
-          notesCount: bookmarksLenRef.current,
-          paused: isPaused,
-          elapsedSeconds,
-        },
-      }),
-    );
-  }, [isPaused, running, movieId, computeElapsedSec]);
-
-  // End the activity ONLY when running explicitly flips from true to
-  // false (user paused/stopped/finished). NOT on component unmount —
-  // that's what enables the notification to survive in-app navigation.
-  const prevRunningRef = useRef(false);
-  useEffect(() => {
-    const wasRunning = prevRunningRef.current;
-    prevRunningRef.current = running;
-    if (wasRunning && !running) {
-      void import("@/lib/live-activity").then((m) => m.endActivity(movieId));
-    }
-  }, [running, movieId]);
+    return () => clearInterval(tick);
+  }, [running, isPaused, movieId, computeElapsedSec]);
 
   // Timer logic. The interval re-renders every second; the elapsed
   // value comes from wall-clock math against startedAtRef. A
