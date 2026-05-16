@@ -70,6 +70,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {ADSENSE_ID && (
           <meta name="google-adsense-account" content={ADSENSE_ID} />
         )}
+        {/* Site-wide JSON-LD. Placed in <head> so React 19 doesn't warn
+            about inline <script> tags inside the React tree. JSON-LD is
+            structured data only — it doesn't execute — and crawlers
+            accept it in either <head> or <body>. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "The Ratist",
+            url: "https://www.theratist.com",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: { "@type": "EntryPoint", urlTemplate: "https://www.theratist.com/movies?search={search_term_string}" },
+              "query-input": "required name=search_term_string",
+            },
+          }).replace(/</g, "\\u003c") }}
+        />
       </head>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         {/* Google Consent Mode v2 — runs BEFORE GA4/AdSense scripts so
@@ -132,20 +150,6 @@ window.gtag('config', '${GA_ID}');`}
             </Script>
           </>
         )}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            name: "The Ratist",
-            url: "https://www.theratist.com",
-            potentialAction: {
-              "@type": "SearchAction",
-              target: { "@type": "EntryPoint", urlTemplate: "https://www.theratist.com/movies?search={search_term_string}" },
-              "query-input": "required name=search_term_string",
-            },
-          }) }}
-        />
         <TypingGuardProvider>
         <AuthProvider>
           <NavEntryAutoRegister />
