@@ -17,6 +17,11 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
   // (mass-follow → mass notification emails). Realistic legitimate
   // use is single-digit follows/day; 50/day leaves room for a binge.
   follow: { max: 50, windowDays: 1 },
+  // Anti-abuse on /api/likes — caps mass-like attacks that would
+  // otherwise pump like counts + trigger milestone notification
+  // emails. 500/day is huge headroom for legitimate use (genuine
+  // browsers rarely break 50 likes/day).
+  postLike: { max: 500, windowDays: 1 },
 };
 
 /**
@@ -27,7 +32,7 @@ const DEFAULT_LIMITS: Record<string, { max: number; windowDays: number }> = {
 export async function checkCommunityRateLimit(
   userId: string,
   isAdmin: boolean,
-  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread" | "postIdea" | "collection" | "report" | "follow"
+  featureType: "recast" | "hotTake" | "looksLike" | "moviePitch" | "forumThread" | "postIdea" | "collection" | "report" | "follow" | "postLike"
 ): Promise<string | null> {
   if (isAdmin) return null;
 
@@ -89,6 +94,10 @@ export async function checkCommunityRateLimit(
     recentCount = await prisma.userFollow.count({
       where: { followerId: userId, createdAt: { gte: windowStart } },
     });
+  } else if (featureType === "postLike") {
+    recentCount = await prisma.postLike.count({
+      where: { userId, createdAt: { gte: windowStart } },
+    });
   }
 
   if (recentCount >= limits.max) {
@@ -102,6 +111,7 @@ export async function checkCommunityRateLimit(
       collection: "public collections",
       report: "reports",
       follow: "follows",
+      postLike: "likes",
     };
     if (featureType === "forumThread") {
       return `You can create up to ${limits.max} forum threads per day.`;
@@ -117,6 +127,9 @@ export async function checkCommunityRateLimit(
     }
     if (featureType === "follow") {
       return `You've followed ${limits.max} people in the last day — that's the daily cap. Try again tomorrow.`;
+    }
+    if (featureType === "postLike") {
+      return `You've liked ${limits.max} things in the last day — that's the daily cap. Try again tomorrow.`;
     }
     return `To prevent spam, we limit users to ${limits.max} ${featureNames[featureType]} every ${limits.windowDays} days. Your submissions are also more likely to get engagement if you spread them out.`;
   }

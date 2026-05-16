@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink, getCommentTargetLink } from "@/lib/notifications";
 import { postingBlockResponse } from "@/lib/posting-block";
 import { getMutualBlockedIds } from "@/lib/blocks";
+import { extractUrls, checkUrlSafety } from "@/lib/safe-browsing";
+
+const MAX_COMMENT_LENGTH = 2000;
 
 export const dynamic = "force-dynamic";
 
@@ -173,6 +176,31 @@ export async function POST(req: NextRequest) {
     // GIF picker only — comments may now be GIF-only, text-only, or both,
     // but at least one has to be present.
     const trimmedText = typeof text === "string" ? text.trim() : "";
+    // Length cap: comments + replies stay short (2,000 chars) since
+    // long-form discussion belongs in forum threads (capped at 5,000).
+    // Without this, a single 100KB comment slows the whole thread
+    // render for every other viewer.
+    if (trimmedText.length > MAX_COMMENT_LENGTH) {
+      return NextResponse.json(
+        { error: `Comments are capped at ${MAX_COMMENT_LENGTH} characters. For longer takes, start a forum thread.` },
+        { status: 400 },
+      );
+    }
+    // Safe Browsing check on any URLs in the comment text — same
+    // pattern forum threads use. Catches phishing / malware links
+    // before they're saved.
+    if (trimmedText.length > 0) {
+      const urls = extractUrls(trimmedText);
+      if (urls.length > 0) {
+        const unsafeUrls = await checkUrlSafety(urls);
+        if (unsafeUrls.length > 0) {
+          return NextResponse.json(
+            { error: "Your comment contains a URL flagged as unsafe by Google Safe Browsing." },
+            { status: 400 },
+          );
+        }
+      }
+    }
     // Validate gifUrl if provided: must be a giphy.com URL. Stops users
     // from stuffing arbitrary URLs (potentially nasty image hosts) into
     // the field via direct API calls.

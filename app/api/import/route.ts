@@ -120,6 +120,17 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: "No rows provided" }, { status: 400 });
     }
+    // Cap import size — protects against bulk-import abuse where a
+    // user dumps 100K rows to fake activity (promo eligibility, badge
+    // count, follower-stat inflation, etc.). Realistic users have
+    // 1-3K rated titles total; 5K leaves significant headroom while
+    // killing the abuse pattern. Admins bypass for backfill/migration.
+    if (!user.isAdmin && rows.length > 5000) {
+      return NextResponse.json(
+        { error: `Import is capped at 5,000 rows per request — you submitted ${rows.length}. Split the file and re-upload, or contact support if you really need to import more.` },
+        { status: 413 },
+      );
+    }
 
     let imported = 0;
     let skipped = 0;

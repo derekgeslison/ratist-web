@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { notify, checkMilestone, buildReviewLink, buildBlogLink, buildTwoThumbsLink, buildMovieMapLink } from "@/lib/notifications";
+import { checkCommunityRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,13 @@ export async function POST(req: NextRequest) {
       const count = await prisma.postLike.count({ where: { targetType, targetId } });
       return NextResponse.json({ liked: false, likeCount: count });
     } else {
+      // Anti-abuse: cap likes/day. Bot accounts that mass-like a
+      // single user's content pump like counts + trigger milestone
+      // notification emails. Unliking (delete branch above) is never
+      // rate-limited.
+      const rateLimitError = await checkCommunityRateLimit(user.id, user.isAdmin, "postLike");
+      if (rateLimitError) return NextResponse.json({ error: rateLimitError }, { status: 429 });
+
       await prisma.postLike.create({
         data: { userId: user.id, targetType, targetId },
       });
