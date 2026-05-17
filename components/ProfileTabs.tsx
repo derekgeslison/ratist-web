@@ -586,7 +586,11 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {ratings.filter((r) => r.ratingStatus === "complete").slice(0, 12).map((r) => (
                     <Link key={r.id} href={`/${r.mediaType === "tv" ? "shows" : "movies"}/${r.tmdbId}`} className="group">
-                      <PosterOverlay tmdbId={r.tmdbId} title={r.title} posterPath={r.posterPath} voteAverage={r.voteAverage} mediaType={r.mediaType ?? "movie"} showRatings>
+                      {/* No showRatings here — the badges below already
+                          render the profile owner's community + ratist
+                          scores. Adding showRatings duplicates them with
+                          the viewer's perspective. */}
+                      <PosterOverlay tmdbId={r.tmdbId} title={r.title} posterPath={r.posterPath} voteAverage={r.voteAverage} mediaType={r.mediaType ?? "movie"}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {r.posterPath ? (
                             <Image src={posterUrl(r.posterPath, "w92")} alt={r.title} fill sizes="80px" className="object-cover" />
@@ -619,7 +623,8 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {topRatedThisYear.map((m, i) => (
                     <Link key={m.tmdbId} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group relative">
-                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType ?? "movie"} showRatings>
+                      {/* showRatings off — owner's ratist badge below. */}
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType ?? "movie"}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
                             <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
@@ -657,7 +662,8 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {suggestions.componentSuggestions.map((m) => (
                     <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
-                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType} showRatings>
+                      {/* showRatings off — owner's ratist badge below. */}
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
                             <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
@@ -687,7 +693,8 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {suggestions.genreSuggestions.map((m) => (
                     <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
-                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType} showRatings>
+                      {/* showRatings off — owner's ratist badge below. */}
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
                             <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
