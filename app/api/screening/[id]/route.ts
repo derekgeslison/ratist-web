@@ -97,6 +97,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.status) {
       const { status } = body;
       if (status === "COUNTDOWN" && isHost && session.status === "LOBBY") {
+        // Min-2-participants gate. Blocks solo "host + immediately
+        // start" abuse — the screening room is built around a shared
+        // watch so a single-person session has no real product use,
+        // and removing it as a fallback also closes a path to badge
+        // grinding (host + leave-self + 1hr alone). The badge check
+        // does its own "stayed through end" guard, but blocking the
+        // start cuts off the loop earlier and keeps the UI honest.
+        if (session.participants.length < 2) {
+          return NextResponse.json({
+            error: "You need at least 2 participants to start a screening room. Share your invite link to bring someone in.",
+            needsMoreParticipants: true,
+          }, { status: 400 });
+        }
         data.status = "COUNTDOWN";
       } else if (status === "WATCHING" && isHost && session.status === "COUNTDOWN") {
         data.status = "WATCHING";

@@ -250,6 +250,12 @@ async function checkScreeningParticipant(userId: string, minSessions: number): P
 }
 
 async function checkScreeningHost(userId: string): Promise<boolean> {
+  // "Stayed through the end" rule: count DISTINCT users who submitted
+  // a screening_ratings row, not raw screening_participants. A row
+  // only exists if the user was in POST_WATCH to submit, so
+  // participants who joined and left during the watch don't count.
+  // Min 2 distinct submitters means the host had at least one real
+  // co-watcher who saw it through.
   const result = await prisma.$queryRaw<{ count: bigint }[]>`
     SELECT COUNT(*) as count
     FROM screening_sessions ss
@@ -258,11 +264,15 @@ async function checkScreeningHost(userId: string): Promise<boolean> {
       AND ss.started_at IS NOT NULL
       AND ss.finished_at IS NOT NULL
       AND EXTRACT(EPOCH FROM (ss.finished_at - ss.started_at)) >= 3600
+      AND (SELECT COUNT(DISTINCT sr.user_id) FROM screening_ratings sr WHERE sr.session_id = ss.id) >= 2
   `;
   return Number(result[0]?.count ?? 0) >= 1;
 }
 
 async function checkPackLeader(userId: string): Promise<boolean> {
+  // Same "stayed through end" rule as checkScreeningHost — count
+  // distinct review submitters rather than raw participants joined.
+  // Pack Leader requires 4 distinct submitters (host can be one).
   const result = await prisma.$queryRaw<{ count: bigint }[]>`
     SELECT COUNT(*) as count
     FROM screening_sessions ss
@@ -271,7 +281,7 @@ async function checkPackLeader(userId: string): Promise<boolean> {
       AND ss.started_at IS NOT NULL
       AND ss.finished_at IS NOT NULL
       AND EXTRACT(EPOCH FROM (ss.finished_at - ss.started_at)) >= 3600
-      AND (SELECT COUNT(*) FROM screening_participants sp WHERE sp.session_id = ss.id) >= 4
+      AND (SELECT COUNT(DISTINCT sr.user_id) FROM screening_ratings sr WHERE sr.session_id = ss.id) >= 4
   `;
   return Number(result[0]?.count ?? 0) >= 1;
 }

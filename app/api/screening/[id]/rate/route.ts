@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
+import { checkBadges } from "@/lib/badges";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ...computed,
       },
     });
+
+    // Auto-advance to COMPLETE when everyone who finished watching
+    // has submitted their review. Previously the session sat in
+    // POST_WATCH until the host clicked "View comparison" or "Skip
+    // to comparison". The Skip button is still there as a manual
+    // override if someone got stuck (e.g. a participant marked
+    // themselves Finished but then left without submitting). We
+    // count against participants with hasFinished=true since those
+    // are the people who actually reached POST_WATCH.
+    if (session.status === "POST_WATCH") {
+      const [finishedCount, ratedCount] = await Promise.all([
+        prisma.screeningParticipant.count({
+          where: { sessionId: id, hasFinished: true },
+        }),
+        prisma.screeningRating.groupBy({
+          by: ["userId"],
+          where: { sessionId: id },
+        }).then((rows) => rows.length),
+      ]);
+      if (finishedCount > 0 && ratedCount >= finishedCount) {
+        await prisma.screeningSession.update({
+          where: { id },
+          data: { status: "COMPLETE", ...(session.finishedAt ? {} : { finishedAt: new Date() }) },
+        });
+        // Same badge re-check the PATCH handler does on a manual
+        // COMPLETE transition. The Screening Host SQL keys on
+        // status=COMPLETE so the auto-advance path needs to fire it
+        // too or the host never gets credited.
+        const participants = await prisma.screeningParticipant.findMany({
+          where: { sessionId: id },
+          select: { userId: true },
+        });
+        for (const p of participants) {
+          checkBadges(p.userId, "screening_end").catch(() => {});
+        }
+      }
+    }
 
     return NextResponse.json(rating);
   } catch (err) {

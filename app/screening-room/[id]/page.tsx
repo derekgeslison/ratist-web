@@ -1388,7 +1388,25 @@ export default function ScreeningSessionPage() {
         <div className="flex items-center gap-3 min-w-0">
           <MonitorPlay className="w-5 h-5 text-[var(--ratist-red)] flex-shrink-0" />
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-white truncate">{session.movieTitle ?? "Screening Room"}</h1>
+            {/* During WATCHING, the title links to the movie/show
+               detail page so participants can pop over for context
+               (cast, runtime, etc.) without leaving the session.
+               NavEntryRegister on the detail page captures "Screening
+               Room" as the back-nav anchor so the browser Back button
+               brings them right back to this active session. Outside
+               WATCHING the title stays plain text so we don't pull
+               users away during lobby setup or post-watch review. */}
+            {session.status === "WATCHING" && session.tmdbId ? (
+              <Link
+                href={`/${session.mediaType === "tv" ? "shows" : "movies"}/${session.tmdbId}`}
+                className="text-lg font-bold text-white truncate hover:text-[var(--ratist-red)] transition-colors block"
+                title={`Open ${session.movieTitle ?? "title"} details`}
+              >
+                {session.movieTitle ?? "Screening Room"}
+              </Link>
+            ) : (
+              <h1 className="text-lg font-bold text-white truncate">{session.movieTitle ?? "Screening Room"}</h1>
+            )}
             <p className="text-xs text-[var(--foreground-muted)]">
               Hosted by {session.host.name} · {session.participants.length} participant{session.participants.length !== 1 ? "s" : ""}
             </p>
