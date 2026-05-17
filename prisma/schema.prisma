@@ -372,6 +372,13 @@ model Movie {
   popularity             Float?
   voteAverage            Float?    @map("vote_average")
   voteCount              Int?      @map("vote_count")
+  // Ratist's own community average across all MovieRating rows with
+  // ratistRating != null (excludes drafts; includes basic/quick + full
+  // standard/critic ratings). Maintained by the rate routes on every
+  // POST/DELETE. Used as a fallback for surfaces that today fall back
+  // to "no community badge" when TMDB's voteAverage is missing.
+  ratistAvg              Float?    @map("ratist_avg")
+  ratistCount            Int?      @map("ratist_count")
   trailerKey             String?   @map("trailer_key")
   status                 String?
   watchProviders         Json?     @map("watch_providers") // { flatrate: [{name, logo}], rent: [{name, logo}] }
@@ -552,6 +559,11 @@ model TVShow {
   popularity         Float?
   voteAverage        Float?    @map("vote_average")
   voteCount          Int?      @map("vote_count")
+  // Ratist's own community average across all TVShowRating rows with
+  // ratistRating != null AND ratingScope = "series" (per-season averages
+  // stay separate). Maintained by the rate routes. See Movie.ratistAvg.
+  ratistAvg          Float?    @map("ratist_avg")
+  ratistCount        Int?      @map("ratist_count")
   trailerKey         String?   @map("trailer_key")
   networks           Json? // [{ id, name, logo_path }]
   watchProviders     Json?     @map("watch_providers")

@@ -8,6 +8,7 @@ import SignInLink from "@/components/SignInLink";
 import { Film, Tv } from "lucide-react";
 import { posterUrl } from "@/lib/tmdb";
 import { scoreColor } from "@/lib/score-color";
+import { resolveCommunityScore } from "@/lib/community-score";
 import CategoryScoreBar from "./CategoryScoreBar";
 import RatingBadge from "./RatingBadge";
 import ShareButton from "./ShareButton";
@@ -19,7 +20,10 @@ interface RatedMovie {
   tmdbId: number;
   title: string;
   posterPath: string | null;
+  /** TMDB community avg — primary source for the community badge. */
   voteAverage: number | null;
+  /** Ratist's own community avg — fallback when voteAverage is missing. */
+  ratistAvg?: number | null;
   ratistRating: number | null;
   reviewText: string | null;
   createdAt: string;
@@ -35,6 +39,12 @@ interface SeenMovie {
   seenAt: string;
   watchedDate: string | null;
   ratistRating: number | null;
+  /** TMDB community vote average. Primary source for the community badge. */
+  voteAverage?: number | null;
+  /** Ratist's own community avg (mean of MovieRating.ratistRating across
+   *  users). Fallback shown when voteAverage is missing — e.g. obscure
+   *  titles TMDB hasn't aggregated yet. */
+  ratistAvg?: number | null;
   ratingStatus: "complete" | "incomplete" | "imported" | null;
   mediaType?: "movie" | "tv";
 }
@@ -256,7 +266,7 @@ export default function ProfileTabs({
   // else's profile while signed in. Lists movies the profile owner rated
   // highly, gated by either shared component preferences (≥2 axes both
   // ≥7.5) or shared genre preferences (≥1 axis both ≥7.0).
-  type SuggestionItem = { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; ratistRating: number; mediaType: "movie" | "tv" };
+  type SuggestionItem = { tmdbId: number; title: string; posterPath: string | null; releaseDate: string | null; voteAverage: number | null; ratistAvg: number | null; ratistRating: number; mediaType: "movie" | "tv" };
   const [suggestions, setSuggestions] = useState<{ shared: { components: string[]; genres: string[] }; componentSuggestions: SuggestionItem[]; genreSuggestions: SuggestionItem[] } | null>(null);
   useEffect(() => {
     if (!user || isOwnProfile) { setSuggestions(null); return; }
@@ -600,9 +610,10 @@ export default function ProfileTabs({
                         </div>
                       </PosterOverlay>
                       <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
-                        {r.voteAverage != null && r.voteAverage > 0 && (
-                          <RatingBadge type="community" score={r.voteAverage} size="sm" />
-                        )}
+                        {(() => {
+                          const cs = resolveCommunityScore(r.voteAverage, r.ratistAvg);
+                          return cs != null ? <RatingBadge type="community" score={cs} size="sm" /> : null;
+                        })()}
                         {r.ratistRating != null && (
                           <RatingBadge type="ratist" score={r.ratistRating} size="sm" />
                         )}
@@ -623,7 +634,7 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {topRatedThisYear.map((m, i) => (
                     <Link key={m.tmdbId} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group relative">
-                      {/* showRatings off — owner's ratist badge below. */}
+                      {/* showRatings off — community + owner's ratist badges below. */}
                       <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType ?? "movie"}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
@@ -636,11 +647,15 @@ export default function ProfileTabs({
                           </div>
                         </div>
                       </PosterOverlay>
-                      {m.ratistRating != null && (
-                        <div className="flex justify-center mt-1">
+                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                        {(() => {
+                          const cs = resolveCommunityScore(m.voteAverage, m.ratistAvg);
+                          return cs != null ? <RatingBadge type="community" score={cs} size="sm" /> : null;
+                        })()}
+                        {m.ratistRating != null && (
                           <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </Link>
                   ))}
                 </div>
@@ -662,7 +677,7 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {suggestions.componentSuggestions.map((m) => (
                     <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
-                      {/* showRatings off — owner's ratist badge below. */}
+                      {/* showRatings off — community + owner's ratist badges below. */}
                       <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
@@ -672,7 +687,11 @@ export default function ProfileTabs({
                           )}
                         </div>
                       </PosterOverlay>
-                      <div className="flex justify-center mt-1">
+                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                        {(() => {
+                          const cs = resolveCommunityScore(m.voteAverage, m.ratistAvg);
+                          return cs != null ? <RatingBadge type="community" score={cs} size="sm" /> : null;
+                        })()}
                         <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
                       </div>
                     </Link>
@@ -693,7 +712,7 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {suggestions.genreSuggestions.map((m) => (
                     <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
-                      {/* showRatings off — owner's ratist badge below. */}
+                      {/* showRatings off — community + owner's ratist badges below. */}
                       <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
@@ -703,7 +722,11 @@ export default function ProfileTabs({
                           )}
                         </div>
                       </PosterOverlay>
-                      <div className="flex justify-center mt-1">
+                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                        {(() => {
+                          const cs = resolveCommunityScore(m.voteAverage, m.ratistAvg);
+                          return cs != null ? <RatingBadge type="community" score={cs} size="sm" /> : null;
+                        })()}
                         <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
                       </div>
                     </Link>

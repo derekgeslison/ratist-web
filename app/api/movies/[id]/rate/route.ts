@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
 import { rebuildUserProfile } from "@/lib/profile";
 import { checkBadges, recheckBadges } from "@/lib/badges";
+import { recomputeRatistAvgForMovie } from "@/lib/community-score-recompute";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -148,6 +149,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     rebuildUserProfile(user.id).catch(console.error);
     checkBadges(user.id, "rate").catch(() => {});
     checkBadges(user.id, "seen").catch(() => {});
+    // Refresh the Ratist community avg column on Movie so poster tiles
+    // that fall back to it stay current. Fire-and-forget; failure here
+    // just means the column lags one rating behind until the next call.
+    recomputeRatistAvgForMovie(movie.id).catch(console.error);
 
     return NextResponse.json({ rating });
   } catch (err) {
@@ -177,6 +182,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // Rebuild user profile after deletion
     rebuildUserProfile(user.id).catch(console.error);
     recheckBadges(user.id, "rate").catch(() => {});
+    // Refresh Movie.ratistAvg now that this rating is gone.
+    recomputeRatistAvgForMovie(movie.id).catch(console.error);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

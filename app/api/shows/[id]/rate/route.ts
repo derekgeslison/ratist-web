@@ -3,6 +3,7 @@ import { adminAuth } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
 import { checkBadges, recheckBadges } from "@/lib/badges";
+import { recomputeRatistAvgForTvShow } from "@/lib/community-score-recompute";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -115,6 +116,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }).catch(() => {});
 
     checkBadges(user.id, "rate").catch(() => {});
+    // Keep TVShow.ratistAvg current so poster tiles that fall back to
+    // it stay live. Fire-and-forget; recompute filters to series scope.
+    recomputeRatistAvgForTvShow(tvShow.id).catch(console.error);
 
     return NextResponse.json({ rating });
   } catch (err) {
@@ -149,6 +153,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     if (deleted.count === 0) return NextResponse.json({ error: "No rating found" }, { status: 404 });
     recheckBadges(user.id, "rate").catch(() => {});
+    recomputeRatistAvgForTvShow(tvShow.id).catch(console.error);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

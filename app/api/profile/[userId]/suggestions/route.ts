@@ -97,6 +97,8 @@ type SuggestionItem = {
   posterPath: string | null;
   releaseDate: string | null;
   voteAverage: number | null;
+  /** Ratist's own community avg — fallback for the community badge. */
+  ratistAvg: number | null;
   ratistRating: number;
   mediaType: "movie" | "tv";
 };
@@ -175,7 +177,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ user
           movie: {
             select: {
               id: true, tmdbId: true, title: true, posterPath: true,
-              releaseDate: true, voteAverage: true, isAdult: true,
+              releaseDate: true, voteAverage: true, ratistAvg: true, isAdult: true,
               genres: { select: { genreId: true } },
             },
           },
@@ -188,7 +190,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ user
           tvShow: {
             select: {
               id: true, tmdbId: true, name: true, posterPath: true,
-              firstAirDate: true, voteAverage: true,
+              firstAirDate: true, voteAverage: true, ratistAvg: true,
               genres: { select: { genreId: true } },
             },
           },
@@ -212,6 +214,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ user
           posterPath: r.movie.posterPath,
           releaseDate: r.movie.releaseDate,
           voteAverage: r.movie.voteAverage,
+          ratistAvg: r.movie.ratistAvg ?? null,
           ratistRating: r.ratistRating ?? 0,
           mediaType: "movie",
         },
@@ -232,6 +235,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ user
           posterPath: r.tvShow.posterPath,
           releaseDate: r.tvShow.firstAirDate,
           voteAverage: r.tvShow.voteAverage,
+          ratistAvg: r.tvShow.ratistAvg ?? null,
           ratistRating: r.ratistRating ?? 0,
           mediaType: "tv",
         },
