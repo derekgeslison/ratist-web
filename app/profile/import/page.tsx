@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Upload, CheckCircle, XCircle, AlertCircle, ArrowLeft } from "lucide-react";
+import { Upload, CheckCircle, XCircle, AlertCircle, ArrowLeft, Bookmark } from "lucide-react";
 import Link from "next/link";
 
 type Platform = "letterboxd" | "imdb";
@@ -509,6 +509,26 @@ export default function ImportPage() {
               </ul>
             </details>
           )}
+
+          {/* Suggest the watchlist import as the natural next step.
+              The two exports come from the same data download on both
+              platforms, so a user who just brought their ratings over
+              very likely has a watchlist to bring too. */}
+          <div className="bg-[var(--surface)] border border-[var(--ratist-red)]/30 rounded-xl p-4 flex items-start gap-3">
+            <Bookmark className="w-5 h-5 text-[var(--ratist-red)] shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white mb-1">Bring your watchlist too?</p>
+              <p className="text-xs text-[var(--foreground-muted)] mb-2">
+                Your {platform === "letterboxd" ? "Letterboxd" : "IMDb"} export also has your save-for-later list. Add it to The Ratist in one click.
+              </p>
+              <Link
+                href="/watchlist/import"
+                className="inline-flex items-center text-sm font-semibold text-[var(--ratist-red)] hover:underline"
+              >
+                Import my watchlist →
+              </Link>
+            </div>
+          </div>
 
           <div className="flex gap-3 pt-2">
             <Link
