@@ -164,7 +164,7 @@ const ALL_SUBFIELDS = [
   "overallEmotion", "meaning", "movingness",
   "cinematography", "artisticEffect", "visualEffects", "locationCost", "musicSound",
   "casting", "actingQuality", "blockingChoreo",
-  "appeal", "superficialAllure", "choreography",
+  "appeal", "choreography",
 ] as const;
 
 /** "Did the user actually fill out the Ratist rubric for this rating?"
@@ -201,7 +201,7 @@ export async function getFullRatistCount(userId: string): Promise<number> {
         cinematography: true, artisticEffect: true, visualEffects: true,
         locationCost: true, musicSound: true,
         casting: true, actingQuality: true, blockingChoreo: true,
-        appeal: true, superficialAllure: true, choreography: true,
+        appeal: true, choreography: true,
       },
     }),
     prisma.tVShowRating.findMany({
@@ -214,7 +214,7 @@ export async function getFullRatistCount(userId: string): Promise<number> {
         cinematography: true, artisticEffect: true, visualEffects: true,
         locationCost: true, musicSound: true,
         casting: true, actingQuality: true, blockingChoreo: true,
-        appeal: true, superficialAllure: true, choreography: true,
+        appeal: true, choreography: true,
       },
     }),
   ]);

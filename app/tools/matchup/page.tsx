@@ -46,8 +46,7 @@ const CATEGORIES = [
     { key: "dialogueScripting", label: "Writing" }, { key: "blockingChoreo", label: "Blocking & Choreo" },
   ]},
   { label: "Entertainment", key: "Entertainment", fields: [
-    { key: "appeal", label: "Appeal" }, { key: "superficialAllure", label: "Superficial Allure" },
-    { key: "choreography", label: "Choreography" },
+    { key: "appeal", label: "Appeal" }, { key: "choreography", label: "Choreography" },
   ]},
 ];
 

@@ -22,7 +22,7 @@ const FIELD_LABELS: Record<string, string> = {
   meaning: "Meaning / Message", movingness: "Movingness",
   casting: "Casting & Subjects", actingQuality: "Performance Quality",
   dialogueScripting: "Dialogue & Writing", blockingChoreo: "Choreography",
-  appeal: "Appeal", superficialAllure: "Superficial Allure", choreography: "Choreography",
+  appeal: "Appeal", choreography: "Choreography",
 };
 
 const CATEGORY_SECTIONS = [
@@ -30,7 +30,7 @@ const CATEGORY_SECTIONS = [
   { key: "style", label: "Production & Style", scoreField: "styleScore", fields: ["cinematography", "locationCost", "realism", "artisticEffect", "visualEffects", "musicSound"] },
   { key: "emotive", label: "Emotive Effect", scoreField: "emotiveScore", fields: ["overallEmotion", "relatability", "meaning", "movingness"] },
   { key: "acting", label: "Acting & Casting", scoreField: "actingScore", fields: ["casting", "actingQuality", "dialogueScripting", "blockingChoreo"] },
-  { key: "entertainment", label: "Pure Entertainment", scoreField: "entertainScore", fields: ["appeal", "superficialAllure", "choreography"] },
+  { key: "entertainment", label: "Pure Entertainment", scoreField: "entertainScore", fields: ["appeal", "choreography"] },
 ];
 
 interface Props {

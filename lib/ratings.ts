@@ -35,7 +35,7 @@ export interface RatingInput {
   actingQuality?: number | null;
   dialogueScripting?: number | null;
   blockingChoreo?: number | null;
-  // Entertainment (superficialAllure excluded from score)
+  // Entertainment
   appeal?: number | null;
   choreography?: number | null;
   // Overall (optional)

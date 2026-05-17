@@ -133,7 +133,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ week
       Style: ["cinematography", "locationCost", "realism", "artisticEffect", "visualEffects", "musicSound"],
       Emotive: ["overallEmotion", "relatability", "meaning", "movingness"],
       Acting: ["casting", "actingQuality", "dialogueScripting", "blockingChoreo"],
-      Entertainment: ["appeal", "superficialAllure", "choreography"],
+      Entertainment: ["appeal", "choreography"],
     };
     const categoryBreakdown = canSeeDiscussion && standardReviews.length > 0
       ? Object.entries(categoryFields).map(([cat, fields]) => {

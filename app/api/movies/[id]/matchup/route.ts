@@ -63,7 +63,6 @@ export async function GET(
       dialogueScripting: true,
       blockingChoreo: true,
       appeal: true,
-      superficialAllure: true,
       choreography: true,
     },
     _sum: { ratistRating: true },
@@ -111,7 +110,6 @@ export async function GET(
     dialogueScripting: agg._avg.dialogueScripting,
     blockingChoreo: agg._avg.blockingChoreo,
     appeal: agg._avg.appeal,
-    superficialAllure: agg._avg.superficialAllure,
     choreography: agg._avg.choreography,
   };
 

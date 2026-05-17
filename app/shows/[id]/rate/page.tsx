@@ -53,7 +53,6 @@ const CRITERIA = {
     key: "entertainment",
     fields: [
       { key: "appeal", label: "Appeal", required: true, desc: "Was the show overall appealing? Is it worth watching more than once?" },
-      { key: "superficialAllure", label: "Superficial Allure", required: false, desc: "Is the appeal based heavily in sex appeal, action, or 'wow factor'? (Not included in score)" },
       { key: "choreography", label: "Choreography", required: false, desc: "Were physical actions of characters and objects good and natural?" },
     ],
   },
@@ -471,9 +470,6 @@ export default function RateShowPage() {
                             {field.label}
                             {field.required && <span className="text-[var(--ratist-red)] ml-1">*</span>}
                           </label>
-                          {field.key === "superficialAllure" && (
-                            <span className="text-xs text-[var(--foreground-muted)] bg-[var(--surface-2)] px-2 py-0.5 rounded">not scored</span>
-                          )}
                         </div>
                         <p className="text-xs text-[var(--foreground-muted)] mb-3">{field.desc}</p>
                         <div className="flex items-center gap-3">

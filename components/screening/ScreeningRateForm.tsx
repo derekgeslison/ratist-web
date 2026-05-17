@@ -45,7 +45,6 @@ const CRITERIA = {
   "Pure Entertainment": {
     fields: [
       { key: "appeal", label: "Appeal", required: true },
-      { key: "superficialAllure", label: "Superficial Allure" },
       { key: "choreography", label: "Choreography" },
     ],
   },

@@ -74,7 +74,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       blockingChoreo: body.blockingChoreo ?? null,
       // Entertainment
       appeal: body.appeal ?? null,
-      superficialAllure: body.superficialAllure ?? null,
       choreography: body.choreography ?? null,
       // Overall
       overallRating: body.overallRating ?? null,

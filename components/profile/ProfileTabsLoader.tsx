@@ -245,7 +245,7 @@ export default async function ProfileTabsLoader({
         cinematography: true, locationCost: true, artisticEffect: true, visualEffects: true, musicSound: true,
         overallEmotion: true, relatability: true, meaning: true, movingness: true,
         casting: true, actingQuality: true, dialogueScripting: true, blockingChoreo: true,
-        appeal: true, superficialAllure: true, choreography: true,
+        appeal: true, choreography: true,
       },
     }),
   ]);

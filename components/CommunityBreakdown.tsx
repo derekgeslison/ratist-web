@@ -36,8 +36,7 @@ const CATEGORY_FIELDS: { label: string; scoreKey: string; fields: { key: string;
     { key: "dialogueScripting", label: "Dialogue" }, { key: "blockingChoreo", label: "Blocking" },
   ]},
   { label: "Entertainment", scoreKey: "entertainScore", fields: [
-    { key: "appeal", label: "Appeal" }, { key: "superficialAllure", label: "Allure" },
-    { key: "choreography", label: "Choreography" },
+    { key: "appeal", label: "Appeal" }, { key: "choreography", label: "Choreography" },
   ]},
 ];
 

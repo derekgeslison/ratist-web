@@ -646,7 +646,7 @@ export default function AnalyticsPage() {
                   { key: "style", label: "Production & Style", fieldLabels: { cinematography: "Cinematography", locationCost: "Location & Costuming", realism: "Realism / Believability", artisticEffect: "Artistic Effect", visualEffects: "Visual Effects", musicSound: "Music & Sound" } },
                   { key: "emotive", label: "Emotive Effect", fieldLabels: { overallEmotion: "Overall Emotion", relatability: "Relatability", meaning: "Meaning / Message", movingness: "Movingness" } },
                   { key: "acting", label: "Acting & Casting", fieldLabels: { casting: "Casting & Subjects", actingQuality: "Performance Quality", dialogueScripting: "Dialogue & Writing", blockingChoreo: "Blocking & Choreography" } },
-                  { key: "entertainment", label: "Pure Entertainment", fieldLabels: { appeal: "Appeal", superficialAllure: "Superficial Allure", choreography: "Choreography" } },
+                  { key: "entertainment", label: "Pure Entertainment", fieldLabels: { appeal: "Appeal", choreography: "Choreography" } },
                 ];
                 const catData = data.categoryAverages as Record<string, { score: number | null; fields: Record<string, number | null> }>;
                 const hasCatData = CATS.some((c) => catData[c.key]?.score != null);

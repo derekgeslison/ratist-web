@@ -177,7 +177,7 @@ export default async function ShowReviewsPage({ params, searchParams }: Props) {
       cinematography: true, locationCost: true, artisticEffect: true, visualEffects: true, musicSound: true,
       overallEmotion: true, relatability: true, meaning: true, movingness: true,
       casting: true, actingQuality: true, dialogueScripting: true, blockingChoreo: true,
-      appeal: true, superficialAllure: true, choreography: true,
+      appeal: true, choreography: true,
     },
     _count: { ratistRating: true },
   });
@@ -200,7 +200,7 @@ export default async function ShowReviewsPage({ params, searchParams }: Props) {
       meaning: breakdownAgg._avg.meaning, movingness: breakdownAgg._avg.movingness,
       casting: breakdownAgg._avg.casting, actingQuality: breakdownAgg._avg.actingQuality,
       dialogueScripting: breakdownAgg._avg.dialogueScripting, blockingChoreo: breakdownAgg._avg.blockingChoreo,
-      appeal: breakdownAgg._avg.appeal, superficialAllure: breakdownAgg._avg.superficialAllure,
+      appeal: breakdownAgg._avg.appeal,
       choreography: breakdownAgg._avg.choreography,
     },
   };

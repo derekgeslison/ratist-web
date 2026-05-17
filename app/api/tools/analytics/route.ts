@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         cinematography: true, locationCost: true, realism: true, artisticEffect: true, visualEffects: true, musicSound: true,
         overallEmotion: true, relatability: true, meaning: true, movingness: true,
         casting: true, actingQuality: true, dialogueScripting: true, blockingChoreo: true,
-        appeal: true, superficialAllure: true, choreography: true,
+        appeal: true, choreography: true,
         movie: {
           select: {
             title: true, runtime: true, releaseDate: true, voteAverage: true,
@@ -301,7 +301,7 @@ export async function GET(req: NextRequest) {
       style: { score: fieldAvg("styleScore"), fields: { cinematography: fieldAvg("cinematography"), locationCost: fieldAvg("locationCost"), realism: fieldAvg("realism"), artisticEffect: fieldAvg("artisticEffect"), visualEffects: fieldAvg("visualEffects"), musicSound: fieldAvg("musicSound") } },
       emotive: { score: fieldAvg("emotiveScore"), fields: { overallEmotion: fieldAvg("overallEmotion"), relatability: fieldAvg("relatability"), meaning: fieldAvg("meaning"), movingness: fieldAvg("movingness") } },
       acting: { score: fieldAvg("actingScore"), fields: { casting: fieldAvg("casting"), actingQuality: fieldAvg("actingQuality"), dialogueScripting: fieldAvg("dialogueScripting"), blockingChoreo: fieldAvg("blockingChoreo") } },
-      entertainment: { score: fieldAvg("entertainScore"), fields: { appeal: fieldAvg("appeal"), superficialAllure: fieldAvg("superficialAllure"), choreography: fieldAvg("choreography") } },
+      entertainment: { score: fieldAvg("entertainScore"), fields: { appeal: fieldAvg("appeal"), choreography: fieldAvg("choreography") } },
     };
 
     // ── Blind spots (genres with < 3 movies or 0) ──
