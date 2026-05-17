@@ -41,9 +41,14 @@ interface Props {
   tmdbScore: number | null;
 }
 
-/** Hybrid community rating: TMDB score acts as 50 buffer reviews, replaced 1-for-1 by real Ratist reviews */
+/** Hybrid community rating: TMDB score acts as 50 buffer reviews, replaced 1-for-1 by real Ratist reviews.
+ *  When TMDB has no score (obscure titles, very new releases), we drop the buffer and return the pure
+ *  Ratist average directly — otherwise the badge stays blank even when our own community has rated. */
 function hybridCommunityRating(tmdbScore: number | null, count: number, ratistSum: number | null): number | null {
-  if (tmdbScore == null) return null;
+  if (tmdbScore == null) {
+    if (count === 0 || ratistSum == null) return null;
+    return Math.round((ratistSum / count) * 10) / 10;
+  }
   const buffer = Math.max(0, 50 - count);
   const totalWeight = buffer + count;
   if (totalWeight === 0) return null;

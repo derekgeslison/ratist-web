@@ -677,8 +677,12 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {suggestions.componentSuggestions.map((m) => (
                     <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
-                      {/* showRatings off — community + owner's ratist badges below. */}
-                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
+                      {/* showRatings: PosterOverlay renders community (TMDB or
+                          Ratist-avg fallback) + the VIEWER's ratist (their own
+                          rating, or predicted estimate if unrated). These are
+                          "suggested FOR YOU" tiles — the owner's rating isn't
+                          what the viewer cares about. */}
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} voteAverage={m.voteAverage} ratistAvg={m.ratistAvg} mediaType={m.mediaType} showRatings>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
                             <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
@@ -687,13 +691,6 @@ export default function ProfileTabs({
                           )}
                         </div>
                       </PosterOverlay>
-                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
-                        {(() => {
-                          const cs = resolveCommunityScore(m.voteAverage, m.ratistAvg);
-                          return cs != null ? <RatingBadge type="community" score={cs} size="sm" /> : null;
-                        })()}
-                        <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
-                      </div>
                     </Link>
                   ))}
                 </div>
@@ -712,8 +709,9 @@ export default function ProfileTabs({
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                   {suggestions.genreSuggestions.map((m) => (
                     <Link key={`${m.mediaType}-${m.tmdbId}`} href={`${m.mediaType === "tv" ? "/shows" : "/movies"}/${m.tmdbId}`} className="group">
-                      {/* showRatings off — community + owner's ratist badges below. */}
-                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} mediaType={m.mediaType}>
+                      {/* See componentSuggestions above for why this is showRatings
+                          rather than a manual owner-badge area. */}
+                      <PosterOverlay tmdbId={m.tmdbId} title={m.title} posterPath={m.posterPath} releaseDate={m.releaseDate} voteAverage={m.voteAverage} ratistAvg={m.ratistAvg} mediaType={m.mediaType} showRatings>
                         <div className="relative aspect-[2/3] rounded overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] group-hover:border-[var(--ratist-red)] transition-colors">
                           {m.posterPath ? (
                             <Image src={posterUrl(m.posterPath, "w92")} alt={m.title} fill sizes="80px" className="object-cover" />
@@ -722,13 +720,6 @@ export default function ProfileTabs({
                           )}
                         </div>
                       </PosterOverlay>
-                      <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
-                        {(() => {
-                          const cs = resolveCommunityScore(m.voteAverage, m.ratistAvg);
-                          return cs != null ? <RatingBadge type="community" score={cs} size="sm" /> : null;
-                        })()}
-                        <RatingBadge type="ratist" score={m.ratistRating} size="sm" />
-                      </div>
                     </Link>
                   ))}
                 </div>

@@ -38,9 +38,13 @@ interface Props {
   seasons?: { season_number: number; name: string; episode_count: number }[];
 }
 
-/** Hybrid community rating: TMDB score acts as 50 buffer reviews, replaced 1-for-1 by real Ratist reviews */
+/** Hybrid community rating: TMDB score acts as 50 buffer reviews, replaced 1-for-1 by real Ratist reviews.
+ *  When TMDB has no score, drop the buffer and return the pure Ratist average directly. */
 function hybridCommunityRating(tmdbScore: number | null, count: number, ratistSum: number | null): number | null {
-  if (tmdbScore == null) return null;
+  if (tmdbScore == null) {
+    if (count === 0 || ratistSum == null) return null;
+    return Math.round((ratistSum / count) * 10) / 10;
+  }
   const buffer = Math.max(0, 50 - count);
   const totalWeight = buffer + count;
   if (totalWeight === 0) return null;

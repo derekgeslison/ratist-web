@@ -8,6 +8,7 @@ import { useShowUserState } from "@/hooks/useShowUserState";
 import { useTouchReveal } from "@/hooks/useTouchReveal";
 import { useWatchlistFlow } from "./WatchlistFlow";
 import RatingBadge from "./RatingBadge";
+import { resolveCommunityScore } from "@/lib/community-score";
 
 interface Props {
   tmdbId: number;
@@ -15,6 +16,9 @@ interface Props {
   posterPath: string | null;
   releaseDate?: string | null;
   voteAverage?: number | null;
+  /** Ratist's own community avg — used as a fallback when voteAverage
+   *  is missing (obscure titles, very new releases). */
+  ratistAvg?: number | null;
   showRatings?: boolean;
   mediaType?: "movie" | "tv";
   /** Hide the Seen button — for tiles where "seen" doesn't apply
@@ -23,7 +27,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, showRatings = false, mediaType = "movie", watchlistOnly = false, children }: Props) {
+export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, voteAverage, ratistAvg, showRatings = false, mediaType = "movie", watchlistOnly = false, children }: Props) {
   const { user } = useAuth();
   const movieState = useMovieUserState(mediaType === "movie" ? tmdbId : 0);
   const showState = useShowUserState(mediaType === "tv" ? tmdbId : 0);
@@ -36,7 +40,7 @@ export default function PosterOverlay({ tmdbId, title, posterPath, releaseDate, 
   const [markingS, setMarkingS] = useState(false);
   const [seenError, setSeenError] = useState<string | null>(null);
 
-  const communityScore = voteAverage && voteAverage > 0 ? voteAverage : null;
+  const communityScore = resolveCommunityScore(voteAverage ?? null, ratistAvg ?? null);
 
   // Watchlist click flow goes through the shared hook so the picker
   // modal, autoAddToDefault setting, and create-list inline form are
