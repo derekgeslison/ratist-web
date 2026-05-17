@@ -116,11 +116,16 @@ export default function MovieCard({ movie, characterName, streaming, rent, certi
           </span>
         )}
       </div>
-      <div className="p-2.5 flex flex-col gap-1">
+      {/* flex-1 makes this fill the height the grid stretched the
+         tile to; mt-auto on the ratings row pushes the ratings (and
+         the streaming/rent row that follows) to the bottom so a tile
+         whose title fits on one line still has its badges aligned
+         with neighboring tiles whose title wrapped to two lines. */}
+      <div className="p-2.5 flex flex-col gap-1 flex-1">
         <p className="text-sm font-medium text-white line-clamp-2 leading-tight" title={movie.title}>{movie.title}</p>
         {characterName && <p className="text-xs text-[var(--ratist-red)]/70 line-clamp-2" title={characterName}>as {characterName}</p>}
         <p className="text-xs text-[var(--foreground-muted)]">{movie.release_date?.slice(0, 4) || "TBA"}</p>
-        <div className="flex items-center gap-3 mt-0.5">
+        <div className="flex items-center gap-3 mt-auto pt-1">
           <RatingBadge type="community" score={communityScore} size="sm" />
           <RatingBadge
             type="ratist"

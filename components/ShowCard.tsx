@@ -113,11 +113,14 @@ export default function ShowCard({ show, characterName, streaming, rent, certifi
           </span>
         )}
       </div>
-      <div className="p-2.5 flex flex-col gap-1">
+      {/* See MovieCard for the flex-1 + mt-auto rationale — keeps
+         the ratings row aligned to the bottom of the tile even when
+         a neighbor's title wraps to two lines and stretches the row. */}
+      <div className="p-2.5 flex flex-col gap-1 flex-1">
         <p className="text-sm font-medium text-white line-clamp-2 leading-tight" title={show.name}>{show.name}</p>
         {characterName && <p className="text-xs text-[var(--ratist-red)]/70 line-clamp-2" title={characterName}>as {characterName}</p>}
         <p className="text-xs text-[var(--foreground-muted)]">{show.first_air_date?.slice(0, 4) || "TBA"}</p>
-        <div className="flex items-center gap-3 mt-0.5">
+        <div className="flex items-center gap-3 mt-auto pt-1">
           <RatingBadge type="community" score={communityScore} size="sm" />
           <RatingBadge
             type="ratist"

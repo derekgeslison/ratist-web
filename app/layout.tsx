@@ -20,6 +20,7 @@ import FirstLaunchPushPrompt from "@/components/FirstLaunchPushPrompt";
 import NotificationDeepLink from "@/components/NotificationDeepLink";
 import NativeAuthTokenSync from "@/components/NativeAuthTokenSync";
 import PullToRefreshGuard from "@/components/PullToRefreshGuard";
+import KeyboardFocusScroller from "@/components/KeyboardFocusScroller";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -183,6 +184,7 @@ window.gtag('config', '${GA_ID}');`}
           </Suspense>
           <NativeAuthTokenSync />
           <PullToRefreshGuard />
+          <KeyboardFocusScroller />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             {/* FTC Endorsement Guides (16 CFR Part 255) require "clear and
