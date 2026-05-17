@@ -526,9 +526,36 @@ export default function ProfileTabs({
       ) : (<>
 
       {/* ── OVERVIEW TAB ── */}
-      {activeTab === "Overview" && (
+      {activeTab === "Overview" && (() => {
+        // Match-score tile shared by the mobile top-of-main and the
+        // desktop sidebar. Mobile copy lives at the top of the main
+        // column so the first thing a viewer sees is how their taste
+        // lines up with this profile; desktop keeps it in the right
+        // rail where it already sat. Extracted so the two positions
+        // stay in lockstep if we later add/remove copy.
+        const matchScoreTile = !isOwnProfile && matchScore !== null ? (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
+            <p className="text-xs text-[var(--foreground-muted)] mb-1">Your taste match</p>
+            <p
+              className="text-3xl font-bold"
+              style={{ color: matchScore >= 80 ? "#22c55e" : matchScore >= 60 ? "#eab308" : "var(--foreground-muted)" }}
+            >
+              {matchScore}%
+            </p>
+            <p className="text-xs text-[var(--foreground-muted)] mt-1">
+              {matchScore >= 80 ? "Very similar taste" : matchScore >= 60 ? "Good overlap" : "Different tastes"}
+            </p>
+          </div>
+        ) : null;
+        return (
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
+            {/* Mobile-only match-score copy — sits above the
+               component preferences so visitors don't have to scroll
+               past several tiles to see it. Hidden on lg+ where the
+               sidebar copy is visible instead. */}
+            {matchScoreTile && <div className="lg:hidden">{matchScoreTile}</div>}
+
             {/* Component preferences */}
             {profile && topComponents.some((c) => c.score > 0) && (
               <section className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
@@ -764,21 +791,10 @@ export default function ProfileTabs({
               </div>
             )}
 
-            {/* Match score (shown to logged-in viewers of other profiles) */}
-            {!isOwnProfile && matchScore !== null && (
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 text-center">
-                <p className="text-xs text-[var(--foreground-muted)] mb-1">Your taste match</p>
-                <p
-                  className="text-3xl font-bold"
-                  style={{ color: matchScore >= 80 ? "#22c55e" : matchScore >= 60 ? "#eab308" : "var(--foreground-muted)" }}
-                >
-                  {matchScore}%
-                </p>
-                <p className="text-xs text-[var(--foreground-muted)] mt-1">
-                  {matchScore >= 80 ? "Very similar taste" : matchScore >= 60 ? "Good overlap" : "Different tastes"}
-                </p>
-              </div>
-            )}
+            {/* Match score — sidebar position is desktop-only. The
+               mobile copy renders at the top of the main column
+               (see matchScoreTile above) so it lands above the fold. */}
+            {matchScoreTile && <div className="hidden lg:block">{matchScoreTile}</div>}
 
             {(!profile || topComponents.every((c) => c.score === 0)) && isOwnProfile && (
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
@@ -788,23 +804,6 @@ export default function ProfileTabs({
                 <Link href="/movies" className="mt-3 inline-block text-sm text-[var(--ratist-red)] hover:underline">
                   Browse movies →
                 </Link>
-              </div>
-            )}
-
-            {topGenres.slice(0, 5).length > 0 && (
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-white mb-3">Top Genres</h3>
-                <div className="flex flex-wrap gap-2">
-                  {topGenres.slice(0, 5).map((g) => (
-                    <span
-                      key={g.key}
-                      className="text-xs px-2.5 py-1 rounded-full bg-[var(--surface-2)] border border-[var(--border)]"
-                      style={{ color: scoreColor(g.score) }}
-                    >
-                      {g.label} {g.score.toFixed(1)}
-                    </span>
-                  ))}
-                </div>
               </div>
             )}
 
@@ -884,7 +883,8 @@ export default function ProfileTabs({
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ── RATINGS TAB ── */}
       {activeTab === "Ratings" && (
