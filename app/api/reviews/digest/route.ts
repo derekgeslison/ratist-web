@@ -33,14 +33,35 @@ export async function GET(req: NextRequest) {
     title = s.name;
   }
 
-  // Count reviews with non-empty text
-  const currentCount = mediaType === "movie"
-    ? await prisma.movieRating.count({
-        where: { movieId: internalId, excluded: false, reviewText: { not: null } },
-      })
-    : await prisma.tVShowRating.count({
-        where: { tvShowId: internalId, excluded: false, ratingScope: "series", reviewText: { not: null } },
-      });
+  // Count reviews whose text is substantive enough to bother
+  // summarizing. Previously we counted any non-null reviewText, but
+  // that let 10 ratings of "loved it" / "ok" trigger a digest gen
+  // even though the sample filter would discard them all (line below
+  // applies a min-length floor when actually selecting samples) and
+  // return null anyway — wasting Anthropic tokens AND showing nothing.
+  // Mirroring the sample-filter floor (10 chars) here means a digest
+  // only triggers when there's a real chance the result will be
+  // meaningful. Same floor is applied via raw SQL on either model.
+  const MIN_COMMENT_CHARS = 10;
+  const currentCountRows = mediaType === "movie"
+    ? await prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*)::bigint AS count
+        FROM movie_ratings
+        WHERE movie_id = ${internalId}
+          AND excluded = false
+          AND review_text IS NOT NULL
+          AND LENGTH(TRIM(review_text)) >= ${MIN_COMMENT_CHARS}
+      `
+    : await prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*)::bigint AS count
+        FROM tv_show_ratings
+        WHERE tv_show_id = ${internalId}
+          AND excluded = false
+          AND rating_scope = 'series'
+          AND review_text IS NOT NULL
+          AND LENGTH(TRIM(review_text)) >= ${MIN_COMMENT_CHARS}
+      `;
+  const currentCount = Number(currentCountRows[0]?.count ?? 0);
 
   // Floor below which we don't bother summarizing — a digest of 1-2
   // reviews reads like a misleading consensus pulled from one
@@ -49,6 +70,9 @@ export async function GET(req: NextRequest) {
   // isDigestStale() (≥3 review delta AND ≥20% growth) handles
   // post-floor refresh cadence so 10 → 12 → 14 keeps regenerating
   // at meaningful checkpoints without burning tokens on every vote.
+  // The count above already filters for substantive comments
+  // (≥ MIN_COMMENT_CHARS), so this threshold is "10 reviews with
+  // substantive comments", not "10 reviews total".
   const MIN_REVIEWS_FOR_DIGEST = 10;
   if (currentCount < MIN_REVIEWS_FOR_DIGEST) {
     return NextResponse.json({ digest: null, reviewCount: currentCount });
