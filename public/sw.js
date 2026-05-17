@@ -21,7 +21,17 @@
 // Bump CACHE_VERSION when changing this file's logic; old caches purge on
 // the next activate.
 
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
+
+// Hard ceiling on how long the SW will wait for the network on an
+// HTML navigation. Without this, a hung TCP/TLS handshake on a cold
+// app launch (Capacitor WebView, network stack just woke up) leaves
+// the SW awaiting a fetch that never resolves; the WebView paints
+// nothing, the user sees the Capacitor backgroundColor as a black
+// screen, and the only escape is force-closing the app. 8s is well
+// above a normal slow load (~1-3s) and far below "I should kill
+// this" patience.
+const HTML_NAVIGATION_TIMEOUT_MS = 8000;
 const STATIC_CACHE = `ratist-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `ratist-runtime-${CACHE_VERSION}`;
 const HTML_CACHE = `ratist-html-${CACHE_VERSION}`;
@@ -147,8 +157,18 @@ async function staleWhileRevalidate(request, cacheName) {
 async function networkFirstHTML(request) {
   const url = new URL(request.url);
   const cacheable = isPublicCacheablePath(url.pathname);
+
+  // Race the network against the HTML navigation timeout. A timed-out
+  // fetch is abandoned via AbortController so the browser doesn't keep
+  // holding the connection open in the background. The catch-all
+  // fallback below treats timeout and offline identically — cached
+  // page if any, then offline page.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), HTML_NAVIGATION_TIMEOUT_MS);
+
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (cacheable && response.ok && response.status === 200) {
       // Clone before consuming — caches.put consumes the body stream.
       const copy = response.clone();
@@ -159,8 +179,10 @@ async function networkFirstHTML(request) {
     }
     return response;
   } catch {
-    // Offline path. Try the per-URL cache first (recently-visited public
-    // pages), then fall back to the static offline page.
+    clearTimeout(timeoutId);
+    // Offline or timed-out path. Try the per-URL cache first
+    // (recently-visited public pages), then fall back to the static
+    // offline page.
     if (cacheable) {
       const htmlCache = await caches.open(HTML_CACHE);
       const cached = await htmlCache.match(request);
