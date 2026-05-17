@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: Props) {
   }
 }
 
-/** POST — invite a user by invite code */
+/** POST — invite a user by invite code OR by mutual-follow userId */
 export async function POST(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
@@ -55,13 +55,44 @@ export async function POST(req: NextRequest, { params }: Props) {
     if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (watchlist.userId !== user.id) return NextResponse.json({ error: "Only the owner can invite collaborators" }, { status: 403 });
 
-    const { inviteCode, role } = await req.json();
-    if (!inviteCode?.trim()) return NextResponse.json({ error: "Invite code is required" }, { status: 400 });
+    const { inviteCode, userId: targetUserId, role } = await req.json();
     const cleanRole = role === "viewer" ? "viewer" : "editor";
 
-    const target = await prisma.user.findUnique({ where: { inviteCode: inviteCode.trim() } });
-    if (!target) return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
-    if (target.id === user.id) return NextResponse.json({ error: "You can't invite yourself" }, { status: 400 });
+    // Two invite paths: by code (existing) or by mutual-follow userId
+    // (new). The userId path is gated to mutual follows only so a
+    // viewer can't add an arbitrary stranger by guessing user ids.
+    let target: { id: string; name: string | null; avatarUrl: string | null } | null = null;
+    if (typeof targetUserId === "string" && targetUserId.length > 0) {
+      const candidate = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, name: true, avatarUrl: true },
+      });
+      if (!candidate) return NextResponse.json({ error: "User not found" }, { status: 404 });
+      if (candidate.id === user.id) return NextResponse.json({ error: "You can't invite yourself" }, { status: 400 });
+      // Mutual-follow check — both directions must be accepted.
+      const [iFollowThem, theyFollowMe] = await Promise.all([
+        prisma.userFollow.findFirst({
+          where: { followerId: user.id, followingId: candidate.id, status: "accepted" },
+          select: { id: true },
+        }),
+        prisma.userFollow.findFirst({
+          where: { followerId: candidate.id, followingId: user.id, status: "accepted" },
+          select: { id: true },
+        }),
+      ]);
+      if (!iFollowThem || !theyFollowMe) {
+        return NextResponse.json({ error: "Can only invite users who follow you back" }, { status: 403 });
+      }
+      target = candidate;
+    } else {
+      if (!inviteCode?.trim()) return NextResponse.json({ error: "Invite code is required" }, { status: 400 });
+      target = await prisma.user.findUnique({
+        where: { inviteCode: inviteCode.trim() },
+        select: { id: true, name: true, avatarUrl: true },
+      });
+      if (!target) return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
+      if (target.id === user.id) return NextResponse.json({ error: "You can't invite yourself" }, { status: 400 });
+    }
 
     const existing = await prisma.watchlistCollaborator.findUnique({
       where: { watchlistId_userId: { watchlistId: id, userId: target.id } },
@@ -160,7 +191,12 @@ export async function PATCH(req: NextRequest, { params }: Props) {
   }
 }
 
-/** DELETE — remove a collaborator (owner removes, or collaborator leaves) */
+/** DELETE — remove a collaborator (owner removes, or collaborator leaves).
+ *  `userId` in the body is OPTIONAL — if absent, the caller is leaving
+ *  the list themselves. Required only when the owner is removing a
+ *  specific collaborator. The previous shape required `userId` always,
+ *  and the client's leave path was sending the Firebase UID (not the
+ *  Postgres id) which never matched and always 403'd. */
 export async function DELETE(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
@@ -170,14 +206,18 @@ export async function DELETE(req: NextRequest, { params }: Props) {
     const watchlist = await prisma.watchlist.findUnique({ where: { id } });
     if (!watchlist) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { userId } = await req.json();
+    const body = await req.json().catch(() => ({} as { userId?: string }));
     const isOwner = watchlist.userId === user.id;
-    const isSelf = userId === user.id;
+    // Self-leave when no target given OR target equals the caller.
+    // Owner can target any collaborator (or leave themselves, though
+    // owners use Delete, not Leave, in practice).
+    const targetUserId = body?.userId ?? user.id;
+    const isSelf = targetUserId === user.id;
 
     if (!isOwner && !isSelf) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     await prisma.watchlistCollaborator.delete({
-      where: { watchlistId_userId: { watchlistId: id, userId } },
+      where: { watchlistId_userId: { watchlistId: id, userId: targetUserId } },
     });
 
     return NextResponse.json({ removed: true });

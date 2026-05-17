@@ -11,6 +11,7 @@ import {
   Bookmark, Search, X, Plus, Check, ChevronDown, Lock, Star,
   ArrowUpDown, Pencil, Trash2, SlidersHorizontal, ListPlus, Users, UserPlus, LogOut,
   Film, Tv, Monitor, ListOrdered, GripVertical, Copy, BarChart3, Sparkles, Layers, HelpCircle,
+  CheckSquare, Square, MoveRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { STREAMING_PROVIDERS } from "@/lib/tmdb";
@@ -216,6 +217,36 @@ export default function WatchlistPage() {
     }).catch(() => setSettingsApplied(true));
   }, [user, settingsApplied, hadRestoredFilters]);
 
+  /* ── Select / bulk action mode ──
+     Lets users multi-select tiles and mass delete / copy / move them
+     across their watchlists. Lives alongside reorder mode; the two are
+     mutually exclusive — entering one closes the other. Operations
+     fan out via Promise.all over the existing per-item endpoints to
+     keep this change additive (no new bulk endpoints required). */
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Mass move/copy destination picker. listId === null while the
+  // picker is closed; otherwise the user has chosen an action and is
+  // looking at their other watchlists.
+  const [bulkAction, setBulkAction] = useState<"move" | "copy" | null>(null);
+  const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkAction(null);
+    setBulkConfirmDelete(false);
+  }
+
   /* ── Reorder mode ── */
   // Open by default; lets users (especially on mobile, where the
   // sidebar stacks above the active list) hide the list switcher
@@ -361,6 +392,14 @@ export default function WatchlistPage() {
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  // Collab popup has two tabs: invite by code (existing) and pick
+  // from mutual follows (new). The mutual-follow tab fetches lazily
+  // when the popup opens so we don't make the API call for users who
+  // only use codes.
+  const [inviteTab, setInviteTab] = useState<"code" | "friends">("code");
+  const [mutualFollows, setMutualFollows] = useState<{ id: string; name: string; avatarUrl: string | null }[]>([]);
+  const [mutualLoading, setMutualLoading] = useState(false);
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [showInvites, setShowInvites] = useState(false);
@@ -538,8 +577,51 @@ export default function WatchlistPage() {
       setCollaborators(data.collaborators ?? []);
       setInviteCode("");
       setInviteError("");
+      setInviteTab("code");
+      setMutualFollows([]);
       setShowCollaborators(true);
     } catch { showError("Failed to load collaborators."); }
+  }
+
+  async function loadMutualFollows() {
+    if (!activeId) return;
+    setMutualLoading(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/mutual-follows`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setMutualFollows(data.users ?? []);
+      }
+    } catch { /* non-fatal; tab just shows empty state */ }
+    setMutualLoading(false);
+  }
+
+  async function inviteByUserId(targetUserId: string) {
+    if (!activeId || invitingUserId) return;
+    setInvitingUserId(targetUserId);
+    setInviteError("");
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: targetUserId, role: inviteRole }),
+      });
+      const data = await res.json();
+      if (res.ok && data.collaborator) {
+        setCollaborators((prev) => [...prev, data.collaborator]);
+        setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, collaboratorCount: w.collaboratorCount + 1 } : w));
+        // Remove from the picker so the same person doesn't show up
+        // twice on a rapid re-invite.
+        setMutualFollows((prev) => prev.filter((u) => u.id !== targetUserId));
+      } else {
+        setInviteError(data.error ?? "Failed to invite");
+      }
+    } catch { setInviteError("Failed to send invite."); }
+    setInvitingUserId(null);
   }
 
   async function inviteByCode() {
@@ -625,10 +707,13 @@ export default function WatchlistPage() {
     try {
       const token = await getToken();
       if (!token) return;
+      // No body — the server defaults to self-leave when userId is
+      // omitted. The Firebase user.uid we used to send is NOT the
+      // Postgres id the server checks against, which is what made
+      // this 403 every time.
       const res = await fetch(`/api/watchlist/${activeId}/collaborators`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.uid }),
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) { showError("Failed to leave list."); return; }
       setWatchlists((prev) => prev.filter((w) => w.id !== activeId));
@@ -723,6 +808,102 @@ export default function WatchlistPage() {
       } else { showError("Failed to remove movie."); }
     } catch { showError("Failed to remove movie."); }
     setRemoving((prev) => { const s = new Set(prev); s.delete(movie.id); return s; });
+  }
+
+  /* ── Bulk actions (select mode) ── */
+  async function bulkDelete() {
+    if (!activeId || bulkBusy || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    const ids = Array.from(selectedIds);
+    const token = await getToken();
+    if (!token) { setBulkBusy(false); return; }
+    const results = await Promise.allSettled(ids.map((entryId) =>
+      fetch(`/api/watchlist/${activeId}/movies/${entryId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ));
+    const succeeded = new Set<string>();
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled" && r.value.ok) succeeded.add(ids[i]);
+    });
+    if (succeeded.size > 0) {
+      setMovies((prev) => prev.filter((m) => !succeeded.has(m.id)));
+      setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: Math.max(0, w.movieCount - succeeded.size) } : w));
+      showSuccess(`Removed ${succeeded.size} item${succeeded.size === 1 ? "" : "s"}.`);
+    }
+    if (succeeded.size < ids.length) {
+      showError(`${ids.length - succeeded.size} item${ids.length - succeeded.size === 1 ? "" : "s"} could not be removed.`);
+    }
+    setBulkBusy(false);
+    exitSelectMode();
+  }
+
+  async function bulkMoveCopy(destListId: string) {
+    if (!activeId || bulkBusy || selectedIds.size === 0 || !bulkAction) return;
+    if (destListId === activeId) { showError("Pick a different list."); return; }
+    setBulkBusy(true);
+    const action = bulkAction;
+    const ids = Array.from(selectedIds);
+    const selectedMovies = movies.filter((m) => ids.includes(m.id));
+    const token = await getToken();
+    if (!token) { setBulkBusy(false); return; }
+
+    // Step 1 — add each to the destination list. Uses the existing
+    // single-item POST; the API silently dedups so re-copying a title
+    // that's already there returns success.
+    const addResults = await Promise.allSettled(selectedMovies.map((m) =>
+      fetch(`/api/watchlist/${destListId}/movies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdbId: m.tmdbId,
+          title: m.title,
+          posterPath: m.posterPath,
+          releaseDate: m.year ? `${m.year}-01-01` : null,
+          mediaType: m.mediaType ?? "movie",
+        }),
+      })
+    ));
+    const addedMovies: WatchlistMovie[] = [];
+    addResults.forEach((r, i) => {
+      if (r.status === "fulfilled" && r.value.ok) addedMovies.push(selectedMovies[i]);
+    });
+
+    // Step 2 — for move only, remove the originals that copied
+    // successfully. A copy failure leaves the source intact (don't
+    // orphan the row by deleting it after failing to add it).
+    const removedIds = new Set<string>();
+    if (action === "move" && addedMovies.length > 0) {
+      const removeResults = await Promise.allSettled(addedMovies.map((m) =>
+        fetch(`/api/watchlist/${activeId}/movies/${m.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ));
+      removeResults.forEach((r, i) => {
+        if (r.status === "fulfilled" && r.value.ok) removedIds.add(addedMovies[i].id);
+      });
+      if (removedIds.size > 0) {
+        setMovies((prev) => prev.filter((m) => !removedIds.has(m.id)));
+        setWatchlists((prev) => prev.map((w) => w.id === activeId ? { ...w, movieCount: Math.max(0, w.movieCount - removedIds.size) } : w));
+      }
+    }
+
+    // Refresh the destination list's movieCount + preview count.
+    setWatchlists((prev) => prev.map((w) => w.id === destListId ? { ...w, movieCount: w.movieCount + addedMovies.length } : w));
+
+    const destName = watchlists.find((w) => w.id === destListId)?.name ?? "the other list";
+    if (addedMovies.length > 0) {
+      const verb = action === "move" ? "Moved" : "Copied";
+      showSuccess(`${verb} ${addedMovies.length} item${addedMovies.length === 1 ? "" : "s"} to ${destName}.`);
+    }
+    if (addedMovies.length < selectedMovies.length) {
+      const failed = selectedMovies.length - addedMovies.length;
+      showError(`${failed} item${failed === 1 ? "" : "s"} could not be ${action === "move" ? "moved" : "copied"}.`);
+    }
+    setBulkBusy(false);
+    exitSelectMode();
   }
 
   /* ── Toggle check-off ── */
@@ -992,8 +1173,8 @@ export default function WatchlistPage() {
       </div>
       <p className="text-[var(--foreground-muted)] mb-1">Organize movies &amp; shows you want to watch.</p>
       <div className="mb-6">
-        <Link href="/seen" className="text-sm text-[var(--ratist-red)] hover:underline">
-          View what you&apos;ve already seen &rarr;
+        <Link href="/watchlist/import" className="text-sm text-[var(--ratist-red)] hover:underline">
+          Import watchlist from Letterboxd or IMDb &rarr;
         </Link>
       </div>
 
@@ -1386,6 +1567,20 @@ export default function WatchlistPage() {
                       <ListOrdered className="w-4 h-4" />
                     </button>
 
+                    {canEdit && (
+                      <button
+                        onClick={() => { if (selectMode) exitSelectMode(); else { setReorderMode(false); setSelectMode(true); } }}
+                        className={`p-2 border rounded-xl transition-colors ${
+                          selectMode
+                            ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/40 text-[var(--ratist-red)]"
+                            : "bg-[var(--surface)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-[var(--ratist-red)]"
+                        }`}
+                        title={selectMode ? "Exit select mode" : "Select multiple items"}
+                      >
+                        <CheckSquare className="w-4 h-4" />
+                      </button>
+                    )}
+
                     <button
                       onClick={() => setShowFilters(!showFilters)}
                       className={`relative p-2 border rounded-xl transition-colors ${showFilters || activeFilterCount > 0 ? "bg-[var(--ratist-red)]/10 border-[var(--ratist-red)]/30 text-[var(--ratist-red)]" : "bg-[var(--surface)] border-[var(--border)] text-[var(--foreground-muted)] hover:text-white"}`}
@@ -1569,8 +1764,27 @@ export default function WatchlistPage() {
                     {filtered.map((movie) => (
                       <WatchlistTileShell key={movie.id}>
                         {(overlayClass, revealed) => (<>
+                        {/* Select-mode checkbox + selected dim. Tile itself
+                           gets click-intercepted further down so the Link
+                           doesn't navigate while selecting. */}
+                        {selectMode && canEdit && (
+                          <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSelected(movie.id); }}
+                            className={`absolute top-1 left-1 z-30 w-7 h-7 rounded-md border-2 flex items-center justify-center transition-colors ${
+                              selectedIds.has(movie.id)
+                                ? "bg-[var(--ratist-red)] border-[var(--ratist-red)] text-white"
+                                : "bg-black/50 border-white/60 text-transparent hover:border-white"
+                            }`}
+                            aria-label={selectedIds.has(movie.id) ? "Deselect" : "Select"}
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        )}
+                        {selectMode && selectedIds.has(movie.id) && (
+                          <div className="absolute inset-0 z-20 bg-[var(--ratist-red)]/15 rounded-lg pointer-events-none ring-2 ring-[var(--ratist-red)]" />
+                        )}
                         {/* Confirm remove overlay */}
-                        {canEdit && confirmingRemove === movie.id ? (
+                        {canEdit && !selectMode && confirmingRemove === movie.id ? (
                           <div className="absolute inset-0 z-10 bg-black/80 rounded-lg flex flex-col items-center justify-center gap-2 p-2">
                             <p className="text-xs text-white text-center font-medium">Remove<br /><span className="text-[var(--foreground-muted)]">{movie.title}</span>?</p>
                             <div className="flex gap-2">
@@ -1578,7 +1792,7 @@ export default function WatchlistPage() {
                               <button onClick={() => setConfirmingRemove(null)} className="px-3 py-1 text-xs rounded-lg bg-[var(--surface-2)] text-white border border-[var(--border)] hover:border-white/30 transition-colors">Cancel</button>
                             </div>
                           </div>
-                        ) : canEdit ? (
+                        ) : canEdit && !selectMode ? (
                           <>
                             {/* Remove button */}
                             <button
@@ -1618,7 +1832,11 @@ export default function WatchlistPage() {
                           </>
                         ) : null}
 
-                        <Link href={`/${movie.mediaType === "tv" ? "shows" : "movies"}/${movie.tmdbId}`} className={`flex flex-col ${movie.isChecked ? "opacity-60" : ""}`}>
+                        <Link
+                          href={`/${movie.mediaType === "tv" ? "shows" : "movies"}/${movie.tmdbId}`}
+                          onClick={(e) => { if (selectMode) { e.preventDefault(); toggleSelected(movie.id); } }}
+                          className={`flex flex-col ${movie.isChecked ? "opacity-60" : ""}`}
+                        >
                           <div className={`relative aspect-[2/3] rounded-lg overflow-hidden bg-[var(--surface-2)] border transition-colors mb-1.5 ${
                             movie.isChecked ? "border-green-500/30" : "border-[var(--border)] group-hover:border-[var(--ratist-red)]"
                           }`}>
@@ -1710,6 +1928,133 @@ export default function WatchlistPage() {
         </div>
       )}
 
+      {/* Select-mode action bar (sticky bottom) */}
+      {selectMode && canEdit && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] border-t border-[var(--border)] shadow-2xl">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+            <span className="text-sm text-white font-medium">
+              {selectedIds.size === 0 ? "Select items" : `${selectedIds.size} selected`}
+            </span>
+            <div className="flex items-center gap-2 ml-auto">
+              {/* Select all / none toggle scoped to the currently-
+                 filtered set, so "Select all" in a filtered view only
+                 grabs what's visible. */}
+              {filtered.length > 0 && (
+                <button
+                  onClick={() => {
+                    const visibleIds = filtered.map((m) => m.id);
+                    const allVisibleSelected = visibleIds.every((id) => selectedIds.has(id));
+                    setSelectedIds((prev) => {
+                      const next = new Set(prev);
+                      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
+                      else visibleIds.forEach((id) => next.add(id));
+                      return next;
+                    });
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white transition-colors"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  {filtered.every((m) => selectedIds.has(m.id)) ? "Deselect all" : "Select all"}
+                </button>
+              )}
+              <button
+                onClick={() => setBulkConfirmDelete(true)}
+                disabled={selectedIds.size === 0 || bulkBusy}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+              <button
+                onClick={() => setBulkAction("copy")}
+                disabled={selectedIds.size === 0 || bulkBusy || watchlists.length < 2}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-500/50 text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
+                title={watchlists.length < 2 ? "Create another watchlist first" : "Copy to another list"}
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy to…
+              </button>
+              <button
+                onClick={() => setBulkAction("move")}
+                disabled={selectedIds.size === 0 || bulkBusy || watchlists.length < 2}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--ratist-red)]/50 text-[var(--ratist-red)] hover:bg-[var(--ratist-red)]/10 transition-colors disabled:opacity-40"
+                title={watchlists.length < 2 ? "Create another watchlist first" : "Move to another list"}
+              >
+                <MoveRight className="w-3.5 h-3.5" /> Move to…
+              </button>
+              <button
+                onClick={exitSelectMode}
+                disabled={bulkBusy}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg text-[var(--foreground-muted)] hover:text-white transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete confirm modal */}
+      {bulkConfirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setBulkConfirmDelete(false); }}>
+          <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5 mx-4">
+            <h3 className="text-base font-semibold text-white mb-1">Remove {selectedIds.size} item{selectedIds.size === 1 ? "" : "s"}?</h3>
+            <p className="text-xs text-[var(--foreground-muted)] mb-4">This will remove the selected items from &ldquo;{activeList?.name}&rdquo;. The titles stay in any other watchlists they&apos;re in.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setBulkConfirmDelete(false); bulkDelete(); }}
+                disabled={bulkBusy}
+                className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                {bulkBusy ? "Removing..." : "Remove"}
+              </button>
+              <button
+                onClick={() => setBulkConfirmDelete(false)}
+                disabled={bulkBusy}
+                className="px-3 py-2 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white text-sm rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk move/copy destination picker */}
+      {bulkAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !bulkBusy) setBulkAction(null); }}>
+          <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5 mx-4">
+            <h3 className="text-base font-semibold text-white mb-1">
+              {bulkAction === "move" ? "Move" : "Copy"} {selectedIds.size} item{selectedIds.size === 1 ? "" : "s"} to…
+            </h3>
+            <p className="text-xs text-[var(--foreground-muted)] mb-3">
+              {bulkAction === "move" ? "Removes from this list and adds to:" : "Adds to:"}
+            </p>
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {watchlists.filter((w) => w.id !== activeId && (w.isOwner || w.myRole === "editor")).map((w) => (
+                <button
+                  key={w.id}
+                  onClick={() => bulkMoveCopy(w.id)}
+                  disabled={bulkBusy}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] text-sm text-white transition-colors disabled:opacity-50 flex items-center justify-between gap-2"
+                >
+                  <span className="truncate">{w.name}</span>
+                  <span className="text-[10px] text-[var(--foreground-muted)] shrink-0">{w.movieCount} item{w.movieCount === 1 ? "" : "s"}</span>
+                </button>
+              ))}
+              {watchlists.filter((w) => w.id !== activeId && (w.isOwner || w.myRole === "editor")).length === 0 && (
+                <p className="text-xs text-[var(--foreground-muted)] text-center py-3">No other lists you can edit.</p>
+              )}
+            </div>
+            <button
+              onClick={() => setBulkAction(null)}
+              disabled={bulkBusy}
+              className="w-full text-center text-sm text-[var(--foreground-muted)] hover:text-white mt-3 py-2 transition-colors"
+            >
+              {bulkBusy ? "Working..." : "Cancel"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* List picker modal */}
       {listPickerMovie && movieLists.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setListPickerMovie(null); }}>
@@ -1750,33 +2095,97 @@ export default function WatchlistPage() {
             <h3 className="text-base font-semibold text-white mb-1">Collaborators</h3>
             <p className="text-xs text-[var(--foreground-muted)] mb-4">{activeList.name}</p>
 
-            {/* Invite by code */}
+            {/* Two-tab invite picker */}
             <div className="mb-4">
-              <p className="text-xs text-[var(--foreground-muted)] mb-2">Paste someone&apos;s invite code to add them.</p>
-              <div className="flex gap-2">
-                <input
-                  value={inviteCode}
-                  onChange={(e) => { setInviteCode(e.target.value); setInviteError(""); }}
-                  placeholder="e.g. R-7KX9M2"
-                  className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] font-mono"
-                  onKeyDown={(e) => { if (e.key === "Enter") inviteByCode(); }}
-                />
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as "editor" | "viewer")}
-                  className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-2 text-sm text-white focus:outline-none"
-                >
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
+              <div className="flex items-center gap-1 mb-3 border-b border-[var(--border)]">
                 <button
-                  onClick={inviteByCode}
-                  disabled={!inviteCode.trim() || inviting}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  onClick={() => { setInviteTab("code"); setInviteError(""); }}
+                  className={`text-xs font-semibold px-3 py-2 border-b-2 transition-colors ${
+                    inviteTab === "code" ? "border-[var(--ratist-red)] text-white" : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+                  }`}
                 >
-                  <UserPlus className="w-4 h-4" />
+                  Invite code
                 </button>
+                <button
+                  onClick={() => {
+                    setInviteTab("friends");
+                    setInviteError("");
+                    if (mutualFollows.length === 0 && !mutualLoading) loadMutualFollows();
+                  }}
+                  className={`text-xs font-semibold px-3 py-2 border-b-2 transition-colors ${
+                    inviteTab === "friends" ? "border-[var(--ratist-red)] text-white" : "border-transparent text-[var(--foreground-muted)] hover:text-white"
+                  }`}
+                >
+                  From your friends
+                </button>
+                <div className="ml-auto">
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as "editor" | "viewer")}
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                    title="Role for new invites"
+                  >
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </div>
               </div>
+
+              {inviteTab === "code" ? (
+                <div>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-2">Paste someone&apos;s invite code to add them.</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={inviteCode}
+                      onChange={(e) => { setInviteCode(e.target.value); setInviteError(""); }}
+                      placeholder="e.g. R-7KX9M2"
+                      className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] font-mono"
+                      onKeyDown={(e) => { if (e.key === "Enter") inviteByCode(); }}
+                    />
+                    <button
+                      onClick={inviteByCode}
+                      disabled={!inviteCode.trim() || inviting}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-[var(--foreground-muted)] mb-2">People who follow you back. Invite codes stay private.</p>
+                  {mutualLoading ? (
+                    <p className="text-xs text-[var(--foreground-muted)] py-3 text-center">Loading...</p>
+                  ) : mutualFollows.length === 0 ? (
+                    <p className="text-xs text-[var(--foreground-muted)] py-3 text-center">No mutual followers to invite yet.</p>
+                  ) : (
+                    <div className="space-y-1 max-h-44 overflow-y-auto">
+                      {mutualFollows.map((u) => (
+                        <div key={u.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[var(--surface)]">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {u.avatarUrl ? (
+                              <Image src={u.avatarUrl} alt={u.name} width={24} height={24} className="rounded-full shrink-0" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-xs text-[var(--foreground-muted)] shrink-0">
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <p className="text-sm text-white truncate">{u.name}</p>
+                          </div>
+                          <button
+                            onClick={() => inviteByUserId(u.id)}
+                            disabled={!!invitingUserId}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            {invitingUserId === u.id ? "..." : "Invite"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {inviteError && <p className="text-xs text-red-400 mt-2">{inviteError}</p>}
             </div>
 
