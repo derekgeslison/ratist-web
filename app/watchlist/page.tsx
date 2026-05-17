@@ -374,6 +374,7 @@ export default function WatchlistPage() {
   const [editDesc, setEditDesc] = useState("");
   const [editPrivate, setEditPrivate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   // Duplicate flow — copies the entire list (incl. checked items) into a
   // brand-new watchlist owned by the current user. Works on the default
   // list too, unlike Edit/Delete which are gated behind isDefault.
@@ -1461,7 +1462,7 @@ export default function WatchlistPage() {
                       )}
                       {!activeList.isOwner && !activeList.isDefault && (
                         <button
-                          onClick={leaveList}
+                          onClick={() => setShowLeaveConfirm(true)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--foreground-muted)] hover:text-red-400 hover:bg-[var(--surface)] transition-colors"
                           title="Leave this list"
                         >
@@ -1984,6 +1985,35 @@ export default function WatchlistPage() {
                 onClick={exitSelectMode}
                 disabled={bulkBusy}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg text-[var(--foreground-muted)] hover:text-white transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave-list confirmation. Mirrors the bulk-delete confirm
+         visually so the destructive-action UX is consistent. */}
+      {showLeaveConfirm && activeList && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowLeaveConfirm(false); }}>
+          <div className="w-full max-w-sm bg-[var(--background)] border border-[var(--border)] rounded-2xl p-5 mx-4">
+            <h3 className="text-base font-semibold text-white mb-1 flex items-center gap-2">
+              <LogOut className="w-4 h-4 text-red-400" /> Leave &ldquo;{activeList.name}&rdquo;?
+            </h3>
+            <p className="text-xs text-[var(--foreground-muted)] mb-4">
+              You&apos;ll lose access to this watchlist until the owner invites you back. Any items you added will stay on the list.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowLeaveConfirm(false); leaveList(); }}
+                className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                Leave
+              </button>
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="px-3 py-2 border border-[var(--border)] text-[var(--foreground-muted)] hover:text-white text-sm rounded-lg transition-colors"
               >
                 Cancel
               </button>
