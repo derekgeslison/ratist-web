@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -27,11 +28,11 @@ import {
 import UserMoviePanel from "@/components/UserMoviePanel";
 import MoviePosterBlockToggle from "@/components/admin/MoviePosterBlockToggle";
 import ReportPosterButton from "@/components/ReportPosterButton";
-import MovieDetailTabs from "@/components/MovieDetailTabs";
+import MovieDetailTabsLoader from "@/components/movie/MovieDetailTabsLoader";
+import MovieDetailTabsSkeleton from "@/components/movie/MovieDetailTabsSkeleton";
 import CommunityBreakdown from "@/components/CommunityBreakdown";
 import { upsertMovie } from "@/lib/tmdb-sync";
 import { getMovieBoxOfficeRanks } from "@/lib/box-office-queries";
-import { getMovieAwards } from "@/lib/awards";
 import { syncMovieAwards } from "@/lib/awards-sync";
 import { prisma } from "@/lib/prisma";
 import { safeguardTMDBMovies } from "@/lib/safe-content";
@@ -160,160 +161,30 @@ export default async function MovieDetailPage({ params }: Props) {
     upsertMovie(movie).catch(() => {});
   }
 
-  // All remaining DB-backed page data fetched in parallel. Each
-  // sub-fetch handles its own missing-dbMovie / DB-error case so a
-  // single failing block doesn't take the whole page down.
-  type ReviewRow = {
-    id: string;
-    reviewText: string | null;
-    ratistRating: number | null;
-    overallRating: number | null;
-    reviewType: string;
-    hasSpoilers: boolean;
-    commentsDisabled: boolean;
-    user: { id: string; firebaseUid: string; name: string; avatarUrl: string | null };
-    createdAt: Date;
-    likeCount: number;
-    commentCount: number;
-  };
-  type DiscussionRow = { id: string; title: string; slug: string; threadType: string; authorName: string; postCount: number; viewCount: number; createdAt: string };
-
+  // ratistAggregate stays on the synchronous path because it feeds
+  // the AggregateRating JSON-LD that lives in the page <head> — that
+  // can't be Suspense-deferred without losing the SEO signal. Reviews,
+  // discussions, and awards live in MovieDetailTabsLoader and stream
+  // in behind a Suspense boundary so the poster + meta row paint fast.
   const movieRowId = dbMovie?.id;
-  const [reviews, discussions, hasCompanion, awards, ratistAggregate] = await Promise.all([
-    // Reviews: pulled from movie_ratings + comment/like counts in a 2-step pipeline.
-    (async (): Promise<ReviewRow[]> => {
-      if (!movieRowId) return [];
-      try {
-        const rawReviews = await prisma.movieRating.findMany({
-          where: {
-            movieId: movieRowId,
-            reviewText: { not: null },
-            // Exclude drafts. ratistRating is null on drafts; basic
-            // reviews mirror overallRating, standard/critic compute
-            // from required sub-fields.
-            ratistRating: { not: null },
-          },
-          select: {
-            id: true,
-            reviewText: true,
-            ratistRating: true,
-            overallRating: true,
-            reviewType: true,
-            hasSpoilers: true,
-            commentsDisabled: true,
-            createdAt: true,
-            user: { select: { id: true, firebaseUid: true, name: true, avatarUrl: true } },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        });
-        const reviewIds = rawReviews.map((r) => r.id);
-        const [commentCounts, likeCounts] = await Promise.all([
-          prisma.comment.groupBy({
-            by: ["targetId"],
-            where: { targetType: "review", targetId: { in: reviewIds } },
-            _count: { id: true },
-          }),
-          prisma.postLike.groupBy({
-            by: ["targetId"],
-            where: { targetType: "review", targetId: { in: reviewIds } },
-            _count: { targetId: true },
-          }),
-        ]);
-        const commentMap = new Map(commentCounts.map((c) => [c.targetId, c._count.id]));
-        const likeMap = new Map(likeCounts.map((l) => [l.targetId, l._count.targetId]));
-        return rawReviews.map((r) => ({
-          ...r,
-          commentCount: commentMap.get(r.id) ?? 0,
-          likeCount: likeMap.get(r.id) ?? 0,
-        }));
-      } catch {
-        return [];
+  const ratistAggregate = await (async (): Promise<{ value: number; count: number } | null> => {
+    if (!movieRowId) return null;
+    try {
+      const agg = await prisma.movieRating.aggregate({
+        // excluded: false keeps admin-flagged review-bomb ratings out
+        // of the public-facing community aggregate that feeds JSON-LD.
+        where: { movieId: movieRowId, ratistRating: { not: null }, excluded: false },
+        _avg: { ratistRating: true },
+        _count: { ratistRating: true },
+      });
+      if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
+        return { value: agg._avg.ratistRating, count: agg._count.ratistRating };
       }
-    })(),
-
-    // Discussions: forum + news + blog rolled into one sorted list.
-    (async (): Promise<DiscussionRow[]> => {
-      try {
-        const [linkedThreads, linkedNews, linkedBlog] = await Promise.all([
-          prisma.forumThread.findMany({
-            where: { media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-            select: {
-              id: true, title: true, slug: true, threadType: true, viewCount: true, createdAt: true,
-              author: { select: { name: true } },
-              _count: { select: { posts: true } },
-            },
-            orderBy: { updatedAt: "desc" },
-            take: 10,
-          }),
-          prisma.newsItem.findMany({
-            where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-            select: { id: true, title: true, slug: true, viewCount: true, publishedAt: true, showAuthor: true, author: { select: { name: true } } },
-            orderBy: { publishedAt: "desc" },
-            take: 5,
-          }),
-          prisma.blogPost.findMany({
-            where: { published: true, publishedAt: { lte: new Date() }, media: { some: { tmdbId: movie.id, mediaType: "movie" } } },
-            select: { id: true, title: true, slug: true, type: true, viewCount: true, publishedAt: true, createdAt: true, showAuthor: true, author: { select: { name: true } } },
-            orderBy: { publishedAt: "desc" },
-            take: 5,
-          }),
-        ]);
-        const forumDiscussions = linkedThreads.map((t) => ({
-          id: t.id, title: t.title, slug: t.slug, threadType: t.threadType,
-          authorName: t.author.name, postCount: t._count.posts, viewCount: t.viewCount,
-          createdAt: t.createdAt.toISOString(), linkType: "forum" as const, linkHref: `/forum/t/${t.slug}`,
-        }));
-        const newsDiscussions = linkedNews.map((n) => ({
-          id: n.id, title: n.title, slug: n.slug ?? "", threadType: "news",
-          authorName: n.showAuthor !== false ? (n.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: n.viewCount,
-          createdAt: (n.publishedAt ?? new Date()).toISOString(), linkType: "news" as const, linkHref: `/news/${n.slug}`,
-        }));
-        const blogDiscussions = linkedBlog.map((b) => {
-          const basePath = b.type === "PUNCH_AND_JUDY" ? "/two-thumbs" : b.type === "MOVIE_MAP" ? "/movie-maps" : "/blog";
-          const threadType = b.type === "PUNCH_AND_JUDY" ? "two-thumbs" : b.type === "MOVIE_MAP" ? "movie-map" : "blog";
-          return {
-            id: b.id, title: b.title, slug: b.slug, threadType,
-            authorName: b.showAuthor !== false ? (b.author?.name ?? "The Ratist") : "The Ratist", postCount: 0, viewCount: b.viewCount,
-            createdAt: b.createdAt.toISOString(), linkType: "blog" as const, linkHref: `${basePath}/${b.slug}`,
-          };
-        });
-        return [...newsDiscussions, ...blogDiscussions, ...forumDiscussions]
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      } catch {
-        return [];
-      }
-    })(),
-
-    // Published Watch Companion check.
-    prisma.watchCompanion.findUnique({
-      where: { tmdbId_mediaType: { tmdbId: movie.id, mediaType: "movie" } },
-      select: { status: true },
-    }).then((c) => c?.status === "published").catch(() => false),
-
-    // Awards from DB.
-    movieRowId ? getMovieAwards(movieRowId).catch(() => [] as Awaited<ReturnType<typeof getMovieAwards>>) : Promise.resolve([] as Awaited<ReturnType<typeof getMovieAwards>>),
-
-    // Ratist community aggregate for JSON-LD.
-    (async (): Promise<{ value: number; count: number } | null> => {
-      if (!movieRowId) return null;
-      try {
-        const agg = await prisma.movieRating.aggregate({
-          // excluded: false keeps admin-flagged review-bomb ratings out
-          // of the public-facing community aggregate that feeds JSON-LD.
-          where: { movieId: movieRowId, ratistRating: { not: null }, excluded: false },
-          _avg: { ratistRating: true },
-          _count: { ratistRating: true },
-        });
-        if (agg._avg.ratistRating != null && agg._count.ratistRating > 0) {
-          return { value: agg._avg.ratistRating, count: agg._count.ratistRating };
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    })(),
-  ]);
+      return null;
+    } catch {
+      return null;
+    }
+  })();
 
   const trailerKey = getTrailerKey(movie);
   const mpaaRating = getMpaaRating(movie);
@@ -580,34 +451,23 @@ export default async function MovieDetailPage({ params }: Props) {
         {/* Ad — between collection and tabs */}
         <AdUnit slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_MOVIE ?? ""} format="auto" className="mb-4" />
 
-        {/* Functional tabs */}
-        <MovieDetailTabs
-          movie={movie}
-          trailerKey={trailerKey}
-          cast={cast}
-          crew={crew}
-          images={images}
-          recommendations={recommendations?.results ?? []}
-          streaming={watchProviders?.flatrate ?? null}
-          rent={watchProviders?.rent ?? null}
-          reviews={reviews.map((r) => ({
-            id: r.id,
-            reviewText: r.reviewText ?? "",
-            ratistRating: r.ratistRating,
-            overallRating: r.overallRating,
-            reviewType: r.reviewType,
-            hasSpoilers: r.hasSpoilers,
-            commentsDisabled: r.commentsDisabled,
-            commentCount: r.commentCount,
-            likeCount: r.likeCount,
-            user: r.user,
-            createdAt: r.createdAt.toISOString(),
-          }))}
-          discussions={discussions}
-          awards={awards}
-          tmdbId={movie.id}
-          boxOfficeRanks={boxOfficeRanks ?? undefined}
-        />
+        {/* Heavy tab payload (reviews + comment/like counts, forum +
+            news + blog discussions, awards) streams in once ready.
+            Skeleton matches the tab strip + an overview content area. */}
+        <Suspense fallback={<MovieDetailTabsSkeleton />}>
+          <MovieDetailTabsLoader
+            movie={movie}
+            movieRowId={dbMovie?.id}
+            trailerKey={trailerKey}
+            cast={cast}
+            crew={crew}
+            images={images}
+            recommendations={recommendations?.results ?? []}
+            streaming={watchProviders?.flatrate ?? null}
+            rent={watchProviders?.rent ?? null}
+            boxOfficeRanks={boxOfficeRanks ?? undefined}
+          />
+        </Suspense>
 
         <ShareNudge
           url={`https://www.theratist.com/movies/${movie.id}`}
