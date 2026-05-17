@@ -26,7 +26,6 @@ import {
   type TMDBCollection,
 } from "@/lib/tmdb";
 import UserMoviePanel from "@/components/UserMoviePanel";
-import MoviePosterBlockToggle from "@/components/admin/MoviePosterBlockToggle";
 import ReportPosterButton from "@/components/ReportPosterButton";
 import MovieDetailTabsLoader from "@/components/movie/MovieDetailTabsLoader";
 import MovieDetailTabsSkeleton from "@/components/movie/MovieDetailTabsSkeleton";
@@ -295,13 +294,6 @@ export default async function MovieDetailPage({ params }: Props) {
                 sizes="(max-width: 640px) 128px, (max-width: 1024px) 176px, 208px"
               />
             </div>
-            {(mpaaRating === "NC-17" || mpaaRating === "NR" || !mpaaRating) && (
-              <MoviePosterBlockToggle
-                tmdbId={movie.id}
-                initialPosterBlocked={dbMovie?.posterBlocked ?? false}
-                initialMediaBlocked={dbMovie?.mediaBlocked ?? false}
-              />
-            )}
           </div>
 
           {/* Details */}

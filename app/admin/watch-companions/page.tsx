@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Plus, BookOpen, Eye, EyeOff, Film, Tv, MessageSquare, Hourglass } from "lucide-react";
+import { Plus, BookOpen, Eye, EyeOff, Film, Tv, MessageSquare, Hourglass, Search } from "lucide-react";
 
 interface CompanionRow {
   id: string;
@@ -25,6 +25,13 @@ export default function CompanionsListPage() {
   const [rows, setRows] = useState<CompanionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  const visibleRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => r.title.toLowerCase().includes(q));
+  }, [rows, search]);
 
   useEffect(() => {
     if (!user) return;
@@ -76,6 +83,19 @@ export default function CompanionsListPage() {
         </div>
       </div>
 
+      {rows.length > 0 && (
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search companions by title..."
+            className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
+          />
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-12 text-center">
           <BookOpen className="w-8 h-8 text-[var(--foreground-muted)] mx-auto mb-3" />
@@ -102,7 +122,10 @@ export default function CompanionsListPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {visibleRows.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-8 text-center text-sm text-[var(--foreground-muted)]">No companions match &ldquo;{search}&rdquo;.</td></tr>
+              )}
+              {visibleRows.map((row, i) => (
                 <tr key={row.id} className={`border-b border-[var(--border)]/40 ${i % 2 === 0 ? "bg-[var(--surface-2)]/30" : ""}`}>
                   <td className="px-5 py-3">
                     <Link href={`/admin/watch-companions/${row.id}`} className="text-white hover:text-[var(--ratist-red)] transition-colors font-medium">

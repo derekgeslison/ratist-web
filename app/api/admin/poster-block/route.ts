@@ -6,6 +6,49 @@ import { getMovieDetails, getShowDetails } from "@/lib/tmdb";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * GET — list every movie/TV row with posterBlocked or (movies only)
+ * mediaBlocked set, so admins can review and unblock individual items
+ * from the moderation page. Intentionally EXCLUDES `isAdult=true`
+ * rows (admin "hide entirely" hides are managed separately).
+ */
+export async function GET(req: NextRequest) {
+  const admin = await requireAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const [movies, shows] = await Promise.all([
+    prisma.movie.findMany({
+      where: {
+        OR: [{ posterBlocked: true }, { mediaBlocked: true }],
+        isAdult: false,
+      },
+      select: { tmdbId: true, title: true, releaseDate: true, posterBlocked: true, mediaBlocked: true },
+      orderBy: { title: "asc" },
+    }),
+    prisma.tVShow.findMany({
+      where: { posterBlocked: true },
+      select: { tmdbId: true, name: true, firstAirDate: true, posterBlocked: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return NextResponse.json({
+    movies: movies.map((m) => ({
+      tmdbId: m.tmdbId,
+      title: m.title,
+      releaseDate: m.releaseDate?.slice(0, 10) ?? null,
+      posterBlocked: m.posterBlocked,
+      mediaBlocked: m.mediaBlocked,
+    })),
+    shows: shows.map((s) => ({
+      tmdbId: s.tmdbId,
+      title: s.name,
+      releaseDate: s.firstAirDate?.slice(0, 10) ?? null,
+      posterBlocked: s.posterBlocked,
+    })),
+  });
+}
+
 async function requireAdmin(req: NextRequest) {
   const auth = req.headers.get("authorization");
   if (!auth?.startsWith("Bearer ")) return null;

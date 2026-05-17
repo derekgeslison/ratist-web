@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { Flag, Check, Trash2, Ban, X, AlertTriangle, Clock, ExternalLink } from "lucide-react";
+import { Flag, Check, Trash2, Ban, X, AlertTriangle, Clock, ExternalLink, Eye, Film, Tv } from "lucide-react";
 
 interface ReportItem {
   id: string;
@@ -55,6 +55,63 @@ export default function ModerationPage() {
   const [banDays, setBanDays] = useState("");
   const [banRemoveContent, setBanRemoveContent] = useState(true);
 
+  // Currently-blocked list. Loaded from the same poster-block endpoint
+  // (GET handler). Drives the unblock controls below the manual-block
+  // tool, so admins can review every active poster/media block in one
+  // place and reverse mistakes without remembering TMDB ids.
+  interface BlockedMovie { tmdbId: number; title: string; releaseDate: string | null; posterBlocked: boolean; mediaBlocked: boolean }
+  interface BlockedShow { tmdbId: number; title: string; releaseDate: string | null; posterBlocked: boolean }
+  const [blockedMovies, setBlockedMovies] = useState<BlockedMovie[]>([]);
+  const [blockedShows, setBlockedShows] = useState<BlockedShow[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(true);
+  const [unblockBusy, setUnblockBusy] = useState<string | null>(null);
+  const [blockedSearch, setBlockedSearch] = useState("");
+
+  const filteredBlockedMovies = (() => {
+    const q = blockedSearch.trim().toLowerCase();
+    if (!q) return blockedMovies;
+    return blockedMovies.filter((m) => m.title.toLowerCase().includes(q) || String(m.tmdbId).includes(q));
+  })();
+  const filteredBlockedShows = (() => {
+    const q = blockedSearch.trim().toLowerCase();
+    if (!q) return blockedShows;
+    return blockedShows.filter((s) => s.title.toLowerCase().includes(q) || String(s.tmdbId).includes(q));
+  })();
+
+  const fetchBlocked = useCallback(async () => {
+    if (!user) return;
+    setBlockedLoading(true);
+    const token = await user.getIdToken();
+    const res = await fetch("/api/admin/poster-block", {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setBlockedMovies(data.movies ?? []);
+      setBlockedShows(data.shows ?? []);
+    }
+    setBlockedLoading(false);
+  }, [user]);
+
+  useEffect(() => { fetchBlocked(); }, [fetchBlocked]);
+
+  async function unblock(mediaType: "movie" | "tv", tmdbId: number, which: "poster" | "media") {
+    if (!user || unblockBusy) return;
+    const key = `${mediaType}-${tmdbId}-${which}`;
+    setUnblockBusy(key);
+    const token = await user.getIdToken();
+    const payload: Record<string, unknown> = { mediaType, tmdbId };
+    if (which === "poster") payload.blocked = false;
+    else payload.mediaBlocked = false;
+    await fetch("/api/admin/poster-block", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => null);
+    await fetchBlocked();
+    setUnblockBusy(null);
+  }
+
   // Manual poster-block tool. Admin pastes a movie TMDB id and
   // optionally checks "Block media tab too" or "Hide movie entirely".
   // "Hide entirely" flips `isAdult` to true, vanishing the title from
@@ -100,6 +157,9 @@ export default function ModerationPage() {
         setManualBlockId("");
         setManualBlockMediaToo(false);
         setManualBlockHideEntirely(false);
+        // Refresh the currently-blocked list so the just-blocked title
+        // shows up immediately in the unblock surface below.
+        fetchBlocked();
       } else {
         const data = await res.json().catch(() => ({}));
         setManualBlockMessage(data.error ?? "Block failed");
@@ -213,6 +273,85 @@ export default function ModerationPage() {
         </div>
         {manualBlockMessage && (
           <p className="text-xs text-[var(--foreground-muted)] mt-2">{manualBlockMessage}</p>
+        )}
+      </div>
+
+      {/* Currently-blocked list. Only surfaces posterBlocked / mediaBlocked
+          rows — admin-flipped isAdult "hide entirely" titles are intentionally
+          excluded from this list (they're a different recovery flow). */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
+          <Eye className="w-4 h-4 text-[var(--ratist-red)]" /> Currently blocked
+          {!blockedLoading && (blockedMovies.length + blockedShows.length) > 0 && (
+            <span className="text-xs font-normal text-[var(--foreground-muted)]">
+              ({blockedMovies.length + blockedShows.length})
+            </span>
+          )}
+        </h3>
+        <p className="text-xs text-[var(--foreground-muted)] mb-3">
+          Posters and media tabs you&apos;ve blocked on movies and shows. Click Unblock to reverse.
+        </p>
+        {!blockedLoading && (blockedMovies.length + blockedShows.length) > 0 && (
+          <input
+            type="text"
+            value={blockedSearch}
+            onChange={(e) => setBlockedSearch(e.target.value)}
+            placeholder="Search by title or TMDB id..."
+            className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)] mb-2"
+          />
+        )}
+        {blockedLoading ? (
+          <p className="text-xs text-[var(--foreground-muted)]">Loading...</p>
+        ) : blockedMovies.length === 0 && blockedShows.length === 0 ? (
+          <p className="text-xs text-[var(--foreground-muted)]">Nothing currently blocked.</p>
+        ) : filteredBlockedMovies.length === 0 && filteredBlockedShows.length === 0 ? (
+          <p className="text-xs text-[var(--foreground-muted)] py-3 text-center">No results for &ldquo;{blockedSearch}&rdquo;.</p>
+        ) : (
+          <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+            {filteredBlockedMovies.map((m) => (
+              <div key={`movie-${m.tmdbId}`} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--surface-2)]/50 text-sm">
+                <Film className="w-3.5 h-3.5 text-[var(--foreground-muted)] shrink-0" />
+                <Link href={`/movies/${m.tmdbId}`} target="_blank" rel="noreferrer" className="text-white hover:text-[var(--ratist-red)] transition-colors min-w-0 truncate flex-1">
+                  {m.title}
+                  {m.releaseDate && <span className="text-[var(--foreground-muted)] text-xs ml-1.5">({m.releaseDate.slice(0, 4)})</span>}
+                </Link>
+                {m.posterBlocked && (
+                  <button
+                    onClick={() => unblock("movie", m.tmdbId, "poster")}
+                    disabled={!!unblockBusy}
+                    className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    {unblockBusy === `movie-${m.tmdbId}-poster` ? "..." : "Unblock poster"}
+                  </button>
+                )}
+                {m.mediaBlocked && (
+                  <button
+                    onClick={() => unblock("movie", m.tmdbId, "media")}
+                    disabled={!!unblockBusy}
+                    className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    {unblockBusy === `movie-${m.tmdbId}-media` ? "..." : "Unblock media"}
+                  </button>
+                )}
+              </div>
+            ))}
+            {filteredBlockedShows.map((s) => (
+              <div key={`tv-${s.tmdbId}`} className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--surface-2)]/50 text-sm">
+                <Tv className="w-3.5 h-3.5 text-[var(--foreground-muted)] shrink-0" />
+                <Link href={`/shows/${s.tmdbId}`} target="_blank" rel="noreferrer" className="text-white hover:text-[var(--ratist-red)] transition-colors min-w-0 truncate flex-1">
+                  {s.title}
+                  {s.releaseDate && <span className="text-[var(--foreground-muted)] text-xs ml-1.5">({s.releaseDate.slice(0, 4)})</span>}
+                </Link>
+                <button
+                  onClick={() => unblock("tv", s.tmdbId, "poster")}
+                  disabled={!!unblockBusy}
+                  className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {unblockBusy === `tv-${s.tmdbId}-poster` ? "..." : "Unblock poster"}
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
