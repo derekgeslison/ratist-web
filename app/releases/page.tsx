@@ -141,6 +141,21 @@ export default async function ReleasesPage() {
     select: { id: true, name: true },
   });
 
+  // ItemList of the first 30 entries in the calendar so the Rich
+  // Results Test sees something crawlable. URLs point at the
+  // /movies/[id] detail page (which already carries Movie schema).
+  const releasesItemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Upcoming releases",
+    itemListElement: initialFeed.results.slice(0, 30).map((m, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      url: `https://www.theratist.com/movies/${m.id}`,
+      name: m.title,
+    })),
+  };
+
   return (
     <Suspense
       fallback={
@@ -150,6 +165,9 @@ export default async function ReleasesPage() {
         </div>
       }
     >
+      {releasesItemListSchema.itemListElement.length > 0 && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(releasesItemListSchema) }} />
+      )}
       <ReleasesClient
         thisWeek={thisWeek.results.slice(0, 5).map(movieToUnified)}
         forYou={forYou?.results.slice(0, 12).map(movieToUnified) ?? null}

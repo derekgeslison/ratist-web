@@ -370,8 +370,25 @@ export default async function CelebritiesPage({ searchParams }: Props) {
     return `/celebrities?${qs.toString()}`;
   }
 
+  // JSON-LD ItemList of the visible people slice. Capped at 30 to
+  // keep markup reasonable on /perPage=100 views.
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Celebrities",
+    itemListElement: people.slice(0, 30).map((p, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      url: `https://www.theratist.com/celebrities/${p.id}`,
+      name: p.name,
+    })),
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {itemListSchema.itemListElement.length > 0 && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      )}
       <NavEntryRegister title="All celebrities" />
       <div className="flex items-center gap-3 mb-2">
         <UserStar className="w-6 h-6 text-[var(--ratist-red)]" />

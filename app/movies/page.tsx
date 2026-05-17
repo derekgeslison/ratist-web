@@ -801,8 +801,49 @@ export default async function MoviesPage({ searchParams }: Props) {
       ? Math.max(movieResult?.total_pages ?? 1, showResult?.total_pages ?? 1)
       : (movieResult?.total_pages ?? 1);
 
+  // JSON-LD ItemList for the current visible result set. Skipped in
+  // seen-only mode (that branch renders a DB-backed client view, so
+  // the SSR markup doesn't reflect what users see). Mixed-mode pulls
+  // from the interleaved movies+shows list; otherwise we concatenate
+  // the per-type rails. Cap at 30 items to keep markup reasonable.
+  const itemListSchema = !seenOnlyMode
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name: pageTitle,
+        itemListElement: (
+          isSearchMode
+            ? mixedResults.map((it) =>
+                it.type === "movie"
+                  ? { url: `https://www.theratist.com/movies/${it.data.id}`, name: it.data.title }
+                  : { url: `https://www.theratist.com/shows/${it.data.id}`, name: it.data.name }
+              )
+            : [
+                ...((movieResult?.results ?? []).map((m) => ({
+                  url: `https://www.theratist.com/movies/${m.id}`,
+                  name: m.title,
+                }))),
+                ...((showResult?.results ?? []).map((s) => ({
+                  url: `https://www.theratist.com/shows/${s.id}`,
+                  name: s.name,
+                }))),
+              ]
+        )
+          .slice(0, 30)
+          .map((it, idx) => ({
+            "@type": "ListItem",
+            position: idx + 1,
+            url: it.url,
+            name: it.name,
+          })),
+      }
+    : null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {itemListSchema && itemListSchema.itemListElement.length > 0 && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      )}
       <h1 className="text-2xl font-bold text-white mb-6">{pageTitle}</h1>
 
       <div className="mb-4">

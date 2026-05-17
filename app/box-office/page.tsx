@@ -73,8 +73,26 @@ export default async function BoxOfficePage() {
       : Promise.resolve([]),
   ]);
 
+  // ItemList of the Top Grossing leaderboard so the Rich Results
+  // Test detects something crawlable on /box-office. URLs point at
+  // /movies/[tmdbId] detail pages which carry Movie schema.
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Top Grossing Movies of All Time",
+    itemListElement: topGrossing.map((row, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      url: `https://www.theratist.com/movies/${row.tmdbId}`,
+      name: row.title,
+    })),
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {itemListSchema.itemListElement.length > 0 && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }} />
+      )}
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">

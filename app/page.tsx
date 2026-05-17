@@ -266,8 +266,40 @@ export default async function HomePage() {
     if (i < heroShowPool.length) heroItems.push(heroShowPool[i]);
   }
 
+  // Home-page JSON-LD. Two blobs:
+  //   1. Organization — eligible rich result. Lights up the logo +
+  //      knowledge-panel surfaces in Google. Per Google's guidance,
+  //      Organization should live on the home page only, not in the
+  //      shared layout.
+  //   2. ItemList carousel of the Top Rated rail — each item points
+  //      to a /movies/[id] detail page (which has its own Movie
+  //      schema), so Google can surface a movie-carousel rich result
+  //      from this list.
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "The Ratist",
+    url: "https://www.theratist.com",
+    logo: "https://www.theratist.com/logo-full.png",
+    description:
+      "Movie and TV show ratings, personalized recommendations, and a community for cinephiles. Deep, criteria-based reviews tailored to your unique taste profile.",
+  };
+  const topRatedCarouselSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Top Rated Movies",
+    itemListElement: topRated.results.slice(0, 12).map((m, idx) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      url: `https://www.theratist.com/movies/${m.id}`,
+      name: m.title,
+    })),
+  };
+
   return (
     <div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(topRatedCarouselSchema) }} />
       <NavEntryRegister title="Home" />
       <TourBanner />
       {/* Brand lockup — above the hero so the logo is the first thing visitors see */}
