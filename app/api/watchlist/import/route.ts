@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
           });
           if (existing) { result.skipped++; continue; }
           const sortOrder = await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
-          await prisma.watchlistShow.create({ data: { watchlistId, tvShowId: show.id, sortOrder } });
+          await prisma.watchlistShow.create({ data: { watchlistId, tvShowId: show.id, sortOrder, addedById: user.id } });
           result.imported++;
         } else {
           const movie = await prisma.movie.upsert({
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
           });
           if (existing) { result.skipped++; continue; }
           const sortOrder = await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
-          await prisma.watchlistMovie.create({ data: { watchlistId, movieId: movie.id, sortOrder } });
+          await prisma.watchlistMovie.create({ data: { watchlistId, movieId: movie.id, sortOrder, addedById: user.id } });
           result.imported++;
         }
       } catch (err) {

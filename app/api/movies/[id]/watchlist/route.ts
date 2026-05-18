@@ -102,7 +102,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       // across the unified reorder ordering.
       const sortOrder = await nextSortOrderForList(defaultList.id, user.watchlistAddPosition);
       await prisma.watchlistMovie.create({
-        data: { watchlistId: defaultList.id, movieId: movie.id, sortOrder },
+        data: { watchlistId: defaultList.id, movieId: movie.id, sortOrder, addedById: user.id },
       });
     }
 

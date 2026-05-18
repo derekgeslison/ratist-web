@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       if (!existing) {
         const sortOrder = explicitSort ?? await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
         await prisma.watchlistShow.create({
-          data: { watchlistId, tvShowId: tvShow.id, sortOrder },
+          data: { watchlistId, tvShowId: tvShow.id, sortOrder, addedById: user.id },
         });
       }
     } else {
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       if (!existing) {
         const sortOrder = explicitSort ?? await nextSortOrderForList(watchlistId, user.watchlistAddPosition);
         await prisma.watchlistMovie.create({
-          data: { watchlistId, movieId: movie.id, sortOrder },
+          data: { watchlistId, movieId: movie.id, sortOrder, addedById: user.id },
         });
       }
     }

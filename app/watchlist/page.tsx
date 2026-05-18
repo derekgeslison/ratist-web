@@ -79,6 +79,10 @@ interface WatchlistMovie {
   addedAt: string;
   sortOrder: number;
   mediaType?: "movie" | "tv";
+  // Surfaced only on collaborative lists (>1 distinct contributor).
+  // Null for entries added pre-migration — we don't backfill since
+  // historical attribution would be a guess.
+  addedBy?: { name: string; firebaseUid: string } | null;
 }
 
 type SortKey = "custom" | "added" | "title" | "year" | "rating" | "community";
@@ -1863,6 +1867,17 @@ export default function WatchlistPage() {
                             movie.isChecked ? "text-[var(--foreground-muted)] line-through" : "text-white group-hover:text-[var(--ratist-red)]"
                           }`}>{movie.title}</p>
                           <p className="text-xs text-[var(--foreground-muted)]">{movie.year}</p>
+                          {/* "Added by" attribution — surfaced only on
+                             collaborative lists where the contributor
+                             might not be you. Default lists have a
+                             single owner so the line is redundant
+                             there. Pre-migration entries have no
+                             addedBy and are silently skipped. */}
+                          {activeList && activeList.collaboratorCount > 0 && movie.addedBy && (
+                            <p className="text-[10px] text-[var(--foreground-muted)]/80 truncate">
+                              Added by {user && movie.addedBy.firebaseUid === user.uid ? "you" : movie.addedBy.name}
+                            </p>
+                          )}
                           <div className="flex items-center gap-2 flex-wrap mt-0.5">
                             {movie.voteAverage != null && movie.voteAverage > 0 && (
                               <RatingBadge type="community" score={movie.voteAverage} size="sm" />
@@ -1936,7 +1951,11 @@ export default function WatchlistPage() {
             <span className="text-sm text-white font-medium">
               {selectedIds.size === 0 ? "Select items" : `${selectedIds.size} selected`}
             </span>
-            <div className="flex items-center gap-2 ml-auto">
+            {/* flex-wrap is critical on mobile — five buttons in this
+               group overflow the viewport edge on a 360-414px screen,
+               and the old plain `flex` was clipping the rightmost
+               button (typically Cancel) so only "C" was visible. */}
+            <div className="flex flex-wrap items-center gap-2 ml-auto justify-end">
               {/* Select all / none toggle scoped to the currently-
                  filtered set, so "Select all" in a filtered view only
                  grabs what's visible. */}

@@ -92,7 +92,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     } else {
       const sortOrder = await nextSortOrderForList(defaultList.id, user.watchlistAddPosition);
       await prisma.watchlistShow.create({
-        data: { watchlistId: defaultList.id, tvShowId: tvShow.id, sortOrder },
+        data: { watchlistId: defaultList.id, tvShowId: tvShow.id, sortOrder, addedById: user.id },
       });
     }
 

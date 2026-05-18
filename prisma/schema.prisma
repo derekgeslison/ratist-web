@@ -63,6 +63,8 @@ model User {
   episodeRatings                EpisodeRating[]
   watchlistsOwned               Watchlist[]
   watchlistCollab               WatchlistCollaborator[]
+  watchlistMoviesAdded          WatchlistMovie[]          @relation("watchlistMovieAddedBy")
+  watchlistShowsAdded           WatchlistShow[]           @relation("watchlistShowAddedBy")
   blogPosts                     BlogPost[]
   newsItems                     NewsItem[]
   comments                      Comment[]
@@ -735,9 +737,15 @@ model WatchlistShow {
   isChecked   Boolean   @default(false) @map("is_checked")
   checkedAt   DateTime? @map("checked_at")
   addedAt     DateTime  @default(now()) @map("added_at")
+  // Who added this entry. Nullable so historical rows pre-migration
+  // read as "added by — unknown" rather than failing the schema.
+  // Surfaced in the UI only on collaborative lists; the default
+  // watchlist has a single contributor by definition.
+  addedById   String?   @map("added_by_id")
 
   watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
   tvShow    TVShow    @relation(fields: [tvShowId], references: [id], onDelete: Cascade)
+  addedBy   User?     @relation("watchlistShowAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
 
   @@unique([watchlistId, tvShowId])
   @@map("watchlist_shows")
@@ -1079,9 +1087,12 @@ model WatchlistMovie {
   isChecked   Boolean   @default(false) @map("is_checked")
   checkedAt   DateTime? @map("checked_at")
   addedAt     DateTime  @default(now()) @map("added_at")
+  // Who added this entry. See WatchlistShow.addedById for rationale.
+  addedById   String?   @map("added_by_id")
 
   watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
   movie     Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  addedBy   User?     @relation("watchlistMovieAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
 
   @@unique([watchlistId, movieId])
   @@map("watchlist_movies")

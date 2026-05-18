@@ -133,6 +133,7 @@ export async function loadWatchlistShows(watchlistId: string) {
           genres: { include: { genre: true } },
         },
       },
+      addedBy: { select: { name: true, firebaseUid: true } },
     },
     orderBy: { addedAt: "desc" },
   });
@@ -152,6 +153,7 @@ export async function loadWatchlistShows(watchlistId: string) {
     addedAt: e.addedAt,
     sortOrder: e.sortOrder,
     mediaType: "tv" as const,
+    addedBy: e.addedBy ? { name: e.addedBy.name, firebaseUid: e.addedBy.firebaseUid } : null,
   }));
 }
 
@@ -167,6 +169,7 @@ export async function loadWatchlistMovies(watchlistId: string, userId: string) {
           ratings: { where: { userId }, select: { ratistRating: true }, take: 1 },
         },
       },
+      addedBy: { select: { name: true, firebaseUid: true } },
     },
     orderBy: { addedAt: "desc" },
   });
@@ -189,5 +192,6 @@ export async function loadWatchlistMovies(watchlistId: string, userId: string) {
     addedAt: e.addedAt,
     sortOrder: e.sortOrder,
     mediaType: "movie" as const,
+    addedBy: e.addedBy ? { name: e.addedBy.name, firebaseUid: e.addedBy.firebaseUid } : null,
   }));
 }
