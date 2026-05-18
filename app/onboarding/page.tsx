@@ -465,14 +465,19 @@ export default function OnboardingPage() {
                   type="text"
                   value={displayNameInput}
                   onChange={(e) => setDisplayNameInput(e.target.value)}
-                  maxLength={50}
+                  maxLength={25}
                   placeholder="e.g. Sarah, MovieFan42"
                   autoComplete="nickname"
                   className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-white placeholder-[var(--foreground-muted)]/60 focus:outline-none focus:border-[var(--ratist-red)] transition-colors"
                 />
-                <span className="block text-xs text-[var(--foreground-muted)] mt-1.5">
-                  This is the name shown on your reviews and profile. You can change it anytime in Settings.
-                </span>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs text-[var(--foreground-muted)]">
+                    Shown on your reviews and profile. You can change it anytime in Settings.
+                  </span>
+                  <span className="text-xs text-[var(--foreground-muted)] tabular-nums shrink-0 ml-3">
+                    {displayNameInput.length}/25
+                  </span>
+                </div>
               </label>
 
               <label className="flex items-start gap-2.5 mb-6 cursor-pointer group">

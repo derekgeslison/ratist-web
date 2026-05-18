@@ -461,9 +461,10 @@ export default function SettingsPage() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={50}
+              maxLength={25}
               className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-white placeholder:text-[var(--foreground-muted)] focus:outline-none focus:border-[var(--ratist-red)]"
             />
+            <p className="text-xs text-[var(--foreground-muted)] mt-1">{displayName.length}/25</p>
           </div>
 
           {/* Bio */}
