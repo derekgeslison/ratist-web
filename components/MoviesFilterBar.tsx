@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useIsTyping } from "@/context/TypingGuardContext";
-import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor, Wand2 } from "lucide-react";
+import { LayoutGrid, List, Filter, X, Search, ChevronDown, ChevronUp, Film, Tv, Monitor, Wand2, Loader2 } from "lucide-react";
 import Image from "next/image";
 import type { TMDBGenre } from "@/lib/tmdb";
 import { STREAMING_PROVIDERS, IMAGE_BASE_URL, LANGUAGES } from "@/lib/tmdb";
@@ -103,6 +103,15 @@ export default function MoviesFilterBar({ genres, totalResults, hideTotalResults
   const searchParams = useSearchParams();
   const isTyping = useIsTyping();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // All router.push calls go through startTransition so the current
+  // page stays mounted (input keeps focus, results stay visible) while
+  // the new SSR runs in the background. isPending lets us show a
+  // subtle indicator instead of letting loading.tsx tear down the
+  // existing UI on every keystroke. This was the single biggest
+  // contributor to the perceived /movies search lag — the input was
+  // unmounting and remounting on every URL push.
+  const [isPending, startTransition] = useTransition();
+  const navigate = (href: string) => startTransition(() => router.push(href));
 
   // Read current values from URL
   const currentSort = searchParams.get("sort") ?? "popular";
@@ -200,7 +209,7 @@ export default function MoviesFilterBar({ genres, totalResults, hideTotalResults
     const params = new URLSearchParams(searchParams.toString());
     for (const k of AI_ONLY_PARAMS) params.delete(k);
     params.delete("page");
-    router.push(`/movies?${params.toString()}`);
+    navigate(`/movies?${params.toString()}`);
   }
 
   function update(updates: Record<string, string | null>) {
@@ -220,7 +229,7 @@ export default function MoviesFilterBar({ genres, totalResults, hideTotalResults
     if (touchingFilter && activeFilterCount === 0 && !searchParams.has("sort")) {
       params.set("sort", "relevance");
     }
-    router.push(`/movies?${params.toString()}`);
+    navigate(`/movies?${params.toString()}`);
   }
 
   function clearAllFilters() {
@@ -237,7 +246,7 @@ export default function MoviesFilterBar({ genres, totalResults, hideTotalResults
     if (search) params.set("search", search);
     if (perPage) params.set("perPage", perPage);
     if (type) params.set("type", type);
-    router.push(`/movies?${params.toString()}`);
+    navigate(`/movies?${params.toString()}`);
   }
 
   function toggleGenre(id: string) {
@@ -399,9 +408,18 @@ export default function MoviesFilterBar({ genres, totalResults, hideTotalResults
 
       {/* Always-visible top bar */}
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        {/* Title search */}
+        {/* Title search — search icon swaps to a spinner while a
+           transition (URL push triggered by typing or any other
+           filter change) is in flight. This is the only "loading"
+           cue the user sees during a search update; the existing
+           results stay visible until the new SSR is ready, so the
+           page never blanks out. */}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          {isPending ? (
+            <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ratist-red)] animate-spin" />
+          ) : (
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-muted)]" />
+          )}
           <input
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
