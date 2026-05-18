@@ -22,6 +22,13 @@ interface Props {
    *  their elapsed-time stamp so the chat-highlights jump-to-point
    *  feature still has visible anchors after the movie ends. */
   sessionStartedAt?: string | null;
+  /** Wall-clock when the watch ended (i.e. when status flipped to
+   *  POST_WATCH). Messages with timestamps past this don't get an
+   *  elapsed-time stamp — the movie's over, so an "elapsed since
+   *  start" clock isn't relevant. Without this prop the post-watch
+   *  chat panel kept stamping new messages as if the movie was
+   *  still playing. */
+  sessionFinishedAt?: string | null;
   /** Final paused-time total accumulated during the watch (ms).
    *  Subtracted from raw elapsed so paused stretches don't inflate
    *  per-message timestamps. */
@@ -39,7 +46,7 @@ function formatElapsed(seconds: number): string {
   return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
-export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase, sessionStartedAt, totalPausedMs = 0 }: Props) {
+export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, chatMessages, maxHeight = "200px", label = "Chat", phase, sessionStartedAt, sessionFinishedAt, totalPausedMs = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -109,9 +116,14 @@ export default function CompactChat({ sessionId, myUserId, myName, myPhotoURL, c
           // the inline render in the watching-phase chat (page.tsx
           // ~line 1271). Lobby phase leaves the stamp off — the watch
           // hasn't started, every message is pre-watch by definition.
+          // Post-watch messages (sent after finishedAt) also skip the
+          // stamp — the movie's over, so "elapsed since start" stops
+          // being meaningful the moment the credits roll.
           const startedAtMs = sessionStartedAt ? new Date(sessionStartedAt).getTime() : null;
+          const finishedAtMs = sessionFinishedAt ? new Date(sessionFinishedAt).getTime() : null;
           const isPreWatch = startedAtMs == null || msg.timestamp < startedAtMs;
-          const showElapsed = phase === "postwatch" && !isPreWatch && startedAtMs != null;
+          const isPostWatch = finishedAtMs != null && msg.timestamp > finishedAtMs;
+          const showElapsed = phase === "postwatch" && !isPreWatch && !isPostWatch && startedAtMs != null;
           const elapsedStr = showElapsed
             ? formatElapsed((msg.timestamp - startedAtMs - totalPausedMs) / 1000)
             : "";

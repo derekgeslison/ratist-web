@@ -102,6 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await autoCompleteIfExpired({
       id: session.id,
       status: session.status,
+      createdAt: session.createdAt,
       startedAt: session.startedAt,
       finishedAt: session.finishedAt,
     });

@@ -1148,20 +1148,25 @@ export default function ScreeningSessionPage() {
     // Unavailable" was the same string for every error code, which
     // hid 403-not-a-participant + 401-unauthorized inside the same
     // "session deleted" copy.
+    const isLobbyTimeout = error.startsWith("This lobby timed out");
     const heading = error === "Not a participant"
       ? "You're not in this screening"
       : error === "Not found"
         ? "This screening room is gone"
         : error === "Unauthorized"
           ? "Sign in to view this screening"
-          : "Session Unavailable";
+          : isLobbyTimeout
+            ? "This lobby timed out"
+            : "Session Unavailable";
     const body = error === "Not a participant"
       ? "You'd need an invite from the host to join. If you used to be in this room, the host or another participant may have removed you."
       : error === "Not found"
         ? "It was cancelled by the host or deleted after everyone hid it. Your prior screenings (if you have any) are listed below."
         : error === "Unauthorized"
           ? "Your session may have expired. Sign in again to view this screening."
-          : `This screening room may have been cancelled or is no longer available. (${error})`;
+          : isLobbyTimeout
+            ? "Lobbies auto-cancel after 1 hour if the watch hasn't started. Spin up a new room when your group is ready to start watching."
+            : `This screening room may have been cancelled or is no longer available. (${error})`;
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center">
         <MonitorPlay className="w-10 h-10 text-[var(--foreground-muted)] mx-auto mb-4" />
@@ -1510,7 +1515,7 @@ export default function ScreeningSessionPage() {
                 </ol>
               )}
               <p className="mt-3 text-[11px] text-[var(--foreground-muted)]/80 italic border-t border-[var(--border)] pt-2">
-                Heads up: screening rooms automatically end after 4 hours. The post-watch review window closes 25 minutes after the credits roll, even if not everyone has submitted a rating — that way nobody&apos;s blocked from starting a new room because a co-watcher wandered off.
+                Heads up: lobbies auto-cancel if you don&apos;t start the watch within 1 hour. Once started, the watching phase ends after 4 hours (so a half-finished movie still lets everyone rate). The post-watch review window closes 25 minutes after the credits roll, even if not everyone has submitted a rating — that way nobody&apos;s blocked from starting a new room because a co-watcher wandered off.
               </p>
             </section>
           )}
@@ -2075,6 +2080,7 @@ export default function ScreeningSessionPage() {
                 maxHeight="200px"
                 label="Post-Watch Chat" phase="postwatch"
                 sessionStartedAt={session?.startedAt}
+                sessionFinishedAt={session?.finishedAt}
                 totalPausedMs={totalPausedMsRef.current}
               />
 
@@ -2306,6 +2312,7 @@ export default function ScreeningSessionPage() {
                 maxHeight="200px"
                 label="Post-Watch Chat" phase="postwatch"
                 sessionStartedAt={session?.startedAt}
+                sessionFinishedAt={session?.finishedAt}
                 totalPausedMs={totalPausedMsRef.current}
               />
 

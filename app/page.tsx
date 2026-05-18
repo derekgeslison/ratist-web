@@ -3,7 +3,20 @@ import Link from "next/link";
 import Image from "next/image";
 import { Film, Eye, Heart, MessageCircle } from "lucide-react";
 
-export const metadata: Metadata = { alternates: { canonical: "/" } };
+// Homepage-specific metadata override. Layout.tsx defines the
+// site-wide default ("The Ratist — Movie & TV Show Ratings..."),
+// but Google indexes the homepage's tags as the canonical brand
+// signal — and they need to reference BOTH the full brand "The
+// Ratist" and the bare token "Ratist" so a search for either
+// matches. Without this override the homepage inherited the layout
+// default which only used "The Ratist", losing the bare-token
+// search affinity to dictionary results.
+export const metadata: Metadata = {
+  title: "Ratist (The Ratist) — Movie & TV Ratings That Learn Your Taste",
+  description:
+    "Ratist is a movie and TV rating platform that predicts what you'd rate every film and show — not just what everyone else thought. Multi-dimensional ratings, taste-aware recommendations, and a community for cinephiles. Free to use.",
+  alternates: { canonical: "/" },
+};
 
 import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows, englishFirst } from "@/lib/tmdb";
 import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
@@ -279,10 +292,18 @@ export default async function HomePage() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "The Ratist",
+    // alternateName is the canonical schema field for "the short
+    // form people actually type into a search bar". Without it,
+    // queries for the bare token "Ratist" don't get attached to
+    // this entity in Google's knowledge graph and rank against
+    // unrelated dictionary results. ratist.com is owned by someone
+    // else so we can't get there via domain alone — schema is the
+    // strongest lever we control for the brand-name search.
+    alternateName: "Ratist",
     url: "https://www.theratist.com",
     logo: "https://www.theratist.com/logo-full.png",
     description:
-      "Movie and TV show ratings, personalized recommendations, and a community for cinephiles. Deep, criteria-based reviews tailored to your unique taste profile.",
+      "Ratist (The Ratist) is a movie and TV show ratings platform with personalized recommendations and a community for cinephiles. Deep, criteria-based reviews tailored to your unique taste profile.",
   };
   const topRatedCarouselSchema = {
     "@context": "https://schema.org",
@@ -305,7 +326,12 @@ export default async function HomePage() {
       {/* Brand lockup — above the hero so the logo is the first thing visitors see */}
       <div className="bg-[var(--surface)] py-8 sm:py-10 border-b border-[var(--border)]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-3 text-center">
-          <h1 className="sr-only">The Ratist — Movie &amp; TV Show Ratings, Community, &amp; Tools</h1>
+          {/* Crawlable H1 referencing both brand variants — "Ratist"
+             (the bare token most people actually type) and "The
+             Ratist" (the full brand). Visually hidden via sr-only
+             so the design still leads with the logo; SEO-bots
+             still index this as the page's H1. */}
+          <h1 className="sr-only">Ratist (The Ratist) — Movie &amp; TV Show Ratings, Community, &amp; Tools</h1>
           <Image
             src="/logo-full.png"
             alt="The Ratist"

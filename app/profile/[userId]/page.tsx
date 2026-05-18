@@ -165,9 +165,21 @@ export default async function ProfilePage({ params }: Props) {
     prisma.tVShowRating.count({ where: { userId: user.id, ratingScope: "series" } }),
     prisma.userFavoriteMovie.count({ where: { userId: user.id } }),
     prisma.userFavoriteShow.count({ where: { userId: user.id } }),
-    prisma.watchlistMovie.count({
-      where: { watchlist: { userId: user.id, isDefault: true } },
-    }),
+    // Counts items across ALL of the user's watchlists (movies + shows),
+    // not just the default movie watchlist — the old query missed TV
+    // shows and any extra watchlists the user created. Visitors only
+    // see public lists; the owner sees everything (matches what's
+    // actually rendered in the Watchlist tab).
+    (async () => {
+      const watchlistWhere = isOwner
+        ? { userId: user.id }
+        : { userId: user.id, isPrivate: false };
+      const [m, s] = await Promise.all([
+        prisma.watchlistMovie.count({ where: { watchlist: watchlistWhere } }),
+        prisma.watchlistShow.count({ where: { watchlist: watchlistWhere } }),
+      ]);
+      return m + s;
+    })(),
     prisma.forumThread.count({ where: { authorId: user.id } }),
     prisma.movieRating.aggregate({
       where: { userId: user.id, ratistRating: { not: null } },

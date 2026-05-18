@@ -55,6 +55,10 @@
     {
       "path": "/api/cron/scan-nc17-posters",
       "schedule": "0 4 1 * *"
+    },
+    {
+      "path": "/api/cron/screening-cleanup",
+      "schedule": "0 * * * *"
     }
   ]
 }

@@ -1,8 +1,10 @@
-/** Hard wall-clock cap on how long a screening room can stay
- *  active. After this elapses since startedAt, the session auto-
- *  flips to COMPLETE the next time anything touches it. Prevents
- *  forgotten rooms from leaving participants in the "you already
- *  have an active room" state indefinitely. */
+/** Wall-clock cap on how long the WATCHING phase can run before
+ *  we force the transition to POST_WATCH. Important nuance: this
+ *  doesn't kill the session — it just ends the watch phase. The
+ *  POST_WATCH_MAX_DURATION_MS cap below then runs from that
+ *  forced transition, so users always get the full review window
+ *  even when the watch hit the ceiling. Net maximum session time
+ *  = SCREENING_MAX_DURATION_MS + POST_WATCH_MAX_DURATION_MS. */
 export const SCREENING_MAX_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 /** Soft cap on the post-watch (rate-everyone) window. After this
@@ -11,6 +13,13 @@ export const SCREENING_MAX_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
  *  one flaky participant from blocking the rest of the room from
  *  starting a new session. */
 export const POST_WATCH_MAX_DURATION_MS = 25 * 60 * 1000; // 25 minutes
+
+/** Wall-clock cap on how long a session can sit in LOBBY before
+ *  we delete it. Prevents an accumulation of half-set-up rooms
+ *  that never actually got started — host opened a room, friends
+ *  didn't show, host closed the tab. Without this cleanup those
+ *  rooms would also block the host's no-concurrent gate forever. */
+export const LOBBY_MAX_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 /** Generate a 6-character uppercase invite code */
 export function generateInviteCode(): string {

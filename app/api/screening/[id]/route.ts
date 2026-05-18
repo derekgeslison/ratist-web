@@ -51,16 +51,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const isParticipant = session.participants.some((p) => p.userId === user.id);
     if (!isParticipant) return NextResponse.json({ error: "Not a participant" }, { status: 403 });
 
-    // Self-healing time-limit check. If the 4hr wall-clock or 25min
-    // post-watch caps have elapsed, this flips the session to
-    // COMPLETE and re-fetches so the response reflects the new
-    // status. Cheap when nothing's expired (one timestamp compare).
-    const { flipped } = await autoCompleteIfExpired({
+    // Self-healing time-limit check. Three triggers:
+    //   - LOBBY > 1hr: session is DELETED → 410 Gone w/ explainer.
+    //     Tells the client the lobby's been auto-cancelled so it can
+    //     bounce the user back to /screening-room instead of 404'ing.
+    //   - WATCHING > 4hr: force-transitions to POST_WATCH (then the
+    //     25-min review window runs normally on top — net cap 4h25m).
+    //   - POST_WATCH > 25min: flips to COMPLETE.
+    // Cheap when nothing's expired (one timestamp compare).
+    const { flipped, deleted } = await autoCompleteIfExpired({
       id: session.id,
       status: session.status,
+      createdAt: session.createdAt,
       startedAt: session.startedAt,
       finishedAt: session.finishedAt,
     });
+    if (deleted) {
+      return NextResponse.json(
+        { error: "This lobby timed out — rooms that don't start within an hour are auto-cancelled." },
+        { status: 410 },
+      );
+    }
     if (flipped) {
       const fresh = await prisma.screeningSession.findUnique({ where: { id }, include: sessionInclude });
       if (fresh) return NextResponse.json(fresh);
