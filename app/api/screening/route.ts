@@ -12,6 +12,30 @@ export async function POST(req: NextRequest) {
     const user = await getAuthedUser(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // No-concurrent-rooms gate. A user can't host or join more than
+    // one active screening session at a time — prevents both abuse
+    // (chained badge-grind sessions, divided attention) and the
+    // accidental "I forgot I had another room open" case. "Active"
+    // = any status other than COMPLETE.
+    const existingActive = await prisma.screeningSession.findFirst({
+      where: {
+        status: { not: "COMPLETE" },
+        OR: [
+          { hostId: user.id },
+          { participants: { some: { userId: user.id } } },
+        ],
+      },
+      select: { id: true, movieTitle: true, hostId: true },
+    });
+    if (existingActive) {
+      const role = existingActive.hostId === user.id ? "hosting" : "in";
+      const label = existingActive.movieTitle ?? "an untitled session";
+      return NextResponse.json({
+        error: `You're already ${role} another screening room (${label}). ${role === "hosting" ? "End or cancel" : "Leave"} it before starting a new one.`,
+        conflictingSessionId: existingActive.id,
+      }, { status: 409 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { movieId, tmdbId, movieTitle, posterPath, mediaType } = body;
 

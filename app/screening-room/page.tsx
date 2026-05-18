@@ -45,6 +45,7 @@ export default function ScreeningRoomDashboard() {
   const [loading, setLoading] = useState(true);
   const [joinCode, setJoinCode] = useState("");
   const [joinError, setJoinError] = useState("");
+  const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
 
@@ -65,8 +66,9 @@ export default function ScreeningRoomDashboard() {
 
   async function createSession() {
     setCreating(true);
+    setCreateError("");
     const token = await getToken();
-    if (!token) return;
+    if (!token) { setCreating(false); return; }
     const res = await fetch("/api/screening", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -75,6 +77,13 @@ export default function ScreeningRoomDashboard() {
     if (res.ok) {
       const session = await res.json();
       router.push(`/screening-room/${session.id}`);
+    } else {
+      // Surface the server's error — the most-hit case is the 409
+      // "you're already hosting/in another active room" gate. Before
+      // this branch the button just spun briefly and returned, which
+      // looked like the button was broken.
+      const data = await res.json().catch(() => ({}));
+      setCreateError(data.error ?? "Couldn't create the room. Try again in a moment.");
     }
     setCreating(false);
   }
@@ -139,10 +148,13 @@ export default function ScreeningRoomDashboard() {
           </h2>
           <p className="text-sm text-[var(--foreground-muted)] mb-4">Create a room and invite friends with a code.</p>
           {hasPass ? (
-            <button onClick={createSession} disabled={creating}
-              className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 w-full">
-              {creating ? "Creating..." : "Create Room"}
-            </button>
+            <>
+              <button onClick={createSession} disabled={creating}
+                className="bg-[var(--ratist-red)] hover:bg-[var(--ratist-red-hover)] text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50 w-full">
+                {creating ? "Creating..." : "Create Room"}
+              </button>
+              {createError && <p className="text-xs text-red-400 mt-2">{createError}</p>}
+            </>
           ) : (
             <Link href="/backstage-pass/screening-room"
               className="flex items-center justify-center gap-2 bg-[var(--surface-2)] border border-amber-400/30 text-amber-400 text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors w-full hover:bg-amber-400/10">

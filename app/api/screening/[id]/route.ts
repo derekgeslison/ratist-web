@@ -3,6 +3,7 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { checkBadges } from "@/lib/badges";
 import { purgeSessionFromRtdb } from "@/lib/screening-rtdb";
+import { autoCompleteIfExpired } from "@/lib/screening-auto-complete";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Must be a participant
     const isParticipant = session.participants.some((p) => p.userId === user.id);
     if (!isParticipant) return NextResponse.json({ error: "Not a participant" }, { status: 403 });
+
+    // Self-healing time-limit check. If the 4hr wall-clock or 25min
+    // post-watch caps have elapsed, this flips the session to
+    // COMPLETE and re-fetches so the response reflects the new
+    // status. Cheap when nothing's expired (one timestamp compare).
+    const { flipped } = await autoCompleteIfExpired({
+      id: session.id,
+      status: session.status,
+      startedAt: session.startedAt,
+      finishedAt: session.finishedAt,
+    });
+    if (flipped) {
+      const fresh = await prisma.screeningSession.findUnique({ where: { id }, include: sessionInclude });
+      if (fresh) return NextResponse.json(fresh);
+    }
 
     // Hide predictions if session is not in POST_WATCH or COMPLETE
     if (session.status !== "POST_WATCH" && session.status !== "COMPLETE") {

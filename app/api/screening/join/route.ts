@@ -37,6 +37,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ sessionId: session.id, alreadyJoined: true });
     }
 
+    // No-concurrent-rooms gate. Mirrors the create endpoint rule.
+    // Excludes THIS session from the lookup so the alreadyJoined
+    // short-circuit above stays the only path for re-joins.
+    const existingActive = await prisma.screeningSession.findFirst({
+      where: {
+        id: { not: session.id },
+        status: { not: "COMPLETE" },
+        OR: [
+          { hostId: user.id },
+          { participants: { some: { userId: user.id } } },
+        ],
+      },
+      select: { id: true, movieTitle: true, hostId: true },
+    });
+    if (existingActive) {
+      const role = existingActive.hostId === user.id ? "hosting" : "in";
+      const label = existingActive.movieTitle ?? "an untitled session";
+      return NextResponse.json({
+        error: `You're already ${role} another screening room (${label}). ${role === "hosting" ? "End or cancel" : "Leave"} it before joining a new one.`,
+        conflictingSessionId: existingActive.id,
+      }, { status: 409 });
+    }
+
     // Add as participant
     await prisma.screeningParticipant.create({
       data: { sessionId: session.id, userId: user.id },

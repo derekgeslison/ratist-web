@@ -3,6 +3,7 @@ import { getAuthedUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { computeRatistScores } from "@/lib/ratings";
 import { checkBadges } from "@/lib/badges";
+import { autoCompleteIfExpired } from "@/lib/screening-auto-complete";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
     }
+
+    // Even when not all reviews are in, run the time-limit auto-
+    // close so a session that hit the 25-min post-watch cap (or the
+    // 4hr wall-clock cap) gets flipped to COMPLETE off the back of
+    // this rating submission. Idempotent — no-op when no cap met.
+    await autoCompleteIfExpired({
+      id: session.id,
+      status: session.status,
+      startedAt: session.startedAt,
+      finishedAt: session.finishedAt,
+    });
 
     return NextResponse.json(rating);
   } catch (err) {

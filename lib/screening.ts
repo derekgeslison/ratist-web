@@ -1,3 +1,17 @@
+/** Hard wall-clock cap on how long a screening room can stay
+ *  active. After this elapses since startedAt, the session auto-
+ *  flips to COMPLETE the next time anything touches it. Prevents
+ *  forgotten rooms from leaving participants in the "you already
+ *  have an active room" state indefinitely. */
+export const SCREENING_MAX_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+/** Soft cap on the post-watch (rate-everyone) window. After this
+ *  elapses since finishedAt, the session auto-flips to COMPLETE
+ *  even if not every participant has submitted a review — keeps
+ *  one flaky participant from blocking the rest of the room from
+ *  starting a new session. */
+export const POST_WATCH_MAX_DURATION_MS = 25 * 60 * 1000; // 25 minutes
+
 /** Generate a 6-character uppercase invite code */
 export function generateInviteCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion

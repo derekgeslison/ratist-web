@@ -97,6 +97,11 @@ export default function ScreeningSessionPage() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Transient banner for action failures (start with no co-watchers,
+  // etc.) — separate from `error` above which replaces the whole
+  // page on a session-level failure. Cleared automatically after
+  // a few seconds so it doesn't linger.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Streaming / rent providers for the selected movie or show. Hits the
@@ -839,11 +844,22 @@ export default function ScreeningSessionPage() {
   async function apiPatch(body: Record<string, unknown>) {
     const token = await getToken();
     if (!token) return;
-    await fetch(`/api/screening/${id}`, {
+    const res = await fetch(`/api/screening/${id}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      // Surface the server's error message so the user knows why
+      // their action did nothing. The most-hit case is the "need 2
+      // participants to start" rejection on COUNTDOWN transitions,
+      // which used to be a silent failure — button click registered
+      // server-side, returned 400, client did nothing visible.
+      const data = await res.json().catch(() => ({}));
+      setActionError(data.error ?? "Action failed. Try again.");
+      setTimeout(() => setActionError(null), 5000);
+      return;
+    }
     pushStateTick({ status: typeof body.status === "string" ? body.status : undefined });
     fetchSession();
   }
@@ -1383,6 +1399,21 @@ export default function ScreeningSessionPage() {
         </div>
       )}
 
+      {/* Transient action-error banner. Pops up when a PATCH /
+         status transition is rejected (e.g. "need 2 participants
+         to start"); auto-dismisses after 5s. */}
+      {actionError && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-600/10 border border-red-500/40 text-red-300 text-sm flex items-center justify-between gap-3">
+          <span>{actionError}</span>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-300/70 hover:text-red-200 text-xs font-semibold"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -1465,7 +1496,7 @@ export default function ScreeningSessionPage() {
               {amHost ? (
                 <ol className="space-y-1.5 text-xs text-[var(--foreground-muted)] list-decimal list-inside marker:text-[var(--ratist-red)]/70">
                   <li>Pick a movie or show below — or open <span className="text-white font-medium">Suggestions</span> so guests can pitch options and vote on what to watch. Share the invite link or code with your friends.</li>
-                  <li>Wait for everyone to mark themselves ready in the lobby.</li>
+                  <li>Wait for everyone to mark themselves ready in the lobby. You&apos;ll need at least one other participant to start.</li>
                   <li>Hit <span className="text-white font-medium">Start</span> — a 5-second countdown plays so everyone hits play together.</li>
                   <li>While watching: chat with timestamps, run polls, predict the ending, bookmark moments.</li>
                   <li>When the credits roll, everyone rates — the verdict is revealed all at once, then logged to your diary.</li>
@@ -1478,6 +1509,9 @@ export default function ScreeningSessionPage() {
                   <li>After the movie ends, drop your rating — everyone&apos;s scores are revealed together.</li>
                 </ol>
               )}
+              <p className="mt-3 text-[11px] text-[var(--foreground-muted)]/80 italic border-t border-[var(--border)] pt-2">
+                Heads up: screening rooms automatically end after 4 hours. The post-watch review window closes 25 minutes after the credits roll, even if not everyone has submitted a rating — that way nobody&apos;s blocked from starting a new room because a co-watcher wandered off.
+              </p>
             </section>
           )}
 
@@ -1980,6 +2014,23 @@ export default function ScreeningSessionPage() {
                 <p className="text-sm text-[var(--foreground-muted)]">
                   {ratedCount}/{totalParticipants} have submitted their rating
                 </p>
+                {/* 25-min post-watch deadline. Compute the remaining
+                   minutes from finishedAt (set when status flipped to
+                   POST_WATCH) so the user sees an actual countdown
+                   rather than a static "25 min". After it elapses,
+                   the next page load auto-flips to COMPLETE — and
+                   anyone who didn't rate is unblocked from joining
+                   other rooms. */}
+                {session.status === "POST_WATCH" && session.finishedAt && (() => {
+                  const POST_WATCH_TOTAL_MIN = 25;
+                  const elapsedMin = (Date.now() - new Date(session.finishedAt).getTime()) / 60000;
+                  const remaining = Math.max(0, Math.ceil(POST_WATCH_TOTAL_MIN - elapsedMin));
+                  return (
+                    <p className="text-[11px] text-[var(--foreground-muted)]/80 italic mt-2">
+                      Review window: {remaining} minute{remaining === 1 ? "" : "s"} left. After that the session ends automatically — submit your rating before then if you want it counted.
+                    </p>
+                  );
+                })()}
               </div>
 
               {/* Rating form */}
