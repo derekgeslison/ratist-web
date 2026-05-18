@@ -807,7 +807,13 @@ export default function ProfileTabs({
               </div>
             )}
 
-            {similarUsers.length > 0 && (
+            {/* "People similar to this profile owner" — only useful
+               on your own profile. On someone else's profile the
+               viewer doesn't care who's similar to them, and the
+               list awkwardly includes the viewer themselves. The
+               /community Discover surface (Taste Twins tab) is the
+               proper home for this kind of discovery. */}
+            {isOwnProfile && similarUsers.length > 0 && (
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
                 <h3 className="text-sm font-semibold text-white mb-3">Similar Taste Profiles</h3>
                 <div className="space-y-3">
