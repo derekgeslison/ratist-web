@@ -145,30 +145,32 @@ export async function GET(req: NextRequest) {
       for (const f of followsRaw) followingIds.add(f.followingId);
     }
 
-    // Critic = active subscription AND >= CRITIC_RATING_THRESHOLD
-    // full Ratist ratings (plot non-null). Batched as two groupBys
-    // so we don't fan out N rating-count queries.
-    const subActiveIds = candidates.filter(isSubscriptionActive).map((c) => c.id);
-    const [movieGrouped, tvGrouped] = subActiveIds.length > 0
-      ? await Promise.all([
-          prisma.movieRating.groupBy({
-            by: ["userId"],
-            where: { userId: { in: subActiveIds }, plot: { not: null } },
-            _count: { _all: true },
-          }),
-          prisma.tVShowRating.groupBy({
-            by: ["userId"],
-            where: { userId: { in: subActiveIds }, plot: { not: null }, ratingScope: "series" },
-            _count: { _all: true },
-          }),
-        ])
-      : [[], []];
+    // Full Ratist rating count per candidate (movie + TV series-scope
+    // ratings where `plot` is filled in). Used for both the Critic
+    // chip and the limited-data warning. Quick / basic ratings don't
+    // count toward either. Batched as two groupBys over all
+    // candidates so we don't fan out N round-trips.
     const fullRatingCounts = new Map<string, number>();
-    for (const row of movieGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
-    for (const row of tvGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
+    if (candidateIds.length > 0) {
+      const [movieGrouped, tvGrouped] = await Promise.all([
+        prisma.movieRating.groupBy({
+          by: ["userId"],
+          where: { userId: { in: candidateIds }, plot: { not: null } },
+          _count: { _all: true },
+        }),
+        prisma.tVShowRating.groupBy({
+          by: ["userId"],
+          where: { userId: { in: candidateIds }, plot: { not: null }, ratingScope: "series" },
+          _count: { _all: true },
+        }),
+      ]);
+      for (const row of movieGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
+      for (const row of tvGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
+    }
+    const subActiveIds = new Set(candidates.filter(isSubscriptionActive).map((c) => c.id));
     const criticIds = new Set<string>();
     for (const [userId, count] of fullRatingCounts) {
-      if (count >= CRITIC_RATING_THRESHOLD) criticIds.add(userId);
+      if (count >= CRITIC_RATING_THRESHOLD && subActiveIds.has(userId)) criticIds.add(userId);
     }
 
     const allKeys = [...COMPONENT_KEYS, ...GENRE_KEYS] as const;
@@ -195,7 +197,7 @@ export async function GET(req: NextRequest) {
         match,
         followerCount: c._count.followers,
         isCritic: criticIds.has(c.id),
-        ratingCount: c._count.ratings + c._count.tvShowRatings,
+        fullRatistCount: fullRatingCounts.get(c.id) ?? 0,
         isFollowing: followingIds.has(c.id),
         matchTier,
         isMutual: mutualFollowIds.has(c.id),
@@ -205,7 +207,7 @@ export async function GET(req: NextRequest) {
     enriched.sort((a, b) => {
       if (a.matchTier !== b.matchTier) return b.matchTier - a.matchTier;
       if (a.isMutual !== b.isMutual) return a.isMutual ? -1 : 1;
-      return b.ratingCount - a.ratingCount;
+      return b.fullRatistCount - a.fullRatistCount;
     });
 
     const page = enriched.slice(cursor, cursor + PAGE_SIZE).map((u) => {

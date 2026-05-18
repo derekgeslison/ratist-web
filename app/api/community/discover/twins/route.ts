@@ -47,7 +47,12 @@ interface DiscoveryUser {
   match: number | null;
   followerCount: number;
   isCritic: boolean;
-  ratingCount: number;
+  // Count of FULL Ratist ratings (rows where `plot` is filled in).
+  // Quick / basic ratings don't count. This is the signal used to
+  // decide whether a user has enough data for their taste profile to
+  // be reliable for sorting + ranking. Total ratings would let a
+  // user with 100 quick scores game discovery.
+  fullRatistCount: number;
   isFollowing: boolean;
 }
 
@@ -133,33 +138,34 @@ export async function GET(req: NextRequest) {
       : [];
     const followingIds = new Set(followsRaw.map((f) => f.followingId));
 
-    // Critic = active subscription AND >= CRITIC_RATING_THRESHOLD
-    // full Ratist ratings (plot is non-null on the row). Earlier draft
-    // used subscription alone as a shortcut; that mis-labels every
-    // Backstage Pass holder as a Critic. Batched as two groupBys so
-    // we don't fan out N rating-count queries.
-    const subActiveIds = new Set(candidates.filter(isSubscriptionActive).map((c) => c.id));
-    const subActiveIdList = Array.from(subActiveIds);
-    const [movieGrouped, tvGrouped] = subActiveIdList.length > 0
-      ? await Promise.all([
-          prisma.movieRating.groupBy({
-            by: ["userId"],
-            where: { userId: { in: subActiveIdList }, plot: { not: null } },
-            _count: { _all: true },
-          }),
-          prisma.tVShowRating.groupBy({
-            by: ["userId"],
-            where: { userId: { in: subActiveIdList }, plot: { not: null }, ratingScope: "series" },
-            _count: { _all: true },
-          }),
-        ])
-      : [[], []];
+    // Full Ratist rating count per candidate. Used for BOTH the
+    // critic chip (active sub + >= CRITIC_RATING_THRESHOLD) AND the
+    // data-sufficient sort tier (>= LOW_RATING_THRESHOLD). Quick /
+    // basic ratings don't count toward either — they don't carry
+    // the subfield signal that drives the rest of the math.
+    // Batched as two groupBys over all candidates so we don't fan
+    // out N round-trips.
     const fullRatingCounts = new Map<string, number>();
-    for (const row of movieGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
-    for (const row of tvGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
+    if (candidateIds.length > 0) {
+      const [movieGrouped, tvGrouped] = await Promise.all([
+        prisma.movieRating.groupBy({
+          by: ["userId"],
+          where: { userId: { in: candidateIds }, plot: { not: null } },
+          _count: { _all: true },
+        }),
+        prisma.tVShowRating.groupBy({
+          by: ["userId"],
+          where: { userId: { in: candidateIds }, plot: { not: null }, ratingScope: "series" },
+          _count: { _all: true },
+        }),
+      ]);
+      for (const row of movieGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
+      for (const row of tvGrouped) fullRatingCounts.set(row.userId, (fullRatingCounts.get(row.userId) ?? 0) + row._count._all);
+    }
+    const subActiveIds = new Set(candidates.filter(isSubscriptionActive).map((c) => c.id));
     const criticIds = new Set<string>();
     for (const [userId, count] of fullRatingCounts) {
-      if (count >= CRITIC_RATING_THRESHOLD) criticIds.add(userId);
+      if (count >= CRITIC_RATING_THRESHOLD && subActiveIds.has(userId)) criticIds.add(userId);
     }
 
     // Score every candidate against the viewer's profile. The math
@@ -171,7 +177,6 @@ export async function GET(req: NextRequest) {
       if (!c.profile) continue;
       const sims = allKeys.map((key) => dimensionSimilarity(myProfile[key], c.profile![key]));
       const match = Math.round((sims.reduce((a, b) => a + b, 0) / sims.length) * 100);
-      const ratingCount = c._count.ratings + c._count.tvShowRatings;
       scored.push({
         id: c.id,
         firebaseUid: c.firebaseUid,
@@ -180,27 +185,28 @@ export async function GET(req: NextRequest) {
         match,
         followerCount: c._count.followers,
         isCritic: criticIds.has(c.id),
-        ratingCount,
+        fullRatistCount: fullRatingCounts.get(c.id) ?? 0,
         isFollowing: followingIds.has(c.id),
       });
     }
 
     // Tiered sort:
-    //   1. Data-sufficient users (>= LOW_RATING_THRESHOLD ratings)
-    //      come ahead of limited-data users. A user with 3 ratings
-    //      and a 95% match is misleading — their profile is too
-    //      sparse for the similarity math to mean much — so we keep
-    //      them in the list but push them below everyone whose
-    //      profile actually has signal.
+    //   1. Data-sufficient users (>= LOW_RATING_THRESHOLD FULL Ratist
+    //      ratings) come ahead of limited-data users. A user with a
+    //      pile of quick ratings has high-looking match math but no
+    //      real subfield signal — the profile rebuild stands in
+    //      community averages for them, which produces inflated /
+    //      uniform component scores. Keep them in the list, just
+    //      below everyone with real signal.
     //   2. Within each tier, match % descending.
-    //   3. Tiebreaker: more ratings wins (more confidence).
+    //   3. Tiebreaker: more full ratings wins (more confidence).
     scored.sort((a, b) => {
-      const aHasData = a.ratingCount >= LOW_RATING_THRESHOLD ? 1 : 0;
-      const bHasData = b.ratingCount >= LOW_RATING_THRESHOLD ? 1 : 0;
+      const aHasData = a.fullRatistCount >= LOW_RATING_THRESHOLD ? 1 : 0;
+      const bHasData = b.fullRatistCount >= LOW_RATING_THRESHOLD ? 1 : 0;
       if (aHasData !== bHasData) return bHasData - aHasData;
       const matchDiff = (b.match ?? 0) - (a.match ?? 0);
       if (matchDiff !== 0) return matchDiff;
-      return b.ratingCount - a.ratingCount;
+      return b.fullRatistCount - a.fullRatistCount;
     });
 
     const page = scored.slice(cursor, cursor + PAGE_SIZE);

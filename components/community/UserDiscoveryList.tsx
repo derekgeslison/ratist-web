@@ -66,7 +66,11 @@ interface DiscoveryUser {
   match: number | null;
   followerCount: number;
   isCritic: boolean;
-  ratingCount: number;
+  // Full Ratist rating count. Drives both the limited-data warning
+  // chip and the data-sufficient sort tier on the server. Quick /
+  // basic ratings don't count toward this — only rows with
+  // subfields actually filled in.
+  fullRatistCount: number;
   isFollowing: boolean;
 }
 
@@ -633,7 +637,7 @@ function UserRow({
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-semibold text-white group-hover:text-[var(--ratist-red)] transition-colors truncate">{u.name}</p>
           {u.isCritic && <CriticChip />}
-          {u.ratingCount < threshold && (
+          {u.fullRatistCount < threshold && (
             <span title="Limited taste data — match score may be rougher for them.">
               <AlertTriangle className="w-3 h-3 text-amber-400" />
             </span>

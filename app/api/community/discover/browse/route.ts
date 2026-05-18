@@ -45,6 +45,29 @@ const ALL_MATCH_KEYS = [...COMPONENT_KEYS, ...GENRE_KEYS] as const;
 
 const PAGE_SIZE = 30;
 const LOW_RATING_THRESHOLD = 10;
+// Failsafe for over-saturated profiles in the By Focus / By Genre
+// tabs. A user whose profile has too many maxed-out dimensions is
+// either (a) David-style sparse quick-rater whose upscale flattened
+// to 10 or (b) genuinely indistinguishable taste — neither belongs
+// at the top of a tab that's meant to surface DIFFERENTIATED
+// preferences. Profile values are floats so anything >= NEAR_MAX
+// counts as "maxed" — the upscale output itself produces exactly
+// 10.00, and blended values can land mid-9s.
+const NEAR_MAX = 9.5;
+const COMPONENT_MAX_DIMENSIONS_ALLOWED = 2; // 3+ maxed → excluded from Focus
+const GENRE_MAX_DIMENSIONS_ALLOWED = 3;     // 4+ maxed → excluded from Genre
+
+function isComponentOverSaturated(profile: Record<string, number>): boolean {
+  let maxedCount = 0;
+  for (const k of COMPONENT_KEYS) if ((profile[k] ?? 0) >= NEAR_MAX) maxedCount++;
+  return maxedCount > COMPONENT_MAX_DIMENSIONS_ALLOWED;
+}
+
+function isGenreOverSaturated(profile: Record<string, number>): boolean {
+  let maxedCount = 0;
+  for (const k of GENRE_KEYS) if ((profile[k] ?? 0) >= NEAR_MAX) maxedCount++;
+  return maxedCount > GENRE_MAX_DIMENSIONS_ALLOWED;
+}
 // Genre mode requires this many ratings in the target genre before a
 // user qualifies — otherwise a single 10-rated horror film makes
 // someone "the top horror reviewer" and the ranking is noise.
@@ -57,10 +80,13 @@ interface DiscoveryUser {
   firebaseUid: string;
   name: string;
   avatarUrl: string | null;
-  match: number | null; // not computed in browse modes
+  match: number | null;
   followerCount: number;
   isCritic: boolean;
-  ratingCount: number;
+  // Count of FULL Ratist ratings — see twins/route.ts for the
+  // rationale. Quick / basic ratings don't count toward the
+  // limited-data warning.
+  fullRatistCount: number;
   isFollowing: boolean;
 }
 
@@ -159,19 +185,22 @@ async function enrichUsers(
     profileByUserId.set(userId, rest as MatchProfile);
   }
 
-  // Critic chip — same definition as the rest of the site: active
-  // sub + >= CRITIC_RATING_THRESHOLD full Ratist ratings.
-  const subActiveIds = users.filter(isSubscriptionActive).map((u) => u.id);
-  const [movieGrouped, tvGrouped] = subActiveIds.length > 0
+  // Full Ratist rating count per visible user. Drives the Critic
+  // chip (active sub + >= CRITIC_RATING_THRESHOLD) AND the
+  // limited-data warning chip (< LOW_RATING_THRESHOLD). Quick /
+  // basic ratings don't count toward either. Batched over all
+  // visible users at once.
+  const allIds = users.map((u) => u.id);
+  const [movieGrouped, tvGrouped] = allIds.length > 0
     ? await Promise.all([
         prisma.movieRating.groupBy({
           by: ["userId"],
-          where: { userId: { in: subActiveIds }, plot: { not: null } },
+          where: { userId: { in: allIds }, plot: { not: null } },
           _count: { _all: true },
         }),
         prisma.tVShowRating.groupBy({
           by: ["userId"],
-          where: { userId: { in: subActiveIds }, plot: { not: null }, ratingScope: "series" },
+          where: { userId: { in: allIds }, plot: { not: null }, ratingScope: "series" },
           _count: { _all: true },
         }),
       ])
@@ -179,8 +208,11 @@ async function enrichUsers(
   const fullCounts = new Map<string, number>();
   for (const r of movieGrouped) fullCounts.set(r.userId, (fullCounts.get(r.userId) ?? 0) + r._count._all);
   for (const r of tvGrouped) fullCounts.set(r.userId, (fullCounts.get(r.userId) ?? 0) + r._count._all);
+  const subActiveSet = new Set(users.filter(isSubscriptionActive).map((u) => u.id));
   const criticIds = new Set<string>();
-  for (const [uid, c] of fullCounts) if (c >= CRITIC_RATING_THRESHOLD) criticIds.add(uid);
+  for (const [uid, c] of fullCounts) {
+    if (c >= CRITIC_RATING_THRESHOLD && subActiveSet.has(uid)) criticIds.add(uid);
+  }
 
   const followingIds = new Set(follows.map((f) => f.followingId));
   const byId = new Map(users.map((u) => [u.id, u]));
@@ -209,7 +241,7 @@ async function enrichUsers(
       match,
       followerCount: u._count.followers,
       isCritic: criticIds.has(u.id),
-      ratingCount: u._count.ratings + u._count.tvShowRatings,
+      fullRatistCount: fullCounts.get(u.id) ?? 0,
       isFollowing: followingIds.has(u.id),
     });
   }
@@ -241,8 +273,11 @@ export async function GET(req: NextRequest) {
         if (!Number.isFinite(genreId)) return NextResponse.json({ users: [], hasMore: false, threshold: LOW_RATING_THRESHOLD });
         // Aggregate ratings per user that belong to a movie in this
         // genre. Raw SQL is cleaner than chaining groupBy + join here.
+        // We fetch a wider candidate pool than PAGE_SIZE (200) so the
+        // post-filter uniformity check (excluding users with 4+ maxed
+        // genres) still leaves enough rows for reasonable pagination.
         const blockedArr = Array.from(blockedIds);
-        const rows = await prisma.$queryRaw<{ user_id: string; avg: number; cnt: bigint }[]>`
+        const aggRows = await prisma.$queryRaw<{ user_id: string; avg: number; cnt: bigint }[]>`
           SELECT mr.user_id, AVG(mr.ratist_rating)::float AS avg, COUNT(*)::bigint AS cnt
           FROM movie_ratings mr
           JOIN movie_genres mg ON mg.movie_id = mr.movie_id
@@ -259,10 +294,32 @@ export async function GET(req: NextRequest) {
           GROUP BY mr.user_id
           HAVING COUNT(*) >= ${MIN_GENRE_RATINGS}
           ORDER BY avg DESC NULLS LAST, cnt DESC
-          LIMIT ${PAGE_SIZE + 1} OFFSET ${cursor}
+          LIMIT 200
         `;
-        const hasMore = rows.length > PAGE_SIZE;
-        const slice = rows.slice(0, PAGE_SIZE);
+        // Pull the genre columns for the candidate pool so we can
+        // apply the over-saturation filter (excluded if 4+ genres
+        // are maxed — these profiles aren't differentiated enough
+        // to be useful "top X reviewer" picks).
+        const aggIds = aggRows.map((r) => r.user_id);
+        const profiles = aggIds.length > 0
+          ? await prisma.userProfile.findMany({
+              where: { userId: { in: aggIds } },
+              select: {
+                userId: true,
+                genreAction: true, genreHorror: true, genreDrama: true, genreHistorical: true,
+                genreScifi: true, genreThriller: true, genreComedy: true, genreBookAdapt: true,
+                genreFantasy: true, genreRomance: true, genreDocumentary: true, genreFamily: true,
+                genreFilmNoir: true, genreMusical: true, genreBiopic: true, genreCrime: true,
+                genreWestern: true, genreMystery: true, genreAnimation: true,
+              },
+            })
+          : [];
+        const oversaturatedIds = new Set(
+          profiles.filter((p) => isGenreOverSaturated(p as unknown as Record<string, number>)).map((p) => p.userId)
+        );
+        const filteredRows = aggRows.filter((r) => !oversaturatedIds.has(r.user_id));
+        const slice = filteredRows.slice(cursor, cursor + PAGE_SIZE);
+        const hasMore = filteredRows.length > cursor + PAGE_SIZE;
         const users = await enrichUsers(slice.map((r) => r.user_id), viewerId, viewerProfile);
         return NextResponse.json({ users, hasMore, threshold: LOW_RATING_THRESHOLD });
       }
@@ -273,18 +330,31 @@ export async function GET(req: NextRequest) {
           ? (componentRaw as ComponentKey)
           : null;
         if (!component) return NextResponse.json({ users: [], hasMore: false, threshold: LOW_RATING_THRESHOLD });
+        // Fetch ALL qualifying profiles (with all 6 component columns
+        // so we can apply the over-saturation filter — excluded if
+        // 3+ components are maxed). At current scale fetching every
+        // public discoverable user_profile is cheap; revisit if the
+        // table grows past tens of thousands of rows.
         const profiles = await prisma.userProfile.findMany({
           where: {
             user: exclusionWhere(viewerId, blockedIds),
           },
-          select: { userId: true, [component]: true } as never,
-          orderBy: { [component]: "desc" } as never,
-          take: PAGE_SIZE + 1,
-          skip: cursor,
-        }) as Array<Record<string, unknown>>;
-        const hasMore = profiles.length > PAGE_SIZE;
-        const slice = profiles.slice(0, PAGE_SIZE);
-        const orderedIds = slice.map((p) => p.userId as string);
+          select: {
+            userId: true,
+            narrativeFocused: true, characterFocused: true, messageFocused: true,
+            cinematicFocused: true, performanceFocused: true, entertainmentFocused: true,
+          },
+        });
+        const sorted = profiles
+          .filter((p) => !isComponentOverSaturated(p as unknown as Record<string, number>))
+          .sort((a, b) => {
+            const av = (a as unknown as Record<string, number>)[component] ?? 0;
+            const bv = (b as unknown as Record<string, number>)[component] ?? 0;
+            return bv - av;
+          });
+        const slice = sorted.slice(cursor, cursor + PAGE_SIZE);
+        const hasMore = sorted.length > cursor + PAGE_SIZE;
+        const orderedIds = slice.map((p) => p.userId);
         const users = await enrichUsers(orderedIds, viewerId, viewerProfile);
         return NextResponse.json({ users, hasMore, threshold: LOW_RATING_THRESHOLD });
       }
