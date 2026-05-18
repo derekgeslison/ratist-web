@@ -72,6 +72,7 @@ export default function SettingsPage() {
   const [cropSource, setCropSource] = useState<string | null>(null);
   const [bio, setBio] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [discoverable, setDiscoverable] = useState(true);
   const [autoDateOnSeen, setAutoDateOnSeen] = useState(false);
   const [autoSeenOnWatchlistCheck, setAutoSeenOnWatchlistCheck] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState({
@@ -153,6 +154,7 @@ export default function SettingsPage() {
         setAvatarUrl(meData.user.avatarUrl ?? "");
         setBio(meData.user.bio ?? "");
         setIsPrivate(meData.user.isPrivate ?? false);
+        setDiscoverable(meData.user.discoverable ?? true);
         setAutoDateOnSeen(meData.user.autoDateOnSeen ?? false);
         setAutoSeenOnWatchlistCheck(meData.user.autoSeenOnWatchlistCheck ?? false);
         if (meData.user.publicTabs) {
@@ -192,12 +194,12 @@ export default function SettingsPage() {
 
   const currentSnapshot = useMemo(
     () => JSON.stringify({
-      displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck,
+      displayName, bio, isPrivate, discoverable, autoDateOnSeen, autoSeenOnWatchlistCheck,
       publicTabs, notifPrefs, emailPrefs,
       selectedGenres: Array.from(selectedGenres).sort(),
       componentScores,
     }),
-    [displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs, notifPrefs, emailPrefs, selectedGenres, componentScores]
+    [displayName, bio, isPrivate, discoverable, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs, notifPrefs, emailPrefs, selectedGenres, componentScores]
   );
 
   // Snapshot the loaded values once loading flips false. Done in an
@@ -312,7 +314,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile/me", {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: displayName, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs }),
+        body: JSON.stringify({ name: displayName, bio, isPrivate, discoverable, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs }),
       });
 
       if (res.ok) {
@@ -492,6 +494,29 @@ export default function SettingsPage() {
               className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${isPrivate ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${isPrivate ? "translate-x-5" : "translate-x-0"}`} />
+            </button>
+          </div>
+
+          {/* Show in user discovery — softer opt-out than the private-
+             profile flip. A user can keep a fully public profile but
+             still hide from /community's Taste Twins / Search picker.
+             Private profiles are already excluded from discovery
+             regardless of this flag, so we dim the toggle when
+             private is on. */}
+          <div className="flex items-start justify-between gap-4 pt-1">
+            <div>
+              <p className="text-sm font-medium text-white">Show me in user discovery</p>
+              <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                Whether your profile appears in the Taste Twins and Search picker on /community. People with your profile link can still visit you directly. {isPrivate && <span className="text-amber-400/80">(Already hidden because your profile is private.)</span>}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiscoverable((v) => !v)}
+              disabled={isPrivate}
+              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${discoverable && !isPrivate ? "bg-[var(--ratist-red)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${discoverable && !isPrivate ? "translate-x-5" : "translate-x-0"}`} />
             </button>
           </div>
 

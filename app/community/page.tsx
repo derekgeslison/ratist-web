@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { activeBackstageUserWhere } from "@/lib/subscription";
 export const metadata: Metadata = { title: "Community Hub", description: "Hot takes, fantasy recasts, celebrity lookalikes, movie pitches, Cine-Q trivia, and a forum for cinephiles. Join the most opinionated movie community on the internet.", alternates: { canonical: "/community" } };
@@ -9,6 +10,7 @@ import { Users, Sparkles, Trophy, RefreshCw, Flame, Lightbulb, Brain, Clapperboa
 import AdUnit from "@/components/AdUnit";
 import BackstagePassBadge from "@/components/BackstagePassBadge";
 import SpotlightCards from "@/components/SpotlightCards";
+import UserDiscoveryList from "@/components/community/UserDiscoveryList";
 
 export const dynamic = "force-dynamic";
 
@@ -155,27 +157,6 @@ export default async function CommunityPage() {
     };
   } catch { /* ignore */ }
 
-  let users: { id: string; firebaseUid: string; name: string; avatarUrl: string | null; _count: { ratings: number } }[] = [];
-  let fetchError = false;
-  try {
-    const userSelect = {
-      id: true, firebaseUid: true, name: true, avatarUrl: true,
-      _count: { select: { ratings: true } },
-    } as const;
-    const userWhere = { isPrivate: false, deletedAt: null, bannedAt: null };
-    // Mix: top 12 by rating count + 12 newest, deduped
-    const [topRaters, newest] = await Promise.all([
-      prisma.user.findMany({ where: userWhere, select: userSelect, orderBy: { ratings: { _count: "desc" } }, take: 12 }),
-      prisma.user.findMany({ where: userWhere, select: userSelect, orderBy: { createdAt: "desc" }, take: 12 }),
-    ]);
-    const seen = new Set<string>();
-    for (const u of [...topRaters, ...newest]) {
-      if (!seen.has(u.id)) { seen.add(u.id); users.push(u); }
-    }
-  } catch {
-    fetchError = true;
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -281,41 +262,18 @@ export default async function CommunityPage() {
         </div>
       </div>
 
-      {/* Members */}
+      {/* Discover other cinephiles — replaces the old "top raters +
+         newest" mix with a two-tab taste-aware picker. Signed-in
+         users land on Taste Twins (match-% ranked); everyone gets
+         Search. */}
       <div>
-        <h2 className="text-lg font-semibold text-white mb-4">Members</h2>
-        {fetchError ? (
-          <div className="text-center py-20 text-red-400">
-            <p>Something went wrong loading members. Please try again later.</p>
-          </div>
-        ) : users.length === 0 ? (
-          <div className="text-center py-20 text-[var(--foreground-muted)]">
-            <p>No community members yet. Be the first to sign up!</p>
-            <SignInLink className="mt-4 inline-block text-[var(--ratist-red)] hover:underline">Join now →</SignInLink>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {users.map((user) => (
-              <Link
-                key={user.id}
-                href={`/profile/${user.firebaseUid}`}
-                className="flex flex-col items-center gap-2 p-4 bg-[var(--surface)] border border-[var(--border)] rounded-xl hover:border-[var(--ratist-red)] transition-colors text-center group"
-              >
-                <div className="relative w-16 h-16 rounded-full overflow-hidden bg-[var(--surface-2)] border border-[var(--border)]">
-                  {user.avatarUrl ? (
-                    <Image src={user.avatarUrl} alt={user.name} fill sizes="64px" className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xl font-bold text-white bg-[var(--ratist-red)]">
-                      {(user.name || "?")[0].toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm font-medium text-white group-hover:text-[var(--ratist-red)] transition-colors line-clamp-1">{user.name}</p>
-                <p className="text-xs text-[var(--foreground-muted)]">{user._count.ratings} rated</p>
-              </Link>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-3 mb-4">
+          <Users className="w-5 h-5 text-[var(--ratist-red)]" />
+          <h2 className="text-lg font-semibold text-white">Find other cinephiles</h2>
+        </div>
+        <Suspense fallback={<p className="text-sm text-[var(--foreground-muted)] text-center py-8">Loading…</p>}>
+          <UserDiscoveryList />
+        </Suspense>
       </div>
     </div>
   );

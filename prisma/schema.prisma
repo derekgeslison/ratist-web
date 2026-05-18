@@ -20,6 +20,13 @@ model User {
   avatarUrl                        String?   @map("avatar_url")
   bio                              String?
   isPrivate                        Boolean   @default(false) @map("is_private")
+  // Opt-out for the /community user discovery surfaces (Taste Twins
+  // tab + free-text search). Defaults to discoverable so existing
+  // public users keep their visibility; lets privacy-conscious users
+  // disappear from the picker without having to flip their whole
+  // profile to private. isPrivate=true already excludes from discovery
+  // regardless of this flag.
+  discoverable                     Boolean   @default(true) @map("discoverable")
   publicTabs                       Json      @default("{\"overview\":true,\"ratings\":true,\"diary\":true,\"watchlist\":true,\"stats\":true,\"rankings\":true}") @map("public_tabs")
   inviteCode                       String    @unique @map("invite_code")
   isAdmin                          Boolean   @default(false) @map("is_admin")

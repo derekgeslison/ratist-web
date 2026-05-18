@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const decoded = await adminAuth.verifyIdToken(authorization.slice(7));
     const user = await prisma.user.findUnique({
       where: { firebaseUid: decoded.uid },
-      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true, autoDateOnSeen: true, autoSeenOnWatchlistCheck: true, publicTabs: true, notificationPrefs: true, pushPrefs: true, profileTheme: true, emailOptOut: true, emailPrefs: true },
+      select: { id: true, name: true, email: true, avatarUrl: true, bio: true, isPrivate: true, discoverable: true, autoDateOnSeen: true, autoSeenOnWatchlistCheck: true, publicTabs: true, notificationPrefs: true, pushPrefs: true, profileTheme: true, emailOptOut: true, emailPrefs: true },
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
     return NextResponse.json({ user });
@@ -31,12 +31,13 @@ export async function PATCH(req: NextRequest) {
     const dbUser = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
     if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    const { name, avatarUrl, bio, isPrivate, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs, notificationPrefs, pushPrefs, profileTheme, emailOptOut, emailPrefs, watchlistStreamingNotifs } = await req.json();
+    const { name, avatarUrl, bio, isPrivate, discoverable, autoDateOnSeen, autoSeenOnWatchlistCheck, publicTabs, notificationPrefs, pushPrefs, profileTheme, emailOptOut, emailPrefs, watchlistStreamingNotifs } = await req.json();
     const update: Record<string, unknown> = {};
     if (typeof name === "string" && name.trim()) update.name = name.trim();
     if (typeof avatarUrl === "string") update.avatarUrl = avatarUrl.trim() || null;
     if (typeof bio === "string") update.bio = bio.trim() || null;
     if (typeof isPrivate === "boolean") update.isPrivate = isPrivate;
+    if (typeof discoverable === "boolean") update.discoverable = discoverable;
     if (typeof autoDateOnSeen === "boolean") update.autoDateOnSeen = autoDateOnSeen;
     if (typeof autoSeenOnWatchlistCheck === "boolean") update.autoSeenOnWatchlistCheck = autoSeenOnWatchlistCheck;
     if (publicTabs && typeof publicTabs === "object") update.publicTabs = publicTabs;
