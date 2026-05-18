@@ -123,7 +123,9 @@ export default function ProfileDiaryTab({
         </div>
       ) : entries.length === 0 ? (
         <p className="text-center text-sm text-[var(--foreground-muted)] py-8">
-          No dated diary entries yet. Mark something seen with a date to populate this list.
+          {isOwnProfile
+            ? "No dated diary entries yet. Mark something seen with a date to populate this list."
+            : "No dated diary entries yet."}
         </p>
       ) : (
         <>

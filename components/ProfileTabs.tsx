@@ -957,7 +957,9 @@ export default function ProfileTabs({
                         <line x1="12" y1="8" x2="12.01" y2="8" />
                       </svg>
                       <div className="absolute bottom-full right-0 mb-2 w-52 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-2.5 text-xs text-[var(--foreground-muted)] shadow-xl opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-10">
-                        Complete the full Ratist review to improve your taste profile accuracy.
+                        {isOwnProfile
+                          ? "Complete the full Ratist review to improve your taste profile accuracy."
+                          : "A quick rating — no full Ratist breakdown filled in."}
                       </div>
                     </div>
                   ) : r.ratistRating !== null ? (
