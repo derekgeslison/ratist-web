@@ -1782,7 +1782,7 @@ export default function ScreeningSessionPage() {
 
           {/* Watch Companion view */}
           {activeRoomView === "companion" && session.mediaType === "movie" && session.tmdbId && (
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ minHeight: "630px" }}>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ minHeight: "567px" }}>
               {companionStatus === "loading" && (
                 <div className="flex items-center justify-center py-24 text-sm text-[var(--foreground-muted)]">Loading companion…</div>
               )}
@@ -1814,7 +1814,7 @@ export default function ScreeningSessionPage() {
           )}
 
           {/* Chat */}
-          <div className={`bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col ${activeRoomView === "chat" ? "" : "hidden"}`} style={{ height: "630px" }}>
+          <div className={`bg-[var(--surface)] border border-[var(--border)] rounded-xl flex flex-col ${activeRoomView === "chat" ? "" : "hidden"}`} style={{ height: "567px" }}>
             {/* Chat header with pause + create poll */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
