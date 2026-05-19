@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Music, ExternalLink, ChevronDown, ChevronUp, Disc3 } from "lucide-react";
-import { getSpotifyTrackUrl } from "@/lib/affiliates";
+import { ExternalLink, ChevronDown, ChevronUp, Disc3 } from "lucide-react";
+import { getAmazonSoundtrackUrl } from "@/lib/affiliates";
 import AffiliateLink from "./AffiliateLink";
 
 interface Track {
@@ -65,9 +65,11 @@ export default function Soundtrack({ tmdbId, title, mediaType = "movie", release
   const displayTracks = expanded ? tracks : tracks.slice(0, 10);
   const hasMore = tracks.length > 10;
 
-  // Build Spotify search URL for a track (centralized in affiliates.ts)
-  function spotifySearchUrl(track: Track) {
-    return getSpotifyTrackUrl(track.title, track.artist);
+  // Build an Amazon Music affiliate search URL for a track (centralized
+  // in affiliates.ts). We have a real Amazon Associates account so this
+  // path actually earns commission — Spotify did not.
+  function trackSearchUrl(track: Track) {
+    return getAmazonSoundtrackUrl(track.title, track.artist);
   }
 
   return (
@@ -105,12 +107,12 @@ export default function Soundtrack({ tmdbId, title, mediaType = "movie", release
                   <span className="text-xs text-[var(--foreground-muted)] shrink-0">{track.duration}</span>
                 )}
                 <AffiliateLink
-                  href={spotifySearchUrl(track)}
-                  provider="spotify"
+                  href={trackSearchUrl(track)}
+                  provider="amazon"
                   mediaType={mediaType}
                   tmdbId={tmdbId}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-green-500 hover:text-green-400 shrink-0"
-                  title="Search on Spotify"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--foreground-muted)] hover:text-white shrink-0"
+                  title="Search on Amazon Music"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                 </AffiliateLink>

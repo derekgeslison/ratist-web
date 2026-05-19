@@ -194,7 +194,7 @@ function buildShowFacts(raw: Record<string, unknown>): string[] {
   if (runtime && runtime > 0) facts.push(`Typical episodes run ${runtime} minutes.`);
 
   const network = s.networks?.[0]?.name;
-  if (network) facts.push(`Originally airs on ${network}.`);
+  if (network) facts.push(`Originally aired on ${network}.`);
 
   const creators = (s.created_by ?? []).map((c) => c?.name).filter(Boolean) as string[];
   if (creators.length > 0) facts.push(`Created by ${commaList(creators.slice(0, 3))}.`);

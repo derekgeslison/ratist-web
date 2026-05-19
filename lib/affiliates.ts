@@ -255,12 +255,19 @@ export function getFandangoUrl(movieTitle: string): string {
   return `https://www.fandango.com/search?q=${encoded}`;
 }
 
-// ─── Spotify ────────────────────────────────────────────────────────────────
+// ─── Amazon soundtrack ──────────────────────────────────────────────────────
 
-/** Build a Spotify search link for a soundtrack track. */
-export function getSpotifyTrackUrl(trackTitle: string, artist: string): string {
-  const q = `${trackTitle} ${artist}`;
-  return `https://open.spotify.com/search/${encodeURIComponent(q)}`;
+/** Build an Amazon Music search link for a soundtrack track. Falls
+ *  back to a plain search URL when the affiliate tag env var isn't
+ *  set, matching the pattern used by the streaming-provider helpers
+ *  above. Searches the `digital-music` index so results bias toward
+ *  Amazon Music titles instead of physical media. */
+export function getAmazonSoundtrackUrl(trackTitle: string, artist: string): string {
+  const q = encodeURIComponent(`${trackTitle} ${artist}`);
+  const tag = process.env.NEXT_PUBLIC_AMAZON_AFFILIATE_ID ?? "";
+  return tag
+    ? `https://www.amazon.com/s?k=${q}&i=digital-music&tag=${tag}`
+    : `https://www.amazon.com/s?k=${q}&i=digital-music`;
 }
 
 // ─── Affiliate click tracker keys ───────────────────────────────────────────

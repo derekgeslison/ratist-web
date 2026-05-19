@@ -36,48 +36,12 @@ export async function POST(req: NextRequest) {
   });
   if (!userRecord) return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
 
-  // Atomic check + log at start of route. Logging up-front means a
-  // user who tab-closes mid-Sonnet-4.6-stream still has the gen count
-  // against their weekly cap — otherwise repeated cancel-and-retry
-  // would burn $0.50-1.00 in Anthropic spend per attempt without
-  // ever ticking the counter. Cost-amplification mitigation.
-  try {
-    await checkAndLogWatchCompanionRateLimit(userRecord);
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return new Response(JSON.stringify({ error: err.userMessage, rateLimited: true }), { status: 429 });
-    }
-    throw err;
-  }
-
-  // Per-user concurrency lock — at most one in-flight Watch Companion
-  // generation per user. Conditional updateMany is atomic at the row
-  // level, so two parallel requests racing for the lock can't both win.
-  // Stale locks older than 10 min are eligible for re-acquisition
-  // (covers crashed gens, browser-closed mid-stream — gens have a
-  // 5-min Vercel ceiling, so 10 min is a safe TTL).
-  const LOCK_TTL_MS = 10 * 60 * 1000;
-  const lockCutoff = new Date(Date.now() - LOCK_TTL_MS);
-  const acquired = await prisma.user.updateMany({
-    where: {
-      id: userRecord.id,
-      OR: [
-        { companionGenStartedAt: null },
-        { companionGenStartedAt: { lt: lockCutoff } },
-      ],
-    },
-    data: { companionGenStartedAt: new Date() },
-  });
-  if (acquired.count === 0) {
-    return new Response(
-      JSON.stringify({
-        error: "You already have a Watch Companion generation in progress. Wait for it to finish before starting another.",
-        inFlight: true,
-      }),
-      { status: 429 },
-    );
-  }
-
+  // Parse + validate body FIRST so cheap validation failures don't
+  // leave anything to clean up. Order matters: the per-user concurrency
+  // lock and the rate-limit log both have to come AFTER every "fail
+  // fast" branch below, otherwise an unreleased lock pins the user out
+  // for the 10-min TTL on a request that never actually generated
+  // anything (e.g. requesting an unaired TV season).
   const body = await req.json().catch(() => null) as { tmdbId?: unknown; mediaType?: unknown; season?: unknown } | null;
   const tmdbId = typeof body?.tmdbId === "number" && body.tmdbId > 0 ? body.tmdbId : null;
   const mediaType = body?.mediaType === "movie" || body?.mediaType === "tv" ? body.mediaType : null;
@@ -112,6 +76,52 @@ export async function POST(req: NextRequest) {
     if (decision.kind === "airing_with_eligible") {
       airingMode = { eligibleEpisodes: decision.status.eligibleEpisodes };
     }
+  }
+
+  // Atomic check + log AFTER validation. Logging up-front means a
+  // user who tab-closes mid-Sonnet-4.6-stream still has the gen count
+  // against their weekly cap — otherwise repeated cancel-and-retry
+  // would burn $0.50-1.00 in Anthropic spend per attempt without
+  // ever ticking the counter. Cost-amplification mitigation.
+  try {
+    await checkAndLogWatchCompanionRateLimit(userRecord);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return new Response(JSON.stringify({ error: err.userMessage, rateLimited: true }), { status: 429 });
+    }
+    throw err;
+  }
+
+  // Per-user concurrency lock — at most one in-flight Watch Companion
+  // generation per user. Conditional updateMany is atomic at the row
+  // level, so two parallel requests racing for the lock can't both win.
+  // Stale locks older than 10 min are eligible for re-acquisition
+  // (covers crashed gens, browser-closed mid-stream — gens have a
+  // 5-min Vercel ceiling, so 10 min is a safe TTL).
+  //
+  // Held only across the actual streaming work below. Every cheap
+  // validation that could refuse the request lives above this point —
+  // an early return there leaves nothing to release.
+  const LOCK_TTL_MS = 10 * 60 * 1000;
+  const lockCutoff = new Date(Date.now() - LOCK_TTL_MS);
+  const acquired = await prisma.user.updateMany({
+    where: {
+      id: userRecord.id,
+      OR: [
+        { companionGenStartedAt: null },
+        { companionGenStartedAt: { lt: lockCutoff } },
+      ],
+    },
+    data: { companionGenStartedAt: new Date() },
+  });
+  if (acquired.count === 0) {
+    return new Response(
+      JSON.stringify({
+        error: "You already have a Watch Companion generation in progress. Wait for it to finish before starting another.",
+        inFlight: true,
+      }),
+      { status: 429 },
+    );
   }
 
   const userId = userRecord.id;

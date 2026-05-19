@@ -297,10 +297,10 @@ export default function TermsOfServicePage() {
           <h2 className="text-lg font-semibold text-white mb-2">12. Affiliate Links and Disclosures</h2>
           <p>
             The Service contains affiliate links to third-party services including streaming providers (e.g.,
-            Netflix, Amazon Prime Video, Apple TV+), online retailers (e.g., Amazon Associates), ticketing
-            providers (e.g., Fandango), and music services (e.g., Spotify). When you click an affiliate link
-            and complete a qualifying action (such as signing up or making a purchase) on the third-party site,
-            The Ratist may earn a commission at no additional cost to you.
+            Netflix, Amazon Prime Video, Apple TV+), online retailers (e.g., Amazon Associates), and ticketing
+            providers (e.g., Fandango). When you click an affiliate link and complete a qualifying action
+            (such as signing up or making a purchase) on the third-party site, The Ratist may earn a
+            commission at no additional cost to you.
           </p>
           <p className="mt-2">
             Affiliate links do not influence our editorial content, ratings, recommendations, or the operation
