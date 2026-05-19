@@ -161,12 +161,14 @@ export default function OnboardingPage() {
   const { user, loading: authLoading, needsOnboarding, completeOnboarding } = useAuth();
   const router = useRouter();
 
-  // Read step from URL hash on mount
-  const [step, setStepState] = useState(() => {
-    if (typeof window === "undefined") return 1;
-    const hash = parseInt(window.location.hash.replace("#step-", ""), 10);
-    return hash >= 1 && hash <= TOTAL_STEPS ? hash : 1;
-  });
+  // Always START at step 1 — the URL hash is only honored for already-
+  // onboarded users (handled by the effect below). A previous user-
+  // visible bug let a stale `#step-N` hash from a prior session land a
+  // fresh signup on step N, skipping the ToS + display-name gate.
+  // completeOnboarding() fires at the end of step 1's Continue click,
+  // so any user who legitimately needs to revisit a later step is by
+  // definition `!needsOnboarding` and can restore from hash safely.
+  const [step, setStepState] = useState(1);
 
   // Sync step to URL hash
   function setStep(n: number) {
@@ -174,24 +176,41 @@ export default function OnboardingPage() {
     window.history.replaceState(null, "", `#step-${n}`);
   }
 
-  // If user already completed onboarding (came back via browser back), skip to step 2.
+  // Authoritative step gate, runs once auth state resolves.
   //
-  // Guard on AuthContext loading so this DOESN'T fire during the initial
+  // Guard on `authLoading` so this DOESN'T fire during the initial
   // AuthProvider mount, where `needsOnboarding` defaults to false before
   // `syncUser` has had a chance to set the authoritative value from the
   // server. A previous user-visible bug: tapping the Privacy / ToS link
   // (plain <a href>) caused a hard nav. AuthProvider re-mounted with the
   // false default. If the user tapped browser-back before syncUser
   // finished, /onboarding re-mounted, the effect fired with the stale
-  // false default, and step jumped to 2 even though the user hadn't
+  // false default, and step jumped past 1 even though the user hadn't
   // actually clicked Continue. Waiting for `authLoading` to clear closes
   // the race — by then needsOnboarding reflects the real server state.
   useEffect(() => {
     if (authLoading) return;
-    if (!needsOnboarding && step === 1) {
-      setStep(2);
+    if (needsOnboarding) {
+      // Hard floor at step 1 until ToS + display name are captured. Any
+      // path that bumped step past 1 (stale hash, programmatic setStep
+      // bug, manual URL manipulation) gets snapped back. This is the
+      // failsafe that prevents users from progressing past ToS without
+      // accepting it.
+      if (step !== 1) setStep(1);
+      return;
     }
-  }, [authLoading, needsOnboarding]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Already onboarded — restore from URL hash if present (legitimate
+    // browser-back navigation), otherwise jump past the ToS prompt to
+    // step 2 so they're not asked to accept again.
+    if (step === 1) {
+      let restored = 2;
+      if (typeof window !== "undefined") {
+        const hash = parseInt(window.location.hash.replace("#step-", ""), 10);
+        if (hash >= 2 && hash <= TOTAL_STEPS) restored = hash;
+      }
+      setStep(restored);
+    }
+  }, [authLoading, needsOnboarding, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   const [componentScores, setComponentScores] = useState<Record<string, number>>(

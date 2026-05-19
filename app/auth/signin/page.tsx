@@ -86,8 +86,12 @@ function SignInForm() {
         await signUpWithEmail(email, password, name, captchaToken);
         router.push("/auth/verify-email");
       } else {
-        await signInWithEmail(email, password);
-        router.push(redirectTo ?? "/");
+        // signInWithEmail now awaits the DB sync inline and returns
+        // needsOnboarding, so we can route fresh accounts straight to
+        // /onboarding instead of flashing the home page first and then
+        // having OnboardingGuard redirect.
+        const { needsOnboarding } = await signInWithEmail(email, password);
+        router.push(needsOnboarding ? "/onboarding" : (redirectTo ?? "/"));
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Authentication failed";

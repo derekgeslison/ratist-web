@@ -72,7 +72,7 @@ interface AuthContextValue {
   subscription: SubscriptionState;
   signInWithGoogle: () => Promise<{ isNewUser: boolean }>;
   signInWithApple: () => Promise<{ isNewUser: boolean }>;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<{ needsOnboarding: boolean }>;
   signUpWithEmail: (email: string, password: string, name: string, captchaToken: string | null) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -329,7 +329,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signInWithEmail(email: string, password: string) {
+  async function signInWithEmail(email: string, password: string): Promise<{ needsOnboarding: boolean }> {
     const cred = await signInWithEmailAndPassword(auth, email, password);
     if (!cred.user.emailVerified) {
       // Send another verification email in case they need it
@@ -337,6 +337,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await firebaseSignOut(auth);
       throw new Error("EMAIL_NOT_VERIFIED");
     }
+    // Run the sync inline so the caller can route directly to /onboarding
+    // for fresh accounts. Without this, the signin handler navigates to
+    // "/" before AuthContext's onAuthStateChanged → syncUser round-trip
+    // resolves needsOnboarding — producing a visible flash of the home
+    // page followed by an OnboardingGuard redirect. onAuthStateChanged
+    // still fires after this and calls syncUser again; the second call
+    // is an idempotent state update.
+    const token = await cred.user.getIdToken();
+    let needsOnboarding = false;
+    try {
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: cred.user.displayName ?? "User",
+          email: cred.user.email,
+          avatarUrl: cred.user.photoURL,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        needsOnboarding = data.needsOnboarding === true;
+        // Prime context state so OnboardingGuard / Navbar don't need to
+        // wait for the redundant onAuthStateChanged sync to finish.
+        setNeedsOnboarding(needsOnboarding);
+        if (data.user) {
+          setDbUser({
+            name: data.user.name ?? "User",
+            avatarUrl: data.user.avatarUrl ?? null,
+          });
+        }
+      }
+    } catch {
+      // Sync failure shouldn't block sign-in — the background
+      // onAuthStateChanged path will retry. Caller defaults to "/" which
+      // OnboardingGuard will then correct once the retry completes.
+    }
+    return { needsOnboarding };
   }
 
   async function signUpWithEmail(email: string, password: string, name: string, captchaToken: string | null) {
