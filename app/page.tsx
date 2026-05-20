@@ -18,7 +18,25 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows, englishFirst } from "@/lib/tmdb";
+import { getPopularMovies, getTopRatedMovies, getNowPlayingMovies, getUpcomingMovies, getPopularShows, getTrendingMovies, getTrendingShows, englishFirst, type TMDBPageResult, type TMDBMovie, type TMDBShow } from "@/lib/tmdb";
+
+// Resilience layer for the parallel data fetch below. The home page
+// pulls from 11+ external/DB sources in parallel; without per-fetch
+// fallbacks, ONE TMDB timeout or DB hiccup rejects the entire
+// Promise.all and the whole page hits the error boundary. That
+// manifested as a "Something went wrong" screen on ~25% of cold app
+// launches (WebView's fresh network stack is more likely to time out
+// than a foregrounded mobile browser). Per-fetch fallbacks let a
+// degraded section render empty while everything else still works.
+function emptyTmdbPage<T>(): TMDBPageResult<T> {
+  return { results: [], page: 1, total_pages: 0, total_results: 0 };
+}
+async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
+  try { return await p; } catch (err) {
+    console.error("[home] fetch failed, falling back:", err);
+    return fallback;
+  }
+}
 import { safeguardTMDBMovies, safeguardTMDBShows } from "@/lib/safe-content";
 import { prisma } from "@/lib/prisma";
 import HeroBanner from "@/components/HeroBanner";
@@ -40,14 +58,14 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [popular, topRated, nowPlaying, upcoming, popularShows, trendingMovies, trendingShows, spotlights, recentNews, editorialPosts, recentForumThreads] = await Promise.all([
-    getPopularMovies(),
-    getTopRatedMovies(Math.floor(Math.random() * 10) + 1),
-    getNowPlayingMovies(),
-    getUpcomingMovies(),
-    getPopularShows(),
-    getTrendingMovies("week"),
-    getTrendingShows("week"),
-    prisma.siteSpotlight.findMany({
+    safe(getPopularMovies(), emptyTmdbPage<TMDBMovie>()),
+    safe(getTopRatedMovies(Math.floor(Math.random() * 10) + 1), emptyTmdbPage<TMDBMovie>()),
+    safe(getNowPlayingMovies(), emptyTmdbPage<TMDBMovie>()),
+    safe(getUpcomingMovies(), emptyTmdbPage<TMDBMovie>()),
+    safe(getPopularShows(), emptyTmdbPage<TMDBShow>()),
+    safe(getTrendingMovies("week"), emptyTmdbPage<TMDBMovie>()),
+    safe(getTrendingShows("week"), emptyTmdbPage<TMDBShow>()),
+    safe(prisma.siteSpotlight.findMany({
       where: {
         isActive: true,
         type: { not: "announcement" },
@@ -56,7 +74,7 @@ export default async function HomePage() {
         AND: [{ OR: [{ endDate: null }, { endDate: { gte: new Date() } }] }],
       },
       orderBy: { sortOrder: "asc" },
-    }),
+    }), []),
     (async () => {
       const newsSelect = {
         id: true, type: true, title: true, slug: true,
@@ -82,7 +100,7 @@ export default async function HomePage() {
       if (!latestArticle || recent.some((r) => r.id === latestArticle.id)) return recent;
       // Otherwise swap it in for the last item
       return [...recent.slice(0, 5), latestArticle];
-    })(),
+    })().catch((err) => { console.error("[home] news fetch failed:", err); return []; }),
     (async () => {
       // Editorial post selection: latest 6 across all three types,
       // BUT guaranteed to include at least one of each type when one
@@ -174,11 +192,11 @@ export default async function HomePage() {
         likeCount: likeMap[p.id] ?? 0,
         commentCount: commentMap[p.id] ?? 0,
       }));
-    })(),
+    })().catch((err) => { console.error("[home] editorial posts fetch failed:", err); return []; }),
     // Pull a wider candidate pool than the final cap so the explicit-
     // content filter and follower-weighted ranking have room to work.
     // Pinned threads always come back, then we score the rest.
-    prisma.forumThread.findMany({
+    safe(prisma.forumThread.findMany({
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       take: 30,
       select: {
@@ -187,7 +205,7 @@ export default async function HomePage() {
         author: { select: { name: true, _count: { select: { followers: true } } } },
         _count: { select: { posts: true } },
       },
-    }),
+    }), []),
   ]);
 
   // Filter NC-17 movies + mask admin-blocked posters across every
@@ -196,6 +214,12 @@ export default async function HomePage() {
   // the parallel fetch so the rest of the page consumes the cleaned
   // lists by mutating .results in place — every downstream consumer
   // already reads `.results` off these objects.
+  // Safeguard pass. Wrapped per-call so a single failure (e.g. the
+  // adult-keyword check hits a DB blip) leaves the unsafeguarded rail
+  // visible rather than 500-ing the whole page. Safety fallback IS
+  // the empty list, not the raw input — better to render nothing than
+  // to ship a rail that bypassed NC-17 filtering when the filter
+  // itself failed.
   const [
     safePopular, safeTopRated, safeNowPlaying, safeUpcoming, safeTrendingMovies,
     safePopularShows, safeTrendingShows,
@@ -205,13 +229,13 @@ export default async function HomePage() {
     // caught before they hit the home page. The keyword fetch is cached
     // per Movie row, so this only adds latency on first encounter of
     // a previously-uncached title.
-    safeguardTMDBMovies(popular.results, { filterNC17: true, stripBlockedPosters: true, adultKeywordCheck: true }),
-    safeguardTMDBMovies(topRated.results, { filterNC17: true, stripBlockedPosters: true }),
-    safeguardTMDBMovies(nowPlaying.results, { filterNC17: true, stripBlockedPosters: true }),
-    safeguardTMDBMovies(upcoming.results, { filterNC17: true, stripBlockedPosters: true }),
-    safeguardTMDBMovies(trendingMovies.results, { filterNC17: true, stripBlockedPosters: true, adultKeywordCheck: true }),
-    safeguardTMDBShows(popularShows.results, { stripBlockedPosters: true }),
-    safeguardTMDBShows(trendingShows.results, { stripBlockedPosters: true }),
+    safe(safeguardTMDBMovies(popular.results, { filterNC17: true, stripBlockedPosters: true, adultKeywordCheck: true }), [] as TMDBMovie[]),
+    safe(safeguardTMDBMovies(topRated.results, { filterNC17: true, stripBlockedPosters: true }), [] as TMDBMovie[]),
+    safe(safeguardTMDBMovies(nowPlaying.results, { filterNC17: true, stripBlockedPosters: true }), [] as TMDBMovie[]),
+    safe(safeguardTMDBMovies(upcoming.results, { filterNC17: true, stripBlockedPosters: true }), [] as TMDBMovie[]),
+    safe(safeguardTMDBMovies(trendingMovies.results, { filterNC17: true, stripBlockedPosters: true, adultKeywordCheck: true }), [] as TMDBMovie[]),
+    safe(safeguardTMDBShows(popularShows.results, { stripBlockedPosters: true }), [] as TMDBShow[]),
+    safe(safeguardTMDBShows(trendingShows.results, { stripBlockedPosters: true }), [] as TMDBShow[]),
   ]);
   // English-first reorder for the popularity-leaning rails. TMDB's
   // /movie/popular and /tv/popular surface a lot of regional hits
