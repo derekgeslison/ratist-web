@@ -2275,6 +2275,22 @@ model ReviewDigest {
   @@map("review_digests")
 }
 
+// Cached Marquee brief — admin daily briefing. The full brief payload
+// (segments + base64 audio + aggregated data) is stored as JSON so a
+// repeat visit within the cache window doesn't burn another $0.07 in
+// Claude + OpenAI calls. Singleton-ish: we always read/write id="latest";
+// callers can force a fresh generation via a flag that bypasses the cache.
+//
+// Schema kept loose (Json payload) because the segment shape is allowed
+// to evolve without a migration each time we add a section.
+model MarqueeBriefCache {
+  id          String   @id // always "latest"
+  payload     Json     // { segments, data, generatedAt }
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  @@map("marquee_brief_cache")
+}
+
 // Tracks AI feature usage for rate limiting. Paid (Backstage Pass) and admin
 // users bypass rate limits — this table is only consulted for free users.
 model AiUsageLog {

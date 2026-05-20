@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, ScrollText,
   Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb, Cpu,
-  ExternalLink, Mail, Sparkles, BookOpen, Target,
+  ExternalLink, Mail, Sparkles, BookOpen, Target, Radio,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -41,6 +41,7 @@ interface StatsQueues {
 
 const TOP_TABS: TopTab[] = [
   { group: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
+  { group: "marquee", label: "Marquee", icon: Radio, href: "/admin/marquee" },
   { group: "posts", label: "Posts", icon: FileText, href: "/admin/posts?type=BLOG" },
   { group: "spotlights", label: "Spotlights", icon: Megaphone, href: "/admin/spotlights" },
   { group: "community", label: "Community", icon: Flag, href: "/admin/moderation" },
@@ -82,6 +83,7 @@ const SUB_TABS: Record<string, SubTab[]> = {
 
 function activeGroup(pathname: string): string {
   if (pathname === "/admin") return "dashboard";
+  if (pathname.startsWith("/admin/marquee")) return "marquee";
   if (pathname.startsWith("/admin/posts") || pathname.startsWith("/admin/news") || pathname.startsWith("/admin/ideas")) return "posts";
   if (pathname.startsWith("/admin/spotlights")) return "spotlights";
   if (pathname.startsWith("/admin/moderation") || pathname.startsWith("/admin/feedback") || pathname.startsWith("/admin/contact") || pathname.startsWith("/admin/fraud") || pathname.startsWith("/admin/invite-code-requests")) return "community";
