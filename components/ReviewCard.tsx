@@ -130,7 +130,11 @@ export default function ReviewCard({ review, movieTmdbId, showTmdbId, compact = 
       {!compact && hasBreakdown && (
         <div className="px-4 pb-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 border-t border-[var(--border)]/30">
+            {/* Overall is leading because it carries 50% of the composite
+                ratistRating — readers should see the standalone gut score
+                alongside the five category sub-scores. */}
             {[
+              { label: "Overall", score: review.overallRating },
               { label: "Story", score: review.storyScore },
               { label: "Style", score: review.styleScore },
               { label: "Emotion", score: review.emotiveScore },

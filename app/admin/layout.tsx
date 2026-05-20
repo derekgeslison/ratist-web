@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   FileText, Map, LayoutDashboard, Users, Trophy, Flag, Megaphone, ScrollText,
   Clapperboard, Ticket, MessageCircle, Newspaper, ShieldAlert, Lightbulb, Cpu,
-  ExternalLink, Mail, Sparkles, BookOpen,
+  ExternalLink, Mail, Sparkles, BookOpen, Target,
 } from "lucide-react";
 import TwoThumbsIcon from "@/components/TwoThumbsIcon";
 
@@ -76,6 +76,7 @@ const SUB_TABS: Record<string, SubTab[]> = {
     { label: "Activity Log", icon: ScrollText, href: "/admin/logs", pathPrefix: "/admin/logs" },
     { label: "AI Usage", icon: Cpu, href: "/admin/ai-usage", pathPrefix: "/admin/ai-usage", countKey: "aiFlagged" },
     { label: "Affiliate Clicks", icon: ExternalLink, href: "/admin/affiliate-clicks", pathPrefix: "/admin/affiliate-clicks" },
+    { label: "Prediction Accuracy", icon: Target, href: "/admin/prediction-accuracy", pathPrefix: "/admin/prediction-accuracy" },
   ],
 };
 
@@ -87,7 +88,7 @@ function activeGroup(pathname: string): string {
   if (pathname.startsWith("/admin/users")) return "users";
   if (pathname.startsWith("/admin/subscriptions")) return "subscriptions";
   if (pathname.startsWith("/admin/oscar-picks") || pathname.startsWith("/admin/movie-club") || pathname.startsWith("/admin/watch-companions") || pathname.startsWith("/admin/collection-prompts") || pathname.startsWith("/admin/collections")) return "programs";
-  if (pathname.startsWith("/admin/logs") || pathname.startsWith("/admin/ai-usage") || pathname.startsWith("/admin/affiliate-clicks")) return "insights";
+  if (pathname.startsWith("/admin/logs") || pathname.startsWith("/admin/ai-usage") || pathname.startsWith("/admin/affiliate-clicks") || pathname.startsWith("/admin/prediction-accuracy")) return "insights";
   return "dashboard";
 }
 
