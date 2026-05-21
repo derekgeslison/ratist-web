@@ -71,6 +71,19 @@ const nextConfig: NextConfig = {
     // making the subdomain show the home page instead of the
     // backstage-pass content. beforeFiles takes priority over the
     // page route at /.
+
+    // Ezoic-managed ads.txt — when Ezoic is enabled, we serve their
+    // hosted ads.txt at our domain via a rewrite. Their file already
+    // includes AdSense entries (and every other authorized seller
+    // they mediate), so it replaces our static public/ads.txt
+    // completely. The 19390 path segment is Ezoic's company-wide
+    // AdsTxtManager account; the domain segment routes the request
+    // to your site's specific entries. Verify the URL in your Ezoic
+    // dashboard once approved — confirm it still matches this format.
+    // beforeFiles is required here so the rewrite wins against the
+    // static public/ads.txt file on disk.
+    const ezoicEnabled = process.env.NEXT_PUBLIC_EZOIC_ENABLED === "1";
+
     return {
       beforeFiles: [
         // Root of the subscribe subdomain → /backstage-pass with the
@@ -83,6 +96,10 @@ const nextConfig: NextConfig = {
           has: [{ type: "host", value: "subscribe.theratist.com" }],
           destination: "/backstage-pass?from=app",
         },
+        ...(ezoicEnabled ? [{
+          source: "/ads.txt",
+          destination: "https://srv.adstxtmanager.com/19390/theratist.com",
+        }] : []),
       ],
     };
   },

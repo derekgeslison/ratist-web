@@ -21,6 +21,8 @@ import NotificationDeepLink from "@/components/NotificationDeepLink";
 import NativeAuthTokenSync from "@/components/NativeAuthTokenSync";
 import PullToRefreshGuard from "@/components/PullToRefreshGuard";
 import KeyboardFocusScroller from "@/components/KeyboardFocusScroller";
+import EzoicScripts from "@/components/ads/EzoicScripts";
+import EzoicRouteHandler from "@/components/ads/EzoicRouteHandler";
 
 const ADSENSE_ID = process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID;
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
@@ -149,6 +151,10 @@ try {
             strategy="afterInteractive"
           />
         )}
+        {/* Ezoic display-ads stack — gated by NEXT_PUBLIC_EZOIC_ENABLED.
+            Coexists with AdSense; Ezoic mediates AdSense alongside other
+            DSPs once you connect the AdSense account in their dashboard. */}
+        <EzoicScripts />
         {GA_ID && allowAnalyticsScripts && (
           <>
             <Script
@@ -185,6 +191,9 @@ window.gtag('config', '${GA_ID}');`}
           <NativeAuthTokenSync />
           <PullToRefreshGuard />
           <KeyboardFocusScroller />
+          {/* Forces Ezoic to destroy + rescan placeholders on every App
+              Router navigation. No-op when EzoicScripts didn't load. */}
+          <EzoicRouteHandler />
           <footer className="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--foreground-muted)]">
             <p>© {new Date().getFullYear()} The Ratist. All rights reserved.</p>
             {/* FTC Endorsement Guides (16 CFR Part 255) require "clear and
